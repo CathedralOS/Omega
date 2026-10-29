@@ -1741,10 +1741,17 @@ impl<'program> StructuralJudge<'program> {
                     }
                     if (!self.require_closed_computation || subject.is_closed_value())
                         && let Some(value) = path.split('.').try_fold(subject, |value, field| {
+                            let subject = value.clone();
                             super::observed_projections::project_declared_field(
                                 self.program,
                                 value,
                                 field,
+                                |data, case| {
+                                    matches!(
+                                        self.judge_case(subject.clone(), data, case),
+                                        StructuralJudgment::Proven
+                                    )
+                                },
                             )
                         })
                         && value != resolved
@@ -2378,8 +2385,14 @@ impl<'program> StructuralJudge<'program> {
             // not a later unchecked read of its referent.
             return super::observed_projections::project_declared_field(
                 self.program,
-                value,
+                value.clone(),
                 field_name,
+                |data, case| {
+                    matches!(
+                        self.judge_case(value.clone(), data, case),
+                        StructuralJudgment::Proven
+                    )
+                },
             );
         }
         let projected = super::observed_projections::project_field(value, field_name)?;

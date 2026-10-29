@@ -306,10 +306,17 @@ impl<'program> StructuralJudge<'program> {
                 let subject = self.completed_value_identity_at(*subject, depth + 1);
                 path.split('.')
                     .try_fold(subject.clone(), |value, field| {
+                        let subject = value.clone();
                         super::super::observed_projections::project_declared_field(
                             self.program,
                             value,
                             field,
+                            |data, case| {
+                                matches!(
+                                    self.judge_case(subject.clone(), data, case),
+                                    StructuralJudgment::Proven
+                                )
+                            },
                         )
                     })
                     .unwrap_or(StructuralTerm::Projection {
