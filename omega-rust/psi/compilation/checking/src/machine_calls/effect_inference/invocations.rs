@@ -50,6 +50,17 @@ struct InvocationReceiver {
 pub fn infer_synchronous_invocations(
     program: &dyn crate::CheckingInput,
 ) -> InvocationInferencePlan {
+    let plan = crate::frozen_program::frozen_memo(
+        program,
+        |memos| &memos.synchronous_invocations,
+        || infer_synchronous_invocations_uncached(program),
+    );
+    (*plan).clone()
+}
+
+fn infer_synchronous_invocations_uncached(
+    program: &dyn crate::CheckingInput,
+) -> InvocationInferencePlan {
     let state_to_machine = state_to_machine_index(program);
     let mut work = program
         .machines()

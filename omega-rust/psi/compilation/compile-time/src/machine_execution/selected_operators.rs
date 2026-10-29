@@ -285,6 +285,9 @@ pub fn validate_selected_provider_bodies(
     else {
         return Ok(());
     };
+    // Every row is checked against this same immutable evaluation graph.
+    // Share its query memos without sharing authority or a mutable program.
+    let checking = validation::CheckingContext::new(program);
     for row in selected.iter() {
         // A provider body retains exactly one current use: a spelled
         // occurrence, named operator call or normalized requirement call.
@@ -484,7 +487,7 @@ pub fn validate_selected_provider_bodies(
                 // Named code owns a closed map, not an implicit data receiver.
                 // Rejoin its exact requirement and entry. Ordinary checking of
                 // the evaluation graph retains all conformance obligations.
-                validation::revalidate_named_implementation(program, declaration)
+                validation::revalidate_named_implementation(&checking, declaration)
                     .map_err(|diagnostics| format!("selected build-time implementation does not satisfy its contracts: {diagnostics:?}"))?;
                 declaration
                     .rows
@@ -504,7 +507,7 @@ pub fn validate_selected_provider_bodies(
                     })
                     .count()
             } else {
-                validation::revalidate_machine_trait_conformances(program, provider)
+                validation::revalidate_machine_trait_conformances(&checking, provider)
                     .map_err(|diagnostics| format!("selected build-time provider does not satisfy its contracts: {diagnostics:?}"))?;
                 program.machine_trait_conformances(provider).iter().filter(|conformance| {
                     matches!(typed_trees::machine::resolve_satisfied_declaration(program, provider, conformance),

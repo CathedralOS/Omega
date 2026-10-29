@@ -522,6 +522,7 @@ pub struct CheckingMemos {
     pub(crate) call_destinations:
         OnceLock<crate::machine_calls::calls::signature_queries::CallDestinationQueries>,
     pub(crate) operational: OnceLock<Arc<flow_effects::OperationalPlan>>,
+    pub(crate) synchronous_invocations: OnceLock<Arc<flow_effects::InvocationInferencePlan>>,
     pub(crate) service_reaches: OnceLock<(
         flow_effects::OperationalPlan,
         flow_effects::ServiceReachInferencePlan,
