@@ -322,6 +322,15 @@ ordinary provider catalog join, which checks agreement with imported and explici
 boundary policies without reopening typed source. Native proposal construction
 does not materialize component policies or maintain a second catalog merge.
 
+Independent component selection retains its exact verified artifact, native
+proposal, selected plan and export/calling-application association. Terminal
+production checks the retained availability; native preparation borrows the
+completed join instead of searching the checked source product again. Missing
+products remain a native-only refusal, including direct compiler requests that
+have no package session to attach them. The invocation-local selection is not
+serialized or an installed capability. Actual receiving-artifact admission still
+checks every selected export at the cross-artifact edge.
+
 Checked-provider binding also closes exact selecting declarations and target-family
 associations into a source-free record beside the complete selected plans. Native
 request projection borrows that record instead of reopening typed declarations.

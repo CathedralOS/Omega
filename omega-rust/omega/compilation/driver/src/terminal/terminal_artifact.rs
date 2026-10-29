@@ -38,14 +38,16 @@ pub(crate) struct TerminalProductionView<'a> {
     native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     callbacks: &'a [provider_planning::calling_policy_plans::SelectedCallbackPlacement],
     timings: &'a mut CompileTimings,
-    native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
-    component_verdicts: &'a [Arc<component_description::VerifiedComponent>],
+    native_components:
+        Option<&'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>>,
 }
 
 impl<'a> TerminalProductionView<'a> {
     pub(crate) fn selection(
         selection: &'a mut SelectedProviderCustody,
-        native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
+        native_components: Option<
+            &'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
+        >,
     ) -> Self {
         Self {
             program: &selection.execution.program,
@@ -62,7 +64,6 @@ impl<'a> TerminalProductionView<'a> {
             callbacks: &selection.execution.callback_placements,
             timings: &mut selection.timings,
             native_components,
-            component_verdicts: &selection.settlement.verified_independent_components,
         }
     }
 
@@ -85,7 +86,6 @@ impl<'a> TerminalProductionView<'a> {
             callbacks: &checked.execution().callback_placements,
             timings,
             native_components: None,
-            component_verdicts: &checked.providers().verified_independent_components,
         }
     }
 }
@@ -187,12 +187,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
                 provider_publication,
             });
         }
-        let entry = admit_terminal_production(
-            view.entry,
-            view.provenance,
-            view.native_components,
-            view.component_verdicts,
-        )?;
+        let entry = admit_terminal_production(view.entry, view.provenance, view.native_components)?;
         let selected_machine = entry.machine_symbol();
         let signature_identity = entry.source_signature().identity().bytes();
         let policy = TerminalBehaviorExclusions::new(
@@ -510,47 +505,14 @@ fn admit_terminal_production<'a>(
         &'a provider_planning::program_entry::SelectedCompilerProgramEntry,
     >,
     provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    native_components: Option<&[Arc<compilation_products::IndependentComponentProduct>]>,
-    verdicts: &[Arc<component_description::VerifiedComponent>],
+    native_components: Option<
+        &Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
+    >,
 ) -> Result<&'a provider_planning::program_entry::SelectedCompilerProgramEntry, Vec<Diagnostic>> {
     if let Some(products) = native_components {
-        for selected in provenance {
-            let mode = selected
-                .selected_by
-                .composition_mode()
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            if mode == provider_planning::CompositionMode::Fused {
-                continue;
-            }
-            let mut candidates = verdicts
-                .iter()
-                .filter(|component| component.realizes_selected_plan(&selected.plan).is_ok());
-            let component = candidates.next().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "independent native production has no exact verified component",
-                )]
-            })?;
-            if candidates.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "independent native production has competing component verdicts",
-                )]);
-            }
-            let mut matching = products.iter().filter(|product| {
-                product.description().expected_subject() == component.subject()
-                    && product.retained().artifact() == component.artifact()
-                    && product
-                        .retained()
-                        .native_realization_proposal()
-                        .is_some_and(|proposal| {
-                            proposal.target_profile().target_name() == selected.plan.target
-                        })
-            });
-            if matching.next().is_none() || matching.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "independent native production requires exactly one complete retained producing product",
-                )]);
-            }
-        }
+        products
+            .as_ref()
+            .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
     } else {
         provider_planning::verify_selected_compositions_are_realized(provenance)?;
     }

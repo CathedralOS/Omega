@@ -60,9 +60,9 @@ pub struct CheckedCompilationInputs {
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
-    /// Completed independent dependency products from this invocation. These
-    /// retain source-free production inputs, not installed provider authority.
-    pub independent_components: Vec<Arc<crate::IndependentComponentProduct>>,
+    /// Completed independent producing joins, or the native-only reason their
+    /// roster is unavailable. Neither state grants installed provider authority.
+    pub independent_components: Result<Vec<crate::SelectedIndependentComponent>, String>,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
     /// `None` means the checked-tree phase ran as the identity boundary. The
@@ -189,7 +189,9 @@ impl CheckedCompilation {
         &self.execution.providers
     }
 
-    pub fn independent_component_products(&self) -> &[Arc<crate::IndependentComponentProduct>] {
+    pub fn independent_components(
+        &self,
+    ) -> &Result<Vec<crate::SelectedIndependentComponent>, String> {
         &self.execution.independent_components
     }
 

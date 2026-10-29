@@ -57,7 +57,7 @@ pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, EvaluatedBuild,
     IndependentComponentDiscovery, IndependentComponentSelection, ServiceAuditRegistration,
 };
-pub use independent_component::IndependentComponentProduct;
+pub use independent_component::{IndependentComponentProduct, SelectedIndependentComponent};
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
