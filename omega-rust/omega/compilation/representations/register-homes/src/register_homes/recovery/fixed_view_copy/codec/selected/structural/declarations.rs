@@ -26,6 +26,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     },
     values::{decode_bool, decode_scalar, encode_scalar},
 };
+use legalized_operations::identity::encode_authored_field_storage;
 pub(super) use legalized_operations::identity::encode_structural_place as encode_place;
 use legalized_operations::{encode_placement, encode_shape};
 
@@ -273,55 +274,6 @@ pub(super) fn decode_type(
         identity,
         shape,
     })
-}
-
-fn encode_authored_field_storage(
-    bytes: &mut Vec<u8>,
-    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
-) {
-    use semantic_vocabulary::AuthoredFieldStorage;
-    match storage {
-        None => bytes.push(0),
-        Some(AuthoredFieldStorage::Scalar {
-            byte_offset,
-            stored_scalar,
-        }) => {
-            bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-            if let Some(scalar) = stored_scalar {
-                encode_scalar(bytes, *scalar);
-            }
-        }
-        Some(AuthoredFieldStorage::Repeated {
-            byte_offset,
-            element_stride,
-        }) => {
-            bytes.push(3);
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, element_stride.to_le_bytes());
-        }
-        Some(AuthoredFieldStorage::Direct { byte_offset }) => {
-            bytes.push(4);
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-        }
-        Some(AuthoredFieldStorage::Fragmented(recipe)) => {
-            bytes.push(6);
-            length(bytes, recipe.fragments().len());
-            for fragment in recipe.fragments() {
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    fragment.container_byte_offset.to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    fragment.container_width_bits.to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(bytes, fragment.destination_lsb.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, fragment.source_lsb.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, fragment.width.to_le_bytes());
-            }
-        }
-    }
 }
 
 fn decode_authored_field_storage(
