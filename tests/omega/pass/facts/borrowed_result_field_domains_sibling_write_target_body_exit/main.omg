@@ -12,18 +12,20 @@ public machine relay(table: &mut Table, index: u64) -> &mut Cell
 requires index < 2 { choose(table, index) }
 machine inspect(cell: &Cell) -> u8 { cell.storage[0] }
 boundary trait Probe {
-    machine get(table: &mut Table, index: u64) -> &mut Cell reaches
+    machine get(table: &mut Table, index: u64) -> u8 reaches
     requires index < 2;
 }
 Selected satisfies Probe {
-    machine get(table: &mut Table, index: u64) -> &mut Cell
-    requires index < 2 { relay(table, index) }
+    machine get(table: &mut Table, index: u64) -> u8
+    requires index < 2 {
+        let selected: &mut Cell = relay(table, index);
+        selected.stamp = 0xF1;
+        inspect(selected)
+    }
 }
 machine observe(table: &mut Table, index: u64) -> u8
 requires index < 2 {
-    let selected: &mut Cell = Probe::get(table, index);
-    selected.stamp = 0xF1;
-    inspect(selected)
+    Probe::get(table, index)
 }
 machine main() crashes Trap {
     let mut table: Table = Table { cells: [Cell { storage: [65u8, 0u8, 0u8, 0u8], stamp: 11 }, Cell { storage: [66u8, 0u8, 0u8, 0u8], stamp: 13 }] };
