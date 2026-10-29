@@ -1,0 +1,52 @@
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
+@@ -130,6 +130,7 @@
+                     root: subject.root,
+                     segments: Vec::new(),
+                 };
++                let root_guard = phase_profile::guard("05.inactive_detail.root_type_and_cleanup");
+                 root_is_plain_without_cleanup = validation::canonical_owned_place_type_reference(
+                     self.program,
+                     self.state.symbol,
+@@ -139,12 +140,14 @@
+                 .is_some_and(|reference| {
+                     validation::has_plain_contents_without_nominal_cleanup(self.program, reference)
+                 });
++                drop(root_guard);
+                 previous_root = Some(&subject.root);
+             }
+             if previous == Some(subject) {
+                 continue;
+             }
+             previous = Some(subject);
++            let stability_guard = phase_profile::guard("05.inactive_detail.stability");
+             if !stable_subject(
+                 self.program,
+                 self.machine,
+@@ -154,6 +157,8 @@
+             ) {
+                 continue;
+             }
++            drop(stability_guard);
++            let subject_guard = phase_profile::guard("05.inactive_detail.subject_type");
+             let Some(reference) = validation::canonical_owned_place_type_reference(
+                 self.program,
+                 self.state.symbol,
+@@ -162,6 +167,8 @@
+             ) else {
+                 continue;
+             };
++            drop(subject_guard);
++            let cleanup_guard = phase_profile::guard("05.inactive_detail.subject_cleanup");
+             if root_is_plain_without_cleanup {
+                 // No claim or descriptor lies below a complete unrestricted
+                 // subject, so its case namespaces cannot affect affine sibling
+@@ -182,6 +189,8 @@
+                     continue;
+                 }
+             }
++            drop(cleanup_guard);
++            let _variant_guard = phase_profile::guard("05.inactive_detail.variants");
+             let reference = validation::peel_declared_constraints(self.program, reference);
+             let Some(data) = self.program.closed_data_definition(reference) else {
+                 continue;

@@ -135,3 +135,10 @@ No full corpus, whole-workspace suite, Clippy or other-host native execution was
 run. The focused results do not establish those gates or publication of this new
 candidate. The benchmark measures compiler invocation time after package review,
 not the full package-update workflow.
+
+Follow-up: this conjunction optimization landed in
+[PR767](https://github.com/CathedralOS/Omega/pull/767), published main
+`9774b83a2f6f57359386f4984c83fef348985eb3`. PR, queue and post-merge checks
+passed. The next [permission preparation experiment](../permission_flow_2026_10_29/README.md)
+preserved native outputs but did not establish a whole-compile gain; its
+candidate was discarded and its profile evidence retained.
