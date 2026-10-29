@@ -183,8 +183,8 @@ retired-syntax deletions to completion.
   customers migrate.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, record-field predicate handback with current
-    storage versions, reads, calls, state joins,
+    nonliteral and indexed writes, record-field and owned-array predicate
+    handback with current storage versions, reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)

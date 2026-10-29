@@ -69,18 +69,22 @@ exclusive-reference actuals; it executes the supported body without treating
 callee contracts or a pending result as evidence. Bad terminal branches and
 wrong forwarded storage remain reject controls. An overlapping write cannot
 reuse an immutable record-field observation as current contents: this symbolic
-body fragment declines that unrepresented record mutation. Ordinary record
-reads and writes keep their existing owners; versioned record-field predicate
-handback remains on the parent task. Arbitrary recursive mutation still needs
+body fragment declines that unrepresented record mutation. Owned collection
+bindings also need fresh storage identity; they cannot become aliases of the
+caller merely because they copied its contents. This mutation proof tier
+declines those unrepresented bindings while readonly predicate activation and
+ordinary language execution keep their existing owners. Versioned record-field
+and owned-array predicate handback remain on the parent task. Arbitrary recursive mutation still needs
 an actual invariant proof; revisiting its body grants no result.
 
 Run records identify the exact producer and target in the qualification and PR.
 Other hosted native execution, suffix-parser retirement, the remaining source
 migration and the Omega-written compiler remain outside this acceptance.
 
-The integrated producer `817db649b669` was measured on macOS ARM64:
+The final producer `2e5f66a65f1f` was measured on macOS ARM64:
 all nine bounded-distance places and the overshoot control agree at exit 0,
 and all nonadvancing twins reject for their own rank obligation. The focused
-qualification also observes the three unchanged slice customers, preserves the
-borrowed-record positive and erased-field refusal, and checks the independent
-store-branch, backing-identity, arithmetic-formation and caller-bound controls.
+qualification observes 13 CLI and 20 corpus native/Terminal oracles, including
+the three unchanged slice customers, readonly record predicates and ordinary
+record writes. Its 24 reject controls include stale record contents and owned
+copies, as well as borrowed-field authentication and whole-cycle safety.
