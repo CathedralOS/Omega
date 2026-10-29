@@ -1,12 +1,13 @@
 ---
 name: Omega Compiler Observatory
-description: A chart-first workspace with fixed-cohort comparison and focused evidence tabs.
+description: One quiet comparison at a time, with evidence available on demand.
 colors:
-  paper: "#101318"
-  card: "#191d24"
-  ink: "#edf0f5"
-  muted: "#a6afbd"
-  line: "#2c333e"
+  paper: "#181a19"
+  card: "#202321"
+  ink: "#e7e9e5"
+  muted: "#aaaead"
+  line: "#343936"
+  cohort: "#b5cdbb"
   orange: "#f2a16b"
   orange-soft: "#35271e"
   blue: "#71adff"
@@ -75,30 +76,29 @@ remain at least 12px, and provenance uses monospace. Names and notes wrap.
 
 ## Layout
 
-The workspace caps at 1440px with 32px desktop gutters. Icon tabs show one view
-at a time. Overview pairs run-rate and growth-source charts above host history.
+The workspace caps at 1120px with 32px desktop gutters. Plain tabs show one view
+at a time. Overview shows one chart, selected with Same set, Growth or History.
 Facts contains the grid and observation chart; Work contains claims. Evidence
 details opens a native dialog for methods, receipts and provenance. At 1100px
-the workspace stacks; at 700px it uses one column and 16px gutters. The nine-place
+the workspace stacks; at 700px it uses one column and 20px gutters. The nine-place
 table scrolls locally.
 
 ## Elevation & Depth
 
-Thin neutral borders and a faint 0 6px 24px shadow separate panels. The chart's
-charcoal gradient is subtle. Controls brighten on hover; panels do not move.
-Refresh uses a short tonal flash, bars enter over 550ms, and tabs fade over
-200ms. Reduced-motion mode disables animations and transitions.
+Overview has no card, shadow or gradient. Muted sage marks the latest cohort
+values; hollow neutral points mark the baseline. The chart appears immediately
+without entrance animation. Evidence panels retain thin borders.
 
 ## Shapes
 
-Cards use 16px corners, controls 8px, status cells 5px. The Omega mark is circular.
+Evidence cards use 16px corners, chart selectors 6px, status cells 5px. The Omega mark is plain.
 Avoid extra decorative badges or artwork around the data.
 
 ## Components
 
-- Run rates uses baseline, same-set-now and all-now bars on a percentage axis.
-  Growth sources separates recovered old IDs from new running IDs with direct
-  numeric labels; the muted new-program fill is #5b7698.
+- Same set connects old and latest values with a line on a shared 0–100% axis.
+  Growth separates recovered old IDs from new running IDs with direct labels;
+  muted sage is recovered, neutral gray is new. Full-corpus totals live in Details.
 - Tabs support arrow keys and maintain one selected panel. Evidence details
   uses native dialog focus handling and Escape dismissal.
 - The shared chart defaults to all available hosts on common zero-based count
