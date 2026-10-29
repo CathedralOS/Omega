@@ -343,10 +343,7 @@ impl RemainingCustody {
             .excluded
             .iter()
             .any(|removed| removed.root == root && path.starts_with(&removed.path))
-            && !self
-                .inactive_cases
-                .iter()
-                .any(|inactive| inactive.root == root && path.starts_with(&inactive.segments))
+            && !self.inactive_cases.contains_prefix_of(root, path)
             && self
                 .storage_frontiers
                 .iter()
@@ -813,10 +810,7 @@ impl RemainingCustody {
 
     fn definitely_absent(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         self.definitely_transferred(root, path)
-            || self
-                .inactive_cases
-                .iter()
-                .any(|place| place.root == root && path.starts_with(&place.segments))
+            || self.inactive_cases.contains_prefix_of(root, path)
     }
 
     pub(super) fn definitely_transferred(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {

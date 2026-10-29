@@ -8,6 +8,7 @@
 //! equality decides collisions, and invalidation still visits every original
 //! observation exactly once in order.
 
+use facts::{PlaceRoot, PlaceSegment};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use symbols::{SymbolHasher, SymbolKeyMap};
@@ -81,6 +82,26 @@ impl CaseExclusions {
     pub(super) fn contains(&self, place: &CanonicalPlace) -> bool {
         self.identity_position(Self::observation_fingerprint(place), place)
             .is_some()
+    }
+
+    /// Query exact ancestors through the existing identity index, including
+    /// the empty prefix. Membership keeps its complete collision comparisons.
+    pub(super) fn contains_prefix_of(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
+        if self.table.observations.is_empty() {
+            return false;
+        }
+        let mut query = CanonicalPlace {
+            root,
+            segments: path.to_vec(),
+        };
+        loop {
+            if self.contains(&query) {
+                return true;
+            }
+            if query.segments.pop().is_none() {
+                return false;
+            }
+        }
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = &CanonicalPlace> {
@@ -191,6 +212,69 @@ mod tests {
             exclusions.identity_position(fingerprint, &places[2]),
             Some(0)
         );
+    }
+
+    #[test]
+    fn indexed_prefix_queries_match_linear_observations_after_mutation() {
+        let exact = place(1, 1, 8);
+        let mut descendant = exact.clone();
+        descendant.segments.push(PlaceSegment::Field {
+            symbol: SymbolHandle::from_parts(11, 1),
+        });
+        let mut ancestor = exact.clone();
+        ancestor.segments.pop();
+        let empty = CanonicalPlace {
+            root: exact.root,
+            segments: Vec::new(),
+        };
+        let mut anonymous = exact.clone();
+        anonymous.root = PlaceRoot::Expression(arena::Handle::from_parts(3, 1));
+        let queries = [
+            exact.clone(),
+            descendant,
+            ancestor.clone(),
+            empty.clone(),
+            place(1, 1, 9),
+            place(1, 2, 8),
+            place(2, 1, 8),
+            anonymous.clone(),
+        ];
+        let check = |observations: &CaseExclusions| {
+            for query in &queries {
+                assert_eq!(
+                    observations.contains_prefix_of(query.root, &query.segments),
+                    observations.iter().any(|stored| {
+                        stored.root == query.root && query.segments.starts_with(&stored.segments)
+                    }),
+                    "query {query:?}",
+                );
+            }
+        };
+        let mut observations = CaseExclusions::default();
+        check(&observations);
+        for stored in [&exact, &queries[5], &queries[6], &anonymous] {
+            observations.insert(stored);
+            check(&observations);
+        }
+        // A stored descendant never proves its ancestor or another root.
+        assert!(!observations.contains_prefix_of(ancestor.root, &ancestor.segments));
+        assert!(!observations.contains_prefix_of(empty.root, &empty.segments));
+        let mut branch = observations.clone();
+        branch.retain(|stored| stored != &exact);
+        check(&branch);
+        check(&observations);
+        branch.insert(&empty);
+        check(&branch);
+        assert!(branch.contains_prefix_of(empty.root, &empty.segments));
+        assert!(branch.contains_prefix_of(queries[4].root, &queries[4].segments));
+        branch.retain(|stored| stored != &empty);
+        branch.insert(&exact);
+        check(&branch);
+        observations.clear();
+        check(&observations);
+        observations.insert(&anonymous);
+        check(&observations);
+        check(&branch);
     }
 
     #[test]
