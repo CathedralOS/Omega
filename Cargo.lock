@@ -1362,6 +1362,7 @@ name = "normalized-foreign-call-plan"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "function-identity",
  "legalized-operations",
  "optimization-unit",
  "register-model",
