@@ -28,6 +28,7 @@ pub(super) struct CapturedScalarField {
     pub(super) carrier: PrimitiveType,
     pub(super) value: ScopedArithmeticValue,
     pub(super) read_dependencies: Vec<String>,
+    pub(super) source: Option<String>,
 }
 
 impl ScalarField {
@@ -265,7 +266,7 @@ impl CurrentScalarValues<'_> {
         if depth >= 64 {
             return Vec::new();
         }
-        match self.program.expression_table.expression(expression) {
+        let mut captured = match self.program.expression_table.expression(expression) {
             ExpressionNode::Borrow(borrow) => self.captured_scalar_fields(borrow.target, depth + 1),
             ExpressionNode::ArrayLiteral(elements) => self.capture_array_elements(*elements, depth),
             ExpressionNode::Indexed(indexed)
@@ -307,6 +308,7 @@ impl CurrentScalarValues<'_> {
                             carrier,
                             value,
                             read_dependencies: Vec::new(),
+                            source: None,
                         });
                     }
                 }
@@ -330,12 +332,35 @@ impl CurrentScalarValues<'_> {
                             carrier: field.carrier,
                             value: field.value.clone()?,
                             read_dependencies: field.read_dependencies.clone(),
+                            source: Some(field.name.clone()),
                         })
                     })
                     .collect()
             }
             _ => Vec::new(),
+        };
+        let borrowed = matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Borrow(_)
+        ) || validation::expression_result_type_reference(
+            self.program,
+            self.machine,
+            self.state,
+            expression,
+        )
+        .and_then(|reference| validation::reference_shell(self.program, reference))
+        .is_some();
+        if borrowed {
+            for field in &mut captured {
+                // Copies of owned values become independent snapshots; a
+                // descriptor only copies a binding to live backing. Retain
+                // that original coordinate before window paths are rebased.
+                if let Some(source) = &field.source {
+                    crate::collections::push_unique(&mut field.read_dependencies, source.clone());
+                }
+            }
         }
+        captured
     }
 
     pub(super) fn replace_scalar_fields(

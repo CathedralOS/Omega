@@ -942,6 +942,49 @@ impl<'program> CurrentScalarValues<'program> {
                 {
                     return Some(captured.swap_remove(0));
                 }
+                if !captured.is_empty() {
+                    // A completed join has one value. Retain the union of
+                    // independently captured arm bounds, without choosing an
+                    // arm or assuming the match subject's current value.
+                    let bounds = captured
+                        .iter()
+                        .map(|value| {
+                            validation::scoped_arithmetic_value_bounds(
+                                program,
+                                machine,
+                                &self.hypotheses,
+                                value,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    let minimum = bounds
+                        .iter()
+                        .map(|bound| bound.low.clone())
+                        .collect::<Option<Vec<_>>>()?
+                        .into_iter()
+                        .min()?;
+                    let maximum = bounds
+                        .iter()
+                        .map(|bound| bound.high.clone())
+                        .collect::<Option<Vec<_>>>()?
+                        .into_iter()
+                        .max()?;
+                    let reference = validation::expression_result_type_reference(
+                        program, machine, state, expression,
+                    )?;
+                    let primitive = integer_carrier(program, reference)?;
+                    return Some(ScopedArithmeticValue::BoundedInteger {
+                        value: Box::new(ScopedArithmeticValue::Atom {
+                            identity: format!(
+                                "state:{:?}:join-result:{expression:?}",
+                                state.symbol
+                            ),
+                            unsigned: unsigned(primitive),
+                        }),
+                        minimum: Some(minimum),
+                        maximum: Some(maximum),
+                    });
+                }
             }
         }
         // Resolve the captured term under this occurrence's exact callable;

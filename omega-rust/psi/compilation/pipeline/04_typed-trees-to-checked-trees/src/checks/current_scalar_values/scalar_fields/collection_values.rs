@@ -56,6 +56,7 @@ impl CurrentScalarValues<'_> {
                     carrier,
                     value,
                     read_dependencies: Vec::new(),
+                    source: None,
                 });
             }
         }

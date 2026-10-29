@@ -170,6 +170,7 @@ impl CurrentScalarValues<'_> {
                                         .collect(),
                                     carrier,
                                     read_dependencies: Vec::new(),
+                                    source: None,
                                     value: ScopedArithmeticValue::Atom {
                                         identity,
                                         unsigned: super::unsigned(carrier),
@@ -279,6 +280,7 @@ impl CurrentScalarValues<'_> {
                             path,
                             carrier: field.primitive_type,
                             read_dependencies,
+                            source: None,
                             value: ScopedArithmeticValue::Atom {
                                 identity: format!(
                                     "state:{:?}:parameter:{:?}:field:{coordinate:?}",
