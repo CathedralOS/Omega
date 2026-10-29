@@ -411,6 +411,7 @@ fn declaration(
     semantic: MachineSemanticKind,
     keys: &SelectedConstraintKeys,
 ) -> MachineEffectDeclaration {
+    let always = |width| alternative(semantic, 0, MachineAlternativeApplicability::Always, width);
     let alternatives = match semantic {
         MachineSemanticKind::ExactDivideU64
         | MachineSemanticKind::ExactRemainderU64
@@ -424,12 +425,7 @@ fn declaration(
         | MachineSemanticKind::SaturatingRemainder(_)
         | MachineSemanticKind::SaturatingMultiply(_)
         | MachineSemanticKind::TrappingInteger(_) => {
-            vec![alternative(
-                semantic,
-                0,
-                MachineAlternativeApplicability::Always,
-                size(semantic),
-            )]
+            vec![always(size(semantic))]
         }
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseOrI64
@@ -438,12 +434,7 @@ fn declaration(
         | MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64 => {
-            vec![alternative(
-                semantic,
-                0,
-                MachineAlternativeApplicability::Always,
-                size(semantic),
-            )]
+            vec![always(size(semantic))]
         }
         MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => {
             binary_alias_ladder(semantic, [3, 3, 6, 6])
@@ -454,12 +445,9 @@ fn declaration(
             binary_alias_ladder(semantic, [4, 4, 4, 7])
         }
         MachineSemanticKind::ConditionalBranchU64LessThan
-        | MachineSemanticKind::ConditionalBranchI64LessThan => vec![alternative(
-            semantic,
-            0,
-            MachineAlternativeApplicability::Always,
-            MachineSizeKnowledge::ExactBytes(6),
-        )],
+        | MachineSemanticKind::ConditionalBranchI64LessThan => {
+            vec![always(MachineSizeKnowledge::ExactBytes(6))]
+        }
         // The early-clobber result never shares the pinned RCX count or the
         // value it is initialized from, so `mov result, value; shX result, cl`
         // is the only realization and applies to every allocation.
@@ -468,22 +456,14 @@ fn declaration(
         | MachineSemanticKind::WrappingShiftRightU64
         | MachineSemanticKind::ExactShiftLeftI64
         | MachineSemanticKind::ExactShiftRightI64
-        | MachineSemanticKind::ExactShiftRightU64 => vec![alternative(
-            semantic,
-            0,
-            MachineAlternativeApplicability::Always,
-            MachineSizeKnowledge::ExactBytes(6),
-        )],
+        | MachineSemanticKind::ExactShiftRightU64 => {
+            vec![always(MachineSizeKnowledge::ExactBytes(6))]
+        }
         // Variant 1 is the three-byte `xor r64, r64` zero idiom. The
         // legality rule never chooses it: `X86SelectXorZeroI64MaterializationV1`
         // rewrites a zero materialization onto it after proving RFLAGS dead.
         MachineSemanticKind::MaterializeI64 => vec![
-            alternative(
-                semantic,
-                0,
-                MachineAlternativeApplicability::Always,
-                size(semantic),
-            ),
+            always(size(semantic)),
             alternative(
                 semantic,
                 1,
@@ -494,12 +474,7 @@ fn declaration(
                 MachineSizeKnowledge::ExactBytes(3),
             ),
         ],
-        _ => vec![alternative(
-            semantic,
-            0,
-            MachineAlternativeApplicability::Always,
-            size(semantic),
-        )],
+        _ => vec![always(size(semantic))],
     };
     MachineEffectDeclaration {
         semantic,
