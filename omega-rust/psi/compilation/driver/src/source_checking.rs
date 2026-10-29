@@ -65,10 +65,6 @@ impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
         let mut program = self.program;
-        let mut constants = build_time_evaluation::RetainedConstantEvaluation::capture(
-            &program,
-            self.pending_constants,
-        );
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -81,6 +77,13 @@ impl CheckRequest<'_> {
                 &self.admission.catalogues,
             )
         })?;
+        // Deferred evaluation retains this invocation's freshly admitted
+        // source roles as well as its authored expressions. Capture before
+        // executable preparation, but never before authority is reconstructed.
+        let mut constants = build_time_evaluation::RetainedConstantEvaluation::capture(
+            &program,
+            self.pending_constants,
+        );
         let deferred_layout_applications = if constants.is_some() {
             typed_trees::references::collect_program_type_occurrences(&program)
                 .into_iter()
