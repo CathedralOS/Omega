@@ -1,5 +1,7 @@
 use crate::capture::PackageReviewInput;
-use crate::capture::api::operators::project_operator_coordinate;
+use crate::capture::api::operators::{
+    project_operator_coordinate, project_trait_operator_coordinate,
+};
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{
     PackageReviewContractBinaryOperator, PackageReviewContractOperatorMeaning,
@@ -40,16 +42,23 @@ pub(crate) fn exact_checked_contract_operator_meaning(
         ) => Ok(PackageReviewContractOperatorMeaning::Builtin),
         AuthoredDeclarationSelectionTarget::Resolved(target) => {
             let symbol = target.selected_symbol();
-            let declaration = typed_trees::operator::declaration_by_symbol(compilation, symbol)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "reviewed {} `{}` contract selected an operator without one retained declaration",
-                        context.subject_kind, context.subject_name
-                    ))]
-                })?;
-            Ok(PackageReviewContractOperatorMeaning::Declared(
-                project_operator_coordinate(compilation, declaration)?,
-            ))
+            match (
+                typed_trees::operator::declaration_by_symbol(compilation, symbol),
+                compilation.trait_machine_signature(symbol),
+            ) {
+                (Some(declaration), None) => Ok(PackageReviewContractOperatorMeaning::Declared(
+                    project_operator_coordinate(compilation, declaration)?,
+                )),
+                (None, Some((owner, requirement))) => {
+                    Ok(PackageReviewContractOperatorMeaning::TraitRequirement(
+                        project_trait_operator_coordinate(compilation, owner, requirement)?,
+                    ))
+                }
+                _ => Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` contract selected an operator without one retained declaration",
+                    context.subject_kind, context.subject_name
+                ))]),
+            }
         }
         AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract operator selected a non-operator intrinsic",

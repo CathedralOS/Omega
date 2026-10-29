@@ -233,6 +233,9 @@ impl PackageReviewOperatorRealization {
 pub enum PackageReviewContractOperatorMeaning {
     Builtin,
     Declared(PackageReviewOperatorCoordinate),
+    /// A selected token-bearing trait machine keeps its requirement species
+    /// and complete overload coordinate, independently of executable supply.
+    TraitRequirement(PackageReviewOperatorCoordinate),
 }
 
 impl PackageReviewContractCallTarget {}

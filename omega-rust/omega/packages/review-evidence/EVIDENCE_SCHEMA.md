@@ -16,6 +16,22 @@ compact compiler-derived risk acceptance, and decisions, trusting whoever
 lands it. Compiler proof/reach checks and native artifact validation remain
 independent of installation.
 
+Contract operator meanings distinguish compiler builtin tag 0, ordinary
+operator-declaration tag 1, and token-bearing trait-requirement tag 2. The
+requirement coordinate retains its exact source owner and normalized callable
+overload, including complete closed trait and local applications. A selected
+implementation body does not replace this public requirement identity. Fixed
+tokens remain operand-directed; their return contract belongs to the reviewed
+declaration. Capture rejoins the unchanged checked selection occurrence and
+rejects absent or ambiguous declarations rather than treating them as builtins.
+
+This expression-vocabulary extension uses package baseline 21, callable 17,
+external-supply 8, calling 11, representation 10, selected-provider 12, and
+terminal-permission 9. Every signature-bearing component changes version because
+its static machine contracts can contain the shared expression vocabulary.
+Package-manager compiled review-cache records use version 23. Prior envelopes
+reject; these versions do not alter Terminal Psi format 217 or grant execution.
+
 The separate external-supply policy component uses
 `OMEGA-EXTERNAL-SUPPLY-POLICY` version 7, bounded to 4 MiB. It preserves the
 complete callable and requirement coordinates, all eight binding alternatives,
