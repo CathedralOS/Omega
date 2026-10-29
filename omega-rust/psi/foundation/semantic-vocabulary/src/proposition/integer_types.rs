@@ -27,6 +27,22 @@ pub struct IntegerType {
     bits: u16,
 }
 
+macro_rules! exact_arith {
+    ($( $(#[$meta:meta])* $name:ident : $op:ident ; )+) => {$(
+        $(#[$meta])*
+        pub fn $name(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+            self.admits_both(left, right)?;
+            let result = self.dispatch_sign(
+                left,
+                right,
+                |left, right| Some(IntegerValue::Unsigned(left.$op(right)?)),
+                |left, right| Some(IntegerValue::Signed(left.$op(right)?)),
+            )?;
+            self.admits(result).then_some(result)
+        }
+    )+};
+}
+
 macro_rules! wrapping_arith {
     ($( $(#[$m:meta])* $name:ident : $op:ident ; )+) => {$(
         $(#[$m])*
@@ -455,53 +471,16 @@ impl IntegerType {
         wrapping_add : wrapping_add ;
     }
 
-    /// Add two admitted values when their mathematical sum remains admitted.
-    pub fn exact_add(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        let result = self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.checked_add(right)?)),
-            |left, right| Some(IntegerValue::Signed(left.checked_add(right)?)),
-        )?;
-        self.admits(result).then_some(result)
-    }
-
-    /// Subtract two admitted values when their mathematical difference remains admitted.
-    pub fn exact_sub(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        let result = self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.checked_sub(right)?)),
-            |left, right| Some(IntegerValue::Signed(left.checked_sub(right)?)),
-        )?;
-        self.admits(result).then_some(result)
-    }
-
-    /// Multiply two admitted values when their mathematical product remains admitted.
-    pub fn exact_mul(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        let result = self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.checked_mul(right)?)),
-            |left, right| Some(IntegerValue::Signed(left.checked_mul(right)?)),
-        )?;
-        self.admits(result).then_some(result)
-    }
-
-    /// Divide two admitted values with truncation toward zero when the divisor
-    /// is nonzero and the mathematical quotient remains admitted.
-    pub fn exact_div(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        let result = self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
-            |left, right| Some(IntegerValue::Signed(left.checked_div(right)?)),
-        )?;
-        self.admits(result).then_some(result)
+    exact_arith! {
+        /// Add two admitted values when their mathematical sum remains admitted.
+        exact_add : checked_add ;
+        /// Subtract two admitted values when their mathematical difference remains admitted.
+        exact_sub : checked_sub ;
+        /// Multiply two admitted values when their mathematical product remains admitted.
+        exact_mul : checked_mul ;
+        /// Divide two admitted values with truncation toward zero when the divisor
+        /// is nonzero and the mathematical quotient remains admitted.
+        exact_div : checked_div ;
     }
 
     /// Compute a truncating remainder when the corresponding quotient is
