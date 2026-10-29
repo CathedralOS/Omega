@@ -476,13 +476,17 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Implement pre-execution dependency input assignment and shared-node conflict
-    checks at dependency activation admission without inheriting the root's
-    slots (keeping required-output path byte results refused).
+  - Admit each dependency occurrence under its exact delegated execution context
+    before effects, without inheriting root authority, combining grants or
+    reusing an inapplicable result, under
+    [execution contexts and reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)
+    (keeping required-output path byte results refused).
   - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
-    not only pre-admitted package contexts. The old direct-import fixture shape
-    is retired by explicit readiness; shared non-core interface admission before
-    the first Build needs the decision in [Q2](OWNER_QUESTIONS.md#q2-shared-interfaces-known-before-the-first-build-activation).
+    not only pre-admitted package contexts. Use explicit preparation and
+    [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+    to admit shared non-core interfaces before their dependent continuations
+    execute; do not restore pre-known-only import checking or the retired
+    direct-import fixture shape.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
