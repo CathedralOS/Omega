@@ -175,9 +175,8 @@ pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_mutated_regions,
     call_receiver_write_accesses, call_write_accesses, canonical_receiver_place_for_call_site,
     family_attached_data_symbol, frame_storage_writes, place_from_origin_path,
-    signature_ceiling_places,
-    signature_ceiling_regions, state_storage_writes, statement_mutated_place,
-    statement_storage_writes,
+    signature_ceiling_places, signature_ceiling_regions, state_storage_writes,
+    statement_mutated_place, statement_storage_writes,
 };
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,
@@ -243,3 +242,6 @@ use statements::append_state_statement_flow_facts;
 use transfers::propagate_statement_transfers;
 
 pub(crate) use value_origins::value_origin_matches_call_return;
+
+mod local_jump;
+pub(crate) use local_jump::{LocalJump, local_jump};
