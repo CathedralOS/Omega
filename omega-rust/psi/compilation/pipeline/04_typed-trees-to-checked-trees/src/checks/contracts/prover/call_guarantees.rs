@@ -199,7 +199,7 @@ pub(crate) fn current_predicates(
                     && let Some(capture) = super::super::call_values::captured_operand(
                         program, facts, caller, call, &actual,
                     )
-                    && let Some(value) = super::captured_scalar_at_path(
+                    && let Some(value) = super::captured_values::recorded_scalar_at_path(
                         program,
                         facts,
                         caller,
@@ -207,7 +207,6 @@ pub(crate) fn current_predicates(
                         &actual.path,
                         invocation.statement.checked_add(1)?,
                         call.entry_constraints,
-                        frames,
                     )
                     && let Some(literal) = super::super::call_values::observed_literal(
                         value,

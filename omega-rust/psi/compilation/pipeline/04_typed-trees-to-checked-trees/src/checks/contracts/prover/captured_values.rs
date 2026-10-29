@@ -9,8 +9,8 @@ use checked_trees::{CheckFacts, FlowConstraintRef, FlowOperandFact, FlowStateFac
 mod read_cuts;
 pub(in crate::checks::contracts) use read_cuts::{retain_reads, scalar_preserved_at_values};
 
-/// `consumer_statement` is the first statement frontier after this completed
-/// consumption, including its nested calls. Its constraints exclude the goal.
+/// Resolve a captured scalar from recorded facts and independently available
+/// normal guarantees at its own observation frontier.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::checks::contracts) fn scalar_at_path(
     program: &dyn validation::CheckingInput,
@@ -21,6 +21,65 @@ pub(in crate::checks::contracts) fn scalar_at_path(
     consumer_statement: usize,
     invocation: arena::HandleSpan<FlowConstraintRef>,
     frames: &validation::CallFrameResolver<'_>,
+) -> Option<facts::ScalarValue> {
+    scalar_with(
+        program,
+        facts,
+        state,
+        capture,
+        path,
+        consumer_statement,
+        invocation,
+        |statement, contexts, place| {
+            super::call_guarantees::scalar_at_place(
+                program, facts, state, statement, contexts, frames, place,
+            )
+        },
+    )
+}
+
+/// Bind a normal guarantee's owned inputs using only recorded capture facts.
+/// Querying normal guarantees here would recursively rebuild the same prefixes
+/// while those guarantees are being bound. Unknown inputs retain their ordinary
+/// symbolic bindings; this optional constant substitution never assumes a goal.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn recorded_scalar_at_path(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &FlowOperandFact,
+    path: &[facts::PlaceSegment],
+    consumer_statement: usize,
+    invocation: arena::HandleSpan<FlowConstraintRef>,
+) -> Option<facts::ScalarValue> {
+    scalar_with(
+        program,
+        facts,
+        state,
+        capture,
+        path,
+        consumer_statement,
+        invocation,
+        |_, _, _| None,
+    )
+}
+
+/// `consumer_statement` is the first statement frontier after this completed
+/// consumption, including its nested calls. Its constraints exclude the goal.
+#[allow(clippy::too_many_arguments)]
+fn scalar_with(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &FlowOperandFact,
+    path: &[facts::PlaceSegment],
+    consumer_statement: usize,
+    invocation: arena::HandleSpan<FlowConstraintRef>,
+    mut guarantee: impl FnMut(
+        usize,
+        &[facts::FactContextHandle],
+        &validation::CanonicalPlace,
+    ) -> Option<facts::ScalarValue>,
 ) -> Option<facts::ScalarValue> {
     let values = crate::flow::captured_operand_values(
         program,
@@ -128,17 +187,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                         })
                     })
                 })
-                .or_else(|| {
-                    super::call_guarantees::scalar_at_place(
-                        program,
-                        facts,
-                        state,
-                        statement,
-                        &contexts,
-                        frames,
-                        &place.projected,
-                    )
-                })?;
+                .or_else(|| guarantee(statement, &contexts, &place.projected))?;
                 if candidate
                     .as_ref()
                     .is_some_and(|previous| *previous != scalar)
