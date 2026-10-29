@@ -1674,13 +1674,7 @@ pass/domains/match_domain_results checked 3012ms @5f668826adf3+wt
 pass/domains/match_join_alias_domain_transfer checked 1729ms @5f668826adf3+wt
 pass/domains/module_domain_narrow_import_spelling checked 1694ms @5f668826adf3+wt
 pass/domains/moved_payload_uses_current_membership_exit built 4338ms exit:0 @5f668826adf3+wt
-pass/domains/named_const_subject_binding rejected 6092ms regressed-from:built+exit:3 @5f668826adf3+wt
-	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: u64::Nested
-	cannot prove scalar result domain for return from @const-qualification-INHERITED-1 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-QUALIFIED-2 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-EXPLICIT-3 at statement 0: u64::Small::Explicit
-	cannot prove default-domain field requirement for return from @const-qualification-ARRAY-5, state @const-qualification-ARRAY-5, at statement 0: [99, 3] requires SmallAt
-	construction value is not proven in domain `SmallAt` in @const-qualification-ARRAY-5 state `@const-qualification-ARRAY-5` at statement 0; a construction value must establish the domain's predicates and any required provenance
+pass/domains/named_const_subject_binding built 10194ms exit:3 @9947836a76ba
 pass/domains/named_subject_capacity_identity_exit built 12921ms exit:70 @5f668826adf3+wt
 pass/domains/policy_plan_shapes checked 5179ms @5f668826adf3+wt
 pass/domains/predicate_domain_param checked 4035ms @5f668826adf3+wt

@@ -272,7 +272,7 @@ pub struct VerifiedComponent {
     description: ComponentDescription,
     description_identity: [u8; 32],
     closure: [u8; 32],
-    artifact: terminal_codec::CanonicalTerminalArtifact,
+    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
 }
 
 impl VerifiedComponent {
@@ -311,7 +311,11 @@ impl VerifiedComponent {
     /// verified together. Independent production must retain this custody,
     /// rather than reconstructing a proof envelope from the decoded module.
     /// Possession still establishes neither installation nor callable authority.
-    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+    pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub fn shared_artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
         &self.artifact
     }
 
@@ -705,7 +709,7 @@ pub fn verify_component(
         // Preserve the original sealed product, including its checked proof
         // section. A decoded-module copy cannot carry that product to an
         // independent execution consumer.
-        artifact,
+        artifact: std::sync::Arc::new(artifact),
     })
 }
 

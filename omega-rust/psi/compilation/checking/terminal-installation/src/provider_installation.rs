@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// Omega-owned policy input naming one exact verified terminal provider row.
 /// Selection is intentionally separate from terminal-Psi semantic bytes.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ProviderInstallationSelection {
     pub boundary: BoundaryMachineId,
     pub provider_identity: String,
@@ -32,7 +32,7 @@ pub struct ProviderInstallationSelection {
 /// relationship applies at this crossing only; it mints no
 /// `provider_candidates` conformance and no `installed` redirect, so a
 /// direct call of the supplied requirement keeps its own checked evidence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AssumedBindingSelection {
     /// The caller-facing requirement (`Required::operation`) whose link the
     /// root assumes.
@@ -93,6 +93,25 @@ struct AdmittedProviderSelection {
 }
 
 impl AdmittedProviderSelections {
+    /// A consumer may demand fewer rows than compile-time checking. Every
+    /// retained row still names the same body, selecting declaration, receiving
+    /// application and assumed supply chain; absence never permits replacement.
+    pub fn is_subset_of(&self, complete: &Self) -> bool {
+        self.terminal_psi == complete.terminal_psi
+            && self
+                .providers
+                .iter()
+                .all(|(boundary, selected)| complete.providers.get(boundary) == Some(selected))
+            && self
+                .assumed_bindings
+                .iter()
+                .all(|assumed| complete.assumed_bindings.contains(assumed))
+            && self
+                .folded_constant_target
+                .as_ref()
+                .is_none_or(|target| complete.folded_constant_target.as_ref() == Some(target))
+    }
+
     /// Admit historical realization choices after Omega reconstructs their
     /// normalized plan inputs. Recompute the existing domain-separated SHA-256
     /// commitment here; a copied digest or dependency record cannot seal custody.
@@ -343,10 +362,8 @@ fn admit_provider_selections(
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
     if !selections.is_empty() {
-        let mut candidates_by_boundary = BTreeMap::<
-            BoundaryMachineId,
-            Vec<&terminal_psi::ProviderCandidateConformance>,
-        >::new();
+        let mut candidates_by_boundary =
+            BTreeMap::<BoundaryMachineId, Vec<&terminal_psi::ProviderCandidateConformance>>::new();
         for candidate in &module.provider_candidates {
             candidates_by_boundary
                 .entry(candidate.boundary)

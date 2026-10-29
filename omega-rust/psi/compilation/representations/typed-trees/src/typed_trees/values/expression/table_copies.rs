@@ -32,6 +32,14 @@ struct CopyGraph {
 }
 use symbols::SymbolHandle;
 
+/// Invocation-local correspondence for consumers that copy expression-owned
+/// facts alongside the graph. Every source occurrence has one copied handle,
+/// including shared children; separate copy invocations remain independent.
+pub struct ExpressionCopy {
+    pub root: ExpressionHandle,
+    pub correspondence: Vec<(ExpressionHandle, ExpressionHandle)>,
+}
+
 /// Where a subtree copy reads the rows it appends.
 #[derive(Clone, Copy)]
 enum CopySource<'source> {
@@ -60,7 +68,74 @@ fn retain_every_field(_: &TableStructLiteral, _: &TableStructLiteralField) -> bo
     true
 }
 
+#[cfg(test)]
+mod correspondence_tests {
+    use super::*;
+    use crate::expression::BinaryOperator;
+
+    #[test]
+    fn expression_copy_correspondence_preserves_shared_occurrences_in_both_sources() {
+        let mut source = ExpressionTable::default();
+        let child = source.insert(ExpressionNode::Boolean(true));
+        let root = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: child,
+            operator: BinaryOperator::And,
+            right: child,
+        }));
+        let own = source.copy_graph(None, root);
+        let mut destination = ExpressionTable::default();
+        let external = destination.copy_graph(Some(&source), root);
+        for (table, copy) in [(&source, own), (&destination, external)] {
+            assert_eq!(copy.correspondence.len(), 2);
+            let child_copy = copy
+                .correspondence
+                .iter()
+                .find(|(original, _)| *original == child)
+                .expect("child correspondence")
+                .1;
+            assert_eq!(
+                copy.correspondence
+                    .iter()
+                    .filter(|(original, _)| *original == root)
+                    .count(),
+                1
+            );
+            let ExpressionNode::Binary(binary) = table.expression(copy.root) else {
+                panic!("copied binary");
+            };
+            assert_eq!(binary.left, child_copy);
+            assert_eq!(binary.right, child_copy);
+        }
+        let first = source.copy_graph(None, root);
+        let second = source.copy_graph(None, root);
+        assert_ne!(first.root, second.root);
+        assert_eq!(source.expression(child), &ExpressionNode::Boolean(true));
+    }
+}
+
 impl ExpressionTable {
+    /// Copy from another table, or from this table when `source` is absent.
+    /// The graph producer supplies exact correspondence while copying; callers
+    /// never need to infer it from spans, spelling or allocation order.
+    pub fn copy_graph(
+        &mut self,
+        source: Option<&ExpressionTable>,
+        expression: ExpressionHandle,
+    ) -> ExpressionCopy {
+        let source = source.map_or(CopySource::Own, CopySource::Table);
+        let mut copies = CopyGraph::default();
+        let root = self.copy_subtree_with_occurrences(
+            source,
+            expression,
+            &retain_every_field,
+            &mut copies,
+        );
+        ExpressionCopy {
+            root,
+            correspondence: copies.expressions,
+        }
+    }
+
     /// Copy the invocation and its selected-map occurrence together. A map
     /// qualifier owns a distinct telescope; only an operand selection shares
     /// the invocation's application. Neither may retain the template's handle.

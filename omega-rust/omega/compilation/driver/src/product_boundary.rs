@@ -161,9 +161,8 @@ fn constant_proof_closure_belongs_to_psi() {
     assert!(!facade.contains("settle_closed_constant_execution"));
     let proof =
         include_str!("../../../../psi/compilation/driver/src/source_checking/constant_closure.rs");
-    let applications = include_str!(
-        "../../../../psi/compilation/driver/src/source_checking/constant_closure/applications.rs"
-    );
+    let applications =
+        include_str!("../../../../psi/foundation/semantic-vocabulary/src/proof_applications.rs");
     for forbidden in [
         "provider_planning::",
         "selected_dispatch::",
@@ -389,9 +388,9 @@ fn package_batches_carry_owners_instead_of_parallel_result_tables() {
 }
 
 #[test]
-fn terminal_cohorts_retain_admitted_applications() {
+fn terminal_cohorts_retain_admitted_products() {
     let source = include_str!("terminal/terminal_artifact.rs");
-    assert!(source.contains("struct AdmittedTerminalApplication"));
+    assert!(source.contains("struct AdmittedTerminalProduct"));
     for forbidden in [
         "requests[",
         "entries[",
@@ -566,7 +565,8 @@ fn product_coordinator_has_no_native_stage_dependency() {
 #[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
-    assert!(source.contains("native_production::compile(terminal, request)"));
+    assert!(source.contains("native_production::prepare(&terminal, request)"));
+    assert!(source.contains("native_production::compile(prepared)"));
     let inputs = include_str!("product_execution/native_inputs.rs");
     assert!(inputs.contains("ComponentCompilation"));
     assert!(inputs.contains("receiving_identities: facts.identities()"));

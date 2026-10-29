@@ -10,14 +10,14 @@
 //!
 //! | route    | completion     | result     | transfers            | contract commitment | source site  |
 //! |----------|----------------|------------|----------------------|---------------------|--------------|
-//! | module   | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
-//! | module   | `NormalReturn` | scalar     | `Claims`             | present             | not retained |
+//! | module   | `NormalReturn` | Unit       | `Claims`             | absent              | retained     |
+//! | module   | `NormalReturn` | scalar     | `Claims`             | present             | retained     |
 //! | module   | `NormalReturn` | structural | `StructuralCustody`  | present             | retained     |
 //! | boundary | `NormalReturn` | Unit       | `CompletionReceipts` | absent              | retained     |
 //! | boundary | `NormalReturn` | scalar     | `CompletionReceipts` | absent              | retained     |
 //! | boundary | `NormalReturn` | structural | `StructuralCustody`  | absent              | retained     |
-//! | dynamic  | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
-//! | dynamic  | `NormalReturn` | scalar     | `Claims`             | absent              | not retained |
+//! | dynamic  | `NormalReturn` | Unit       | `Claims`             | absent              | retained     |
+//! | dynamic  | `NormalReturn` | scalar     | `Claims`             | absent              | retained     |
 //! | dynamic  | `NormalReturn` | structural | `StructuralCustody`  | absent              | retained     |
 //! | boundary | `External`     | Unit       | `Abandonment`        | absent              | retained     |
 //!
@@ -160,7 +160,6 @@ pub struct CheckedUnitCallParts {
     pub coordinate: CheckedUnitCallCoordinate,
     /// Exact authored call site retained for target-owned occurrence joins.
     /// Transition-target calls have no statement or expression arena site.
-    /// Ordinary Unit and scalar calls retain no site and must pass `None`.
     pub source_site: Option<NominalMachineUseSite>,
     pub target: CheckedUnitCallTarget,
     pub route: CheckedUnitCallRoute,
@@ -277,7 +276,7 @@ impl CheckedUnitCallPlan {
                     },
                     Result::Unit,
                     Transfers::Claims(_),
-                ) => contract_commitment.is_none() && source_site.is_none(),
+                ) => contract_commitment.is_none(),
                 (
                     CheckedUnitCallRoute::Module {
                         contract_commitment,
@@ -285,7 +284,7 @@ impl CheckedUnitCallPlan {
                     },
                     Result::Scalar(_),
                     Transfers::Claims(_),
-                ) => contract_commitment.is_some() && source_site.is_none(),
+                ) => contract_commitment.is_some(),
                 (
                     CheckedUnitCallRoute::Module {
                         contract_commitment,
@@ -308,7 +307,7 @@ impl CheckedUnitCallPlan {
                     CheckedUnitCallRoute::Dynamic { .. },
                     Result::Unit | Result::Scalar(_),
                     Transfers::Claims(_),
-                ) => source_site.is_none(),
+                ) => true,
                 (
                     CheckedUnitCallRoute::Dynamic { .. },
                     Result::Structural { .. },
@@ -384,23 +383,10 @@ impl CheckedUnitCallPlan {
         &self.transfers
     }
 
-    /// Whether this route and result retain the authored call site: every
-    /// boundary call and every ordinary structural call.
-    fn retains_source_site(&self) -> bool {
-        self.is_boundary()
-            || matches!(self.route, CheckedUnitCallRoute::ActivationStorage { .. })
-            || matches!(
-                self.result,
-                CheckedUnitCallResult::Structural { .. } | CheckedUnitCallResult::NoNormal
-            )
-    }
-
-    /// The exact authored call site the row retains for target-owned
-    /// occurrence joins. `None` when the call retains no site (an ordinary
-    /// Unit or scalar call); `Some(None)` for a transition-target call, which
-    /// has no statement or expression arena site.
-    pub fn source_site(&self) -> Option<Option<NominalMachineUseSite>> {
-        self.retains_source_site().then_some(self.source_site)
+    /// The exact authored occurrence, independent of route or result carrier.
+    /// Transition-target calls have no statement or expression arena site.
+    pub fn source_site(&self) -> Option<NominalMachineUseSite> {
+        self.source_site
     }
 
     /// The target's contract commitment, retained by ordinary scalar and

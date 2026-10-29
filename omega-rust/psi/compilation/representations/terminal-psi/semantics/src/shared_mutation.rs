@@ -82,7 +82,7 @@ fn type_mutation<'types>(
             }
         }
         StructuralTypeShape::FixedArray { element, length } => {
-            if *length == 0 {
+            if length.literal() == Some(0) {
                 SharedMutation::None
             } else {
                 type_mutation(declarations.clone(), *element, active)

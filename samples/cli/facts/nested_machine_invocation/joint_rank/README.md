@@ -129,3 +129,17 @@ private-cycle fact through slice descriptors stored in inline records across all
 nine places. Nested records, moved copies and mutable payload stores exercise
 composition; restoring an earlier descriptor or shortening only another field
 still rejects. Call requirements observe prepared operands before callee writes.
+
+## Borrowed record coordinates
+
+The `borrowed_value/` child in every place carries the same count through a
+readable, binding-stable formal reference to the caller's original record.
+Each caller checks count zero, canary641 and counter3→10, then exercises the
+empty path. Each child's `invalid/` removes only the strict decrement.
+The [local compositions](local/borrowed_value/README.md) additionally cover a
+moved reference carrier, a disjoint write, nested inline fields and a borrowed
+slice descriptor updated through the original record. Recursive normal-exit
+summaries compose windows without identifying opaque windows as exact values.
+Reset, whole-record replacement, alias-write and pointer-reseat controls under
+`controls/borrowed_*/` must still fail the same rank obligation. Saved entry
+coordinates grant no permission to reuse invalidated current observations.

@@ -135,8 +135,14 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Task frames retain alternative state and crossing storage, not a flat sum.
 // Normal structural guarantees also retain their exact formal-relative path;
 // this combined layout is distinct from either independent wire format.
-// Structural case edges additionally retain simultaneous structural bindings.
-pub(crate) const FORMAT_MARKER: u16 = 204;
+// Target-dependent scalar applications retain their portable computation roots.
+// Pending scalar applications and explicit array extents have their own wire
+// form. Proof conditions retain declarations independently of emitted bodies,
+// beside the source-free application scope graph. Predicate graphs retain both
+// operands, builtin Boolean meaning and whole-graph formation independently of
+// selective evaluation. Structural case edges also retain simultaneous bindings.
+// This union differs from both upstream 204 and the scalar-only 211 format.
+pub(crate) const FORMAT_MARKER: u16 = 212;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

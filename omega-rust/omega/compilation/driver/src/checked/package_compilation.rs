@@ -378,7 +378,7 @@ impl CompilationSession {
     ) -> Result<psi_compiler::ProducedBuildProvider, CompileFailure> {
         super::run_on_compile_thread(|| {
             let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
-            let profile = prepared
+            prepared
                 .build_sources
                 .build_execution_profile
                 .ok_or_else(|| {
@@ -395,24 +395,10 @@ impl CompilationSession {
                 &mut self.selections,
             )?;
             self.retain(&checked.retained_checks);
-            // A helper has no installed runtime providers yet. Close its source
-            // obligations under the explicit host model without selecting a
-            // dependency's Product defaults. Provider-dependent constants still
-            // require real selected facts; an empty context cannot prove them.
-            let program =
-                crate::execution_settlement::constant_recipe_closure::close_constant_recipes(
-                    &checked,
-                    profile,
-                    &checked
-                        .computed_build_config
-                        .config
-                        .opaque_representation_selections,
-                    &Default::default(),
-                    &[],
-                    |_| Ok(Default::default()),
-                )?;
+            // Publish the checked source unchanged. The waiting Build owns
+            // exact provider installation, scalar completion and its charges.
             Ok(psi_compiler::BuildProviderProductionRequest {
-                checked: &program,
+                checked: &checked.program,
                 exact_toolchain_sources: checked.sources.exact_toolchain_sources(),
                 package: inputs.root(),
                 declaration_path,

@@ -275,8 +275,10 @@ pub(crate) fn leaf_type(
         }
         if let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment {
             let declaration = types.get(&current)?;
-            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                &declaration.shape
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = &declaration.shape
             else {
                 return None;
             };

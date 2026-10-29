@@ -118,6 +118,39 @@ pub(crate) fn checked_source_call(
     )
 }
 
+/// Recover the authored occurrence from its already-bound flow row. Every
+/// direct-call emitter uses this join, independent of its result carrier.
+pub(crate) fn source_site(
+    checked: &CheckedTrees,
+    coordinate: crate::emission::operation_emission::buffer::SourceCallCoordinate,
+    call: &checked_trees::FlowCallFact,
+) -> Result<Option<checked_trees::NominalMachineUseSite>, LoweringError> {
+    use checked_trees::{FlowCallSite, NominalMachineUseSite};
+    match call.authored_site {
+        FlowCallSite::Expression => Ok(Some(NominalMachineUseSite::Expression(
+            call.authored_expression,
+        ))),
+        FlowCallSite::Statement => {
+            let (_, state) = crate::declarations::state_declaration(checked, coordinate.state)?;
+            let offset = u32::try_from(coordinate.statement_index)
+                .map_err(|_| LoweringError::Unsupported("call statement ordinal exceeds u32"))?;
+            let start = state.statement_nodes.start();
+            let arena_index =
+                start
+                    .arena_index()
+                    .checked_add(offset)
+                    .ok_or(LoweringError::Unsupported(
+                        "call statement coordinate overflows",
+                    ))?;
+            Ok(Some(NominalMachineUseSite::Statement(
+                arena::Handle::from_parts(arena_index, start.generation()),
+            )))
+        }
+        FlowCallSite::NamedTransition => Ok(None),
+        FlowCallSite::Unbound => unsupported("call occurrence has no bound authored site"),
+    }
+}
+
 fn checked_call(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,

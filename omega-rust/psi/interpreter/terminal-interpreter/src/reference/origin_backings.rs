@@ -211,9 +211,10 @@ impl TerminalExecution<'_> {
                             .0,
                         );
                     }
-                    Some(StructuralTypeShape::FixedArray { length, .. })
-                        if projected.array_loan.is_none() =>
-                    {
+                    Some(StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                        ..
+                    }) if projected.array_loan.is_none() => {
                         projected.array_loan = Some(
                             crate::element_views::ElementView::structural(
                                 projected.value.clone(),

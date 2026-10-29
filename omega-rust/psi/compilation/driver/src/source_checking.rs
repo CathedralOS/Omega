@@ -70,6 +70,7 @@ impl CheckRequest<'_> {
                 self.admission.completion,
             )
         })?;
+        constant_closure::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(self.admission.opaque_properties)
             .with_opaque_representation_selections(self.admission.opaque_representations)

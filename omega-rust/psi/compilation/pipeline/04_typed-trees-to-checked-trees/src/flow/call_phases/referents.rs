@@ -437,9 +437,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         domain_symbol,
                         semantic_domain,
                         match &write.region {
-                            crate::flow::mutation::StorageRegion::Declared(region) => {
-                                Some(region)
-                            }
+                            crate::flow::mutation::StorageRegion::Declared(region) => Some(region),
                             _ => None,
                         },
                     )

@@ -56,6 +56,7 @@ fn selected_call(
 /// provenance. Replaying descriptor constructors here would lose those edges.
 pub(super) struct RetainedStorage {
     pub(super) backing: Option<u32>,
+    pub(super) incoming: Vec<Handle<checked_trees::CheckedCallBorrowLoanResource>>,
     pub(super) parents: Vec<(
         CheckedUnitStructuralArgumentSourcePlan,
         CheckedUnitStructuralArgumentSourcePlan,
@@ -107,9 +108,8 @@ pub(super) fn retained_storage(
                 && resource.state_symbol == state
                 && resource.owner_operand == operand
                 && resource.owner_path.is_empty()
-        })
-        .map(|(_, resource)| resource);
-    let Some(resource) = roots.next() else {
+        });
+    let Some((resource_handle, resource)) = roots.next() else {
         let capture = facts.flow.control.operands.get(operand);
         if validation::reference_result_custody::stored_loan_parts(program, capture.type_reference)
             .is_some()
@@ -120,6 +120,7 @@ pub(super) fn retained_storage(
         }
         return Ok(RetainedStorage {
             backing: None,
+            incoming: Vec::new(),
             parents,
             operand_parents,
         });
@@ -128,7 +129,9 @@ pub(super) fn retained_storage(
     // Keep every possibility without choosing an address or granting relocation.
     // Opaque incoming permissions remain caller/provider custody, not the
     // owned carrier slot which may share their root name.
-    let resources = std::iter::once(resource).chain(roots).collect::<Vec<_>>();
+    let resources = std::iter::once((resource_handle, resource))
+        .chain(roots)
+        .collect::<Vec<_>>();
     let local_backing = |resource: &checked_trees::CheckedCallBorrowLoanResource| {
         if resource.backing_incoming_reference.is_valid() {
             Ok(None)
@@ -145,11 +148,11 @@ pub(super) fn retained_storage(
     };
     let backing = local_backing(resource)?;
     let mut common_backing = true;
-    for candidate in &resources {
+    for (_, candidate) in &resources {
         common_backing &= local_backing(candidate)? == backing;
     }
     if !common_backing {
-        for resource in resources {
+        for (_, resource) in &resources {
             if !resource.backing_incoming_reference.is_valid()
                 && let Some(parent) = owned_parent_source(
                     program,
@@ -166,8 +169,55 @@ pub(super) fn retained_storage(
         }
     }
     let backing = common_backing.then_some(backing).flatten();
+    // Preserve the complete captured ingress relation, not a local descriptor's
+    // initializer. A mixture with owned/unknown backing supplies no ingress
+    // shortcut; every resource continues through the ordinary retention owner.
+    let typed_state = program
+        .state_by_symbol(state)
+        .ok_or("state loan ingress: state is absent")?;
+    let typed_machine = validation::find_state(program, state)
+        .map(|(machine, _)| machine)
+        .ok_or("state loan ingress: machine is absent")?;
+    let incoming = if resources.iter().all(|(_, resource)| {
+        if resource.backing_incoming_reference.is_valid() {
+            return facts
+                .borrow
+                .incoming_references
+                .is_valid(resource.backing_incoming_reference)
+                && {
+                    let origin = facts
+                        .borrow
+                        .incoming_references
+                        .get(resource.backing_incoming_reference);
+                    origin.machine_symbol == machine && origin.state_symbol == state
+                };
+        }
+        // Plain loan parameters already name their caller-supplied referent in
+        // the checked access namespace; only stored descriptors need a separate
+        // opaque incoming-reference identity. Do not confuse the absence of
+        // that identity with locally owned referent storage.
+        resource
+            .parent_lifetime
+            .root
+            .as_symbol()
+            .and_then(|symbol| program.state_parameter_by_symbol(typed_state, symbol))
+            .is_some_and(|parameter| {
+                validation::reference_shell(program, parameter.type_reference).is_some()
+                    && validation::state_reference_parameter_binding_is_stable(
+                        program,
+                        typed_machine,
+                        typed_state,
+                        parameter.symbol,
+                    )
+            })
+    }) {
+        resources.iter().map(|(handle, _)| *handle).collect()
+    } else {
+        Vec::new()
+    };
     Ok(RetainedStorage {
         backing,
+        incoming,
         parents,
         operand_parents,
     })

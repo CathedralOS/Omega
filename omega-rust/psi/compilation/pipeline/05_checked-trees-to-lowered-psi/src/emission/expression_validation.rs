@@ -97,6 +97,7 @@ pub(crate) fn validate_direct_parameter_types(
             }
         }
         LoweredDirectExpression::IntegerLiteral { .. }
+        | LoweredDirectExpression::ScalarApplication { .. }
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::AtomicLoad { .. }

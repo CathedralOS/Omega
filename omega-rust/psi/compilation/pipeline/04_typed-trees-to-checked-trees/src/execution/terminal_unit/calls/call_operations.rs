@@ -671,10 +671,9 @@ pub(in crate::execution) fn build_call_operation(
         phase("call operation: scalar result producer");
         None
     } else {
-        // An ordinary Unit call retains no authored site.
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
-            source_site: None,
+            source_site,
             target: call_target,
             completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             route: CheckedUnitCallRoute::Module {

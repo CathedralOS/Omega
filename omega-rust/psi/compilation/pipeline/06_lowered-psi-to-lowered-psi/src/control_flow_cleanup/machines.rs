@@ -68,6 +68,19 @@ pub(super) fn prune(
         kept = next;
     }
     module.machines.retain(|machine| kept.contains(&machine.id));
+    // The declaration graph survives dead-code removal, but an association
+    // with executable code exists only while that code remains in the module.
+    // These rows have no externally held handles; rebuild their dense roster.
+    let callables = std::mem::take(&mut module.scalar_applications.proof_scope.callables);
+    module
+        .scalar_applications
+        .proof_scope
+        .callables
+        .insert_many(callables.iter().map(|(_, row)| row.clone()).filter(|row| {
+            !matches!(row, terminal_psi::ProofCallableAssociation::Callable {
+                callable: terminal_psi::TargetMachineCallable::Machine(body), ..
+            } if !kept.contains(body))
+        }));
 }
 
 /// The surviving-evidence check plus the producer-only sidecar pins: a

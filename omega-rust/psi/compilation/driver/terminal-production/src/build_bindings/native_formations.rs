@@ -15,6 +15,7 @@ pub(crate) fn capture(
         return Ok(Vec::new());
     }
     let root = match root {
+        crate::TerminalMachineSelection::Declarations => None,
         crate::TerminalMachineSelection::Symbol(symbol) => Some(symbol),
         crate::TerminalMachineSelection::Name(name) => {
             let mut matching = checked

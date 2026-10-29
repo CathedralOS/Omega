@@ -171,7 +171,10 @@ impl Schema {
                             }
                             (Shape::Record(members), leaves)
                         }
-                        StructuralTypeShape::FixedArray { element, length } => {
+                        StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } => {
                             let element = child(*element)?;
                             let leaves = if *length == 0 {
                                 Some(0)

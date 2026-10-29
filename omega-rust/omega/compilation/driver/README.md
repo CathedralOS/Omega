@@ -36,8 +36,12 @@ The crate-internal `produce_products` operation starts from checked source and
 selected target inputs, producing Terminal when required and then the requested
 outputs. It is not a second public entrypoint for compiling an existing Terminal
 artifact. That source-free operation is
-[`native_production::compile`](../native-production/src/compiler.rs),
-which takes a retained Terminal artifact and explicit realization inputs.
+[`native_production::prepare`](../native-production/src/preparation.rs), followed
+by canonical scalar completion and
+[`native_production::compile`](../native-production/src/compiler.rs). Preparation
+retains the Terminal artifact and explicit realization inputs; compilation consumes
+that same prepared work after its scalar demands have been completed. The native
+compiler does not call an interpreter or reopen source.
 `cargo run -p compiler --example terminal_sharing` exercises two native targets
 through this route and checks actual production counts and shared backing
 storage. It does not execute a foreign-host image.
@@ -46,6 +50,20 @@ failure isolation, use `--reject linux_arm64
 tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg
 windows_x86_64 linux_arm64 macos_arm64`: the missing entry rejects without
 discarding either successful sibling.
+
+Product constants and declaration conditions now travel in the shared Terminal
+artifact rather than closing a checked-tree copy for each target. Scalar completion
+retains exact provider/target inputs and evaluation charges. `--check` publishes
+rootless declarations when scalar obligations require completion, and otherwise
+stops before Terminal production. `--compare-single-targets --run` additionally
+compares shared-product bytes with independent compilation and executes the host
+image and reloaded Terminal artifact. Build-helper production in
+[package compilation](src/checked/package_compilation.rs) publishes the same
+checked source without private constant replay. The waiting Build activation
+owns exact slot admission, canonical scalar completion and component installation
+in [provider installation](../build-evaluation/src/terminal_execution/provider_installation.rs).
+Its live account pays the evaluation, and installed components retain completed
+scalar inputs for the rest of that invocation.
 
 The coordinator retains an ordered roster of completed outputs, errors and
 pending Terminal work. It borrows only the pending work for shared production,

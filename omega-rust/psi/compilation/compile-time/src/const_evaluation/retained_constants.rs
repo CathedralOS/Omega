@@ -61,6 +61,19 @@ pub struct ConstantValueClosureRequest<'request, Layouts> {
 
 impl<Layouts: LayoutQueryProvider> ConstantValueClosureRequest<'_, Layouts> {
     pub fn close(self) -> Result<TypedTrees, Vec<Diagnostic>> {
+        // This legacy evaluator owns the captured authored forest only. A
+        // recipe appended by executable specialization has different storage
+        // and needs its own complete entry; its raw handle cannot index this
+        // snapshot, even when a later allocation happens to have the same bits.
+        // Keep that work pending rather than importing a template's value.
+        for (handle, recipe) in self.checked.constant_recipes.iter() {
+            let source = &self.retained.input.source.constant_recipes;
+            if !source.is_valid(handle) || source.get(handle) != recipe {
+                return Err(vec![Diagnostic::error(
+                    "retained source cannot evaluate a constant recipe introduced or changed by executable preparation; its complete evaluation entry remains pending",
+                ).with_source_span(recipe.source_span)]);
+            }
+        }
         let mut evaluated = self.retained.input.source.clone();
         SelectedConstantEvaluationRequest {
             program: &mut evaluated,
@@ -194,6 +207,33 @@ mod tests {
     #[test]
     fn no_pending_work_retains_no_source() {
         assert!(RetainedConstantEvaluation::capture(&TypedTrees::default(), Vec::new()).is_none());
+    }
+
+    #[test]
+    fn retained_source_refuses_prepared_recipe_handles_even_when_the_expression_collides() {
+        let (mut checked, pending, query) = deferred_query();
+        let retained =
+            RetainedConstantEvaluation::capture(&checked, vec![pending]).expect("pending work");
+        // The query handle is valid in both forests, but the new recipe was
+        // never part of the evaluator's authored input. Handle equality alone
+        // must not turn that unrelated query result into this recipe's value.
+        checked
+            .constant_recipes
+            .insert(typed_trees::constant_recipes::RetainedConstantRecipe {
+                position:
+                    typed_trees::constant_recipes::RetainedConstantPosition::ContractExpression(
+                        query,
+                    ),
+                ..Default::default()
+            });
+        let errors = close(&retained, &checked, Some(8)).expect_err("unowned recipe refuses");
+        assert!(errors.iter().any(|error| {
+            error
+                .to_string()
+                .contains("complete evaluation entry remains pending")
+        }));
+        assert!(checked.constant_recipe_closure.is_empty());
+        assert!(retained.source().constant_recipes.is_empty());
     }
 
     #[test]

@@ -285,6 +285,12 @@ pub struct ReferenceStorageView {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Read an exact application result from this artifact's admitted target
+    /// closure. This is neither a runtime call nor permission to evaluate an
+    /// unavailable application. The result carrier must match its catalog row.
+    ReadScalarApplication {
+        application: semantic_vocabulary::ScalarApplicationId,
+    },
     /// Establish the ordinary runtime descriptor of one exact executable
     /// application. Native layout supplies relocations and instruction spans;
     /// neither Psi evaluation nor an interpreter may fabricate this value.
@@ -1434,6 +1440,7 @@ impl OperationKind {
             | Self::PortWrite { .. }
             | Self::AtomicFence { .. }
             | Self::IntegerConstant { .. }
+            | Self::ReadScalarApplication { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }
             | Self::EstablishStructuralArray { .. }

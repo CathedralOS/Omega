@@ -109,7 +109,10 @@ fn finite_cleanup_type(
                 }
             }
         }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if *length != 0 => {
             finite_cleanup_type(*element, declarations, active, complete)?;
         }
         _ => return None,
@@ -166,7 +169,10 @@ fn append_expected_residuals(
                 }
             }
         }
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             let touched = moved
                 .iter()
                 .map(|(path, _)| match path[0] {

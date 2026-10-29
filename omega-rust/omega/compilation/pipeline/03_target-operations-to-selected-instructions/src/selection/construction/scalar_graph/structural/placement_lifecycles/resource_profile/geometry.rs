@@ -255,8 +255,10 @@ impl Node {
         capacity: u64,
     ) -> Result<(Counted, Node), SelectedInstructionError> {
         let [entries, count] = self.record(declarations)?;
-        let StructuralTypeShape::FixedArray { element, length } =
-            entries.declaration(declarations)?.shape
+        let StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } = entries.declaration(declarations)?.shape
         else {
             return Err(failure(
                 "resource profile counted carrier has no fixed array",

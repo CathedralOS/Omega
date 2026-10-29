@@ -14,7 +14,10 @@ impl TerminalExecution<'_> {
     ) -> Result<crate::execution::OperationFlow, TerminalInterpretError> {
         operation_kind!(operation => EstablishStructuralArray { elements });
         let result = operation.result.structural().ok_or_else(malformed)?;
-        let Some(StructuralTypeShape::FixedArray { element, length }) = self
+        let Some(StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        }) = self
             .program
             .structural_types()
             .get(&result.structural_type)

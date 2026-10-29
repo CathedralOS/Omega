@@ -1494,7 +1494,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             };
             let expression = if let Some(producer) = operand.call() {
                 let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
-                    producer.source_site()?
+                    producer.source_site()
                 else {
                     return None;
                 };

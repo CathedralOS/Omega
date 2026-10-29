@@ -168,6 +168,14 @@ pub(super) fn encode_content_term(bytes: &mut CanonicalBytes, term: &ContentTerm
 pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
     use ScalarTerm as S;
     match term {
+        S::Application {
+            application,
+            scalar_type,
+        } => {
+            bytes.u8(41);
+            bytes.id(*application);
+            encode_scalar_type(bytes, *scalar_type);
+        }
         S::IeeeFloatField { root, path, format } => {
             bytes.u8(38);
             bytes.id(*root);

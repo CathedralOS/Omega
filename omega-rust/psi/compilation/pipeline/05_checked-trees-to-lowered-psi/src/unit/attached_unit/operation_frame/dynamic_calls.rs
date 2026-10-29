@@ -137,7 +137,7 @@ impl OperationFrame<'_, '_> {
             });
         }
         if declaration.is_none() {
-            self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+            self.record_source_call(call.coordinate, call.source_site(), id, call.target.machine)?;
         }
         let mut span = super::super::argument_evaluation::BlockEmissionSpan {
             current_claims: self.evaluation.current_claims.clone(),

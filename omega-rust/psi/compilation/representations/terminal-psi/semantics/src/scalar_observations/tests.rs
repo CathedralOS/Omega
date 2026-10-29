@@ -28,7 +28,7 @@ fn descriptor_extents_require_exact_readable_crossings() {
             array,
             StructuralTypeShape::FixedArray {
                 element: bytes,
-                length: 1,
+                length: 1.into(),
             },
         ),
         declaration(

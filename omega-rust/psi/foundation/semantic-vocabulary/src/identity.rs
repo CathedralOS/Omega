@@ -176,6 +176,10 @@ macro_rules! semantic_id {
 }
 
 semantic_id!(ValueId, "Stable identity of one terminal-Psi value.");
+semantic_id!(
+    ScalarApplicationId,
+    "Stable identity of one target-dependent scalar application in terminal Psi."
+);
 impl ValueId {
     /// The first nonzero value coordinate, also used in closed formal namespaces.
     pub const FIRST: Self = Self(NonZeroU64::MIN);

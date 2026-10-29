@@ -88,7 +88,10 @@ pub fn element_representation_layout<'a>(
         active.push(element);
         let mut layout = match &row.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => scalar_layout(*scalar, None)?,
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 let child = visit(types.clone(), *element, active, budget)?;
                 let stride = align(child.size, child.alignment)?;
                 let count = usize::try_from(*length)
