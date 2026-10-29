@@ -18,8 +18,9 @@ use std::sync::Arc;
 
 /// One target's complete provider selection beside the shared source custody.
 /// Terminal production borrows this record to mint the target-neutral artifact.
-/// All source-dependent selected execution is already complete; no later
-/// installation phase reopens source or fills in this result.
+/// Selection and native declaration preparation are complete; no later
+/// installation phase reopens source or fills in this result. Source-only
+/// consumers request their checked-instance projection at their own boundary.
 pub(crate) struct SelectedProviderCustody {
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
@@ -161,11 +162,19 @@ impl SelectedProductTarget {
 
     pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         crate::terminal::check_terminal_conditions(&mut self.custody)?;
-        self.check_task_activations()?;
+        self.check_declaration_requirements()?;
         Ok(self.into_checked_compilation())
     }
 
-    pub(crate) fn check_task_activations(&self) -> Result<(), Vec<Diagnostic>> {
+    pub(crate) fn check_declaration_requirements(&self) -> Result<(), Vec<Diagnostic>> {
+        // A source-only stop owes selected-instance coverage without native
+        // realization. Executable products obtain it from Terminal instead.
+        let execution = &self.custody.execution;
+        provider_planning::project_checked_provider_instances(
+            &execution.program.typed,
+            &execution.program.facts,
+            &execution.selected_provider_plan_facts,
+        )?;
         check_task_activations(&self.custody.execution)
     }
 
