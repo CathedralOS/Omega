@@ -2014,6 +2014,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "sample-runner"
+version = "0.1.0"
+dependencies = [
+ "omega-build",
+ "package-manager",
+ "target",
+ "terminal-runtime",
+]
+
+[[package]]
 name = "sci04-terminal-validation"
 version = "0.1.0"
 dependencies = [
@@ -2264,11 +2274,7 @@ dependencies = [
 name = "spectral-power-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -2587,11 +2593,7 @@ dependencies = [
 name = "thin-film-reflectometry-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
