@@ -110,6 +110,7 @@ pass/layouts/runtime_nested_restricted_field_read built 2192ms exit:0 interprete
 pass/recast/runtime_restricted_field_call_arguments_exit built 2102ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/recast/runtime_restricted_field_loans_exit built 2095ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 2415ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 2755ms exit:0 interpreter-exit:0 interpreter:agrees @557e78cac57a+wt
 pass/slices/runtime_mutable_slice_result_reborrow_exit built 2417ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_result_shared_observation_exit built 2419ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_result_whole_forward_exit built 2428ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt

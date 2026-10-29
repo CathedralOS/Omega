@@ -8581,8 +8581,7 @@ pass/slices/runtime_matched_window_length built 1880ms exit:0 interpreter-exit:0
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 6918ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 3763ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 5881ms exit:21 interpreter-exit:21 interpreter:agrees @a92f16431042
-pass/slices/runtime_mutable_slice_result_nested_reborrow_exit rejected 1786ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 3424ms exit:0 interpreter-exit:0 interpreter:agrees @557e78cac57a+wt
 pass/slices/runtime_mutable_slice_result_reborrow_exit built 3821ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_result_shared_observation_exit built 3892ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_result_whole_forward_exit built 3469ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt

@@ -305,10 +305,196 @@ fn evaluate_length(
         // count; this supplies geometry only, never an encoding predicate.
         ExpressionNode::String(bytes) => u64::try_from(bytes.len()).ok(),
         ExpressionNode::ArrayLiteral(values) => u64::try_from(values.len()).ok(),
-        ExpressionNode::Call(_) => calls::normal_return_length(program, machine, state, expression),
+        ExpressionNode::Call(call) => {
+            match calls::normal_return_length(program, machine, state, expression) {
+                Some(length) => Some(length),
+                None => {
+                    return transparent_call_result_length(
+                        program, machine, state, call, engine, depth,
+                    );
+                }
+            }
+        }
         _ => None,
     }?;
     Some(Polynomial::constant(BigInt::from_u64(length)))
+}
+
+/// The length a reference-returning call's result denotes, in caller terms.
+/// The contract owner measures only guaranteed integer results; a slice
+/// result's extent comes from the callee's own returned formation, which the
+/// length engine already composes. Evaluate that formation against the
+/// callee's entry frame with every formal bound to a synthetic atom, then
+/// substitute each atom with the actual's measured length or scalar value.
+/// Every result route must agree on one substituted measure; an unresolved
+/// route, a named completion target, or a recursive descent fails closed.
+fn transparent_call_result_length(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    call: &typed_trees::expression::TableCallExpression,
+    engine: &mut Engine<'_>,
+    depth: usize,
+) -> Option<Polynomial> {
+    if depth >= 16 {
+        return None;
+    }
+    let (callee_machine, callee_state) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
+    let TypeReferenceNode::Reference { referee, .. } = program
+        .type_reference_table
+        .type_reference(callee_state.return_type)
+    else {
+        return None;
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(*referee),
+        TypeReferenceNode::Slice { .. }
+    ) {
+        return None;
+    }
+    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
+    let parameters = program.state_parameters(callee_state);
+    let call_arguments = program.expression_table.expression_handles(call.arguments);
+    let total_operands = usize::from(call.receiver.is_valid()) + call_arguments.len();
+    if total_operands != callee.leading_operands + parameters.len() {
+        return None;
+    }
+    let actuals: Vec<_> = call
+        .receiver
+        .is_valid()
+        .then_some(call.receiver)
+        .into_iter()
+        .chain(call_arguments.iter().copied())
+        .skip(callee.leading_operands)
+        .collect();
+    let statements = program.statement_table.statements(callee_state.statement_nodes);
+    let mut results = Vec::new();
+    for (index, statement) in statements.iter().enumerate() {
+        match statement {
+            typed_trees::statement::StatementNode::Expression(result)
+                if index + 1 == statements.len() =>
+            {
+                results.push(*result)
+            }
+            typed_trees::statement::StatementNode::Transition(transition)
+                if transition.exit == typed_trees::statement::TransitionExit::Ordinary =>
+            {
+                for edge in transition.targets() {
+                    let typed_trees::statement::TransitionTargetNode::Value(result) =
+                        program.statement_table.transition_target(edge)
+                    else {
+                        return None;
+                    };
+                    results.push(*result);
+                }
+            }
+            _ => {}
+        }
+    }
+    if results.is_empty() {
+        return None;
+    }
+    let length_bindings = bindings(program, callee_machine, callee_state, None);
+    let strict_bindings: Vec<_> = parameters
+        .iter()
+        .filter(|parameter| {
+            parameter.symbol.is_valid() && !is_slice(program, parameter.type_reference)
+        })
+        .map(|parameter| crate::StrictArithmeticSymbolBinding {
+            symbol: parameter.symbol,
+            value: crate::StrictArithmeticBindingValue::Atom {
+                identity: format!("\0call-result:param:{:?}", parameter.symbol),
+                unsigned: true,
+            },
+        })
+        .collect();
+    let mut shared = None;
+    for result in results {
+        let mut callee_engine = Engine::strict(program, callee_machine, &strict_bindings);
+        // A collection length is nonnegative by construction; the strict
+        // engine has no parameter roster to seed that interval itself.
+        for (_, identity) in &length_bindings {
+            callee_engine
+                .bounds
+                .push((Polynomial::atom(identity.clone()), BigInt::zero()));
+        }
+        install(
+            program,
+            callee_machine,
+            callee_state,
+            callee_state,
+            &length_bindings,
+            &mut callee_engine,
+            &[result],
+        )?;
+        let measured = evaluate_length(
+            program,
+            callee_machine,
+            callee_state,
+            result,
+            &length_bindings,
+            &mut callee_engine,
+            depth + 1,
+        )?;
+        let mut replacements = std::collections::BTreeMap::new();
+        for (parameter, actual) in parameters.iter().zip(actuals.iter()) {
+            let slice_length = length_bindings
+                .iter()
+                .find(|(symbol, _)| *symbol == parameter.symbol)
+                .map(|(_, identity)| identity.clone());
+            let identity = slice_length.clone().unwrap_or_else(|| {
+                format!("\0call-result:param:{:?}", parameter.symbol)
+            });
+            if !measured
+                .terms
+                .keys()
+                .any(|monomial| monomial.contains_key(&identity))
+            {
+                continue;
+            }
+            let replacement = if slice_length.is_some() {
+                evaluate_length(program, machine, state, *actual, &[], engine, depth + 1)?
+            } else {
+                engine.normalize(*actual)?
+            };
+            replacements.insert(identity, replacement);
+        }
+        let substituted = substitute_atoms(&measured, &replacements)?;
+        match &shared {
+            None => shared = Some(substituted),
+            Some(prior) if *prior == substituted => {}
+            _ => return None,
+        }
+    }
+    shared
+}
+
+/// Apply exact atom substitutions inside one polynomial. Unmapped atoms keep
+/// their identity; an overflowed product fails the measure rather than
+/// landing a wrapped partial.
+fn substitute_atoms(
+    polynomial: &Polynomial,
+    replacements: &std::collections::BTreeMap<String, Polynomial>,
+) -> Option<Polynomial> {
+    if replacements.is_empty() {
+        return Some(polynomial.clone());
+    }
+    let mut next = Polynomial::default();
+    for (monomial, coefficient) in &polynomial.terms {
+        let mut piece = Polynomial::constant(coefficient.clone());
+        for (atom, power) in monomial {
+            let base = replacements
+                .get(atom)
+                .cloned()
+                .unwrap_or_else(|| Polynomial::atom(atom.clone()));
+            for _ in 0..*power {
+                piece = piece.checked_mul(&base)?;
+            }
+        }
+        next = next.add(&piece);
+    }
+    Some(next)
 }
 
 /// The stable descriptor captured by one local declaration. Both expression
