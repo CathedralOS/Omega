@@ -36,44 +36,45 @@ After the first call it captures all four stamps; after the second it checks
 final stamps [11,0xF1] and [0xF1,19], returned bytes 65/66 and all eight payload
 bytes. These footer checks follow the consuming calls. They are runtime
 canaries, never guards supplying inspect's own domain requirement. Missing,
-wrong-slot, wrong-element and overly wide stores are intended to reach bad()
-and crash Trap; that source-level prediction has no engine observation yet.
+wrong-slot, wrong-element and overly wide stores reach bad() and crash Trap.
+Counterfactuals omitting the stamp store or using the outer selector for the
+inner slot were executed: both yielded Terminal Trap and native signal 5.
 
-| Requirement | Source design and remaining evidence |
+| Requirement | Evidence |
 | --- | --- |
-| Establishment | Concrete cells satisfy the standing Ascii field domain; choose/relay return the checked reference and inspect consumes its field fact after the indexed sibling store. Checking remains pending for the eight new places. |
-| Identity and lifetime | The outer selection and inner stamp selector are independent. Exact destination versions must invalidate overlapping storage while preserving unrelated payload facts. No lifetime or carrier type supplies an exact origin. |
-| Composition | The nine existing transports retain the same fact, bound and operation. Both match arms are exercised; parameter and provider contracts retain the selector bounds. |
-| Soundness | Every twin adds the same overlapping non-ASCII payload store and retains the positive's contracts and canaries. All nine intended rejection reasons still require observation. |
-| Psi 05–07 | Sources require view selection, nested indexed stores, calls and crash routing through Terminal Psi. No Terminal execution is claimed. |
-| Omega 00–02 | All positives author four hosted ProgramEntry bindings; target_body also selects the provider for each host. Layout, calling and provider realization remain unverified. |
-| Omega 03–06 | Intermediate/final stamp values and payload bytes are intended to expose wrong coordinates and clobbers across calls. Native observations remain pending. |
-| Omega 07–09 and emission | Expected exit 0 is authored for each positive; actual native/Terminal agreement and retained products remain pending. |
+| Establishment | Concrete cells establish Ascii; choose/relay carry the checked field promise, and inspect consumes it after the indexed sibling write in every place. No caller guard establishes it. |
+| Identity and lifetime | Independent cell/stamp selectors, four stamp canaries and eight payload bytes distinguish both selected values, preserved neighbors and writes. Only complete aligned possible storage is projected; it does not become exact pointer identity or access authority. |
+| Composition | All nine transports retain the sentence, bound and operation. Both match arms run; parameter and selected-provider contracts include both selector bounds. The provider performs selection/write/inspection internally and returns u8. |
+| Soundness | All nine twins reject inspect's missing Ascii obligation after the sole added overlapping byte write. Stale descriptor, overwritten result, recast backing and borrowed-storage controls retain their expected behavior. |
+| Psi 05–07 | All nine positives execute through Terminal Psi with exit 0, preserving calls, views, indexed stores and crash routes. |
+| Omega 00–02 | All nine positives realize their authored macos_arm64 entry and agree with Terminal Psi. Four hosted entries are authored; execution on the other three hosts is unverified. |
+| Omega 03–06 | Native exit 0 establishes selected-cell and independent stamp-slot behavior across calls, with the canaries and payload bytes checked afterward. |
+| Omega 07–09 and emission | Retained native images execute with exit 0 and agree with Terminal Psi. Deliberately missing and misdirected stores trap in both engines. |
 
-The published fixed base is 861910090c171e544f99a7a0605c34bd49f50dad.
-Historical H2 evidence is retained in
-build/borrowed-result-indexed-sibling-20261029/h2-source-snapshot.json and
-baseline-h2-observations.json. Its actual optimized B0 CLI producer is
-5260151f7c061451f3f72d570daa3340e653c3e8. The frozen local positive exited 1
-at inspect's Ascii obligation and both Table storage return obligations; its
-overlapping twin also exited 1 with the authored inspect refusal. This is
-historical source-check evidence for the exact H2 local files, which this
-fixture expansion leaves unchanged. It is not engine acceptance or a baseline
-claim for the eight new places. The earlier H1 result predates the independent
-stamp selector and remains separate history.
+Fixed base: `861910090c171e544f99a7a0605c34bd49f50dad`. Frozen H2 local positive
+wrongly refused inspect's Ascii obligation and both Table storage return obligations;
+its overlapping twin also refused. Actual optimized B0 producer was
+`5260151f7c061451f3f72d570daa3340e653c3e8`; compiler inputs match the fixed base.
+The eight other places were added afterward and have no claimed B0 observation.
+H1 predates the independent stamp selector and remains separate history.
 
-Optimized R1 CLI producer aa686301b549825cd3caf76e9fa64d9f9368c56f checks
-the unchanged H2 local positive with exit 0. Its twin still exits 1 with the
-authored inspect Ascii refusal. The exact source hashes and commands are retained
-in candidate-r1-local-observations.json beside candidate-r1-producer.json and
-the raw local diagnostics in the same build directory. These are local source
-checking results only: no native/Terminal execution is claimed, and source
-results for the eight new places remain pending.
+Fresh optimized R1 CLI producer `aa686301b549825cd3caf76e9fa64d9f9368c56f` ran
+15 positives (nine places and six focused controls) with native/Terminal exit
+0/0, 16 invalid controls with their authored rejection reasons, and two Trap
+counterfactuals. Actual optimized corpus-runner producer
+`cdaaea7fffc3ceee150ec935c69c6a72d3969760` checked 31 pinned source
+fixtures (15 accepted, 16 rejected), and ran all 15 positive pins with native/Terminal
+exit 0/0. These producers share the compiler input tree; their source revisions
+remain distinct. Focused whole-range `[..]` and bounded-range `[0..2]` compositions each
+run with native/Terminal exit 0/0; their overlapping twins reject inspect's
+Ascii requirement. Their source snapshots and products are under `range-r1/`
+in the evidence directory. The affected Rust crate check and captured-window
+coordinate test pass. Existing selected golden semantics and every unselected row are unchanged.
 
-All nine positives and twins are copied under tests/omega/{pass,fail}/facts/
-using borrowed_result_field_domains_indexed_sibling_write_<place>_exit and
-borrowed_result_field_domains_indexed_sibling_write_<place>_rejected. Positive
-pins author native and interpreter exit 0; negative pins copy the inspect
-diagnostic. These are source pins awaiting execution, with no corpus golden
-recording in this fixture expansion. The parent task retains its remaining
-acceptance; neither this production nor the parent is declared complete.
+Evidence: `build/borrowed-result-indexed-sibling-20261029/`, including frozen
+`h2-source-snapshot.json`, `baseline-h2-observations.json`, producer receipts,
+`validation-r1/customer-validation/`, `validation-r1/fault-validation/`,
+`record-corpus-{source,both}.json` and `golden-content-audit.json`. All nine
+positives and twins are pinned under `tests/omega/{pass,fail}/facts/` using
+`borrowed_result_field_domains_indexed_sibling_write_<place>_{exit,rejected}`.
+The owning scalar-contract task retains its other requirements.
