@@ -1,10 +1,13 @@
-# Cathedral before/after comparison: setup blocked
+# Cathedral UI before/after comparison: setup blocked
 
-**No qualified end-to-end Cathedral performance result.** Both matched release
+The subsequent [Matrix component comparison](matrix/README.md) has a qualified
+warm compilation result. This page preserves the unsuccessful **UI** attempts.
+
+**No qualified end-to-end UI performance result.** Both matched release
 producers exceeded the ten-minute package-preparation deadline. Neither reached
 an accepted project lock or native publication. There are no warm A/B samples,
 native products, medians, speedup percentages or confidence intervals to report.
-The earlier small-workload speedups remain unvalidated on Cathedral.
+The earlier small-workload speedups remain unvalidated on the UI workload.
 
 ## Workloads and bounded attempts
 

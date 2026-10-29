@@ -1,4 +1,4 @@
-//! Bounded receiving view of the existing complete v4 plan commitment input.
+//! Bounded receiving view of the current complete plan commitment input.
 //!
 //! This reader does not mint a ProviderPlan, evaluated binding receipt, or
 //! selection authority. It authenticates the original normalized bytes and
@@ -6,9 +6,9 @@
 //! checked realizations to verified bodies. Irreducible binding payloads remain
 //! committed bytes; receiving them never makes them executable.
 
+use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
 use sha2::{Digest, Sha256};
 
-const DOMAIN: &[u8] = b"omega.provider-plan.sha256.v4\0";
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
 
@@ -36,16 +36,18 @@ impl<'a> ProviderPlanInput<'a> {
             return Err("provider plan input differs from its complete commitment");
         }
         let mut reader = Reader { bytes, offset: 0 };
-        if reader.take(DOMAIN.len())? != DOMAIN {
+        if reader.take(PROVIDER_PLAN_DOMAIN.len())? != PROVIDER_PLAN_DOMAIN {
             return Err("unknown provider plan input schema");
         }
         reader.nonempty_string()?; // selection name
         let provider = reader.string()?;
+        reader.string()?; // exact provider application, retained in the commitment
         let provider_package = reader.package()?;
         let target = reader.string()?;
         reader.nonempty_string()?; // schema identity
         reader.package()?;
         for _ in 0..reader.count()? {
+            reader.nonempty_string()?; // complete receiving application
             reader.nonempty_string()?;
             reader.package()?;
             reader.strings()?;
@@ -76,7 +78,7 @@ impl<'a> ProviderPlanInput<'a> {
                     return Err("provider plan entry claims repeat or reorder");
                 }
                 previous_claim = Some(key);
-                reader.tag(1)?; // predicate body
+                reader.tag(1)?; // predicate presence
                 reader.carry()?;
                 reader.tag(0)?; // accepts authority flow
             }
@@ -352,6 +354,51 @@ mod tests {
     }
 
     #[test]
+    fn retained_plan_rejects_retired_schema_with_a_matching_commitment() {
+        let mut bytes = selected_plan().identity_preimage();
+        let retired_domain = b"omega.provider-plan.sha256.v4\0";
+        assert_eq!(retired_domain.len(), PROVIDER_PLAN_DOMAIN.len());
+        bytes[..retired_domain.len()].copy_from_slice(retired_domain);
+        assert_eq!(
+            read(&bytes).unwrap_err(),
+            "unknown provider plan input schema"
+        );
+    }
+
+    #[test]
+    fn retained_plan_reads_complete_applied_identity_framing() {
+        let mut plan = selected_plan();
+        plan.provider_application = plan.identities.intern("Provider<Payload,'caller>");
+        let application = plan.schema.identities.intern("Boundary<Payload,'caller>");
+        let argument = plan.schema.identities.intern("Payload");
+        let lifetime = plan.schema.identities.intern("'caller");
+        plan.schema
+            .receiver_applications
+            .push(crate::provider_plan::ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: plan.schema.trait_package_identity,
+                argument_identities: vec![argument],
+                lifetime_argument_identities: vec![lifetime],
+                requirement_identities: vec![plan.schema.methods[0].requirement_identity],
+            });
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let input = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes()).unwrap();
+        assert_eq!(input.rows[0].requirement, "Boundary::consume(opaque)");
+        let mut changed = bytes;
+        let position = changed
+            .windows(b"Provider<Payload,'caller>".len())
+            .position(|window| window == b"Provider<Payload,'caller>")
+            .unwrap();
+        changed[position] ^= 1;
+        assert_eq!(
+            ProviderPlanInput::read(&changed, plan.identity_digest().as_bytes()).unwrap_err(),
+            "provider plan input differs from its complete commitment"
+        );
+    }
+
+    #[test]
     fn retained_plan_rejects_changed_commitment_and_malformed_complete_inputs() {
         let plan = selected_plan();
         let bytes = plan.identity_preimage();
@@ -366,7 +413,8 @@ mod tests {
         unknown_schema[0] ^= 1;
         assert!(read(&unknown_schema).is_err());
         let mut overflowing_string = bytes;
-        overflowing_string[DOMAIN.len()..DOMAIN.len() + 8].copy_from_slice(&u64::MAX.to_le_bytes());
+        overflowing_string[PROVIDER_PLAN_DOMAIN.len()..PROVIDER_PLAN_DOMAIN.len() + 8]
+            .copy_from_slice(&u64::MAX.to_le_bytes());
         assert!(read(&overflowing_string).is_err());
         let mut repeated = plan.clone();
         repeated.rows.push(repeated.rows[0].clone());

@@ -49,6 +49,12 @@ selection. The noisier confirmation is part of the finding, not an excluded run.
 These measurements do not establish cold-start, Cathedral, other-host, or
 whole-corpus speedups. No slow valid observation was discarded.
 
+The later [Cathedral Matrix comparison](cathedral/matrix/README.md) measures
+the production policy component separately: 9.8% paired saving in 32 initial
+pairs and 8.3% in 16 confirmation pairs, with identical publication bytes and
+passing component ABI checks. Its linked standalone wrapper still crashes in
+both versions. The [UI attempts](cathedral/README.md) remain unqualified.
+
 ## What changed and why
 
 Every nonzero arena handle asks the record reader whether its generation belongs

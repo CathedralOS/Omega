@@ -130,10 +130,36 @@ The [Cathedral report](cathedral/README.md) retains exact frozen gallery and
 combined UI-export inputs. The retained baseline's gallery preparation timed out
 at 1,800 seconds. A separately built matched opt-level 3 pair both timed out at
 600 seconds preparing the frozen UI exports. No accepted export locks, source
-graphs, native products or warm paired samples were produced, so Cathedral has
+graphs, native products or warm paired samples were produced, so that UI case has
 no qualified end-to-end speedup estimate. The small-workload result does not
-establish a Cathedral win. A separate temporary progress probe identifies
+establish a UI win. A separate temporary progress probe identifies
 local-initializer contract-entailment replay as the largest completed scope
 (21.746 seconds over 348 calls), with unchanged completed counters afterward;
 the still-active operation remains unobserved. Preserve the blocked attempts
 and investigate that prerequisite before repeating the warm comparison.
+
+## Cathedral Matrix follow-up: measured component compilation
+
+The [Matrix report](cathedral/matrix/README.md) establishes a warm end-to-end
+component publication saving on the frozen production policy package. The
+initial 32 pairs estimate 240.601 ms / 9.803% paired saving (95% percent interval
+9.328–10.490%); a separate 16-pair confirmation estimates 227.534 ms / 8.323%
+(3.510–12.214%). Exploratory pooling of all compatible pairs estimates
+238.556 ms / 9.724% (9.193–10.497%). Host load changed between batches; all valid
+observations are retained and the individual results remain visible.
+
+Both producers contain the same necessary v5 provider-plan receiving-frame
+repair; only the generation-domain registry differs. Both compile the same
+physical Matrix source root with their own complete, normally accepted locks
+and unchanged private warm records. All three publication files match in all
+112 successful same-root observations, and both actual shared components pass
+11 ABI cases checking all 128 packet words. Separate decode medians drop
+1,444.858 to 1,158.573 ms, with equal graph/check counters. Inclusive scopes are
+not summed, and profiling is separate from primary timing.
+
+The linked standalone wrapper still SIGSEGVs in both variants. Its expected-zero
+check remains a failure; the predeclared measured outcome is the production
+component publication and ABI route. This is not whole Cathedral runtime or UI
+acceptance. The unrelated effects source guard also fails identically on HEAD.
+The record includes those failures, all setup mistakes, raw journals, manifests,
+locks, replay adapters and exact producer identities. Nothing was pushed.
