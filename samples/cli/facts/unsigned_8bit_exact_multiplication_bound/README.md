@@ -129,3 +129,10 @@ bodies compute the same result. All nine places bind the five hosted target
 profiles and their corpus pins request unchanged-artifact target installations.
 The source-prefix migration belongs to `BUILD-OWNED-TARGET-SELECTION`; it does
 not close that task or the numeric capability's other remaining acceptance.
+
+This migration establishes target selection and preserves the existing numeric
+witnesses. Historical claims above about numeric-row closure and foreign-host
+native execution are not renewed by this change. Existing identical-result
+match arms do not distinguish branch direction; Windows/Linux native execution
+remains unverified. Fresh native observations cover macOS ARM and X86; the five
+profile checks execute Terminal Psi on the same unchanged artifact.
