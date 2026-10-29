@@ -77,12 +77,11 @@ pub(super) fn create(
             },
             builder.constraints.keys.add_i64,
             &[parent.byte_offset, start_register, byte_offset],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end, *length, parent.root_length],
-                obligations: vec![*obligation],
-                ..Default::default()
-            },
+            super::obligated_provenance(
+                row.operation,
+                vec![*start, *end, *length, parent.root_length],
+                vec![*obligation],
+            ),
         )?;
         (byte_offset, parent.root_length)
     } else {
@@ -135,12 +134,11 @@ pub(super) fn create(
             backing,
             byte_offset,
             pointer,
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end, *length, root_length],
-                obligations: vec![*obligation],
-                ..Default::default()
-            },
+            super::obligated_provenance(
+                row.operation,
+                vec![*start, *end, *length, root_length],
+                vec![*obligation],
+            ),
         )?;
         super::local_storage::store(builder, row, slot, 0, pointer)?;
         super::local_storage::store(builder, row, slot, 8, byte_length)?;

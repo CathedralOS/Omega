@@ -238,12 +238,7 @@ pub(super) fn replace(
             .copy_bytes
             .ok_or_else(|| invalid())?,
         &[source_pointer, destination_pointer, count, cursor, byte],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(row.operation, vec![*length], vec![*obligation]),
     )?;
     memory(
         builder,
@@ -335,12 +330,7 @@ pub(super) fn replace_byte(
         payload,
         index_register,
         address,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*index, *length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(row.operation, vec![*index, *length], vec![*obligation]),
     )?;
     memory(
         builder,

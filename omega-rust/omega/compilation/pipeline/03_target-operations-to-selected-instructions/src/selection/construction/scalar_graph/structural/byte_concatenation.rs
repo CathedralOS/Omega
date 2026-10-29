@@ -78,12 +78,11 @@ pub(super) fn establish(
     // The accepted mathematical sum is at most the reconstructed capacity,
     // itself representable as u32, so this u64 addition cannot overflow.
     let length = transport_register(builder, result.place, 0)?;
-    let evidence = SelectedInstructionProvenance {
-        operations: vec![row.operation],
-        values: vec![left.length(), right.length()],
-        obligations: vec![*capacity_obligation],
-        ..Default::default()
-    };
+    let evidence = super::obligated_provenance(
+        row.operation,
+        vec![left.length(), right.length()],
+        vec![*capacity_obligation],
+    );
     builder.emit(
         SelectedInstructionKind::ExactAddI64 {
             obligation: *capacity_obligation,
@@ -248,11 +247,10 @@ fn copy(
         SelectedInstructionKind::CopyBytes,
         builder.constraints.keys.copy_bytes.ok_or(invalid())?,
         &[source_pointer, destination_pointer, count, cursor, byte],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![operand.length()],
-            obligations: vec![*capacity_obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(
+            row.operation,
+            vec![operand.length()],
+            vec![*capacity_obligation],
+        ),
     )
 }

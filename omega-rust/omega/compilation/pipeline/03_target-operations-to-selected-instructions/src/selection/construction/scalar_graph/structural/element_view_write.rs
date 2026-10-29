@@ -96,12 +96,7 @@ pub(super) fn write(
         pointer,
         physical_index,
         address,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(row.operation, vec![index, length], vec![obligation]),
     )?;
     builder.emit_store(
         byte_offset,

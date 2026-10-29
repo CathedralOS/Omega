@@ -94,23 +94,21 @@ pub(super) fn create(
     builder.emit_materialize_i64(
         IntegerValue::Unsigned(u128::from(stride)),
         stride_register,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*start, *end, *length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(
+            row.operation,
+            vec![*start, *end, *length],
+            vec![*obligation],
+        ),
     )?;
     builder.emit(
         SelectedInstructionKind::WrappingMultiplyI64,
         builder.constraints.keys.multiply_i64,
         &[start_register, stride_register, scaled_start],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*start, *end, *length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(
+            row.operation,
+            vec![*start, *end, *length],
+            vec![*obligation],
+        ),
     )?;
     let (byte_offset, root_length) = if let Some(parent) = parent {
         let byte_offset = transport_register(builder, result.place, 0)?;
@@ -125,12 +123,11 @@ pub(super) fn create(
             },
             builder.constraints.keys.add_i64,
             &[parent.byte_offset, scaled_start, byte_offset],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end, *length, parent.root_length],
-                obligations: vec![*obligation],
-                ..Default::default()
-            },
+            super::obligated_provenance(
+                row.operation,
+                vec![*start, *end, *length, parent.root_length],
+                vec![*obligation],
+            ),
         )?;
         (byte_offset, parent.root_length)
     } else {
@@ -176,12 +173,11 @@ pub(super) fn create(
             backing,
             byte_offset,
             pointer,
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end, *length, root_length],
-                obligations: vec![*obligation],
-                ..Default::default()
-            },
+            super::obligated_provenance(
+                row.operation,
+                vec![*start, *end, *length, root_length],
+                vec![*obligation],
+            ),
         )?;
         super::local_storage::store(builder, row, slot, 0, pointer)?;
         super::local_storage::store(builder, row, slot, 8, element_length)?;

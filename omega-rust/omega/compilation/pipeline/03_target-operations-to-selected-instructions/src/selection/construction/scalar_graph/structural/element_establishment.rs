@@ -352,12 +352,8 @@ pub(super) fn establish(
             if start_type != word || end_type != word || geometry.stride == 0 {
                 return Err(invalid());
             }
-            let region_provenance = selected_instructions::SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end],
-                obligations: vec![*obligation],
-                ..Default::default()
-            };
+            let region_provenance =
+                super::obligated_provenance(row.operation, vec![*start, *end], vec![*obligation]);
             let selected_backing = transport_register(builder, *destination, 0)?;
             builder.emit_byte_view_address(
                 backing,

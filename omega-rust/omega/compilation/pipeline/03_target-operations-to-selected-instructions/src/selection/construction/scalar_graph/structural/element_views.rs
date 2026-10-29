@@ -152,12 +152,7 @@ fn element_view_read(
         pointer,
         physical_index,
         address,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(row.operation, vec![index, length], vec![obligation]),
     )?;
     let address =
         super::runtime_address::scale(builder, row, source, byte_offset, address, indices)?;

@@ -177,23 +177,13 @@ pub(super) fn scaled_element_index(
     builder.emit_materialize_i64(
         IntegerValue::Unsigned(u128::from(stride)),
         stride_register,
-        SelectedInstructionProvenance {
-            operations: vec![operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        obligated_provenance(operation, vec![index, length], vec![obligation]),
     )?;
     builder.emit(
         SelectedInstructionKind::WrappingMultiplyI64,
         builder.constraints.keys.multiply_i64,
         &[index_register, stride_register, scaled_index],
-        SelectedInstructionProvenance {
-            operations: vec![operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        obligated_provenance(operation, vec![index, length], vec![obligation]),
     )?;
     let physical_index = if let Some(view) = view {
         let offset = transport_register(builder, place, 0)?;
@@ -204,12 +194,11 @@ pub(super) fn scaled_element_index(
             },
             builder.constraints.keys.add_i64,
             &[view.byte_offset, scaled_index, offset],
-            SelectedInstructionProvenance {
-                operations: vec![operation],
-                values: vec![index, length, view.root_length],
-                obligations: vec![obligation],
-                ..Default::default()
-            },
+            obligated_provenance(
+                operation,
+                vec![index, length, view.root_length],
+                vec![obligation],
+            ),
         )?;
         offset
     } else {
@@ -545,6 +534,21 @@ pub(super) fn operation_provenance(
         operations: vec![row.operation],
         values,
         fuel: row.fuel.clone(),
+        ..Default::default()
+    }
+}
+
+/// Provenance for one operation that carries the values and obligations an
+/// emission site names, and leaves fuel and edges empty.
+pub(super) fn obligated_provenance(
+    operation: OperationId,
+    values: Vec<ValueId>,
+    obligations: Vec<ObligationId>,
+) -> SelectedInstructionProvenance {
+    SelectedInstructionProvenance {
+        operations: vec![operation],
+        values,
+        obligations,
         ..Default::default()
     }
 }

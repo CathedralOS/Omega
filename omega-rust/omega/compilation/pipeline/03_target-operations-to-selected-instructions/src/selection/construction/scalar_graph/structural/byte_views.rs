@@ -55,12 +55,7 @@ pub(super) fn write(
         pointer,
         physical_index,
         address,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(row.operation, vec![index, length], vec![obligation]),
     )?;
     // A block-parameter view destination reaches the roots every incoming
     // edge binds; an un-sliced view place is its own root and keeps the
@@ -307,12 +302,11 @@ fn backing_index(
         },
         builder.constraints.keys.add_i64,
         &[view.byte_offset, index_register, offset],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length, view.root_length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        super::obligated_provenance(
+            row.operation,
+            vec![index, length, view.root_length],
+            vec![obligation],
+        ),
     )?;
     Ok(offset)
 }
