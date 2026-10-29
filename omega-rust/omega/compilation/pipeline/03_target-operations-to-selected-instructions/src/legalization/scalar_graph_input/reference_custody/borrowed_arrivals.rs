@@ -12,7 +12,9 @@ use abstract_operations::AbstractStructuralBinding;
 use optimization_unit_semantics::StructuralStorageProjection;
 use terminal_psi::StructuralParameterDeclaration;
 
+mod liveness;
 mod restoration;
+pub(super) use liveness::{expire_coordinates, live_coordinates};
 pub(super) use restoration::complete_cleanup;
 
 // Fixed-point propagation retains unknown predecessors explicitly. Consuming
@@ -344,6 +346,84 @@ mod tests {
             parents: vec![parent],
             placed: None,
         }
+    }
+
+    #[test]
+    fn dead_lookup_expires_without_disposing_or_restoring_a_live_grant() {
+        let target = BlockId::new(2).unwrap();
+        let dead = PlaceId::new(3).unwrap();
+        let live = PlaceId::new(4).unwrap();
+        let parent = occurrence(5);
+        let mut observations = descriptor_backing::Observations::default();
+        observations.borrowed_live = Some(BTreeMap::from([(target, BTreeSet::from([live]))]));
+        let mut custody = Custody {
+            descriptor_backing: std::sync::Arc::new(observations),
+            borrowed_sources: std::sync::Arc::new(BTreeMap::from([
+                (
+                    dead,
+                    Some(vec![source(parent.clone(), StructuralAccess::SharedBorrow)]),
+                ),
+                (
+                    live,
+                    Some(vec![source(parent, StructuralAccess::SharedBorrow)]),
+                ),
+            ])),
+            ..Custody::default()
+        };
+        expire_coordinates(&mut custody, target);
+        assert_eq!(custody.borrowed_sources.get(&dead), Some(&None));
+        assert!(custody.borrowed_sources[&live].is_some());
+        assert!(matches!(
+            custody.validate_occurrences(),
+            Err(LegalizationError::ReferenceCompletion {
+                reason: terminal_semantics::ReferenceCompletionError::MissingParent,
+            })
+        ));
+        assert!(custody.retired.is_empty());
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(live, None);
+        assert!(custody.validate_occurrences().is_ok());
+        let result = StructuralOperationResult {
+            place: PlaceId::new(6).unwrap(),
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        let child = Leaf::formed(
+            (result.place, Vec::new()),
+            Root::Place(dead),
+            vec![occurrence(5)],
+            OperationId::new(7).unwrap(),
+            &result,
+            result.structural_type,
+        );
+        custody.leaves.insert((result.place, Vec::new()), child);
+        expire_coordinates(&mut custody, target);
+        assert!(matches!(
+            custody.validate_occurrences(),
+            Err(LegalizationError::ReferenceCompletion {
+                reason: terminal_semantics::ReferenceCompletionError::MissingParent,
+            })
+        ));
+        assert!(custody.retired.is_empty());
+        // Only the address lookup ended. No disposal event was invented to
+        // excuse the still-live coordinate's missing immediate parent.
+    }
+
+    #[test]
+    fn unavailable_lookup_liveness_never_proves_a_coordinate_dead() {
+        let target = BlockId::new(2).unwrap();
+        let place = PlaceId::new(3).unwrap();
+        let mut custody = Custody::default();
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(
+            place,
+            Some(vec![source(occurrence(4), StructuralAccess::SharedBorrow)]),
+        );
+        let before = custody.borrowed_sources.clone();
+        expire_coordinates(&mut custody, target);
+        assert_eq!(custody.borrowed_sources, before);
     }
 
     #[test]

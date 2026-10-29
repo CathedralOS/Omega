@@ -722,7 +722,7 @@ fn resident_array_transfer_keeps_source_and_destination_strides_independent() {
             array,
             StructuralTypeShape::FixedArray {
                 element: scalar,
-                length: 2,
+                length: terminal_psi::ArrayExtent::Literal(2),
             },
         ),
     ];
@@ -861,7 +861,10 @@ fn image_fixture() -> (
         ),
         declaration(
             array,
-            StructuralTypeShape::FixedArray { element, length: 2 },
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            },
         ),
     ];
     let entry = |field: &str, placement| LayoutFieldEntryReport {

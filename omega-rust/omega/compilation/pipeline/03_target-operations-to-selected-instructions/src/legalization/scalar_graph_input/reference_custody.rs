@@ -3239,6 +3239,7 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            borrowed_arrivals::expire_coordinates(&mut exit, target);
             exit.prune_retired();
             exit.validate_occurrences()?;
             exits.push((
