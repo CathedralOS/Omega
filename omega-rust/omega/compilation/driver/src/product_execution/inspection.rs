@@ -52,7 +52,8 @@ impl InspectionCompilation {
             {
                 produced.check_conditions(&mut self.realization.custody)?;
             }
-            self.realization.check_declaration_requirements()?;
+            self.realization
+                .check_declaration_requirements(Some(produced.module()))?;
             match produced {
                 ProducedTerminalProduct::Descriptive { program, .. } => {
                     Ok(CompilationOutput::Inspection(program))

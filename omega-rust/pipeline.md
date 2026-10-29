@@ -440,6 +440,12 @@ Build companions; different inspected roots remain distinct. Inspection complete
 declaration scalar and task obligations against that product without a
 ProgramEntry or native installation. External artifact inspection retains only
 the admitted artifact and cannot recreate the source-issued companions.
+Published checking, inspection and component completion consume the artifact's
+complete task-demand bundle and identity table, including declarations outside
+the selected entry's executable reach. They do not lower those obligations from
+checked source again. A checking stop without publication still projects its
+task demands directly; full checked-provider instance coverage remains a
+separate source judgment.
 
 Build-helper production publishes the checked source unchanged. The waiting
 Build activation admits each explicitly named provider slot, discovers its
