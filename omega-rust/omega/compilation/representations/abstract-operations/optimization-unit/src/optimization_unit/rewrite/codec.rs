@@ -30,6 +30,12 @@ macro_rules! encode_scalar_common_subexpression {
     }};
 }
 
+macro_rules! push_bytes {
+    ($bytes:expr, $value:expr) => {
+        crate::codec_bytes::push_encoded($bytes, $value)
+    };
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_candidate(
     input: OptimizationUnitIdentity,
@@ -192,10 +198,7 @@ pub(super) fn encode_candidate(
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) => {
             bytes.push(1);
             encode_location(&mut bytes, patch.location);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.source_operation.get().to_le_bytes(),
-            );
+            push_bytes!(&mut bytes, patch.source_operation.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             encode_integer_type(&mut bytes, patch.scalar_type);
             encode_integer_value(&mut bytes, patch.constant);
@@ -203,10 +206,7 @@ pub(super) fn encode_candidate(
         PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) => {
             bytes.push(2);
             encode_location(&mut bytes, patch.location);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.source_operation.get().to_le_bytes(),
-            );
+            push_bytes!(&mut bytes, patch.source_operation.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             bytes.push(u8::from(patch.constant));
         }
@@ -264,10 +264,7 @@ pub(super) fn encode_candidate(
         PsiRewritePatch::RemoveDeadScalarNode(patch) => {
             bytes.push(10);
             encode_location(&mut bytes, patch.location);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.source_operation.get().to_le_bytes(),
-            );
+            push_bytes!(&mut bytes, patch.source_operation.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             encode_scalar_type(&mut bytes, patch.scalar_type);
         }
@@ -288,14 +285,8 @@ pub(super) fn encode_candidate(
         PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
             bytes.push(14);
             encode_location(&mut bytes, patch.redundant);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_operation.get().to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_result.get().to_le_bytes(),
-            );
+            push_bytes!(&mut bytes, patch.redundant_operation.get().to_le_bytes());
+            push_bytes!(&mut bytes, patch.redundant_result.get().to_le_bytes());
             encode_scalar_type(&mut bytes, patch.scalar_type);
             crate::codec_bytes::push_encoded(&mut bytes, patch.parameter_position.to_le_bytes());
             encode_len(&mut bytes, patch.incoming.len());
@@ -303,23 +294,14 @@ pub(super) fn encode_candidate(
                 crate::codec_bytes::push_encoded(&mut bytes, incoming.source.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, incoming.edge.get().to_le_bytes());
                 encode_location(&mut bytes, incoming.leader);
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    incoming.leader_operation.get().to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    incoming.leader_result.get().to_le_bytes(),
-                );
+                push_bytes!(&mut bytes, incoming.leader_operation.get().to_le_bytes());
+                push_bytes!(&mut bytes, incoming.leader_result.get().to_le_bytes());
             }
         }
         PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) => {
             bytes.push(15);
             encode_location(&mut bytes, patch.location);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.source_operation.get().to_le_bytes(),
-            );
+            push_bytes!(&mut bytes, patch.source_operation.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, patch.replacement.get().to_le_bytes());
             encode_integer_type(&mut bytes, patch.scalar_type);
@@ -350,10 +332,7 @@ pub(super) fn encode_candidate(
         PsiRewritePatch::EliminateTotalScalarIdentity(patch) => {
             bytes.push(16);
             encode_location(&mut bytes, patch.location);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.source_operation.get().to_le_bytes(),
-            );
+            push_bytes!(&mut bytes, patch.source_operation.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, patch.replacement.get().to_le_bytes());
             encode_integer_type(&mut bytes, patch.scalar_type);
@@ -399,10 +378,7 @@ pub(super) fn encode_candidate(
                 bytes.push(u8::from(row.constant));
                 crate::codec_bytes::push_encoded(&mut bytes, row.taken_edge.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, row.rejected_edge.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    row.resolved_target.get().to_le_bytes(),
-                );
+                push_bytes!(&mut bytes, row.resolved_target.get().to_le_bytes());
             }
         }
         PsiRewritePatch::SpecializeCaseMembership(patch) => {
@@ -456,10 +432,7 @@ pub(super) fn encode_candidate(
                         CanonicalStructuralPathSegment::Referent => bytes.push(4),
                         CanonicalStructuralPathSegment::Field(identity) => {
                             bytes.push(1);
-                            crate::codec_bytes::push_encoded(
-                                &mut bytes,
-                                identity.get().to_le_bytes(),
-                            );
+                            push_bytes!(&mut bytes, identity.get().to_le_bytes());
                         }
                         CanonicalStructuralPathSegment::FixedIndex(index) => {
                             bytes.push(2);
@@ -467,10 +440,7 @@ pub(super) fn encode_candidate(
                         }
                         CanonicalStructuralPathSegment::Case(identity) => {
                             bytes.push(3);
-                            crate::codec_bytes::push_encoded(
-                                &mut bytes,
-                                identity.get().to_le_bytes(),
-                            );
+                            push_bytes!(&mut bytes, identity.get().to_le_bytes());
                         }
                     }
                 }
@@ -492,10 +462,7 @@ pub(super) fn encode_candidate(
                     }
                     FieldValueResolution::Forward(forwarded) => {
                         bytes.push(3);
-                        crate::codec_bytes::push_encoded(
-                            &mut bytes,
-                            forwarded.initializer.get().to_le_bytes(),
-                        );
+                        push_bytes!(&mut bytes, forwarded.initializer.get().to_le_bytes());
                         encode_scalar_type(&mut bytes, forwarded.scalar_type);
                         encode_len(&mut bytes, forwarded.uses.len());
                         for site in &forwarded.uses {
