@@ -20,6 +20,8 @@ mod host_provisions;
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
+#[path = "provider_choice_controls.rs"]
+mod provider_choice_controls;
 #[path = "synchronous_provider_controls.rs"]
 mod synchronous_provider_controls;
 #[path = "task_activation_controls.rs"]
@@ -38,6 +40,7 @@ enum InspectionControls {
     ClosedReachCaptures,
     TaskActivations,
     SynchronousProviders,
+    ProviderChoices,
 }
 
 #[derive(Clone, Copy)]
@@ -119,6 +122,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::SynchronousProviders),
             ),
+            [machine, "provider-choice-controls"] => {
+                (*machine, false, Some(InspectionControls::ProviderChoices))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
@@ -139,7 +145,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         );
         let provider_controls = matches!(
             conformance_controls,
-            Some(InspectionControls::SynchronousProviders)
+            Some(InspectionControls::SynchronousProviders | InspectionControls::ProviderChoices)
         );
         let product = if provider_controls {
             compiler::CompilationProduct::Terminal(Default::default())
@@ -161,6 +167,14 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         let selected_target = crate::check_leg_realization_target(&discovered.targets);
         let profile = target::TargetProfile::from_omega_target_name(selected_target.as_deref())
             .map_err(|error| error.message)?;
+        let provider_choices = if matches!(
+            conformance_controls,
+            Some(InspectionControls::ProviderChoices)
+        ) {
+            Some(provider_choice_controls::prepare(root, profile)?)
+        } else {
+            None
+        };
         let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)
             .map_err(|errors| format!("inspection {machine} admission: {errors:?}"))?;
         if source_controls {
@@ -194,8 +208,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 .into_retained_terminal_artifact()
                 .ok_or("provider controls need a retained Terminal product")?;
             drop(prepared);
-            synchronous_provider_controls::inspect(&retained, profile.target_name())?;
-            observations.push("synchronous-provider-controls:match".into());
+            if let Some(choices) = provider_choices {
+                provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
+                observations.push("provider-choice-controls:match".into());
+            } else {
+                synchronous_provider_controls::inspect(&retained, profile.target_name())?;
+                observations.push("synchronous-provider-controls:match".into());
+            }
             continue;
         }
         let produced = output
@@ -283,6 +302,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::TaskActivations
                 | InspectionControls::SynchronousProviders
+                | InspectionControls::ProviderChoices
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

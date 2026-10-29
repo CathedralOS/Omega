@@ -535,11 +535,10 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     let preparation = include_str!(
         "../../realization/provider-planning/src/target_machines/provider_publication.rs"
     );
-    let publication = include_str!(
-        "../../realization/provider-planning/src/target_machines/provider_publication/prepared.rs"
-    );
+    let publication = include_str!("../../realization/provider-selection/src/publication.rs");
     assert!(!preparation.contains("TerminalArtifactView"));
-    assert!(preparation.contains("PreparedSelectionDeclarations::prepare("));
+    assert!(preparation.contains("retain_family_replay("));
+    assert!(preparation.contains("canonical_declaration("));
     assert!(!preparation.contains("derive_satisfies_plans"));
     assert!(!preparation.contains("settle_provider_defaults"));
     assert!(!preparation.contains("ProviderSettlement"));
@@ -560,6 +559,9 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
         "derive_satisfies_plans",
         "settle_provider_defaults",
         "exact_owner_nominal_identity",
+        "DerivedProviderPlan",
+        "SymbolHandle",
+        "PreparedSelectionDeclarations",
     ] {
         assert!(
             !publication.contains(forbidden),
@@ -568,10 +570,17 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     }
     assert!(publication.contains("candidate.explicitly_selected"));
     assert!(publication.contains("module.boundary_machines"));
-    assert!(publication.contains("self.selection_declarations.finish(selected, &[])?"));
+    assert!(publication.contains("crate::choose("));
+    assert!(publication.contains("crate::admit(selected, &[])?"));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
     let production = include_str!("terminal/terminal_artifact.rs");
     assert!(production.contains("provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication"));
+    let adapter = include_str!(
+        "../../realization/provider-planning/src/provider_planning/selection_provenance.rs"
+    );
+    assert!(adapter.contains("provider_selection::admit("));
+    assert!(!adapter.contains("check_operator_family_selections"));
+    assert!(!adapter.contains("IndependentComponentJoin"));
 }
 
 #[test]

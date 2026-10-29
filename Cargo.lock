@@ -1762,11 +1762,28 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "program-entry-plan",
+ "provider-selection",
  "representation-planning",
  "semantic-vocabulary",
  "source",
  "source-audit",
  "symbols",
+ "target",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
+name = "provider-selection"
+version = "0.1.0"
+dependencies = [
+ "backend-plan",
+ "component-description",
+ "diagnostics",
+ "effects",
+ "language-semantics",
+ "optimization-core",
+ "semantic-vocabulary",
  "target",
  "terminal-codec",
  "terminal-psi",

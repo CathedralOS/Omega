@@ -429,6 +429,14 @@ inventory; additional publication targets use its source-side producer. Publicat
 does not settle defaults or derive the requested target a second time. Portable
 owner closure and actual-demand selection remain later operations, preserving
 rootless checks and deferred refusals for unused candidates and unavailable targets.
+`realization/provider-selection` owns whole-provider choice and admission over
+prepared declarations. Source Check/review adapts exact invocation identities;
+Terminal publication retains nominal declaration kind and callable overload
+without source handles. Both use the same default/override, inherited-map,
+complete-family and composition policy. Choice consumes candidates and keeps each
+selected plan beside its closure columns; publication cannot recover another
+plan from a later inventory. Source preparation retains family replay refusals,
+while artifact demand determines which complete candidates enter selection.
 Completion consumes an explicit native-proposal request and the produced
 application, not a checked compilation. The application retains physical-adapter
 selection; completion still binds its exact arrival contract against the artifact.
@@ -797,7 +805,10 @@ accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
-owns provider choices and calling and component planning.
+owns source provider derivation, declaration preparation, and calling/component
+planning. [`provider-selection/src/provider_selection.rs`](omega/compilation/realization/provider-selection/src/provider_selection.rs)
+owns shared whole-provider choice and admission; its `publication.rs` selects
+canonical companions against Terminal demand without source dependencies.
 Psi projects checked task activation requirements, exact specialization and
 carry evidence, and the reachable frame graph into Terminal Psi. State-resident
 storage and staged arguments at each suspension crossing remain separate
