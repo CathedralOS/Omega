@@ -39,7 +39,6 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
         let layout_targets = self.layouts.layout_target_inputs();
         for continuation in self.pending {
             let continuation = continuation
-                .within_work(self.selection)
                 .with_layout_targets(&layout_targets)
                 .with_layout_applications(self.layouts.layout_application_inputs());
             evaluated.push(continuation.evaluate_selected_operators(self.program, self.operators)?);
