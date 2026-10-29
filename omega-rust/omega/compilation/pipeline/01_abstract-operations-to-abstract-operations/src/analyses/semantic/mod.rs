@@ -3,7 +3,9 @@
 //! Each leaf owns one independently cached fact family. The two immutable
 //! scalar-CFG projections more than one analysis reads -- where a scalar
 //! value is defined, and which edges a scalar operation leaves through --
-//! live here, below their common owner.
+//! are stated once by their owner: `optimization_unit::scalar_value_definition`
+//! and each node's construction-built `successors` roster. Analyses read
+//! both; nothing here restates the edge construction.
 
 mod effect_summaries;
 mod ownership_frontiers;
@@ -39,70 +41,8 @@ pub(super) use value_ranges::value_ranges;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
-    FuelSettlement, OptimizationEdge, PsiOptimizationFunction, PsiProvenance,
-    scalar_value_definition,
-};
+use optimization_unit::{PsiOptimizationFunction, scalar_value_definition};
 use semantic_vocabulary::BlockId;
-
-pub(super) fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
-    match operation {
-        O::Jump {
-            psi_edge,
-            target,
-            bindings,
-            structural_bindings,
-            cleanup_actions,
-        } => vec![OptimizationEdge {
-            structural_bindings: structural_bindings.clone(),
-            psi_edge: *psi_edge,
-            target: *target,
-            bindings: bindings.clone(),
-            cleanup_actions: cleanup_actions.clone(),
-            provenance: vec![PsiProvenance::Edge(*psi_edge)],
-            fuel: vec![FuelSettlement {
-                site: PsiProvenance::Edge(*psi_edge),
-                units: 1,
-            }],
-        }],
-        O::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [when_true, when_false]
-            .into_iter()
-            .map(|successor| OptimizationEdge {
-                structural_bindings: successor.structural_bindings.clone(),
-                psi_edge: successor.psi_edge,
-                target: successor.target,
-                bindings: successor.bindings.clone(),
-                cleanup_actions: successor.cleanup_actions.clone(),
-                provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
-                fuel: vec![FuelSettlement {
-                    site: PsiProvenance::Edge(successor.psi_edge),
-                    units: 1,
-                }],
-            })
-            .collect(),
-        O::StructuralCase { cases, .. } => cases
-            .iter()
-            .map(|case| OptimizationEdge {
-                psi_edge: case.psi_edge,
-                target: case.target,
-                bindings: Vec::new(),
-                structural_bindings: Vec::new(),
-                cleanup_actions: case.cleanup_actions.clone(),
-                provenance: vec![PsiProvenance::Edge(case.psi_edge)],
-                fuel: vec![FuelSettlement {
-                    site: PsiProvenance::Edge(case.psi_edge),
-                    units: 1,
-                }],
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
 
 /// Blocks reachable from the entry along carried scalar-successor edges.
 /// Every semantic analysis shares this reachability floor: an operation in
@@ -120,14 +60,11 @@ pub(super) fn semantically_reachable_blocks(
                 block
                     .nodes
                     .last()
-                    .map(|node| scalar_operation_successors(&node.operation))
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|edge| edge.target)
-                    .collect::<Vec<_>>(),
+                    .map(|node| node.successors.iter().map(|edge| edge.target).collect())
+                    .unwrap_or_default(),
             )
         })
-        .collect::<BTreeMap<_, _>>();
+        .collect::<BTreeMap<BlockId, Vec<BlockId>>>();
     let mut reachable = BTreeSet::new();
     let mut pending = vec![function.entry];
     while let Some(block) = pending.pop() {

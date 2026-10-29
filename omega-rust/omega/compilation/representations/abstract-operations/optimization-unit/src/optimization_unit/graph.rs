@@ -156,6 +156,9 @@ pub struct OptimizationNode {
     pub effect: EffectLink,
     pub definitions: Vec<ValueDefinition>,
     pub uses: Vec<ValueUse>,
+    /// The node's outgoing edges. Construction derives this roster once from
+    /// `operation`, and replay/specialization successors keep it consistent
+    /// with the rewritten node; consumers read it instead of re-deriving edges.
     pub successors: Vec<OptimizationEdge>,
     pub ownership: Vec<OwnershipEvent>,
 }
