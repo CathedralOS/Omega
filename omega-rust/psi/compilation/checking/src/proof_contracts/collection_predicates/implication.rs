@@ -434,8 +434,9 @@ impl Implication<'_> {
             };
             for (mut frame, path) in exits {
                 // Ensures expressions are authored in entry scope even when a
-                // different state returns. Bindings retain exact symbol identity
-                // and current collection versions across the state transfer.
+                // terminal callee returns. Bindings retain exact symbol identity
+                // and current collection versions across explicit arguments.
+                frame.machine = machine_position;
                 frame.state = 0;
                 let Some(goals) = self.expression(&frame, path, goal, 0) else {
                     return false;
@@ -517,7 +518,8 @@ impl Implication<'_> {
     /// recurrent mutating state needs a store invariant; it is not unrolled
     /// here. Predicate recurrence below has its separate checked induction.
     fn body_exits(&mut self, frame: Frame, path: Path) -> Option<Vec<(Frame, Path)>> {
-        let mut pending = vec![(0usize, frame, path, vec![0usize])];
+        let entry = (frame.machine, frame.state);
+        let mut pending = vec![(0usize, frame, path, vec![entry])];
         let mut exits = Vec::new();
         while let Some((position, frame, path, visited)) = pending.pop() {
             self.spend()?;
@@ -592,15 +594,56 @@ impl Implication<'_> {
                                 } if !static_machine_parameter.is_valid()
                                     && evidence_arguments.is_empty() =>
                                 {
-                                    let destination = typed_trees::state::state_position(
-                                        self.program.machine_states(machine),
-                                        target.symbol,
-                                    )?;
+                                    let destination = if let Some(state) =
+                                        typed_trees::state::state_position(
+                                            self.program.machine_states(machine),
+                                            target.symbol,
+                                        )
+                                        .filter(|position| *position != 0)
+                                    {
+                                        (frame.machine, state)
+                                    } else {
+                                        let (position, callee) =
+                                            self.program.machines().iter().enumerate().find(
+                                                |(_, callee)| {
+                                                    callee.symbol == target.symbol
+                                                        || self
+                                                            .program
+                                                            .machine_states(callee)
+                                                            .first()
+                                                            .is_some_and(|entry| {
+                                                                entry.symbol == target.symbol
+                                                            })
+                                                },
+                                            )?;
+                                        // Follow only an available checked body. Unknown effects,
+                                        // static applications and provider bodies cannot acquire
+                                        // preservation from an empty executable statement roster.
+                                        if callee.supply_mode
+                                            != language_semantics::MachineSupplyMode::CheckedBody
+                                            || !callee.body_is_present
+                                            || callee.structural_type_equations_pending
+                                            || callee.suspends
+                                            || callee.blocks
+                                            || !callee.type_parameters.is_empty()
+                                            || !self.program.machine_owned_data(callee).is_empty()
+                                            || !self
+                                                .program
+                                                .service_reach_rows
+                                                .services(callee.service_reach_row)
+                                                .is_empty()
+                                        {
+                                            return None;
+                                        }
+                                        (position, 0)
+                                    };
                                     if visited.contains(&destination) {
                                         return None;
                                     }
                                     let parameters = self.program.state_parameters(
-                                        &self.program.machine_states(machine)[destination],
+                                        &self.program.machine_states(
+                                            &self.program.machines()[destination.0],
+                                        )[destination.1],
                                     );
                                     for (path, arguments) in self.arguments(
                                         &frame,
@@ -608,11 +651,20 @@ impl Implication<'_> {
                                         self.program.statement_table.expression_handles(*arguments),
                                         0,
                                     )? {
-                                        if parameters.len() != arguments.len() {
+                                        if !admitted_activation_parameters(
+                                            self.program,
+                                            parameters,
+                                            arguments.len(),
+                                        ) {
                                             return None;
                                         }
                                         let mut frame = frame.clone();
-                                        frame.state = destination;
+                                        frame.machine = destination.0;
+                                        frame.state = destination.1;
+                                        // Evaluate every actual in the caller before extending
+                                        // the callee telescope. Existing caller aliases remain
+                                        // so a functional store updates their current versions;
+                                        // predicate antecedents retain the arrival snapshots.
                                         for (parameter, value) in parameters.iter().zip(arguments) {
                                             frame.bindings.push((
                                                 parameter.symbol,

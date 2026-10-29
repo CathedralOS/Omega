@@ -552,12 +552,24 @@ fn compare(
         // must supply that coordinate from its own invocation, not the root's
         // ambient scope. Distance formation is independently owed at both ends.
         if !proves(BinaryOperator::Equal, bound, &arriving) {
+            if std::env::var_os("OMEGA_PRIVATE_RANK_TRACE").is_some() {
+                eprintln!(
+                    "RANK bound {} -> {}: {bound:?} != {arriving:?}",
+                    machines[edge.source].name, machines[edge.destination].name
+                );
+            }
             return None;
         }
         if order == Order::BoundedDistance
             && !(proves(BinaryOperator::LessOrEqual, initial, bound)
                 && proves(BinaryOperator::LessOrEqual, &next, &arriving))
         {
+            if std::env::var_os("OMEGA_PRIVATE_RANK_TRACE").is_some() {
+                eprintln!(
+                    "RANK formation {} -> {}: {initial:?} <= {bound:?}, {next:?} <= {arriving:?}",
+                    machines[edge.source].name, machines[edge.destination].name
+                );
+            }
             return None;
         }
         order != Order::IncreasingTo || proves(BinaryOperator::Less, initial, bound)
@@ -579,6 +591,17 @@ fn compare(
     };
     let initial = normalize(initial)?;
     let next = normalize(&next)?;
+    if std::env::var_os("OMEGA_PRIVATE_RANK_TRACE").is_some() {
+        eprintln!(
+            "RANK order {} -> {}: initial={initial:?} next={next:?} nonneg={}/{} weak={} strict={}",
+            machines[edge.source].name,
+            machines[edge.destination].name,
+            proves(BinaryOperator::GreaterOrEqual, &initial, &zero),
+            proves(BinaryOperator::GreaterOrEqual, &next, &zero),
+            proves(BinaryOperator::LessOrEqual, &next, &initial),
+            proves(BinaryOperator::Less, &next, &initial)
+        );
+    }
     (proves(BinaryOperator::GreaterOrEqual, &initial, &zero)
         && proves(BinaryOperator::GreaterOrEqual, &next, &zero)
         && proves(BinaryOperator::LessOrEqual, &next, &initial))
