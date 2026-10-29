@@ -831,8 +831,11 @@ Shared process and filesystem utilities remain under `omega/foundation/`.
 `psi/interpreter/` contains the independent `checked-interpreter` and
 `terminal-interpreter` engines. `psi/compilation/compile-time/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
-jobs use the Terminal program/instance lifecycle; the remaining compile-time and
-Build consumers still use the checked interpreter.
+jobs use the Terminal program/instance lifecycle. Build activations use the
+Terminal Build host in `omega/compilation/build-evaluation/`; there is no
+checked-tree Build execution entrypoint. Remaining pure compile-time value and
+policy jobs, plus the explicitly selected reference corpus leg, still use the
+checked interpreter and remain the interpreter-consolidation frontier.
 `psi/compilation/driver/terminal-production/` owns the one checked-program
 lowering, optimization and publication sequence, below the source facade so
 early jobs do not depend back on their source coordinator. Product consumers
