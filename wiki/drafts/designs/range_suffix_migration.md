@@ -641,3 +641,14 @@ new range-specific inference routes. The existing nine-place
 `case_where_equality/data_predicate` row also carries an equivalent `u64`
 `lo >= 0` conjunct before its equality call, retaining the same equality and
 `hi - lo` operation without creating another row.
+
+Qualification producer: `ba4c5b471bb80e396b6084495a267aa4e6194951`, macOS
+ARM64, optimized development profile. All nine callback places and nine
+case-equality places, both component customers, both generic customers, and
+four existing contract/snapshot controls execute with native/Terminal agreement
+(26 programs; the snapshot retains exit 70, the others exit 0). The focused
+corpus records those 26 runtime oracles and 38 intended rejection diagnostics.
+The unrelated closed-local-types callback control still refuses its static
+binder on the pre-repair producer too; it is retained as nonaccepted baseline
+evidence, not a passing control. This does not close the parent migration or
+claim execution on another host.
