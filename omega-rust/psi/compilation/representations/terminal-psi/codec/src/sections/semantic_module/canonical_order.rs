@@ -23,6 +23,12 @@ macro_rules! noncanonical {
     };
 }
 
+macro_rules! r {
+    ($values:expr => $reason:expr) => {
+        require_increasing($values, $reason)
+    };
+}
+
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     require_increasing(
         module
@@ -48,10 +54,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             ));
         }
     }
-    require_increasing(
-        module.boundary_application_candidates.iter(),
-        "boundary application candidates",
-    )?;
+    r!(module.boundary_application_candidates.iter() => "boundary application candidates")?;
     require_increasing(
         module.task_activation_demands.demands.iter().map(|demand| {
             (
@@ -88,10 +91,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         )?;
     }
     for demand in &module.task_activation_demands.demands {
-        require_increasing(
-            demand.frames.iter().map(|frame| frame.identity),
-            "task activation frames",
-        )?;
+        r!(demand.frames.iter().map(|frame| frame.identity) => "task activation frames")?;
         require_increasing(
             demand.crossings.iter().map(|crossing| crossing.identity),
             "task activation crossings",
@@ -371,10 +371,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .map(|declaration| declaration.id),
         "structural domains by StructuralDomainId",
     )?;
-    require_increasing(
-        module.services.iter().map(|declaration| declaration.id),
-        "services by ServiceId",
-    )?;
+    r!(module.services.iter().map(|declaration| declaration.id) => "services by ServiceId")?;
     if module
         .services
         .iter()
@@ -452,10 +449,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             declaration.requires.iter(),
             "boundary requirements by argument index, path and domain",
         )?;
-        require_increasing(
-            declaration.normal_qualifications.iter(),
-            "boundary normal parameter qualifications",
-        )?;
+        r!(declaration.normal_qualifications.iter() => "boundary normal parameter qualifications")?;
         require_increasing(
             declaration.scalar_domain_requirements.iter().copied(),
             "boundary scalar domain requirements by argument index and domain",
@@ -573,10 +567,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .map(|term| (term.proposition, &term.interface, term.id)),
         "evidence terms by proposition and EvidenceTermId",
     )?;
-    require_increasing(
-        module.evidence_terms.iter().map(|term| term.id),
-        "evidence terms by EvidenceTermId",
-    )?;
+    r!(module.evidence_terms.iter().map(|term| term.id) => "evidence terms by EvidenceTermId")?;
     require_increasing(
         module
             .evidence_contract_lanes
@@ -584,10 +575,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .map(|lane| (lane.machine, lane.kind, lane.position)),
         "evidence contract lanes by machine, kind, and position",
     )?;
-    require_increasing(
-        module.machines.iter().map(|machine| machine.id),
-        "machines by MachineId",
-    )?;
+    r!(module.machines.iter().map(|machine| machine.id) => "machines by MachineId")?;
     for machine in &module.machines {
         validate_parameter_order(&machine.structural_parameters)?;
         for block in &machine.blocks {
@@ -613,10 +601,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             }
             validate_parameter_order(&block.structural_parameters)?;
         }
-        require_increasing(
-            machine.entry_claims.iter().map(|claim| claim.claim),
-            "entry claims by ClaimId",
-        )?;
+        r!(machine.entry_claims.iter().map(|claim| claim.claim) => "entry claims by ClaimId")?;
         require_increasing(
             machine.block_entry_claims.iter().map(|claim| claim.claim),
             "block entry claims by ClaimId",
@@ -642,10 +627,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             return Err(noncanonical!("crash route buckets"));
         }
         validate_crash_route_predicates(&machine.contract.crash_routes)?;
-        require_increasing(
-            machine.blocks.iter().map(|block| block.id),
-            "blocks by BlockId",
-        )?;
+        r!(machine.blocks.iter().map(|block| block.id) => "blocks by BlockId")?;
         for operation in machine.operations() {
             if let Some(result) = operation.result.as_structural() {
                 require_increasing(
@@ -778,10 +760,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             ));
         }
         validate_identity_reshuffles(&machine.content_identity_reshuffles)?;
-        require_increasing(
-            machine.content_partition_compositions.iter(),
-            "content partition compositions",
-        )?;
+        r!(machine.content_partition_compositions.iter() => "content partition compositions")?;
         for composition in &machine.content_partition_compositions {
             require_increasing(
                 composition
@@ -790,14 +769,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     .map(|place| place.id),
                 "partition source structural places by PlaceId",
             )?;
-            require_increasing(
-                composition.input_claims.iter().copied(),
-                "partition input claims by ClaimId",
-            )?;
-            require_increasing(
-                composition.substitutions.iter(),
-                "partition place substitutions",
-            )?;
+            r!(composition.input_claims.iter().copied() => "partition input claims by ClaimId")?;
+            r!(composition.substitutions.iter() => "partition place substitutions")?;
         }
         require_increasing(
             machine
