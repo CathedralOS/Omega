@@ -1,0 +1,16 @@
+// A nested scalar array construction [a, b] flattens fixed-array rows into row-major element reads of their storage, preserving each row's element values across all nine places.
+// Invalid: the second row's element carrier is [u32; 2], so its element reads cannot supply [u64; 2] leaves.
+// Expected exit: 0
+machine pair(a: [u64; 2], b: [u32; 2]) -> [[u64; 2]; 2] {
+    [a, b]
+}
+
+machine main() crashes Trap {
+    let result: [[u64; 2]; 2] = pair([3, 5], [7, 11]);
+    transition result[0][0] == 3 && result[0][1] == 5 && result[1][0] == 7 && result[1][1] == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
