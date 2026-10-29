@@ -18,7 +18,16 @@ pass/collections/runtime_double_indexed_rmw_exit built 9161ms exit:1 interpreter
 pass/collections/runtime_hoisted_index_write_exit built 9130ms exit:7 interpreter-exit:7 interpreter:agrees @4235516305e1
 pass/collections/runtime_indexed_struct_field_rmw_exit built 9164ms exit:1 interpreter-exit:1 interpreter:agrees @4235516305e1
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 9240ms exit:70 interpreter-exit:70 interpreter:agrees @4235516305e1
+pass/control_flow/qualified_case_payload_copy_exit built 2672ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
+pass/domains/bodyless_owner_establishment checked 1716ms @0cea3356c5b0+wt
+pass/domains/carried_indexed_payload_qualification built 2620ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
+pass/domains/carried_nested_payload_qualification built 2399ms exit:0 interpreter-exit:0 interpreter:agrees @4f49785bc6c0+wt
+pass/domains/carried_runtime_index_payload_qualification built 2555ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
+pass/domains/domain_established_by checked 2090ms @0cea3356c5b0+wt
+pass/domains/explicit_domain_erasure checked 1899ms @0cea3356c5b0+wt
+pass/domains/indexed_domain_known_disjoint_call_exit built 1839ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @f1058703209f+wt
 pass/domains/named_const_subject_binding built 13526ms exit:3 interpreter-exit:3 interpreter:agrees @9947836a76ba
+pass/domains/refinement_chain_routed_provenance checked 1914ms @0cea3356c5b0+wt
 pass/facts/as_slice_views_generic_offset_selector_exit built 4123ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_root_exit built 4009ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_shadowed_extent_exit built 3655ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1

@@ -295,6 +295,38 @@ source continuation across Build/generated-source admission, exposing only the
 operation needed to resume with admitted inputs. Sessions retain storage and
 reusable judgments, not alternate compilation paths.
 
+After Product sources join, Psi's source continuation admits provider requests
+as one operation: recover original lexical owners, form every authored recipe,
+prepare reached applications with their captured static arguments, then admit
+the executed selections. The Product coordinator authenticates dependency
+selections before this call and publishes its result; it does not drive typing
+one operand at a time. Whole-provider choice remains Omega-owned. Provider
+admission completes before opaque-representation admission, so an invalid
+provider request may report first when both independent request kinds are
+invalid; both still reject when reached.
+
+ProgramEntry descriptions and final source compatibility are Psi judgments.
+The target catalog supplies only source-visible slot requirements; it never
+receives typed trees through a compatibility callback. Psi retains lexical
+lookup, exact declared-owner recovery and executed root-binding rejoin, including
+the original description's slot identity. Final entry settlement repeats the
+source check against the completed declaration before Omega derives physical
+layout and calling plans. Semantic arrival resolves inside the exact core
+Product owner; physical arrival resolves inside its selected schema. Shared
+source-signature extraction preserves normalized identities without combining
+those distinct authority paths. Hosted source checks are not evidence of
+physical arrival execution.
+
+Psi also admits source-issued audit registrations, runtime assumed-binding
+relationships and wire demands as one declaration operation after Product join.
+It forms every authored request before admitting executed selections, resolves
+their exact operands and authors, and enforces consuming-root authority for
+assumed relationships. The Product coordinator installs those returned records;
+it does not resolve their source operands or mutate admission policy. Package
+review owns audit projection, Psi checking owns wire compatibility, and Omega
+owns runtime provider compatibility. Uncalled legacy checked-expression
+collectors are not alternative admission routes.
+
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
 Keep suspended activation storage alive while separately compiling helpers.
@@ -422,6 +454,21 @@ catalog before returning the product: selecting against all source candidates
 would incorrectly demand unused providers. Native completion attaches the retained
 proposals without reopening source selection. Unavailable target rows remain data
 for receiving admission, not failures of shared portable production.
+Authored provider derivation retains the exact target, defaults and original
+candidate provenance before native Build supplies or compiler-minted plans enter
+the execution inventory. Early settlement and publication consume that same
+inventory; additional publication targets use its source-side producer. Publication
+does not settle defaults or derive the requested target a second time. Portable
+owner closure and actual-demand selection remain later operations, preserving
+rootless checks and deferred refusals for unused candidates and unavailable targets.
+`realization/provider-selection` owns whole-provider choice and admission over
+prepared declarations. Source Check/review adapts exact invocation identities;
+Terminal publication retains nominal declaration kind and callable overload
+without source handles. Both use the same default/override, inherited-map,
+complete-family and composition policy. Choice consumes candidates and keeps each
+selected plan beside its closure columns; publication cannot recover another
+plan from a later inventory. Source preparation retains family replay refusals,
+while artifact demand determines which complete candidates enter selection.
 Completion consumes an explicit native-proposal request and the produced
 application, not a checked compilation. The application retains physical-adapter
 selection; completion still binds its exact arrival contract against the artifact.
@@ -452,6 +499,11 @@ Native preparation first determines the work and scalar demand for the root and
 its components. The application completes that demand; native compilation consumes
 the same preparation and completed inputs. Native production has no interpreter
 dependency or evaluator callback, and cannot silently recompute a missing value.
+`application/build/src/native_completion.rs` owns this lifecycle for standalone
+and package products. Source compilation transfers an owned `PendingNativeProduct`
+after admission and Terminal preparation, releasing its checked source. The shared
+`build-evaluation` scalar operation also serves descriptive Check, inspection and
+component publication; those stops do not acquire native execution obligations.
 Declaration-only Check publishes a rootless Terminal product when conditions need
 completion; a Check with no retained scalar obligations stops before publication.
 Demanded components complete all declaration conditions against their shared
@@ -785,7 +837,10 @@ accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
-owns provider choices and calling and component planning.
+owns source provider derivation, declaration preparation, and calling/component
+planning. [`provider-selection/src/provider_selection.rs`](omega/compilation/realization/provider-selection/src/provider_selection.rs)
+owns shared whole-provider choice and admission; its `publication.rs` selects
+canonical companions against Terminal demand without source dependencies.
 Psi projects checked task activation requirements, exact specialization and
 carry evidence, and the reachable frame graph into Terminal Psi. State-resident
 storage and staged arguments at each suspension crossing remain separate

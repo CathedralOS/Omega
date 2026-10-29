@@ -1,0 +1,16 @@
+{
+  "source_revision": "8badab9ee404808dbc2024bbc3534f4d08de8e49",
+  "build_seconds": 423.7024145126343,
+  "command": "mbx build --locked -p omega --release --message-format=json",
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\target\\release\\omega.exe",
+    "sha256": "7e8f008562203f0788e1bc276c436493e64ae0e6fde00ec6f46303ae5297a321",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "cargo_output_sha256": "efb1595b024915d2b54fbbf043a8d017e691fa0e31913847477348f90aa80e78",
+  "cargo_lock_sha256": "4b9a47f7b4f55350c3d8dbb4cc4d5e3a2eaa0c97a5af5a2ea48310aa873c0d74",
+  "rust_toolchain_sha256": "6db9c5260a7d864107954d6dc8dfd9d2095caa62eacc90b5dc530030b2079b0d"
+}

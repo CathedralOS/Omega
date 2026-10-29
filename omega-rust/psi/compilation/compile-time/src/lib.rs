@@ -15,8 +15,9 @@
 //! layout providers answer geometry without choosing source checks or mutations.
 //! `syntax_probes.rs` owns their temporary frontend work; `reflection/` owns
 //! semantic schema, selection, and visitation plans and their independent replay.
-//! `wire_demands.rs` decodes authored wire demands. Their compatibility
-//! judgment belongs to Psi's typed-to-checked stage, not Build execution.
+//! `product_declarations.rs` admits executed audits, runtime assumed bindings
+//! and wire demands against their source-issued requests. Wire compatibility
+//! belongs to Psi's typed-to-checked stage, not Build execution.
 //! `provider_declarations.rs` decodes target defaults and executed Build choices
 //! into exact source selections. Omega consumes them to realize providers.
 
@@ -35,6 +36,7 @@ pub use evaluation_accounting::{
 };
 mod layouts;
 mod machine_execution;
+pub mod product_declarations;
 pub mod provider_declarations;
 mod reflection;
 mod scalar_applications;
@@ -42,10 +44,8 @@ pub use scalar_applications::{
     ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
 };
 mod syntax_probes;
-mod wire_demands;
 
 pub use language_semantics::wire::WireCompatibilityDemand;
-pub use wire_demands::harvest_wire_compatibility_demands;
 
 pub use build_time_values::BuildTimeValue;
 pub use checked_interpreter::{
@@ -108,5 +108,6 @@ pub use machine_execution::selected_target_bodies::{
 
 // Source formation is shared by native Build and retained foreign producers.
 pub use validation::native_locators;
+pub use validation::product_entries;
 
 pub mod native_bindings;

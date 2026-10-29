@@ -27,9 +27,15 @@ The user selected Mebius Charts as the visual reference.
 The user subsequently supplied a Claude dashboard screenshot and artifact text
 as the preferred comparison: shared host axes, direct series labels and clear
 separation of counts, cohort sizes and evidence dates.
-The latest request adds Claude's fixed-cohort comparison and reduces default
-reading: show chart values first, use icon tabs for Facts and Work, and keep
-methods and provenance in an accessible Evidence details dialog.
-The user rejected that version as visually painful. The next revision removes
-the competing cards and colored bar groups: one chart at a time, warm neutral
-surfaces, plain navigation and a single muted accent for the fixed cohort.
+Keep the history, fixed-cohort and growth charts visible together. Reduce prose
+and repeated labels rather than hiding information behind a chart selector.
+Follow the Claude reference's charcoal cards and directly labeled host lines.
+The fixed-cohort chart compares the baseline, same set now and full corpus now.
+Facts, Work and the evidence-method dialog remain accessible separately.
+Facts and Work use the same charcoal cards and concise labels. Keep fact result
+counts, the nine-place grid, per-row source coverage, claim owners, full notes,
+scope and lease expiry visible. Exact identifiers and provenance remain inspectable.
+Performance adds historical compiler cost per authored project KLOC, compilation
+scaling, exit-verified process runtime, raw times, memory and code size. Keep
+host/settings contexts distinct. Imported-source LOC is not currently recorded;
+project-size context must be labeled. Missing matched baselines never imply a win.

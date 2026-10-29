@@ -1172,7 +1172,7 @@ pass/control_flow/owned_array_state_transfer_exit built 14035ms exit:70 interpre
 pass/control_flow/projected_case_subject_root_forwarding_exit built 14038ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 12203ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/control_flow/projected_loan_state_argument_exit built 12112ms exit:11 interpreter-exit:11 interpreter:agrees @a92f16431042
-pass/control_flow/qualified_case_payload_copy_exit built 4265ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/control_flow/qualified_case_payload_copy_exit built 2145ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
 pass/control_flow/qualified_param_subject_compile checked 1317ms @a92f16431042
 pass/control_flow/record_pattern_arm_rename_guard_exit built 7195ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/control_flow/record_result_dispatch_compile checked 1551ms @a92f16431042
@@ -1448,12 +1448,14 @@ pass/dependent/zero_case_predicate_entry_exit built 7201ms exit:65 interpreter-e
 pass/dependent/zero_gated_record_field_store_exit built 6930ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/dependent/zero_valid_qualified_storage checked 4239ms @a92f16431042
 pass/dependent/zeroed_record_member_sum_elision built 6412ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/domains/bodyless_owner_establishment rejected 1554ms @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/bodyless_owner_establishment checked 1599ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 1617ms @a92f16431042
 pass/domains/call_requires_domain_intersection_preserved checked 1913ms @a92f16431042
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1796ms @a92f16431042
 pass/domains/captured_predicate_readonly_call_exit built 2050ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/domains/carried_indexed_payload_qualification built 2140ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
+pass/domains/carried_nested_payload_qualification built 1981ms exit:0 interpreter-exit:0 interpreter:agrees @4f49785bc6c0+wt
+pass/domains/carried_runtime_index_payload_qualification built 2154ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
 pass/domains/case_payload_call_restore_exit built 5768ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/domains/case_payload_guarded_domain_exit built 2059ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/case_payload_predicate_domain_member_exit built 5797ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -1462,8 +1464,7 @@ pass/domains/copied_array_domain_survives_original_mutation_exit built 1896ms ex
 pass/domains/dependent_coordinate_sum_rational_bound checked 1465ms @a92f16431042
 pass/domains/dependent_coordinate_sum_upper_bound checked 1637ms @a92f16431042
 pass/domains/domain_axis_cast checked 1862ms @a92f16431042
-pass/domains/domain_established_by rejected 2237ms @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/domain_established_by checked 2000ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 2731ms @a92f16431042
 pass/domains/domain_intersection checked 2105ms @a92f16431042
 pass/domains/domain_operator_add checked 3136ms @a92f16431042
@@ -1490,13 +1491,12 @@ pass/domains/established_by_domain checked 2172ms @a92f16431042
 pass/domains/executable_domain_membership_expression_exit incomplete 6479ms interpreter:unchecked @a92f16431042
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit built 6545ms exit:241 interpreter-exit:241 interpreter:agrees @a92f16431042
-pass/domains/explicit_domain_erasure rejected 1762ms @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/explicit_domain_erasure checked 1613ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 1562ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit built 2049ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/indexed_domain_fact rejected 2057ms @a92f16431042
 	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-pass/domains/indexed_domain_known_disjoint_call_exit built 3017ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ee1410030dca
+pass/domains/indexed_domain_known_disjoint_call_exit built 1789ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values built 2318ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/intersected_qualifiers checked 2418ms @a92f16431042
 pass/domains/issued_indexed_subject_predicate checked 1456ms @a92f16431042
@@ -1532,8 +1532,7 @@ pass/domains/record_literal_view_member_store_exit incomplete 6055ms interpreter
 pass/domains/record_predicate_domain_member_exit built 6181ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 1812ms @a92f16431042
 pass/domains/refinement_chain_predicates checked 1515ms @a92f16431042
-pass/domains/refinement_chain_routed_provenance rejected 1556ms @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/refinement_chain_routed_provenance checked 1610ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 1550ms @a92f16431042
 pass/domains/routed_record_capture_before_sibling_mutation checked 1515ms @a92f16431042
 pass/domains/routed_selected_copy_exit built 2459ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

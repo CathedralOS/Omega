@@ -271,15 +271,9 @@ fn structural_origin(
             }
             _ => segment,
         };
-        if let facts::PlaceSegment::Index { expression } = segment
-            && !program.expression_table.expression_is_valid(expression)
-        {
-            // A window retains the collection dimension; an erased selector
-            // does not establish whether it was a window or one element.
-            // Stop before that coordinate rather than shifting later fields
-            // or indexes onto the wrong dimension of the backing storage.
-            return Some((place, OriginPrecision::Enclosing));
-        }
+        // Selector erasure preserves window-vs-element shape: OpaqueRange
+        // is a collection, while an invalid Index still selects one element.
+        // Its value is unavailable, but later fields remain disjoint.
         // Overlap treats a runtime selector as any element, independently of
         // its later value. Keep the known descendant fields: an unknown row
         // does not make a write to its second field touch its first field.

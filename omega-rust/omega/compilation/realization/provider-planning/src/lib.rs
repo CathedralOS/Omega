@@ -2,7 +2,7 @@
 
 //! Omega provider-plan derivation and realization.
 //!
-//! This crate owns provider selection, calling-policy realization, component
+//! This crate prepares source provider declarations, calling-policy realization, component
 //! progress and task activation planning. The
 //! compiler coordinator supplies checked inputs and consumes the resulting
 //! plans; it does not define their domain model. Exact grants are resolved by
@@ -16,6 +16,9 @@
 //! Start at `provider_settlement.rs` for typed candidate derivation and selection,
 //! then `provider_planning.rs` for checked-program binding;
 //! every other folder is one public vocabulary the compiler consumes by path.
+//! Whole-map choice and composition admission belong to `provider-selection`;
+//! this crate supplies exact invocation correspondence for Check/review and
+//! canonical declaration records for artifact publication.
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 

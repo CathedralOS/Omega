@@ -2,6 +2,124 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn product_declaration_admission_belongs_to_psi() {
+    let coordinator = include_str!("checked/checking/product_selections.rs");
+    assert!(coordinator.contains("source.admit_product_declarations("));
+    for forbidden in [
+        "mod additional_declarations",
+        "resolve_product_path(",
+        "WireCompatibilityFact",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let admission =
+        include_str!("../../../../psi/compilation/compile-time/src/product_declarations.rs");
+    for required in [
+        "request.validate_shape()",
+        "resolve_build_request_author(",
+        "symbol_package_identity(root)",
+        "declared.contains(request)",
+    ] {
+        assert!(
+            admission.contains(required),
+            "Psi admission lost {required}"
+        );
+    }
+    for forbidden in ["ComputedBuildConfig", "provider_planning::", "effects::"] {
+        assert!(
+            !admission.contains(forbidden),
+            "Psi admission depends on {forbidden}"
+        );
+    }
+    let legacy = include_str!("../../../../psi/compilation/compile-time/src/assumed_bindings.rs");
+    assert!(!legacy.contains("collect_executed_assumed_bindings"));
+    let compile_time = include_str!("../../../../psi/compilation/compile-time/src/lib.rs");
+    assert!(!compile_time.contains("harvest_wire_compatibility_demands"));
+}
+
+#[test]
+fn source_entry_admission_never_calls_omega_with_typed_trees() {
+    let query = include_str!("checked/checking/product_queries.rs");
+    assert!(query.contains("&target::ProgramEntrySlots"));
+    assert!(!query.contains("provider_planning::"));
+    let completion = include_str!("checked/checking/build_continuation.rs");
+    assert!(completion.contains("prepared.admit_root_bindings("));
+    assert!(!completion.contains("provider_planning::program_entry::collect_root_bindings("));
+    let operand = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/typed_trees/declarations/product_operand.rs"
+    );
+    assert!(!operand.contains("trait ProductEntryCompatibility"));
+    let admission = include_str!("../../../../psi/compilation/checking/src/product_entries.rs");
+    assert!(admission.contains("pub fn validate_source_compatibility("));
+    assert!(admission.contains("ProductEntryDeclaration::from_declared_owner("));
+    assert!(!admission.contains("target::"));
+    let realization = include_str!("../../realization/provider-planning/src/program_entry.rs");
+    assert!(realization.contains("validate_source_compatibility("));
+    assert!(realization.contains("selected.slot.source_contract()"));
+    for retired in [
+        "ProductEntryQueryCompatibility",
+        "fn core_arrival_requirement_contract(",
+        "fn arrival_requirement_contract(",
+    ] {
+        assert!(
+            !realization.contains(retired),
+            "Omega owns source judgment {retired}"
+        );
+    }
+    let catalog = include_str!("../../backend/target/src/target_profile.rs");
+    assert!(catalog.contains("ProgramEntrySourceCatalog for ProgramEntrySlots"));
+    for source_type in [
+        "TypedTrees",
+        "ProductEntryDeclaration",
+        "NormalizedTypeIdentity",
+    ] {
+        assert!(
+            !catalog.contains(source_type),
+            "target catalog receives {source_type}"
+        );
+    }
+}
+
+#[test]
+fn product_provider_request_admission_belongs_to_psi() {
+    let coordinator = include_str!("checked/checking/product_selections.rs");
+    assert!(coordinator.contains("source.admit_product_provider_requests("));
+    for forbidden in [
+        "prepare_provider_applications(",
+        "prepare_product_operand_application(",
+        "collect_product_provider_selections(",
+        "collect_product_selection_occurrences(",
+        "resolve_build_request_author(",
+        "ProductApplicationDemand",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let continuation = include_str!("../../../../psi/compilation/driver/src/source_compilation.rs");
+    assert!(!continuation.contains("pub fn prepare_product_operand_application("));
+    let admission = include_str!(
+        "../../../../psi/compilation/driver/src/source_compilation/provider_requests.rs"
+    );
+    assert!(admission.contains("pub fn admit_product_provider_requests("));
+    assert!(admission.contains("collect_product_provider_selections("));
+    for forbidden in [
+        "ComputedBuildConfig",
+        "provider_planning::",
+        "provider_selection::",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "Psi admission owns {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn selected_constant_evaluation_belongs_to_psi() {
     let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
     assert!(selection.contains("build_time_evaluation::SelectedConstantEvaluationRequest"));
@@ -48,7 +166,7 @@ fn selected_constant_evaluation_belongs_to_psi() {
 #[test]
 fn deferred_constants_use_canonical_entries_without_source_snapshots() {
     let checking = include_str!("checked/checking/source_checking.rs");
-    let closure = include_str!("terminal/scalar_completion.rs");
+    let closure = include_str!("../../build-evaluation/src/scalar_completion.rs");
     let product = include_str!("../../products/src/prepared_build.rs");
     for source in [checking, closure, product] {
         for forbidden in [
@@ -111,7 +229,7 @@ fn reused_product_selection_shares_the_checked_program() {
 
 #[test]
 fn canonical_proof_completion_has_no_source_rewrite_api() {
-    let coordinator = include_str!("terminal/scalar_completion.rs");
+    let coordinator = include_str!("../../build-evaluation/src/scalar_completion.rs");
     assert!(coordinator.contains("build_time_evaluation::complete_scalar_applications("));
     for forbidden in [
         "discharge_all(",
@@ -470,8 +588,7 @@ fn components_use_the_shared_product_sequence() {
 
 #[test]
 fn component_handoff_retains_the_producing_join() {
-    let handoff = include_str!("product_execution/native_inputs.rs");
-    let components = handoff.split("/// Project and validate").next().unwrap();
+    let components = include_str!("../../../application/build/src/native_completion.rs");
     for forbidden in [
         "checked: &",
         ".providers()",
@@ -536,17 +653,33 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     let preparation = include_str!(
         "../../realization/provider-planning/src/target_machines/provider_publication.rs"
     );
-    let publication = include_str!(
-        "../../realization/provider-planning/src/target_machines/provider_publication/prepared.rs"
-    );
+    let publication = include_str!("../../realization/provider-selection/src/publication.rs");
     assert!(!preparation.contains("TerminalArtifactView"));
-    assert!(preparation.contains("PreparedSelectionDeclarations::prepare("));
+    assert!(preparation.contains("retain_family_replay("));
+    assert!(preparation.contains("canonical_declaration("));
+    assert!(!preparation.contains("derive_satisfies_plans"));
+    assert!(!preparation.contains("settle_provider_defaults"));
+    assert!(!preparation.contains("ProviderSettlement"));
+    assert!(
+        preparation.contains("provider publication target differs from its authored inventory")
+    );
+    let inventory = include_str!(
+        "../../realization/provider-planning/src/target_machines/authored_providers.rs"
+    );
+    assert!(inventory.contains("retained.target == Some(profile)"));
+    assert!(inventory.contains("return Ok(Arc::clone(retained))"));
+    let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
+    assert!(settlement.contains("AuthoredTargetProviders::derive("));
+    assert!(!settlement.contains("derive_satisfies_plans"));
     for forbidden in [
         "ProviderPlanningContext",
         ".typed",
         "derive_satisfies_plans",
         "settle_provider_defaults",
         "exact_owner_nominal_identity",
+        "DerivedProviderPlan",
+        "SymbolHandle",
+        "PreparedSelectionDeclarations",
     ] {
         assert!(
             !publication.contains(forbidden),
@@ -555,10 +688,17 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     }
     assert!(publication.contains("candidate.explicitly_selected"));
     assert!(publication.contains("module.boundary_machines"));
-    assert!(publication.contains("self.selection_declarations.finish(selected, &[])?"));
+    assert!(publication.contains("crate::choose("));
+    assert!(publication.contains("crate::admit(selected, &[])?"));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
     let production = include_str!("terminal/terminal_artifact.rs");
     assert!(production.contains("provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication"));
+    let adapter = include_str!(
+        "../../realization/provider-planning/src/provider_planning/selection_provenance.rs"
+    );
+    assert!(adapter.contains("provider_selection::admit("));
+    assert!(!adapter.contains("check_operator_family_selections"));
+    assert!(!adapter.contains("IndependentComponentJoin"));
 }
 
 #[test]
@@ -592,11 +732,21 @@ fn product_coordinator_has_no_native_stage_dependency() {
 #[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
-    assert!(source.contains("native_production::prepare(&terminal, request)"));
-    assert!(source.contains("native_production::compile(prepared)"));
-    let inputs = include_str!("product_execution/native_inputs.rs");
+    let inputs = include_str!("../../../application/build/src/native_completion.rs");
+    for operation in [
+        "native_production::prepare(&terminal, request)",
+        "build_evaluation::scalar_completion::complete(",
+        "native_production::compile(prepared)",
+    ] {
+        assert!(
+            !source.contains(operation),
+            "compiler still drives {operation}"
+        );
+        assert!(inputs.contains(operation), "application lost {operation}");
+    }
+    assert!(source.contains("PendingNativeProduct"));
     assert!(inputs.contains("ComponentCompilation"));
-    assert!(inputs.contains("receiving_identities: facts.identities()"));
+    assert!(inputs.contains("receiving_identities: component.receiving_identities()"));
     for source in [source, inputs] {
         for forbidden in [
             "emit_component_exports(",

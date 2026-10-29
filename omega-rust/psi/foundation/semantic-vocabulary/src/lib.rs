@@ -29,9 +29,14 @@ mod content;
 pub mod fnv1a;
 mod identity;
 mod ieee_float_comparison_operation;
+mod program_entry;
 pub mod proof_applications;
 mod proposition;
 mod qualified_scalar_type;
+pub use program_entry::{
+    ProgramEntrySchema, ProgramEntrySourceCatalog, ProgramEntrySourceContract,
+    ProgramEntryVisibleParameters,
+};
 mod reference_origins;
 mod scalar_refinement;
 mod structural_places;

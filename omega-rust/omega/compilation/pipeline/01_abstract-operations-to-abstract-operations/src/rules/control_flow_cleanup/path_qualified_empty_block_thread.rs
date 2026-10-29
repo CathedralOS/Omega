@@ -9,11 +9,12 @@ use optimization_unit::{
     NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
-use optimization_unit_semantics::reconstruct_linear_thread_bindings;
+use optimization_unit_semantics::{
+    reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
+};
 use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
-use crate::rules::control_flow_cleanup::empty_block_thread_ownership::linear_thread_ownership_is_identity;
 use crate::rules::control_flow_cleanup::{
     provenance_realized_at, thread_accounting_tail, threadable_empty_blocks,
 };
@@ -35,7 +36,7 @@ psi_rule_contract!(
 psi_rule_impl!(PathQualifiedEmptyBlockThreadRule, |unit, analyses| {
     required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
     required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
-    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
+    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(_));
     let mut candidates = Vec::new();
     for function in &unit.functions {
         // Descriptor telescopes require structural substitution, outside this scalar rewrite.
@@ -75,10 +76,9 @@ psi_rule_impl!(PathQualifiedEmptyBlockThreadRule, |unit, analyses| {
                     empty.bindings,
                 )
                 .is_none()
-                    || !linear_thread_ownership_is_identity(
+                    || !reconstruct_linear_thread_ownership_is_identity(
                         unit,
                         function,
-                        frontiers,
                         edge.psi_edge,
                         empty.block.id,
                         empty.edge,

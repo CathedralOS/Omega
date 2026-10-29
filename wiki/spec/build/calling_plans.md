@@ -106,6 +106,28 @@ encodings produce the same normalized plan. Instructions changing regime require
 their starting regime and establish the next; regions on either side retain
 separate plans rather than one mixed-mode plan.
 
+## Checked assembly implementations
+
+An `asm machine` may implement an ordinary machine requirement. A selected
+boundary implementation consumes the requirement's same validated entry plan;
+assembly introduces neither a second calling-policy selection nor an `outputs`
+interface. The semantic signature may return an aggregate whose components use
+several registers or an indirect destination. Every result location must be
+initialized and valid at the checked return, with stack and preservation
+obligations satisfied. Authorized parameter mutations are independent effects.
+
+Entry register bindings initialize working state; they do not redefine native
+argument positions. A binding may require instructions, and overlapping input
+and destination locations must preserve all incoming values needed by setup.
+Nested assembly CFG edges do not repeat it or create another calling boundary.
+
+The entry contract relates native pointer lanes to the authorized argument or
+result storage. Checked copies, offsets and joins retain only justified
+provenance, extents and permissions. A policy places a hidden result pointer;
+it does not create access authority merely by naming its register. Explicit
+clobbers describe writes, while saved-state restoration proves preservation.
+See [assembly](../language/assembly.md#register-initialization-and-calling-plans).
+
 ## Identity and selection
 
 The canonical evaluated promise, not policy source, construction order, or a

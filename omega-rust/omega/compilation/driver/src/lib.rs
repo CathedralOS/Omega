@@ -59,5 +59,7 @@ pub use compiler::PreparedCompilation;
 pub use native_production::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
-pub use product_execution::{CompilationOutput, CompilationProduct, CompilationProductError};
+pub use product_execution::{
+    CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
+};
 pub use target::ExplicitTargetSet;

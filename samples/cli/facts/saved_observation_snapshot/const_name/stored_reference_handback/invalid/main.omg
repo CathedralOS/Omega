@@ -1,0 +1,40 @@
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+
+data Holder { before: u64; items: &mut [u64; 2]; after: u64; }
+machine kept(values: &[u64; 2]) -> bool { values[0] == 7 }
+machine preserve(holder: &mut Holder) crashes Trap
+requires kept(&holder.items) == true
+ensures kept(&holder.items) == true
+{
+    let mut copied: [u64; 2] = holder.items;
+    copied[0] = 4;
+    holder.items[0] = copied[0];
+    transition copied[1] == 1 {
+        true -> {}
+        false -> copy_failed()
+    }
+    machine copy_failed() { crash Trap; }
+}
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+ensures result == observed
+{ observed }
+const MARK: u64 = 7;
+machine main() crashes Trap {
+    let mut items: [u64; 2] = [MARK, 1];
+    let mut holder: Holder = Holder { before: 11, items: &mut items, after: 13 };
+    let saved: u64 = holder.items[0];
+    preserve(&mut holder);
+    let observed: u64 = agree(saved, holder.items[0]);
+    let current_zero: u64 = holder.items[0];
+    let current_one: u64 = holder.items[1];
+    let backing_zero: u64 = items[0];
+    let backing_one: u64 = items[1];
+    transition observed == MARK && current_zero == 7 && current_one == 4 && backing_zero == 7 && backing_one == 4 && holder.before == 11 && holder.after == 13 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

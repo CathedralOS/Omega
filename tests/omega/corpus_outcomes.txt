@@ -991,7 +991,7 @@ fail/borrow/write_only_stored_reference_constraint_loss rejected 1667ms expected
 fail/borrow/write_only_stored_shared_widening rejected 1205ms expected @a92f16431042
 	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
 	write-only argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrows/affine_array_projection_copy rejected 2381ms expected @a92f16431042
+fail/borrows/affine_array_projection_copy rejected 424ms expected @27c558b731f4
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)
 fail/borrows/affine_record_copy_handoff rejected 2309ms expected @a92f16431042
 	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
@@ -1268,7 +1268,7 @@ fail/borrows/dynamic_window_result_recast_backing rejected 1524ms expected @a92f
 	statement 2 mutates `bytes[2]` while local borrow `word` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/dynamic_window_result_requires_bounds rejected 2892ms expected @a92f16431042
 	cannot prove subslice range end bound `start..end` is within unknown slice length of `bytes` in select::capture
-fail/borrows/empty_array_snapshot_requires_read_authority rejected 499ms expected @b78d64e8fd65
+fail/borrows/empty_array_snapshot_requires_read_authority rejected 325ms expected @27c558b731f4
 	machine `snapshot` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1617ms expected @a92f16431042
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
@@ -1652,7 +1652,7 @@ fail/borrows/region_store_live_sibling_reference rejected 2429ms expected @a92f1
 	statement 9 mutates `parent` while local borrow `holders` is still active (borrowed at statement 5; it is reassigned at statement 11)
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1649ms expected @a92f16431042
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
-fail/borrows/replaced_descriptor_stale_pointee_fact rejected 1964ms expected @a92f16431042
+fail/borrows/replaced_descriptor_stale_pointee_fact rejected 727ms expected @cdaaea7fffc3
 	cannot prove requires contract for call demand_old from exercise: message.body.value == 19 (needs fact `target.value == 19` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/returned_case_reference_live_source_write rejected 564ms expected @ba4c5b471bb8
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
@@ -1830,7 +1830,7 @@ fail/borrows/stored_reference_child_constructor_live_source_write rejected 6292m
 	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrows/stored_reference_constructor_transfer_live_source_write rejected 6285ms expected @a92f16431042
 	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/borrows/stored_reference_exclusive_array_copy rejected 1594ms expected @a92f16431042
+fail/borrows/stored_reference_exclusive_array_copy rejected 581ms expected @27c558b731f4
 	cannot use `windows[0].` in machine `main` state `entry` (statement 4) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 	cannot use `windows[0][0]` in machine `main` state `entry` (statement 5) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 fail/borrows/stored_reference_leaf_child_live_source_write rejected 5926ms expected @a92f16431042
@@ -2648,7 +2648,7 @@ fail/collections/array_child_membership_requires_issuance rejected 1722ms expect
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued` in sibling state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from lookalike::entry: parameter values[1].ticket requires Ticket::Issued
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued` in lookalike state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/collections/array_projection_copy_out_of_bounds rejected 2247ms expected @a92f16431042
+fail/collections/array_projection_copy_out_of_bounds rejected 529ms expected @27c558b731f4
 	cannot prove index `2` is within length 2
 fail/collections/authored_index_guard_bound rejected 1522ms expected @a92f16431042
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
@@ -3034,7 +3034,7 @@ fail/contracts/opaque_call_retires_mutable_argument rejected 2139ms expected @a9
 	cannot prove requires contract for call exact_seven from after_call: output.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/opaque_call_retires_reference_contents rejected 2099ms expected @a92f16431042
 	cannot prove requires contract for call exact_seven from after_call: view.value.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/contracts/projected_result_guarantee_after_overwrite rejected 517ms expected @4ef0dddd5128
+fail/contracts/projected_result_guarantee_after_overwrite rejected 570ms expected @cdaaea7fffc3
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1796ms expected @a92f16431042
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
@@ -3924,6 +3924,18 @@ fail/domains/captured_guard_bound_replaced_by_call rejected 3260ms expected @a92
 	cannot prove default-domain field requirement for return from store at statement 1: buffer.label requires [u8; N]::Utf8
 fail/domains/captured_predicate_write_retires_membership rejected 2382ms expected @a92f16431042
 	cannot prove requires contract for call checked from producer: value.number in u64::Small in state `entry`
+fail/domains/carried_indexed_payload_qualification rejected 1653ms expected @f68e855c45d4+wt
+	cannot prove default-domain field requirement for call forward from main::entry: parameter envelope.entries[0]::Ready.ticket requires Ticket::Issued
+	construction value is not proven in domain `Ticket::Issued` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+	construction of `Choice` field `ticket` is not proven in domain `Ticket::Issued` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+fail/domains/carried_nested_payload_qualification rejected 1852ms expected @4f49785bc6c0+wt
+	cannot prove requires contract for call verify from forward: envelope.choice::Ready.ticket in Ticket::Issued in state `entry`
+fail/domains/carried_nested_payload_qualification_missing_arrival rejected 1752ms expected @4f49785bc6c0+wt
+	cannot prove requires contract for call verify from forward: envelope.choice::Ready.ticket in Ticket::Issued in state `entry`
+fail/domains/carried_runtime_index_payload_qualification rejected 1653ms expected @f68e855c45d4+wt
+	construction value is not proven in domain `Ticket::Issued` in fill state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Choice` field `ticket` is not proven in domain `Ticket::Issued` in fill state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from fill at statement 1: slot::Ready.ticket requires Ticket::Issued
 fail/domains/case_child_membership_requires_issuance rejected 2775ms expected @a92f16431042
 	cannot prove default-domain field requirement for call observe from forged_common::entry: parameter event.common requires Ticket::Issued
 	construction value is not proven in domain `Ticket::Issued` in forged_common state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
@@ -4287,9 +4299,9 @@ fail/domains/record_interval_member_out_of_range rejected 567ms expected @a92f16
 	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/reference_return_literal_outside_domain rejected 1264ms unexpected @a92f16431042
 	cannot prove default-domain field requirement for return from Main::pick, state pick, at statement 1: "\\xff" requires [u8]::Utf8
-fail/domains/refinement_chain_routed_provenance_forge rejected 1121ms expected @a92f16431042
-	cannot prove default-domain field requirement for return from Token::forge, state forge, at statement 0: Token requires Token::Issued::Fresh
+fail/domains/refinement_chain_routed_provenance_forge rejected 1599ms expected @0cea3356c5b0+wt
 	construction value is not proven in domain `Token::Issued::Fresh` in Token::forge state `forge` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from Token::forge, state forge, at statement 0: Token requires Token::Issued::Fresh
 fail/domains/result_domain_overload_duplicate_predicate rejected 402ms expected @a92f16431042
 	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` cannot prove ensures contract proof fact `result >= 0 && result <= 100` on the transition arm guarded by `<always>`
@@ -5420,7 +5432,44 @@ fail/facts/borrowed_result_field_domains_field rejected 708ms expected @90c334a2
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
-fail/facts/borrowed_result_field_domains_local rejected 710ms expected @90c334a2c095
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_call_result_rejected rejected 801ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_const_name_rejected rejected 765ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_field_rejected rejected 731ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 5: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 5: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_local_rejected rejected 813ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_match_join_rejected rejected 757ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_other_machine_rejected rejected 759ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from onward::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_other_state_rejected rejected 759ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from onward::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_parameter_rejected rejected 760ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from consume::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from consume at statement 3: selected.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 0: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 0: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_indexed_sibling_write_target_body_rejected rejected 741ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from Selected::get::get: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from Selected::get at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from Selected::get at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_local rejected 740ms expected @cdaaea7fffc3
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
@@ -5440,6 +5489,43 @@ fail/facts/borrowed_result_field_domains_parameter rejected 724ms expected @90c3
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_call_result_rejected rejected 767ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_const_name_rejected rejected 820ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_field_rejected rejected 732ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_local_rejected rejected 751ms expected @cdaaea7fffc3
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_match_join_rejected rejected 818ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_other_machine_rejected rejected 792ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from onward::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_other_state_rejected rejected 733ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from onward::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_parameter_rejected rejected 822ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from consume::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from consume at statement 2: selected.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 0: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 0: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_target_body_rejected rejected 767ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from Selected::get::get: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from Selected::get at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from Selected::get at statement 3: table.cells[1].storage requires [u8; N]::Ascii
 fail/facts/borrowed_result_field_domains_target_body rejected 727ms expected @90c334a2c095
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
@@ -7634,7 +7720,7 @@ fail/facts/data_where_standing_mutable_recast_through_const_name_rejected reject
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
 fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 432ms expected @a1f4e9300309
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 441ms expected @a1f4e9300309
+fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 333ms expected @cdaaea7fffc3
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
 fail/facts/data_where_standing_mutable_recast_through_match_join_rejected rejected 435ms expected @a1f4e9300309
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
@@ -11812,7 +11898,7 @@ fail/facts/nested_machine_borrowed_result_other_machine_rejected rejected 655ms 
 	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
 fail/facts/nested_machine_borrowed_result_other_state_rejected rejected 661ms expected @77ba59fc2830
 	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
-fail/facts/nested_machine_borrowed_result_overwritten_contents_rejected rejected 703ms expected @77ba59fc2830
+fail/facts/nested_machine_borrowed_result_overwritten_contents_rejected rejected 839ms expected @cdaaea7fffc3
 	cannot prove requires contract for call finish from stale: bytes in [u8]::Utf8 in state `entry`
 fail/facts/nested_machine_borrowed_result_parameter_rejected rejected 698ms expected @77ba59fc2830
 	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
@@ -14179,7 +14265,7 @@ fail/facts/reference_recast_backing_footprint_through_const_name_live_backing_wr
 	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/facts/reference_recast_backing_footprint_through_field_live_backing_write rejected 2337ms expected @5722ff9ddde2
 	statement 4 mutates `bytes[2]` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
-fail/facts/reference_recast_backing_footprint_through_local_live_backing_write rejected 1772ms expected @5722ff9ddde2
+fail/facts/reference_recast_backing_footprint_through_local_live_backing_write rejected 794ms expected @cdaaea7fffc3
 	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/facts/reference_recast_backing_footprint_through_match_join_live_backing_write rejected 1799ms expected @5722ff9ddde2
 	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -14670,6 +14756,31 @@ fail/facts/saved_observation_snapshot_predicate_handback_target_body_rejected re
 	cannot prove ensures contract for exit from preserve at statement 3: kept(&holder.items) == true
 	cannot prove requires contract for call agree from HostedObservationBody::observe: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
 	cannot prove ensures contract for exit from HostedObservationBody::observe at statement 2: result == holder.items[0] && result == 7
+fail/facts/saved_observation_snapshot_stored_reference_handback_call_result_rejected rejected 742ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_const_name_rejected rejected 710ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_field_rejected rejected 731ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: note.observed == holder.items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_local_rejected rejected 728ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_match_join_rejected rejected 767ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from probe: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_other_machine_rejected rejected 733ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 0: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_other_state_rejected rejected 782ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 0: kept(&holder.items) == true
+	cannot prove requires contract for call check from main: saved == current_zero && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_parameter_rejected rejected 694ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+fail/facts/saved_observation_snapshot_stored_reference_handback_target_body_rejected rejected 640ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
 fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 2328ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 2317ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
@@ -24361,7 +24472,7 @@ pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit checked 262
 pass/borrows/copied_image_descriptor_unrelated_write incomplete 2538ms check-target:macos_arm64 @a92f16431042
 	`receive` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `receive::entry`
 pass/borrows/copied_input_descriptor_independent_mutation_exit checked 3956ms check-target:macos_arm64 @a92f16431042
-pass/borrows/copied_input_descriptor_local_copy_exit checked 2984ms check-target:macos_arm64 @a92f16431042
+pass/borrows/copied_input_descriptor_local_copy_exit checked 1402ms check-target:macos_arm64 @27c558b731f4
 pass/borrows/copied_input_descriptor_return_copy_exit checked 2508ms check-target:macos_arm64 @a92f16431042
 pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2740ms check-target:macos_arm64 @a92f16431042
 pass/borrows/data_copy_property checked 2619ms @a92f16431042
@@ -24578,7 +24689,7 @@ pass/borrows/runtime_owned_subject_descriptor_replacement_exit checked 3015ms ch
 pass/borrows/runtime_owned_writeonly_carrier_field_exit checked 3681ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_partial_reference_partition_exit checked 2061ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_private_copied_descriptor_replacement_exit checked 2371ms check-target:macos_arm64 @a92f16431042
-pass/borrows/runtime_projected_call_loan_custody_exit checked 2304ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_projected_call_loan_custody_exit checked 1163ms check-target:macos_arm64 @cdaaea7fffc3
 pass/borrows/runtime_projected_fixed_byte_array_local_exit rejected 1622ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 pass/borrows/runtime_projected_reference_call_return_exit checked 2123ms check-target:macos_arm64 @a92f16431042
@@ -25305,7 +25416,7 @@ pass/collections/runtime_nested_record_element_window_store_exit checked 2210ms 
 pass/collections/runtime_nested_selected_element_extents_exit checked 3786ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_offset_view_case_observation_exit checked 4142ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_ordered_computed_selector_reads_exit checked 3249ms check-target:macos_arm64 @a92f16431042
-pass/collections/runtime_owned_array_projection_snapshot_exit checked 9402ms check-target:macos_arm64 @a92f16431042
+pass/collections/runtime_owned_array_projection_snapshot_exit checked 6175ms check-target:macos_arm64 @27c558b731f4
 pass/collections/runtime_owned_descriptor_parameter_read_exit incomplete 2935ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`observe` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `observe::entry`
 pass/collections/runtime_parameter_computed_selector_wrapping_exit checked 3331ms check-target:macos_arm64 @a92f16431042
@@ -25334,7 +25445,7 @@ pass/collections/runtime_stored_reference_array_replacement_contract_exit incomp
 pass/collections/runtime_three_indexed_record_float_read_exit checked 14276ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_vec_u32_growth_exit checked 21256ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_view_element_structural_replacement_exit checked 2345ms check-target:macos_arm64 @a92f16431042
-pass/collections/runtime_whole_array_value_copy_exit checked 8995ms check-target:macos_arm64 @a92f16431042
+pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target:macos_arm64 @27c558b731f4
 pass/collections/shared_slice_view_dropped_receiver checked 8583ms check-target:macos_arm64 @a92f16431042
 pass/collections/std_option_runtime_match_exit checked 8368ms check-target:macos_arm64 @a92f16431042
 pass/collections/std_option_surface checked 1717ms @a92f16431042
@@ -25555,7 +25666,7 @@ pass/control_flow/owned_array_state_transfer_exit checked 8850ms check-target:ma
 pass/control_flow/projected_case_subject_root_forwarding_exit checked 8061ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit checked 8794ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/projected_loan_state_argument_exit checked 7005ms check-target:macos_arm64 @a92f16431042
-pass/control_flow/qualified_case_payload_copy_exit checked 3223ms check-target:macos_arm64 @a92f16431042
+pass/control_flow/qualified_case_payload_copy_exit checked 2685ms check-target:macos_arm64 @f68e855c45d4+wt
 pass/control_flow/qualified_param_subject_compile checked 2738ms @a92f16431042
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 7210ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/record_result_dispatch_compile checked 2551ms @a92f16431042
@@ -25859,12 +25970,14 @@ pass/dependent/zero_gated_record_field_store_exit checked 9230ms check-target:ma
 pass/dependent/zero_valid_qualified_storage checked 6545ms @a92f16431042
 pass/dependent/zeroed_record_member_sum_elision checked 9910ms check-target:macos_arm64 @a92f16431042
 pass/domains/bitwise_live_membership_exit checked 3269ms check-target:macos_arm64 @a92f16431042
-pass/domains/bodyless_owner_establishment rejected 2460ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/bodyless_owner_establishment checked 1909ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2455ms @a92f16431042
 pass/domains/call_requires_domain_intersection_preserved checked 2551ms @a92f16431042
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2050ms @a92f16431042
 pass/domains/captured_predicate_readonly_call_exit checked 3554ms check-target:macos_arm64 @a92f16431042
+pass/domains/carried_indexed_payload_qualification checked 2653ms check-target:macos_arm64 @f68e855c45d4+wt
+pass/domains/carried_nested_payload_qualification checked 2606ms check-target:macos_arm64 @4f49785bc6c0+wt
+pass/domains/carried_runtime_index_payload_qualification checked 2760ms check-target:macos_arm64 @f68e855c45d4+wt
 pass/domains/case_payload_call_restore_exit checked 8513ms check-target:macos_arm64 @a92f16431042
 pass/domains/case_payload_guarded_domain_exit checked 2755ms check-target:macos_arm64 @a92f16431042
 pass/domains/case_payload_predicate_domain_member_exit checked 7469ms check-target:macos_arm64 @a92f16431042
@@ -25873,8 +25986,7 @@ pass/domains/copied_array_domain_survives_original_mutation_exit checked 2647ms 
 pass/domains/dependent_coordinate_sum_rational_bound checked 2630ms @a92f16431042
 pass/domains/dependent_coordinate_sum_upper_bound checked 2295ms @a92f16431042
 pass/domains/domain_axis_cast checked 2550ms @a92f16431042
-pass/domains/domain_established_by rejected 2044ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/domain_established_by checked 2335ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 2546ms @a92f16431042
 pass/domains/domain_intersection checked 3121ms @a92f16431042
 pass/domains/domain_operator_add checked 3208ms @a92f16431042
@@ -25901,13 +26013,12 @@ pass/domains/established_by_domain checked 3622ms @a92f16431042
 pass/domains/executable_domain_membership_expression_exit incomplete 8218ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit checked 7964ms check-target:macos_arm64 @a92f16431042
-pass/domains/explicit_domain_erasure rejected 1893ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/explicit_domain_erasure checked 1990ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2118ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit checked 2717ms check-target:macos_arm64 @a92f16431042
 pass/domains/indexed_domain_fact rejected 2116ms regressed-from:checked @a92f16431042
 	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-pass/domains/indexed_domain_known_disjoint_call_exit checked 2849ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/indexed_domain_known_disjoint_call_exit checked 1764ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values checked 5167ms check-target:macos_arm64 @a92f16431042
 pass/domains/intersected_qualifiers checked 4340ms @a92f16431042
 pass/domains/issued_indexed_subject_predicate checked 2072ms @a92f16431042
@@ -25944,8 +26055,7 @@ pass/domains/record_literal_view_member_store_exit incomplete 8817ms check-targe
 pass/domains/record_predicate_domain_member_exit checked 8789ms check-target:macos_arm64 @a92f16431042
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 1677ms @a92f16431042
 pass/domains/refinement_chain_predicates checked 1475ms @a92f16431042
-pass/domains/refinement_chain_routed_provenance rejected 1243ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/refinement_chain_routed_provenance checked 1970ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 1588ms @a92f16431042
 pass/domains/routed_record_capture_before_sibling_mutation checked 1370ms @a92f16431042
 pass/domains/routed_selected_copy_exit checked 2012ms check-target:macos_arm64 @a92f16431042
@@ -26517,11 +26627,29 @@ pass/facts/borrowed_restoration_window_through_target_body_exit checked 3172ms c
 pass/facts/borrowed_result_field_domains_call_result checked 1042ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_const_name checked 995ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_field checked 982ms check-target:macos_arm64 @90c334a2c095
-pass/facts/borrowed_result_field_domains_local checked 958ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_call_result_exit checked 1159ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_const_name_exit checked 1061ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_field_exit checked 1057ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_local_exit checked 1034ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_match_join_exit checked 1035ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_other_machine_exit checked 1031ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_other_state_exit checked 1075ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_parameter_exit checked 1042ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_indexed_sibling_write_target_body_exit checked 1000ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_local checked 1043ms check-target:macos_arm64 @cdaaea7fffc3
 pass/facts/borrowed_result_field_domains_match_join checked 977ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_other_machine checked 970ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_other_state checked 1013ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_parameter checked 950ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_sibling_write_call_result_exit checked 1035ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_const_name_exit checked 1092ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_field_exit checked 1055ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_local_exit checked 1003ms check-target:macos_arm64 @cdaaea7fffc3
+pass/facts/borrowed_result_field_domains_sibling_write_match_join_exit checked 1112ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_other_machine_exit checked 1165ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_other_state_exit checked 993ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_parameter_exit checked 1057ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_target_body_exit checked 1001ms check-target:macos_arm64 @a130a16c2522
 pass/facts/borrowed_result_field_domains_target_body checked 1003ms check-target:macos_arm64 @90c334a2c095
 pass/facts/bound_through_call_result_exit checked 2855ms check-target:macos_arm64 @a92f16431042
 pass/facts/bound_through_const_name_exit checked 2852ms check-target:macos_arm64 @a92f16431042
@@ -27202,7 +27330,7 @@ pass/facts/data_where_standing_mutable_recast_direct_exit checked 3074ms check-t
 pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 3027ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 11120ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_field_exit checked 2937ms check-target:macos_arm64 @a1f4e9300309
-pass/facts/data_where_standing_mutable_recast_through_local_exit checked 3007ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_local_exit checked 1001ms check-target:macos_arm64 @cdaaea7fffc3
 pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 2975ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 3031ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 2993ms check-target:macos_arm64 @a1f4e9300309
@@ -27284,7 +27412,7 @@ pass/facts/descriptor_replacement_order_through_target_body_exit checked 2668ms 
 pass/facts/disjoint_field_borrow_windows_through_call_result_exit checked 2671ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_const_name_exit checked 2573ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_field_exit checked 2543ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_local_exit checked 3104ms check-target:macos_arm64 @a92f16431042
+pass/facts/disjoint_field_borrow_windows_through_local_exit checked 1004ms check-target:macos_arm64 @cdaaea7fffc3
 pass/facts/disjoint_field_borrow_windows_through_match_join_exit checked 2932ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_other_machine_exit checked 2877ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_other_state_exit checked 2571ms check-target:macos_arm64 @a92f16431042
@@ -29872,7 +30000,7 @@ pass/facts/reference_arrival_handoff_through_target_body_exit checked 3322ms che
 pass/facts/reference_recast_backing_footprint_through_call_result_exit checked 3203ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_const_name_exit checked 3805ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_field_exit checked 3842ms check-target:macos_arm64 @5722ff9ddde2
-pass/facts/reference_recast_backing_footprint_through_local_exit checked 3267ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_local_exit checked 1012ms check-target:macos_arm64 @cdaaea7fffc3
 pass/facts/reference_recast_backing_footprint_through_match_join_exit checked 3174ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_other_machine_exit checked 3358ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_other_state_exit checked 3225ms check-target:macos_arm64 @5722ff9ddde2
@@ -30071,6 +30199,15 @@ pass/facts/saved_observation_snapshot_predicate_handback_other_machine_exit chec
 pass/facts/saved_observation_snapshot_predicate_handback_other_state_exit checked 997ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_parameter_exit checked 993ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_target_body_exit checked 989ms check-target:macos_arm64 @5c5c178f82c7
+pass/facts/saved_observation_snapshot_stored_reference_handback_call_result_exit checked 910ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_const_name_exit checked 971ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_field_exit checked 920ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_local_exit checked 929ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_match_join_exit checked 965ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_other_machine_exit checked 935ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_other_state_exit checked 956ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_parameter_exit checked 901ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_target_body_exit checked 964ms check-target:macos_arm64 @27c558b731f4
 pass/facts/saved_observation_snapshot_through_call_result_exit checked 2697ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/saved_observation_snapshot_through_const_name_exit checked 2640ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/saved_observation_snapshot_through_field_exit checked 3160ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674

@@ -144,7 +144,7 @@ impl ProducedTerminalProduct {
             .execution
             .selected_target_profile
             .unwrap_or_else(target::TargetProfile::host);
-        super::scalar_completion::complete(
+        build_evaluation::scalar_completion::complete(
             artifact,
             target.target_name(),
             &[],
@@ -579,16 +579,29 @@ fn prepare_target_provider_publication(
     );
     targets.sort();
     targets.dedup();
+    let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
+        context: provider_planning::ProviderPlanningContext::new(
+            &source.program.typed,
+            source::DependencyScope::Product,
+        ),
+        defaults: source.provider_defaults,
+        settlement: source.provider_settlement,
+    };
+    let targets = targets
+        .into_iter()
+        .map(|target| {
+            let prepared = inventory.prepare(&target);
+            (target, prepared)
+        })
+        .collect::<Vec<_>>();
     provider_planning::target_machines::TargetProviderPreparationRequest {
         context: provider_planning::ProviderPlanningContext::new(
             &source.program.typed,
             source::DependencyScope::Product,
         ),
         exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-        defaults: source.provider_defaults,
         overrides: &source.build.config.provider_selections,
         assumed_bindings: source.plan_facts.assumed_bindings(),
-        settlement: source.provider_settlement,
         targets: &targets,
     }
     .prepare()

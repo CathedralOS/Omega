@@ -52,7 +52,6 @@ terminal-installation = { path = "../../../psi/compilation/checking/terminal-ins
 target-operations = { path = "../representations/target-operations" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
-image-emission = { path = "../backend/images/image-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 phase-profile = { path = "../../../psi/foundation/phase-profile" }
 
@@ -60,6 +59,7 @@ phase-profile = { path = "../../../psi/foundation/phase-profile" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+image-emission = { path = "../backend/images/image-emission" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 package-manager = { path = "../../packages/package-manager" }

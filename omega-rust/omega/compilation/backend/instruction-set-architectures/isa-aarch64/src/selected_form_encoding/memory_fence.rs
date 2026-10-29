@@ -2,30 +2,24 @@
 //! catalog identity, not an AtomicFence promise or a general immediate.
 //! Arm A64 ISA, DMB: CRm 1101/1110/1111 selects LD/ST/SY respectively.
 //! https://support.arm.com/documentation/ddi0596/2020-12/Base-Instructions/DMB--Data-Memory-Barrier-
-use crate::machine_effects::form_alternative;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, MemoryFenceKind,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MemoryFenceKind,
 };
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::MemoryFence,
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::MemoryFence,
         constraint,
-        memory: MachineMemoryEffect::CatalogFenceV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::MemoryFence,
-            MachineSizeKnowledge::ExactBytes(4),
-            MachineEncodedEffects::catalog_fence_v1()
-        ),
-    }
+        MachineMemoryEffect::CatalogFenceV1,
+        MachineTrapBehavior::NeverV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::MemoryFence,
+        MachineSizeKnowledge::ExactBytes(4),
+        MachineEncodedEffects::catalog_fence_v1(),
+    )
 }
 
 pub(crate) fn encode(kind: MemoryFenceKind) -> Option<Vec<u8>> {
@@ -55,7 +49,9 @@ pub(crate) fn decode(bytes: &[u8]) -> Option<MemoryFenceKind> {
 mod tests {
     use super::*;
     use crate::test_support::rejects_every_bit_flip;
-    use selected_instructions::{RegisterOperation, SelectedInstructionKind};
+    use selected_instructions::{
+        MachineAlternativeKey, RegisterOperation, SelectedInstructionKind,
+    };
     #[test]
     fn catalog_fences_keep_exact_bytes_and_reject_other_effects() {
         let physical = register_model::validate_physical_register_model(

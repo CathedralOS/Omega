@@ -85,14 +85,11 @@ pub use scalar_call::{
     encode_x86_64_selected_scalar_call_template, validate_x86_64_selected_scalar_call_template,
 };
 
-use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedInstructionKind, is_float_bit_transfer,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, SelectedInstructionKind, is_float_bit_transfer,
 };
 
 use crate::selected_form_encoding::decoding::{decode_all, footprint, validate_decoded};
@@ -104,39 +101,6 @@ use crate::selected_form_encoding::request_validation::{
 use crate::selected_form_encoding::request_validation::{
     validate_alias_partition, validate_request,
 };
-
-/// Shared single-alternative declaration shell: every form that declares one
-/// always-applicable catalog alternative states only its semantic/memory/trap/
-/// barrier/family identity plus the size knowledge and encoding it owns. The
-/// call and cleanup columns stay at their no-effect identity here; a form that
-/// declares an actual call owns that row itself.
-pub(super) fn alternative_declaration(
-    constraint: RegisterConstraintKey,
-    semantic: MachineSemanticKind,
-    memory: MachineMemoryEffect,
-    trap: MachineTrapBehavior,
-    barrier: MachineBarrier,
-    family: MachineAlternativeFamily,
-    size: MachineSizeKnowledge,
-    encoded: MachineEncodedEffects,
-) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic,
-        constraint,
-        memory,
-        trap,
-        barrier,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey { family, variant: 0 },
-            applicability: MachineAlternativeApplicability::Always,
-            size,
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded,
-        }],
-    }
-}
 
 /// The canonical rflags-clobbering footprint for memory-form encoders whose
 /// operands split contiguously: the first `read_count` operands are the
