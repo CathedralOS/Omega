@@ -22,6 +22,10 @@ pub struct TypeLayout {
     pub alignment: usize,
 }
 
+pub(crate) const fn type_layout(size: usize, alignment: usize) -> TypeLayout {
+    TypeLayout { size, alignment }
+}
+
 impl Default for TypeLayout {
     fn default() -> Self {
         Self {
