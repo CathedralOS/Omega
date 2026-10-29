@@ -1335,7 +1335,7 @@ pass/control_flow/owned_array_state_transfer_exit built 8373ms exit:70 @5f668826
 pass/control_flow/projected_case_subject_root_forwarding_exit built 9707ms exit:70 @5f668826adf3+wt
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 8302ms exit:70 @5f668826adf3+wt
 pass/control_flow/projected_loan_state_argument_exit built 8478ms exit:11 @5f668826adf3+wt
-pass/control_flow/qualified_case_payload_copy_exit built 3560ms exit:0 @5f668826adf3+wt
+pass/control_flow/qualified_case_payload_copy_exit built 2356ms exit:0 @f68e855c45d4+wt
 pass/control_flow/qualified_param_subject_compile checked 2236ms @5f668826adf3+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 8235ms exit:70 @5f668826adf3+wt
 pass/control_flow/record_result_dispatch_compile checked 1786ms @5f668826adf3+wt
@@ -1634,7 +1634,9 @@ pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2059ms @5f668826a
 pass/domains/call_requires_domain_intersection_preserved checked 1922ms @5f668826adf3+wt
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2372ms @5f668826adf3+wt
 pass/domains/captured_predicate_readonly_call_exit built 3243ms exit:0 @5f668826adf3+wt
+pass/domains/carried_indexed_payload_qualification built 2417ms exit:0 @f68e855c45d4+wt
 pass/domains/carried_nested_payload_qualification built 1961ms exit:0 @4f49785bc6c0+wt
+pass/domains/carried_runtime_index_payload_qualification built 2549ms exit:0 @f68e855c45d4+wt
 pass/domains/case_payload_call_restore_exit built 8383ms exit:70 @5f668826adf3+wt
 pass/domains/case_payload_guarded_domain_exit built 3086ms exit:0 @5f668826adf3+wt
 pass/domains/case_payload_predicate_domain_member_exit built 8698ms exit:70 @5f668826adf3+wt
