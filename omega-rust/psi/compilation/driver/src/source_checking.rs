@@ -65,6 +65,7 @@ impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
         let mut program = self.program;
+        validation::execution_projection::trace_generated_call_membership(&program, "source_input");
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -138,6 +139,10 @@ impl CheckRequest<'_> {
             let (program, preparation) = phase_profile::scope("05.c.prepare_typed_trees", || {
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)
             })?;
+            validation::execution_projection::trace_generated_call_membership(
+                &program,
+                "prepared_output",
+            );
             // Whole-value lifecycle demands become concrete through the same
             // specialization as ordinary calls. Add geometry only: preparation's
             // executable bodies and mathematical judgments remain unchanged.
