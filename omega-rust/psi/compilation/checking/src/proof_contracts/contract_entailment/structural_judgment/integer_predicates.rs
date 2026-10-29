@@ -18,6 +18,8 @@ use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
+mod cache_status;
+
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
 /// A noninteger predicate has not entered numeric projection. A selected
@@ -124,6 +126,7 @@ impl<'program> PreparedIntegerPremisesCache<'program> {
         if let Some(index) = self.entries.iter().position(|(key, _)| *key == state) {
             self.entries.remove(index);
         } else if self.entries.len() >= 8 {
+            cache_status::eviction();
             self.entries.remove(0);
         }
         self.entries.push((state, prepared));
@@ -415,6 +418,7 @@ impl<'program> StructuralJudge<'program> {
             installed_carrier_bounds: 0,
             next_operation_id: 0,
         };
+        cache_status::contradiction_fallback(self);
         self.independent_integer_premises(observations).is_some()
     }
 
@@ -1359,14 +1363,18 @@ impl<'program> StructuralJudge<'program> {
                 self.case_facts_only,
             )
         };
+        let request = cache_status::request(self, Some(state));
         if let Ok(mut cache) = self.prepared_integer_premises_cache.lock()
             && let Some(cached) = cache.get(state)
         {
+            cache_status::hit(request, cached.is_some());
             phase_profile::count("05.num.prove.2a_prep.hit", 1);
             return cached;
         }
         phase_profile::count("05.num.prove.2a_prep.miss", 1);
+        let _preparing = cache_status::preparing(request);
         let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
+        cache_status::completion(request, prepared.is_some());
         if let Ok(mut cache) = self.prepared_integer_premises_cache.lock() {
             cache.insert(state, prepared.clone());
         }
@@ -1434,6 +1442,7 @@ impl<'program> StructuralJudge<'program> {
         if !self.runtime_body_values || self.case_facts_only {
             return None;
         }
+        cache_status::goal_first(self);
         let mut observations = IntegerObservations {
             engine: Engine::for_explicit_bindings(self.program),
             atoms: Vec::new(),
