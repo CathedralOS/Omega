@@ -111,3 +111,11 @@ places. An authored `Slice::Length` rank transports its descriptor through a
 private helper with reordered arguments and no separate ranking clause.
 [Requirements, witnesses and controls](local/structural_view/README.md) describe
 the exact admitted coordinate and current-versus-entry descriptor observations.
+
+## Optional rank ranges
+
+Each place also carries the same fact through `ranged_value/`.
+[Formation, invocation premises and changed-bound examples](local/ranged_value/README.md)
+explain why optional intervals are instantiated at each invocation while the
+nonnegative rank relation stays fixed. The accompanying controls retain strict
+descent, arithmetic formation and ordinary call obligations.

@@ -20,8 +20,8 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use crate::RankingRangeMeasure;
 use crate::machine_calls::graph_components::strongly_connected_components;
 use crate::proof_contracts::contract_entailment::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_ranking_range_call,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -195,8 +195,7 @@ pub(super) fn project_component(
     if !ranks.iter().all(|rank| rank.same_order(&ranks[0])) {
         return Err("members do not share the same ranking order");
     }
-    let mixed_ranges = ranks.iter().any(|rank| rank.range.is_valid())
-        && ranks.iter().any(|rank| !rank.range.is_valid());
+
     let body_witnesses = component
         .iter()
         .map(|index| {
@@ -273,10 +272,10 @@ pub(super) fn project_component(
     // A prefix store is judged against the premise carriers the call-site
     // judgment actually reads (subjects, endpoints, requires facts, and
     // constrained entries), located in each state through the same telescope.
-    // Mixed-range endpoint conservation separately checks the prefixes of all
-    // component members against its demanded endpoint observations. A member
-    // whose witness resolves no scalar premise set keeps every store
-    // rejected; the reader fails closed on `None`.
+    // These are observations of this invocation, not an equality promise on
+    // another invocation's optional interval. A member whose witness resolves
+    // no scalar premise set keeps every store rejected; the reader fails
+    // closed on `None`.
     let member_premises = ranks
         .iter()
         .zip(component)
@@ -292,7 +291,6 @@ pub(super) fn project_component(
             )
         })
         .collect::<Vec<_>>();
-    let mut range_edges = Vec::new();
     // Complete cycles include the member's local arrivals as well as calls.
     // Contracting a whole body to one node would erase a strict local step
     // and wrongly reject its subsequent rank-preserving recursive invocation.
@@ -592,7 +590,7 @@ pub(super) fn project_component(
                                 }
                                 None => {
                                     return Err(
-                                        "rank range membership, pinned endpoints, or nonincrease is unproven at a call site",
+                                        "rank range membership, selected view bounds, or nonincrease is unproven at a call site",
                                     );
                                 }
                             }
@@ -644,19 +642,6 @@ pub(super) fn project_component(
                                 strict,
                             });
                         }
-                        if mixed_ranges {
-                            // Conservation reads the caller's entry values
-                            // through this exact site's telescope, including
-                            // endpoints whose carrier is a subordinate formal.
-                            range_edges.push(RankingRangeCallEdge {
-                                source: position,
-                                destination: callee_position,
-                                site_state: state,
-                                statement_ordinal,
-                                arguments,
-                                guards: site_guards,
-                            });
-                        }
                     }
                     None => match target_node {
                         TransitionTargetNode::Value(value)
@@ -681,23 +666,6 @@ pub(super) fn project_component(
             .any(|target| !observed.contains(target))
         {
             return Err("an internal call occurrence lacks a classified tail edge");
-        }
-    }
-    if complete && mixed_ranges {
-        let members = ranks
-            .iter()
-            .zip(component)
-            .map(|(rank, index)| RankingRangeCallMember {
-                machine: &program.machines()[*index],
-                subject: rank.subject,
-                paired_subject: rank.paired_subject,
-                range: rank.range,
-            })
-            .collect::<Vec<_>>();
-        if !mixed_call_endpoints_are_pinned(program, &members, &range_edges, frames) {
-            return Err(
-                "dependent rank endpoints are not conserved through every mixed-component call",
-            );
         }
     }
     // Removing all strict edges must leave an acyclic graph across exact
