@@ -70,3 +70,18 @@ not cold-start or other-workload performance evidence.
 Next hypothesis: force the small per-record depth wrapper into its caller so
 large decoded values do not cross an extra return boundary. Preserve the original
 scalar/collection implementation and measure the full workload again.
+
+## Record wrapper inlining: rejected
+
+The second candidate only forced the existing reader depth wrapper inline.
+Twenty pairs per workload again produced no established end-to-end benefit:
+length medians 1,306.696 -> 1,250.437 ms, paired interval [-4.443%, +8.643%];
+square-sum 1,079.598 -> 1,147.860 ms, interval [-0.291%, +9.936%]. Separate
+decode medians were 294.593 -> 302.269 ms and 296.709 -> 281.896 ms. All native,
+invalid-source, cache-integrity and corruption-recovery controls passed. The
+annotation is removed. `record-wrapper/` retains its exact source patch,
+identities, results and raw observations. The changing shared-host load makes
+sequential medians particularly misleading; neither experiment supports a win.
+
+Next: instrument the four actual decode owners (preparation, sources, retained
+checks, reader cleanup) before selecting another implementation change.
