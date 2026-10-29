@@ -174,3 +174,5 @@ Follow-up: [payload replay](payload_replay/README.md) attributes the remaining m
 Follow-up: [edge rebinding experiment](edge_rebinding/README.md) records the next matched A/B and its rejected implementation.
 
 Follow-up: [cache diagnostics](cache_diagnostics/README.md) counts real reuse and measures the rejected cache's costs before any further optimization.
+
+Follow-up: [rebound delta experiment](rebinding_delta/README.md) proves a 95.8% append-allocation reduction, with inconclusive timing and no retained compiler change.

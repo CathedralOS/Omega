@@ -1,0 +1,5 @@
+# Preserve diagnostic patches and captured bytes.
+* -text
+raw/** -whitespace
+*.patch -whitespace
+*.gz -diff
