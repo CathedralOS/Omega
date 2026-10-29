@@ -221,7 +221,12 @@ impl StructuralJudge<'_> {
         }
         let project = |operand| {
             let term = self.declaration_term(operand)?;
-            Some(self.resolve(projected_meaning(program, primitive, term.clone()).unwrap_or(term)))
+            Some(
+                self.resolve(
+                    self.projected_meaning(primitive, term.clone())
+                        .unwrap_or(term),
+                ),
+            )
         };
         let left = project(binary.left)?;
         let right = project(binary.right)?;
@@ -343,8 +348,8 @@ impl StructuralJudge<'_> {
             }
             return Some((
                 comparison,
-                projected_meaning(self.program, primitive, left.as_ref().clone())?,
-                projected_meaning(self.program, primitive, right.as_ref().clone())?,
+                self.projected_meaning(primitive, left.as_ref().clone())?,
+                self.projected_meaning(primitive, right.as_ref().clone())?,
             ));
         }
         let StructuralTerm::Application {
@@ -586,7 +591,7 @@ impl StructuralJudge<'_> {
         {
             return None;
         }
-        let meaning = self.resolve(projected_meaning(self.program, primitive, value.clone())?);
+        let meaning = self.resolve(self.projected_meaning(primitive, value.clone())?);
         let (format, _) = self.float_projection(&meaning)?;
         let mut bounds = if let Some((_, literal)) = self.float_literal_endpoint(&meaning) {
             let value = literal.to_f64();
@@ -649,7 +654,6 @@ impl StructuralJudge<'_> {
         if depth >= 32 {
             return None;
         }
-        let program = self.program;
         for (predicate, truth) in self.rewrites.iter() {
             let Some(truth) = boolean_value(truth) else {
                 continue;
@@ -689,12 +693,12 @@ impl StructuralJudge<'_> {
                 continue;
             }
             let Some(recorded_left) =
-                projected_meaning(program, primitive, recorded_left.as_ref().clone())
+                self.projected_meaning(primitive, recorded_left.as_ref().clone())
             else {
                 continue;
             };
             let Some(recorded_right) =
-                projected_meaning(program, primitive, recorded_right.as_ref().clone())
+                self.projected_meaning(primitive, recorded_right.as_ref().clone())
             else {
                 continue;
             };
@@ -725,7 +729,6 @@ impl StructuralJudge<'_> {
         if depth >= 32 {
             return None;
         }
-        let program = self.program;
         for (predicate, truth) in self.rewrites.iter() {
             if boolean_value(truth) != Some(true) {
                 continue;
@@ -746,10 +749,10 @@ impl StructuralJudge<'_> {
             {
                 continue;
             }
-            let Some(left) = projected_meaning(program, primitive, left.as_ref().clone()) else {
+            let Some(left) = self.projected_meaning(primitive, left.as_ref().clone()) else {
                 continue;
             };
-            let Some(right) = projected_meaning(program, primitive, right.as_ref().clone()) else {
+            let Some(right) = self.projected_meaning(primitive, right.as_ref().clone()) else {
                 continue;
             };
             let left = self.resolve_at(left, depth + 1);
@@ -856,7 +859,7 @@ impl StructuralJudge<'_> {
             }
         }
         let nan_truth = |meaning: &StructuralTerm| {
-            let predicate = nan_predicate(self.program, meaning.clone())?;
+            let predicate = self.nan_predicate(meaning.clone())?;
             let term = self.resolve_at(predicate, depth + 1);
             if term == boolean_term(true) {
                 Some(true)
@@ -902,51 +905,80 @@ fn boolean_value(value: &StructuralTerm) -> Option<bool> {
     language_semantics::const_value::boolean_literal_spelling(case)
 }
 
-fn projected_meaning(
-    program: &dyn crate::CheckingInput,
-    primitive: PrimitiveType,
-    value: StructuralTerm,
-) -> Option<StructuralTerm> {
-    let mut candidates = program.operators().iter().filter_map(|operator| {
-        let [namespace, name] = program.operator_path_members(operator.name) else {
-            return None;
+impl StructuralJudge<'_> {
+    fn source_may_select_float_operator(&self, symbol: symbols::SymbolHandle) -> bool {
+        // The same sealed Core catalogue can have independent Build and Product
+        // instances. Keep semantic lookup in the actual judging declaration's
+        // source context; source-free state supplies no cross-context selection.
+        let owner = if self.declaration_state.is_valid() {
+            self.declaration_state
+        } else {
+            self.machine_symbol
         };
-        let operation =
-            FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())?;
-        let source = crate::proof_contracts::float_projection_bindings::exact_toolchain_float_projection_primitive(
-            program, operator, operation,
-        )?;
-        (source == primitive).then_some(operator)
-    });
-    let operator = candidates.next();
-    let duplicate = candidates.next();
-    if super::super::struct_trace() {
-        eprintln!(
-            "STRUCT ieee projection primitive={primitive:?} target={:?} duplicate={:?}",
-            operator.map(|operator| operator.symbol),
-            duplicate.map(|operator| operator.symbol)
-        );
+        self.program
+            .symbols
+            .symbol_source_span(owner)
+            .is_some_and(|occurrence| {
+                self.program
+                    .symbols
+                    .source_reference_can_see_symbol(occurrence, symbol)
+            })
     }
-    let operator = operator?;
-    if duplicate.is_some() {
-        return None;
-    }
-    operator_application(program, operator, value)
-}
 
-fn nan_predicate(
-    program: &dyn crate::CheckingInput,
-    meaning: StructuralTerm,
-) -> Option<StructuralTerm> {
-    let mut candidates = program.operators().iter().filter(|operator| {
-        crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator)
-            .is_some_and(|(row, _)| matches!(row.kernel(), FloatSemanticKernel::SinglePredicate(FloatSemanticPredicate::NaN)))
-    });
-    let operator = candidates.next()?;
-    if candidates.next().is_some() {
-        return None;
+    fn projected_meaning(
+        &self,
+        primitive: PrimitiveType,
+        value: StructuralTerm,
+    ) -> Option<StructuralTerm> {
+        let program = self.program;
+        let mut candidates = program
+            .operators()
+            .iter()
+            .filter(|operator| self.source_may_select_float_operator(operator.symbol))
+            .filter_map(|operator| {
+                let [namespace, name] = program.operator_path_members(operator.name) else {
+                    return None;
+                };
+                let operation = FloatProjectionOperation::from_source_identity(
+                    namespace.as_str(), name.as_str(),
+                )?;
+                let source = crate::proof_contracts::float_projection_bindings::exact_toolchain_float_projection_primitive(
+                    program, operator, operation,
+                )?;
+                (source == primitive).then_some(operator)
+            });
+        let operator = candidates.next();
+        let duplicate = candidates.next();
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT ieee projection primitive={primitive:?} target={:?} duplicate={:?}",
+                operator.map(|operator| operator.symbol),
+                duplicate.map(|operator| operator.symbol)
+            );
+        }
+        let operator = operator?;
+        if duplicate.is_some() {
+            return None;
+        }
+        operator_application(program, operator, value)
     }
-    operator_application(program, operator, meaning)
+
+    fn nan_predicate(&self, meaning: StructuralTerm) -> Option<StructuralTerm> {
+        let program = self.program;
+        let mut candidates = program
+            .operators()
+            .iter()
+            .filter(|operator| self.source_may_select_float_operator(operator.symbol))
+            .filter(|operator| {
+                crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator)
+                    .is_some_and(|(row, _)| matches!(row.kernel(), FloatSemanticKernel::SinglePredicate(FloatSemanticPredicate::NaN)))
+            });
+        let operator = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        operator_application(program, operator, meaning)
+    }
 }
 
 fn operator_application(

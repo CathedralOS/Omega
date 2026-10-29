@@ -251,9 +251,16 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralTerm> {
+        let carrier = self.selected_application_carrier(value, depth);
+        if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() && carrier.is_none() {
+            eprintln!(
+                "PUBLISHED carrier unavailable caller={:?} value={value:?}",
+                self.machine_symbol
+            );
+        }
         let SelectedApplicationCarrier {
             owner, parameters, ..
-        } = self.selected_application_carrier(value, depth)?;
+        } = carrier?;
         let StructuralTerm::Application { arguments, .. } = value else {
             return None;
         };
@@ -262,9 +269,16 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        for (left, right) in
-            self.declared_contract_equations(&owner, &bindings, &bindings, Some(value), depth)?
-        {
+        let equations =
+            self.declared_contract_equations(&owner, &bindings, &bindings, Some(value), depth);
+        if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() {
+            eprintln!(
+                "PUBLISHED equations caller={:?} callee={:?} value={value:?} equations={equations:?}",
+                self.machine_symbol,
+                owner_symbol(&owner)
+            );
+        }
+        for (left, right) in equations? {
             for (pattern, replacement) in [(&left, &right), (&right, &left)] {
                 if pattern == value
                     && replacement != value

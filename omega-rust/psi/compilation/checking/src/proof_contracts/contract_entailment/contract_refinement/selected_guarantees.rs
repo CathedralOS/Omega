@@ -158,6 +158,11 @@ impl<'program> PublishedContractNormalizer<'program> {
         // value eligibility, exact carrier and all substituted entry premises.
         let mut judge =
             StructuralJudge::from_declaration_requires(program, implementation, &[], &[], false);
+        if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() {
+            eprintln!(
+                "PUBLISHED caller premises implementation={implementation:?} premises={premises:?}"
+            );
+        }
         for premise in premises {
             judge.intake_equation(
                 premise.clone(),
