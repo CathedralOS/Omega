@@ -80,37 +80,49 @@ impl TypedTrees {
                     .to_owned(),
             );
         }
-        let facts = self
+        let mut family =
+            FamilyProbe::NotFinite("declares no finite-family `requires` clause".to_owned());
+        for fact in self
             .state_signature_contracts(signature)
             .iter()
             .filter(|contract| contract.kind == crate::signature::SignatureContractKind::Requires)
             .flat_map(|contract| self.proof_facts.span_or_empty(contract.facts))
-            .collect::<Vec<_>>();
-        let [fact] = facts.as_slice() else {
-            return if facts.is_empty() {
-                FamilyProbe::NotFinite("declares no finite-family `requires` clause".to_owned())
-            } else {
-                FamilyProbe::NotFinite(
-                    "the finite family must be one explicit disjunction of complete binder equalities"
-                        .to_owned(),
-                )
+        {
+            let Some(root) = fact.as_expression() else {
+                continue;
             };
-        };
-        let Some(root) = fact.as_expression() else {
-            return FamilyProbe::NotFinite(
-                "the `requires` clause is a domain membership, not an explicit finite enumeration"
-                    .to_owned(),
-            );
-        };
+            let candidate = self.explicit_signature_family(signature, &binders, *root);
+            if matches!(&candidate, FamilyProbe::Finite { .. }) {
+                if matches!(&family, FamilyProbe::Finite { .. }) {
+                    return FamilyProbe::NotFinite(
+                        "the finite family must be one explicit disjunction of complete binder equalities".to_owned(),
+                    );
+                }
+                family = candidate;
+            } else if !matches!(&family, FamilyProbe::Finite { .. }) {
+                family = candidate;
+            }
+        }
+        family
+    }
 
+    /// Only a complete explicit enumeration supplies a roster. Independent
+    /// runtime entry predicates stay on the signature and are checked at calls;
+    /// they neither enumerate tuples nor erase a declared finite family.
+    fn explicit_signature_family(
+        &self,
+        signature: &crate::signature::StateSignature,
+        binders: &[&crate::data::TypeParameter],
+        root: crate::expression::ExpressionHandle,
+    ) -> FamilyProbe {
         let mut tuples = Vec::new();
-        for alternative in self.binary_chain_leaves(*root, crate::expression::BinaryOperator::Or) {
+        for alternative in self.binary_chain_leaves(root, crate::expression::BinaryOperator::Or) {
             let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
             for conjunct in
                 self.binary_chain_leaves(alternative, crate::expression::BinaryOperator::And)
             {
                 let Some((binder_index, value)) =
-                    self.equality_assignment(signature.symbol, &binders, conjunct)
+                    self.equality_assignment(signature.symbol, binders, conjunct)
                 else {
                     return FamilyProbe::NotFinite(
                         "the `requires` clause is not explicit `Binder == literal` equalities; opaque \

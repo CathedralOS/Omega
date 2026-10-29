@@ -710,7 +710,7 @@ fn runtime_equality_fact(
         );
     }
     match binary.operator {
-        BinaryOperator::And => {
+        BinaryOperator::And | BinaryOperator::Or => {
             runtime_equality_fact(program, machine, state, binary.left)
                 && runtime_equality_fact(program, machine, state, binary.right)
         }
@@ -742,8 +742,15 @@ fn runtime_fact_for_parameters(
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
+    // Static equations have no mutable runtime operand. Recognizing their
+    // exact term only admits the question; the applied tuple and prior
+    // premises still owe its truth in the ordinary prefix judgment.
+    if program.static_type_predicate_operands(expression).is_some() {
+        return super::structural_terms::static_type_predicate_term(program, expression, &[])
+            .is_some();
+    }
     if let Some(binary) = program.expression_table.binary_node(expression) {
-        if binary.operator == BinaryOperator::And {
+        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
             return runtime_fact_for_parameters(program, owner, parameters, binary.left)
                 && runtime_fact_for_parameters(program, owner, parameters, binary.right);
         }
