@@ -47,7 +47,7 @@ The nine places and their reject twins are pinned under
 `core_float_representation_through_<place>_{exit,rejected}` names. All nine
 positives executed with exit 0 in both engines on macOS arm64, and all nine
 twins rejected for their own representation obligation, in the final focused
-capture using producer `0a51f971c7bf662d780cd3baa2a695e048c2f6e3`.
+capture using producer `f2892370f2faec7ee660c842611de41a12209a27`.
 
 The [format vectors](vectors/main.omg) cover both permanent formats without
 duplicating this row. They exercise finite endpoints, subnormal boundaries,
@@ -62,13 +62,16 @@ canonical program's f32 and f64 constants matched their authored bit patterns in
 both engines; the unfixed observation rejected because an undetermined NaN has
 no representation for a raw-bit recast.
 
-The final focused capture checked 60 corpus cases, 17 positive CLI projects,
+The final focused capture checked 72 corpus cases, 18 positive CLI projects,
 12 CLI rejection controls and the complete standard-library package. It includes
 both-format vectors, the nine-place row and twins, the canonical-NaN pair,
-three migrated scientific consumers, and the integer constant regression pair.
+three migrated scientific consumers, the integer constant regression pair and
+eight-carrier vectors. Integration controls cover ordered `requires` formation,
+closed type-index selections, provider instances, nonreturning cleanup, and
+both value and slice-length ranking.
 The integer API and its eight-carrier vectors landed in
-`0fa6df693f3de6da396ca6c0e0206ad74f713e61` (PR #573); retained observations keep
-their original producer identities. The owning qualification record retains the
+`0fa6df693f3de6da396ca6c0e0206ad74f713e61` (PR #573); its eight-carrier vectors were also executed in this capture. Retained
+observations keep their original producer identities. The owning qualification record retains the
 source, binary, oracle and raw execution evidence and independent review.
 
 The row establishes scalar layout and calling-plan transport, selected operations,
@@ -78,5 +81,6 @@ casts, or every backend instruction. The four entry declarations do not establis
 cross-host runtime qualification. The unrelated
 [crash-entry NaN sample](../crash_entry_nan_equality/const_name/main.omg) received
 only an equivalent hexadecimal literal spelling. Both its original and edited
-source still reject for the same uncovered Trap route on this producer; that
+source rejected for the same uncovered Trap route on producer
+`82d77830a80a648312b7d718ac399919b14111c3`; that
 sample's authored runtime outcome remains open.

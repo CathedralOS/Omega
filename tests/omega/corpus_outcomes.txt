@@ -2718,7 +2718,7 @@ fail/collections/wrapping_member_decrement_index_unproven rejected 1805ms expect
 	cannot prove index `stack.count` is within length 8 in take::entry
 fail/collections/wrapping_range_index_unproven rejected 2517ms expected @a92f16431042
 	cannot prove index `main.i` is within length 5 in Main::main::read
-fail/compile_time/const_overload_selected_dependency_cycle_rejected rejected 132ms expected @0a51f971c7bf
+fail/compile_time/const_overload_selected_dependency_cycle_rejected rejected 129ms expected @f2892370f2fa
 	constant initializer: constant initializer dependency cycle
 fail/comptime/array_expression_fractional rejected 336ms expected @a92f16431042
 	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
@@ -2916,7 +2916,7 @@ fail/contracts/generic_component_nondecreasing_window rejected 5798ms expected @
 	machine call cycle: `walk` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/contracts/generic_component_unequal_windows rejected 3825ms expected @a92f16431042
 	cannot prove requires contract for call pair from Main::main: main.left[..2].len == main.right[..1].len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/contracts/generic_effective_result_wrong_comparison_rejected rejected 691ms expected @0a51f971c7bf
+fail/contracts/generic_effective_result_wrong_comparison_rejected rejected 746ms expected @f2892370f2fa
 	cannot prove ensures contract for exit from below32 at statement 0: result == value < threshold<u32>()
 fail/contracts/guard_call_cannot_use_selected_result rejected 1987ms expected @a92f16431042
 	cannot prove requires contract for call ready from read: value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -2972,13 +2972,13 @@ fail/contracts/literal_view_extent_not_invented rejected 2122ms expected @a92f16
 	cannot prove requires contract for call nonempty from projected_capacity_is_not_live_length: bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/machine_requires_later_state_parameter_rejected rejected 797ms expected @a92f16431042
 	machine `first` state `entry` arrival contract value `later_bound` is not in the state's explicit parameter scope or prior local declarations
-fail/contracts/match_contract_partial_operand_rejected rejected 494ms expected @0a51f971c7bf
+fail/contracts/match_contract_partial_operand_rejected rejected 462ms expected @f2892370f2fa
 	partial exact division in machine `partial` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/contracts/match_contract_replaced_subject_rejected rejected 681ms expected @0a51f971c7bf
+fail/contracts/match_contract_replaced_subject_rejected rejected 693ms expected @f2892370f2fa
 	cannot prove ensures contract for exit from stale at statement 2: result == match holder.direction { Direction => 0, Direction => 0x80 } | 4
-fail/contracts/match_contract_unknown_arm_rejected rejected 647ms expected @0a51f971c7bf
+fail/contracts/match_contract_unknown_arm_rejected rejected 659ms expected @f2892370f2fa
 	cannot prove ensures contract for exit from fabricated at statement 0: result == match choice { true => 7, false => 8 }
-fail/contracts/match_contract_wrong_case_rejected rejected 658ms expected @0a51f971c7bf
+fail/contracts/match_contract_wrong_case_rejected rejected 650ms expected @f2892370f2fa
 	cannot prove ensures contract for exit from bits at statement 1: result == match direction { Direction => 0, Direction => 0x80000000 } | 0x400000
 fail/contracts/mixed_requirement_prior_float_capture rejected 5142ms expected @a92f16431042
 	cannot prove requires contract for call compare from main: value == value && replace(mut value) <= 4 (needs fact `before == after && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -3101,10 +3101,12 @@ fail/contracts/slice_descriptor_does_not_preserve_mutated_contents rejected 3389
 	cannot prove requires contract for call need from stale: before == items[0] (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/slice_index_requirement_retires_mutated_contents rejected 3389ms expected @a92f16431042
 	cannot prove requires contract for call need from stale: items[0] == before (needs fact `items[0] == before` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/contracts/specialized_normal_call_wrong_type_contract rejected 690ms expected @0a51f971c7bf
+fail/contracts/specialized_normal_call_wrong_type_contract rejected 688ms expected @f2892370f2fa
 	cannot prove ensures contract for exit from copied at statement 1: result == choose<u64>(value)
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 2479ms expected @a92f16431042
 	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
+fail/contracts/static_type_requires_later_fact_rejected rejected 339ms expected @f2892370f2fa
+	cannot prove requires contract for specification call `partial` in machine `admitted` requires contract: establish its selected precondition in an independently formed prior requires fact
 fail/contracts/strict_clause_blocks_before_body rejected 65ms expected @a92f16431042
 	tests/omega/fail/contracts/strict_clause_blocks_before_body/main.omg:1:24: expected `;`, found punctuation `{`
 fail/contracts/strict_clause_invokes_before_body rejected 30ms expected @a92f16431042
@@ -3196,9 +3198,9 @@ fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 
 	machine `read` state `entry` statement 1: cannot prove selected case for payload access
 fail/control_flow/projected_float_payload_without_case rejected 20838ms expected @a92f16431042
 	machine `read` state `entry` statement 0: cannot prove selected case for payload access
-fail/control_flow/qualified_case_module_value rejected 312ms expected @0a51f971c7bf
+fail/control_flow/qualified_case_module_value rejected 387ms expected @f2892370f2fa
 	machine `read` state `entry` uses `shapes`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/control_flow/qualified_case_wrong_carrier rejected 305ms expected @0a51f971c7bf
+fail/control_flow/qualified_case_wrong_carrier rejected 319ms expected @f2892370f2fa
 	case-membership operation lost its exact subject, carrier or case identity
 	case-membership operation lost its exact subject, carrier or case identity
 	match pattern does not select a record or case of its subject's exact carrier
@@ -3218,12 +3220,12 @@ fail/control_flow/single_case_guarded_arm_nonexhaustive rejected 129ms expected 
 	match over `Carried` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm
 fail/control_flow/state_result_differs_from_machine_result rejected 1648ms expected @a92f16431042
 	machine `Main::main` state `checked` declares result `named(name(i32))`, which differs from the machine's no result
-fail/control_flow/static_terminal_unit_linear_cleanup rejected 1433ms expected @0a51f971c7bf
+fail/control_flow/static_terminal_unit_linear_cleanup rejected 1428ms expected @f2892370f2fa
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive$specialized$1e62f5525cb4ab6f$0` state `entry`
 fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 3147ms expected @a92f16431042
 	transition pattern matrix in `Main::main` does not cover (`Direction::Right`, `Outcome::Miss`); add an arm or `_`
-fail/control_flow/terminal_unit_linear_local_cleanup rejected 926ms expected @e12c034a9fc8
+fail/control_flow/terminal_unit_linear_local_cleanup rejected 864ms expected @f2892370f2fa
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 fail/control_flow/termination_countdown_stalled_decrease rejected 4198ms expected @a92f16431042
 	terminating machine Main::countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -7342,23 +7344,23 @@ fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_pa
 fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 962ms expected @f9baa191b37a+wt
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/core_float_representation_through_call_result_rejected rejected 897ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_call_result_rejected rejected 827ms expected @f2892370f2fa
 	machine `probe` state `entry` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
-fail/facts/core_float_representation_through_const_name_rejected rejected 1165ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_const_name_rejected rejected 1095ms expected @f2892370f2fa
 	machine `probe` state `entry` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
-fail/facts/core_float_representation_through_field_rejected rejected 1810ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_field_rejected rejected 1470ms expected @f2892370f2fa
 	cannot prove requires contract for call consume from probe: float::to_bits(held.value) == 0xff800123 (needs fact `float::to_bits(value) == 0xff800123` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/core_float_representation_through_local_rejected rejected 1542ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_local_rejected rejected 1465ms expected @f2892370f2fa
 	cannot prove requires contract for call consume from probe: float::to_bits(value) == 0xff800123 (needs fact `float::to_bits(value) == 0xff800123` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/core_float_representation_through_match_join_rejected rejected 1525ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_match_join_rejected rejected 1476ms expected @f2892370f2fa
 	cannot prove requires contract for call consume from probe: float::to_bits(held.value) == 0xff800123 (needs fact `float::to_bits(value) == 0xff800123` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/core_float_representation_through_other_machine_rejected rejected 885ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_other_machine_rejected rejected 891ms expected @f2892370f2fa
 	machine `probe` state `entry` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
-fail/facts/core_float_representation_through_other_state_rejected rejected 881ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_other_state_rejected rejected 806ms expected @f2892370f2fa
 	machine `probe` state `entry` value call to `nested` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
-fail/facts/core_float_representation_through_parameter_rejected rejected 877ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_parameter_rejected rejected 804ms expected @f2892370f2fa
 	machine `main` state `entry` value call to `probe` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
-fail/facts/core_float_representation_through_target_body_rejected rejected 2312ms expected @0a51f971c7bf
+fail/facts/core_float_representation_through_target_body_rejected rejected 2181ms expected @f2892370f2fa
 	machine `WindowsFloatProbe::probe` state `probe` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
 	machine `LinuxX86FloatProbe::probe` state `probe` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
 	machine `MacFloatProbe::probe` state `probe` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
@@ -12043,7 +12045,7 @@ fail/facts/nested_machine_joint_rank_preserving_subcycle_rejected rejected 1784m
 fail/facts/nested_machine_joint_rank_private_promise_rejected rejected 1024ms expected @34e571f3d5a1
 	terminating machine forward contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_structural_missing_bound_rejected rejected 707ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+fail/facts/nested_machine_joint_rank_structural_missing_bound_rejected rejected 657ms expected @f2892370f2fa
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structural_restored_descriptor_rejected rejected 695ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -12053,7 +12055,7 @@ fail/facts/nested_machine_joint_rank_structural_view_const_name_rejected rejecte
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structural_view_field_rejected rejected 713ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_structural_view_local_rejected rejected 719ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+fail/facts/nested_machine_joint_rank_structural_view_local_rejected rejected 658ms expected @f2892370f2fa
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structural_view_match_join_rejected rejected 713ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -19286,7 +19288,7 @@ fail/float/float_range_field_store_outside_range rejected 3809ms expected @a92f1
 	data `Ratio`'s default domain is still FALSE at state exit: the invariant window opened on `built` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/float/float_selected_comparison_authority rejected 1792ms expected @4e0178247b78+wt
 	cannot prove requires contract for call require_one from probe: entry(1.0) == 1.0 (needs fact `value == 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/float/float_semantics_lookalike_grants_no_primitive rejected 96ms expected @a92f16431042
+fail/float/float_semantics_lookalike_grants_no_primitive rejected 32ms expected @f2892370f2fa
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/format_conversion_exclusive_upper rejected 7893ms expected @a92f16431042
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
@@ -19405,11 +19407,11 @@ fail/float/named_argument_format_rejected rejected 1752ms expected @a92f16431042
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/named_boundary_transition_shadowed_namespace rejected 4420ms expected @a92f16431042
 	authored Call declaration selection occurrence 9052 (`from_i32` in tests/omega/fail/float/named_boundary_transition_shadowed_namespace/main.omg) remained unresolved after successful checking (CheckedCall)
-fail/float/named_boundary_transition_wrong_arity rejected 2384ms expected @a92f16431042
-	machine `main` state `entry`: value call `F64.from_i32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/named_boundary_transition_wrong_arity rejected 528ms expected @f2892370f2fa
+	state `from_i32` expects 1 argument(s), got 2
 fail/float/named_boundary_transition_wrong_operand rejected 2166ms expected @a92f16431042
 	argument `value` for state `from_i32` expects `i32`, got `bool`
-fail/float/named_boundary_transition_wrong_result rejected 1924ms expected @a92f16431042
+fail/float/named_boundary_transition_wrong_result rejected 519ms expected @f2892370f2fa
 	machine `main` state `entry` stores the `f64` result of named operator `from_i32` into a `i32` return value; numeric representation changes require an explicit named conversion
 	store in machine `main` state `entry` return value implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/float/named_call_computed_policy_erasure rejected 1889ms expected @a92f16431042
@@ -19566,8 +19568,8 @@ fail/generics/applied_result_distinct_declaration_mismatch rejected 509ms expect
 	machine `wrong` state `entry` local `held` expects `Foo`, but the value is delivered as `Holder<Foo>`
 fail/generics/attached_machine_unresolved_extent rejected 603ms expected @a92f16431042
 	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `Missing`; a symbolic array length must name an in-scope `const` parameter
-fail/generics/authored_specialized_call_wrong_actual_rejected rejected 202ms expected @0a51f971c7bf
-	machine `forwarded` where type predicate does not hold for the supplied arguments
+fail/generics/authored_specialized_call_wrong_actual_rejected rejected 192ms expected @f2892370f2fa
+	machine `forwarded` requires type predicate does not hold for the supplied arguments
 fail/generics/borrowed_applied_field_static_selection_wrong_predicate rejected 577ms expected @a92f16431042
 	machine argument `small` for `scan_batch` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 	machine argument `small` for `count` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
@@ -19917,7 +19919,7 @@ fail/generics/inferred_equation_conflicting_inferred_result_rejected rejected 26
 	generic machine `forward` where type equation has conflicting element types
 fail/generics/inferred_equation_deferred_callee_requires_rejected rejected 570ms expected @036605466510+wt
 	machine `main` state `entry` value call to `forward` violates required fact `okay`: the instantiated fact is structurally false
-fail/generics/inferred_equation_explicit_forward_conflict_rejected rejected 579ms expected @036605466510+wt
+fail/generics/inferred_equation_explicit_forward_conflict_rejected rejected 349ms expected @f2892370f2fa
 	argument `value` for state `entry` expects `[u8; 3]`, got `named value`
 fail/generics/inferred_machine_array_equation_constructor_identity_rejected rejected 436ms expected @a92f16431042
 	generic machine `capacity` where type equation requires the same fixed-array constructor
@@ -20263,7 +20265,7 @@ fail/generics/type_equation_template_unresolved_operand rejected 18ms expected @
 	generic data `Template` where type equation operand `Missing` does not name a closed type
 fail/generics/type_equation_template_value_operand rejected 19ms expected @598688c61fee
 	generic data `Template` where type equation operand `COUNT` does not name a closed type
-fail/generics/type_index_compound_wrong_actual rejected 1724ms expected @a92f16431042
+fail/generics/type_index_compound_wrong_actual rejected 449ms expected @f2892370f2fa
 	index compatibility condition `index-equality:Tagged:wrong::entry:call-0-0:Tagged<Box<Left>>==Tagged<Box<Value>>` is not established: actual `Tagged<Box<Left>>` and expected `Tagged<Box<Value>>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/type_index_distinct_binders rejected 1692ms expected @a92f16431042
 	index compatibility condition `index-equality:Tagged:wrong::entry:exit-0:Tagged<Left>==Tagged<Right>` is not established: actual `Tagged<Left>` and expected `Tagged<Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
@@ -20302,8 +20304,8 @@ fail/host/process_exit_preserves_borrowed_restoration rejected 902ms expected @a
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `composed`, state `finish` (statement 0): `holder.token` must hold a value again before this state's exits consume the borrow
 fail/host/process_exit_reach_keeps_return_obligations rejected 2097ms expected @a92f16431042
 	linear value `token` reaches scope exit without being consumed or transferred
-fail/host/returning_exit_spelling_keeps_linear_obligations rejected 1853ms expected @a92f16431042
-	linear value `token` reaches scope exit without being consumed or transferred
+fail/host/returning_exit_spelling_keeps_linear_obligations rejected 491ms expected @f2892370f2fa
+	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/inline_asm/asm_cli_requires_machine_authority rejected 106ms expected @a92f16431042
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_deriver_only_exit rejected 12ms expected @a92f16431042
@@ -20823,7 +20825,7 @@ fail/operators/inactive_payload_cannot_supply_false_requires rejected 2009ms exp
 	cannot prove `false` — the `requires` of `probe` (called `probe(0)`)
 fail/operators/named_boundary_transition_requires rejected 1804ms expected @a92f16431042
 	cannot prove `value > 0` — the `requires` of `probe` (called `probe(value)`)
-fail/operators/named_boundary_value_receiver_rejected rejected 183ms expected @0a51f971c7bf
+fail/operators/named_boundary_value_receiver_rejected rejected 185ms expected @f2892370f2fa
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 fail/operators/named_operator_result_overload_duplicate_dispatch rejected 552ms expected @a92f16431042
 	duplicate named requirement overload `Convert::value` with parameter signature `operands(named(name(i32)));flags(mutable=false;const=false)` and result dispatch set `arithmetic:Trapping`; predicate-only result refinements do not distinguish overloads
@@ -21855,11 +21857,11 @@ fail/proofs/store_selector_mutation_retires_bound rejected 2879ms expected @a92f
 	cannot prove ensures contract for exit from wrong at statement 2: bounds.count <= bounds.limit; no exact incoming reference origin for bounds
 fail/proofs/strict_comparison_mutation_snapshot rejected 2750ms expected @a92f16431042
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/structural_application_decreasing_false_rejected rejected 309ms expected @0a51f971c7bf
+fail/proofs/structural_application_decreasing_false_rejected rejected 315ms expected @f2892370f2fa
 	machine `closed_question` ensures contract proof fact `collapse(Nat) == Nat` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
-fail/proofs/structural_application_premise_false_rejected rejected 312ms expected @0a51f971c7bf
+fail/proofs/structural_application_premise_false_rejected rejected 312ms expected @f2892370f2fa
 	machine `main` state `entry` value call to `bounded` violates required fact `selected(value) < 1 && value < 9`: the instantiated fact is structurally false (`3 < 1 && 3 < 9`)
-fail/proofs/structural_application_premise_unknown_rejected rejected 647ms expected @0a51f971c7bf
+fail/proofs/structural_application_premise_unknown_rejected rejected 656ms expected @f2892370f2fa
 	cannot prove requires contract for call bounded from unknown: selected(value) < 1 && value < 9 (needs fact `selected(value) < 1 && value < 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/structural_ensures_unjudged_rejected rejected 1360ms expected @a92f16431042
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
@@ -23074,7 +23076,7 @@ fail/termination/rankless_callback_suffix rejected 1577ms expected @a92f16431042
 fail/termination/rankless_family_member_reentry rejected 1577ms expected @a92f16431042
 	cannot prove the `terminates by` ranking for machine count
 	machine call cycle: `count` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/remainder_natural_descent rejected 656ms expected @0a51f971c7bf
+fail/termination/remainder_natural_descent rejected 660ms expected @f2892370f2fa
 	machine call cycle: `greatest_common_divisor` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/requirement_witness_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/termination/requirement_witness_rejected/main.omg:7:59: a ranking witness (`terminates by ...`) does not belong on a bodyless requirement (decision 23): the requirement authors the guarantee with bare `terminates`; the implementation supplies the witness that discharges it
