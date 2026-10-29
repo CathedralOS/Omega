@@ -913,6 +913,12 @@ mod tests {
         TargetProfile, TargetRequiredRootSlotDeclaration, TargetWireIdentityError,
     };
 
+    macro_rules! eq {
+        ($left:expr => $right:expr) => {
+            assert_eq!($left, $right);
+        };
+    }
+
     #[test]
     fn hosted_intrinsic_bundles_round_trip_through_their_target_names() {
         for bundle in HostedIntrinsicBundle::ALL {
@@ -924,10 +930,7 @@ mod tests {
             );
             let prefix = format!("targets/{name}/");
             assert_eq!(bundle.console_source(), format!("{prefix}console_impl.omg"));
-            assert_eq!(
-                bundle.process_exit_source(),
-                format!("{prefix}process_exit_impl.omg")
-            );
+            eq!(bundle.process_exit_source() => format!("{prefix}process_exit_impl.omg"));
         }
     }
 
@@ -940,10 +943,7 @@ mod tests {
                 "{unadmitted:?} must not be admitted by spelling alone"
             );
         }
-        assert_eq!(
-            HostedIntrinsicBundle::from_target_name("linux-x86_64"),
-            None
-        );
+        eq!(HostedIntrinsicBundle::from_target_name("linux-x86_64") => None);
     }
 
     #[test]
@@ -952,15 +952,9 @@ mod tests {
         assert_eq!(slot.owner, TargetProfile::WindowsX64);
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
-        assert_eq!(
-            slot.semantic_arrival_requirement,
-            "ProgramStorageEntry::enter"
-        );
+        eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
         assert_eq!(slot.boundary_schema, Some("WindowsX86_64Application"));
-        assert_eq!(
-            slot.physical_arrival_requirement,
-            Some("WindowsProcessEntry::enter")
-        );
+        eq!(slot.physical_arrival_requirement => Some("WindowsProcessEntry::enter"));
         assert_eq!(
             slot.physical_contract_package,
             Some(ProgramEntryPhysicalContractPackage::WindowsX64)
@@ -972,10 +966,7 @@ mod tests {
             physical_package.manifest_identity(),
             "omega::language::std::targets::windows_x86_64::entry"
         );
-        assert_eq!(
-            physical_package.package_relative_source(),
-            "targets/windows_x86_64/entry.omg"
-        );
+        eq!(physical_package.package_relative_source() => "targets/windows_x86_64/entry.omg");
         assert_eq!(physical_package.contract_name(), "Windows x86-64");
         assert_eq!(
             slot.physical_calling_convention,
@@ -993,14 +984,8 @@ mod tests {
         let slot = TargetProfile::UefiX64.program_entry_slot();
         assert_eq!(slot.schema, ProgramEntrySchema::ProgramStorageApplication);
         assert_eq!(slot.boundary_schema, Some("UefiApplication"));
-        assert_eq!(
-            slot.physical_arrival_requirement,
-            Some("UefiPhysicalEntry::enter")
-        );
-        assert_eq!(
-            slot.physical_contract_package,
-            Some(ProgramEntryPhysicalContractPackage::UefiX64)
-        );
+        eq!(slot.physical_arrival_requirement => Some("UefiPhysicalEntry::enter"));
+        eq!(slot.physical_contract_package => Some(ProgramEntryPhysicalContractPackage::UefiX64));
         let physical_package = slot
             .physical_contract_package
             .expect("UEFI must select its closed physical-contract package");
@@ -1008,10 +993,7 @@ mod tests {
             physical_package.manifest_identity(),
             "omega::language::std::targets::uefi_x86_64::entry"
         );
-        assert_eq!(
-            physical_package.package_relative_source(),
-            "targets/uefi_x86_64/entry.omg"
-        );
+        eq!(physical_package.package_relative_source() => "targets/uefi_x86_64/entry.omg");
         assert_eq!(
             slot.physical_calling_convention,
             Some(super::ProgramEntryCallingConvention::MicrosoftX64)
@@ -1020,10 +1002,7 @@ mod tests {
             slot.semantic_calling_convention,
             Some(super::ProgramEntryCallingConvention::MicrosoftX64)
         );
-        assert_eq!(
-            slot.visible_parameters,
-            ProgramEntryVisibleParameters::ImageAndInitialStorage
-        );
+        eq!(slot.visible_parameters => ProgramEntryVisibleParameters::ImageAndInitialStorage);
     }
 
     #[test]
@@ -1060,16 +1039,10 @@ mod tests {
                 TargetProfile::from_canonical_target_name(retired).is_err(),
                 "{retired} must stay unknown below the request boundary"
             );
-            assert_eq!(
-                TargetProfile::from_omega_target_name(Some(canonical)).unwrap(),
-                profile
-            );
+            eq!(TargetProfile::from_omega_target_name(Some(canonical)).unwrap() => profile);
             assert_eq!(profile.target_name(), canonical);
             assert_eq!(profile.identity().as_str(), identity);
-            assert_eq!(
-                TargetProfile::from_root_slot_owner(canonical).unwrap(),
-                profile
-            );
+            eq!(TargetProfile::from_root_slot_owner(canonical).unwrap() => profile);
             assert!(TargetProfile::from_root_slot_owner(retired).is_err());
         }
     }
@@ -1082,10 +1055,7 @@ mod tests {
             let TargetRequiredRootSlotDeclaration::ProgramEntry(slot) = slots[0];
             assert_eq!(slot, profile.program_entry_slot());
             assert_eq!(slot.owner, profile);
-            assert_eq!(
-                profile.required_root_slot("ProgramEntry"),
-                Some(slot.into())
-            );
+            eq!(profile.required_root_slot("ProgramEntry") => Some(slot.into()));
             assert_eq!(profile.required_root_slot("NotDeclared"), None);
         }
     }
@@ -1093,10 +1063,7 @@ mod tests {
     #[test]
     fn build_target_cases_round_trip_every_exact_profile() {
         for profile in TargetProfile::ALL {
-            assert_eq!(
-                TargetProfile::from_build_case_name(profile.build_case_name()),
-                Some(profile)
-            );
+            eq!(TargetProfile::from_build_case_name(profile.build_case_name()) => Some(profile));
         }
         assert_eq!(TargetProfile::from_build_case_name("Host"), None);
         assert_eq!(TargetProfile::from_build_case_name("WindowsX64"), None);
@@ -1106,24 +1073,12 @@ mod tests {
     fn alpha_bootstrap_is_an_ordinary_recognized_profile() {
         let profile = TargetProfile::AlphaBootstrap;
 
-        assert_eq!(
-            TargetProfile::from_root_slot_owner("alpha_bootstrap").unwrap(),
-            profile
-        );
-        assert_eq!(
-            TargetProfile::from_omega_target_name(Some("alpha_bootstrap")).unwrap(),
-            profile
-        );
-        assert_eq!(
-            TargetProfile::from_canonical_target_name("alpha_bootstrap").unwrap(),
-            profile
-        );
+        eq!(TargetProfile::from_root_slot_owner("alpha_bootstrap").unwrap() => profile);
+        eq!(TargetProfile::from_omega_target_name(Some("alpha_bootstrap")).unwrap() => profile);
+        eq!(TargetProfile::from_canonical_target_name("alpha_bootstrap").unwrap() => profile);
         assert_eq!(profile.target_name(), "alpha_bootstrap");
         assert_eq!(profile.root_slot_owner_name(), "alpha_bootstrap");
-        assert_eq!(
-            profile.identity().as_str(),
-            "omega.target-profile.v1:alpha_bootstrap"
-        );
+        eq!(profile.identity().as_str() => "omega.target-profile.v1:alpha_bootstrap");
         assert_eq!(profile.build_case_name(), "AlphaBootstrap");
 
         // The slot schema comes from the same catch-all row the hosted
@@ -1135,10 +1090,7 @@ mod tests {
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
         assert_eq!(slot.physical_contract_package, None);
-        assert_eq!(
-            slot.semantic_arrival_requirement,
-            "ProgramStorageEntry::enter"
-        );
+        eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
         assert_eq!(
             profile
                 .required_root_slot("ProgramEntry")
@@ -1177,32 +1129,14 @@ mod tests {
     #[test]
     fn macos_x64_profile_catalogues_the_intel_macos_host() {
         let profile = TargetProfile::MacosX64;
-        assert_eq!(
-            TargetProfile::ALL.iter().position(|p| *p == profile),
-            Some(3)
-        );
-        assert_eq!(
-            TargetProfile::from_omega_target_name(Some("macos_x86_64")).unwrap(),
-            profile
-        );
-        assert_eq!(
-            TargetProfile::from_canonical_target_name("macos_x86_64").unwrap(),
-            profile
-        );
-        assert_eq!(
-            TargetProfile::from_root_slot_owner("macos_x86_64").unwrap(),
-            profile
-        );
-        assert_eq!(
-            TargetProfile::from_build_case_name("MacosX86_64"),
-            Some(profile)
-        );
+        eq!(TargetProfile::ALL.iter().position(|p| *p == profile) => Some(3));
+        eq!(TargetProfile::from_omega_target_name(Some("macos_x86_64")).unwrap() => profile);
+        eq!(TargetProfile::from_canonical_target_name("macos_x86_64").unwrap() => profile);
+        eq!(TargetProfile::from_root_slot_owner("macos_x86_64").unwrap() => profile);
+        eq!(TargetProfile::from_build_case_name("MacosX86_64") => Some(profile));
         assert_eq!(profile.target_name(), "macos_x86_64");
         assert_eq!(profile.root_slot_owner_name(), "macos_x86_64");
-        assert_eq!(
-            profile.identity().as_str(),
-            "omega.target-profile.v1:macos_x86_64"
-        );
+        eq!(profile.identity().as_str() => "omega.target-profile.v1:macos_x86_64");
         assert_eq!(profile.build_case_name(), "MacosX86_64");
 
         // The triple is real and the x86-64 Mach-O writer admits it; the
@@ -1223,14 +1157,8 @@ mod tests {
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
         assert_eq!(slot.boundary_schema, Some("MacosX64Application"));
-        assert_eq!(
-            slot.physical_arrival_requirement,
-            Some("MacosX64PhysicalEntry::enter")
-        );
-        assert_eq!(
-            slot.physical_contract_package,
-            Some(ProgramEntryPhysicalContractPackage::MacosX64)
-        );
+        eq!(slot.physical_arrival_requirement => Some("MacosX64PhysicalEntry::enter"));
+        eq!(slot.physical_contract_package => Some(ProgramEntryPhysicalContractPackage::MacosX64));
         let physical_package = slot
             .physical_contract_package
             .expect("macOS x86-64 must select its closed physical-contract package");
@@ -1238,10 +1166,7 @@ mod tests {
             physical_package.manifest_identity(),
             "omega::language::std::targets::macos_x86_64::entry"
         );
-        assert_eq!(
-            physical_package.package_relative_source(),
-            "targets/macos_x86_64/entry.omg"
-        );
+        eq!(physical_package.package_relative_source() => "targets/macos_x86_64/entry.omg");
         assert_eq!(physical_package.contract_name(), "macOS x86-64");
         assert_eq!(
             slot.physical_calling_convention,
@@ -1251,10 +1176,7 @@ mod tests {
             slot.semantic_calling_convention,
             Some(super::ProgramEntryCallingConvention::SystemVAMD64)
         );
-        assert_eq!(
-            slot.semantic_arrival_requirement,
-            "ProgramStorageEntry::enter"
-        );
+        eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
         assert_eq!(
             profile
                 .required_root_slot("ProgramEntry")
