@@ -550,17 +550,28 @@ impl TerminalRuntimeProvisions {
     /// Capture already admitted facts while they still accompany the image
     /// request. This is not another admission or a runtime authority grant.
     pub fn capture_native_admission(
-        checked: &terminal_psi::CheckedProgramEntryTerminalReceipt,
+        program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'_>,
         input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
-        target_slot: target::ProgramEntrySlotDeclaration,
         external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
-        if input.plan().entry != checked.terminal_entry() {
+        let checked = program_entry
+            .checked_entry
+            .ok_or("runtime provisions have no checked semantic entry")?;
+        let target_slot = program_entry.source().target_slot();
+        let native_entry = program_entry
+            .physical_adapter()
+            .map_or(checked.terminal_entry(), |adapter| adapter.machine());
+        if input.plan().entry != native_entry
+            || checked.source_signature_identity() != program_entry.source().identity().bytes()
+            || program_entry
+                .physical_adapter()
+                .is_some_and(|adapter| adapter.terminal() != checked.terminal_psi_identity())
+        {
             return Err("runtime provisions name another admitted entry");
         }
         let scalar_applications = capture_scalar_applications(
