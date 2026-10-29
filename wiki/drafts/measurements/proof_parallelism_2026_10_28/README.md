@@ -178,3 +178,5 @@ Follow-up: [cache diagnostics](cache_diagnostics/README.md) counts real reuse an
 Follow-up: [rebound delta experiment](rebinding_delta/README.md) proves a 95.8% append-allocation reduction, with inconclusive timing and no retained compiler change.
 
 Follow-up: [individual premise reuse](premise_reuse/README.md) measures 68.37% exact fact/edge reuse within replay queries and separates gross retirement/substitution costs; no cache or speedup is claimed.
+
+Follow-up: [unchanged fact sharing](unchanged_sharing/README.md) avoids 98.05% of rebound fact reconstructions without a cache; six alternating A/B pairs leave compile-time benefit inconclusive, so the implementation is parked.
