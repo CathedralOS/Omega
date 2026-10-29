@@ -450,8 +450,8 @@ impl Checker<'_> {
         };
         // Replay the selected carrier and offset, not an invented standalone
         // type for an inline field. Copy presentation does not supply identity.
-        let Some((collection, offset, elements)) =
-            crate::structural_inputs::structural_reference_input::collection_projection(
+        let Some(projected) =
+            crate::structural_inputs::structural_reference_input::projected_collection(
                 root_structural_type,
                 collection_path,
                 self.types,
@@ -459,6 +459,9 @@ impl Checker<'_> {
         else {
             return false;
         };
+        let collection = projected.shape;
+        let offset = projected.offset;
+        let elements = projected.elements;
         if !super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&[])) {
             return false;
         }
