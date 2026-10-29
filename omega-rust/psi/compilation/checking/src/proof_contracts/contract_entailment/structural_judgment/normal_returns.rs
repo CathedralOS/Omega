@@ -895,6 +895,19 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
+        macro_rules! normal_paths {
+            ($judge:expr, $expression:expr, $demand:expr) => {
+                $judge.evaluate_normal_paths(
+                    $expression,
+                    environment,
+                    scope,
+                    depth + 1,
+                    requested_operations,
+                    entries,
+                    $demand,
+                )
+            };
+        }
         let node = program.expression_table.expression(expression);
         if let Some(value) = program.static_boolean_value(expression) {
             return Some(vec![
@@ -1065,15 +1078,7 @@ impl<'program> StructuralJudge<'program> {
                 source_variant.symbol,
             )?;
             let mut outcomes = Vec::new();
-            for subject in self.evaluate_normal_paths(
-                binary.left,
-                environment,
-                scope,
-                depth + 1,
-                requested_operations,
-                entries,
-                NormalValueDemand::Value,
-            )? {
+            for subject in normal_paths!(self, binary.left, NormalValueDemand::Value)? {
                 let judgment = subject.judge.judge_case(
                     subject.value.clone(),
                     definition.symbol,
@@ -1124,15 +1129,7 @@ impl<'program> StructuralJudge<'program> {
             let evaluate_right = binary.operator == BinaryOperator::And;
             let mut short_circuit_steps_pure = true;
             let mut outcomes = Vec::new();
-            for left in self.evaluate_normal_paths(
-                binary.left,
-                environment,
-                scope,
-                depth + 1,
-                requested_operations,
-                entries,
-                NormalValueDemand::Value,
-            )? {
+            for left in normal_paths!(self, binary.left, NormalValueDemand::Value)? {
                 for truth in [false, true] {
                     let mut selected = left.judge.clone();
                     let guard_value = boolean_term(truth);
@@ -1148,15 +1145,7 @@ impl<'program> StructuralJudge<'program> {
                     }
                     selected.assume_normal_equation(left.value.clone(), guard_value);
                     if truth == evaluate_right {
-                        for right in selected.evaluate_normal_paths(
-                            binary.right,
-                            environment,
-                            scope,
-                            depth + 1,
-                            requested_operations,
-                            entries,
-                            demand,
-                        )? {
+                        for right in normal_paths!(selected, binary.right, demand)? {
                             outcomes.push(right.at_expression(expression, demand));
                         }
                     } else {
@@ -1244,15 +1233,7 @@ impl<'program> StructuralJudge<'program> {
         }
         if let ExpressionNode::Match(dispatch) = node {
             let mut outcomes = Vec::new();
-            let mut remaining = self.evaluate_normal_paths(
-                dispatch.subject,
-                environment,
-                scope,
-                depth + 1,
-                requested_operations,
-                entries,
-                NormalValueDemand::Value,
-            )?;
+            let mut remaining = normal_paths!(self, dispatch.subject, NormalValueDemand::Value)?;
             for subject in &mut remaining {
                 subject.value = subject.judge.complete_match_subject(
                     expression,
@@ -1272,15 +1253,9 @@ impl<'program> StructuralJudge<'program> {
                     if let Some((pattern, predicate)) = pattern {
                         // Patterns execute only after every preceding pattern
                         // failed. Keep their guarantees in that remaining path.
-                        for tested in subject.judge.evaluate_normal_paths(
-                            pattern,
-                            environment,
-                            scope,
-                            depth + 1,
-                            requested_operations,
-                            entries,
-                            NormalValueDemand::Value,
-                        )? {
+                        for tested in
+                            normal_paths!(subject.judge, pattern, NormalValueDemand::Value)?
+                        {
                             let primitive = if predicate {
                                 Some(typed_trees::types::PrimitiveType::Bool)
                             } else {
@@ -1350,28 +1325,12 @@ impl<'program> StructuralJudge<'program> {
                                 selected
                                     .assume_normal_equation(subject.value.clone(), tested.value);
                             }
-                            for value in selected.evaluate_normal_paths(
-                                arm.value,
-                                environment,
-                                scope,
-                                depth + 1,
-                                requested_operations,
-                                entries,
-                                demand,
-                            )? {
+                            for value in normal_paths!(selected, arm.value, demand)? {
                                 outcomes.push(value.at_expression(expression, demand));
                             }
                         }
                     } else {
-                        for value in subject.judge.evaluate_normal_paths(
-                            arm.value,
-                            environment,
-                            scope,
-                            depth + 1,
-                            requested_operations,
-                            entries,
-                            demand,
-                        )? {
+                        for value in normal_paths!(subject.judge, arm.value, demand)? {
                             outcomes.push(value.at_expression(expression, demand));
                         }
                     }
