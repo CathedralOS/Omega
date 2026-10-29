@@ -19,20 +19,22 @@ pub struct Report {
     pub metric: &'static str,
     pub comparison: Comparison,
     warnings: Vec<&'static str>,
-    memory: Value,
+    pub additional_metrics: BTreeMap<String, Value>,
 }
 
-#[derive(Default, Serialize)]
-struct Sample {
-    role: &'static str,
-    round: usize,
-    warmup: bool,
-    primary_value: Option<f64>,
-    observations: Vec<Observation>,
-    compiler_stage_ms: BTreeMap<String, f64>,
-    artifact_sha256: Option<String>,
-    artifact_bytes: Option<u64>,
-    failure: Option<String>,
+#[derive(Default, Deserialize, Serialize)]
+pub(crate) struct Sample {
+    pub role: String,
+    pub round: usize,
+    pub warmup: bool,
+    pub primary_value: Option<f64>,
+    pub observations: Vec<Observation>,
+    pub compiler_stage_ms: BTreeMap<String, f64>,
+    pub compiler_counters: BTreeMap<String, u64>,
+    pub artifact_sha256: Option<String>,
+    pub artifact_bytes: Option<u64>,
+    pub artifact_relative_path: Option<String>,
+    pub failure: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -58,7 +60,7 @@ impl Journal {
     }
 }
 
-pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
+pub(crate) fn prepare_plan(plan_path: &Path) -> Result<(Plan, PathBuf, String), String> {
     let plan_path = resolve(
         &std::env::current_dir().map_err(|error| error.to_string())?,
         plan_path,
@@ -130,6 +132,11 @@ pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
             ));
         }
     }
+    Ok((plan, plan_path, digest(&plan_bytes)))
+}
+
+pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
+    let (plan, plan_path, plan_sha256) = prepare_plan(plan_path)?;
     let parent = output
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -156,12 +163,14 @@ pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
         .open(output.join("journal.jsonl"))
         .map_err(|error| error.to_string())?;
     let mut journal = Journal { file };
-    journal.append(&json!({"event":"start", "schema":"omega-performance-run/1", "plan":plan,
-        "plan_sha256":digest(&plan_bytes), "started_unix_seconds":SystemTime::now().duration_since(UNIX_EPOCH)
+    journal.append(&json!({"event":"start", "schema":"omega-performance-run/2", "plan":plan,
+        "plan_sha256":plan_sha256, "started_unix_seconds":SystemTime::now().duration_since(UNIX_EPOCH)
             .map_err(|error| error.to_string())?.as_secs(),
         "host":{"os":std::env::consts::OS, "architecture":std::env::consts::ARCH,
             "logical_cpus":std::thread::available_parallelism().ok().map(usize::from),
-            "processor":std::env::var("PROCESSOR_IDENTIFIER").ok()},
+            "processor":std::env::var("PROCESSOR_IDENTIFIER").ok().or_else(||std::fs::read_to_string("/proc/cpuinfo").ok().and_then(|text|text.lines().find_map(|line|line.strip_prefix("model name").and_then(|line|line.split_once(':')).map(|(_,name)|name.trim().to_owned())))),
+            "host_id_sha256":std::env::var("COMPUTERNAME").ok().or_else(||std::env::var("HOSTNAME").ok()).or_else(||std::fs::read_to_string("/etc/machine-id").ok()).map(|name|digest(name.as_bytes()))},
+        "inherited_settings":(["OMEGA_PHASE_PROFILE","OMEGA_REVIEW_TIMINGS","OMEGA_ALLOCATION_PROFILE","RUST_MIN_STACK","RAYON_NUM_THREADS"].into_iter().filter_map(|name|std::env::var(name).ok().map(|value|(name,value))).collect::<BTreeMap<_,_>>()),
         "resource_limits":{"address_space_bytes":17179869184_u64, "process_memory_bytes":8589934592_u64,
             "aggregate_memory_bytes":8589934592_u64, "active_processes":64, "capture_bytes_per_stream":1048576},
         "timing_boundary":"process wall includes startup, capture and cleanup; reported_work is child-instrumented",
@@ -232,9 +241,8 @@ fn run(
             )?;
         }
     }
-    let mut baseline = Vec::with_capacity(plan.pairs);
-    let mut candidate = Vec::with_capacity(plan.pairs);
     let mut artifact_identity = None;
+    let mut samples = Vec::new();
     for warmup in [true, false] {
         let rounds = if warmup { plan.warmups } else { plan.pairs };
         for round in 0..rounds {
@@ -260,7 +268,7 @@ fn run(
                 let sample_dir = output.join(sample_name);
                 fs::create_dir(&sample_dir).map_err(|error| error.to_string())?;
                 let mut sample = Sample {
-                    role,
+                    role: role.into(),
                     round,
                     warmup,
                     ..Sample::default()
@@ -303,13 +311,7 @@ fn run(
                 let value = sample
                     .primary_value
                     .ok_or("successful sample has no primary measurement")?;
-                if !warmup {
-                    if role == "baseline" {
-                        baseline.push(value);
-                    } else {
-                        candidate.push(value);
-                    }
-                }
+                samples.push(sample);
                 eprintln!(
                     "{} round {} {role}: {value:.3} {}",
                     if warmup { "warmup" } else { "pair" },
@@ -319,8 +321,82 @@ fn run(
             }
         }
     }
+    summarize(plan, &samples)
+}
+
+pub(crate) fn summarize(plan: &Plan, samples: &[Sample]) -> Result<Report, String> {
+    let mut baseline = Vec::with_capacity(plan.pairs);
+    let mut candidate = Vec::with_capacity(plan.pairs);
+    let mut additional_samples: BTreeMap<String, (Vec<f64>, Vec<f64>)> = [
+        "user_cpu_ns",
+        "system_cpu_ns",
+        "peak_resident_bytes",
+        "minor_page_faults",
+        "major_page_faults",
+        "total_page_faults",
+        "cpu_cycles",
+    ]
+    .into_iter()
+    .map(|name| (name.into(), (Vec::new(), Vec::new())))
+    .collect();
+    for sample in samples {
+        let role = sample.role.as_str();
+        let value = sample.primary_value.ok_or("missing primary metric")?;
+        let warmup = sample.warmup;
+        if !warmup {
+            if role == "baseline" {
+                baseline.push(value);
+            } else {
+                candidate.push(value);
+            }
+            if let Some(observation) = sample.observations.first()
+                && let Some(resources) = observation.resources.as_object()
+            {
+                for (name, metric) in resources {
+                    if let Some(value) = metric.get("value").and_then(Value::as_u64) {
+                        let (before, after) = additional_samples.entry(name.clone()).or_default();
+                        if role == "baseline" {
+                            before.push(value as f64);
+                        } else {
+                            after.push(value as f64);
+                        }
+                    }
+                }
+            }
+            for (name, value) in &sample.compiler_stage_ms {
+                let (before, after) = additional_samples
+                    .entry(format!("stage_ms:{name}"))
+                    .or_default();
+                if role == "baseline" {
+                    before.push(*value);
+                } else {
+                    after.push(*value);
+                }
+            }
+            for (name, value) in &sample.compiler_counters {
+                let (before, after) = additional_samples
+                    .entry(format!("compiler_events:{name}"))
+                    .or_default();
+                if role == "baseline" {
+                    before.push(*value as f64);
+                } else {
+                    after.push(*value as f64);
+                }
+            }
+            if let Some(bytes) = sample.artifact_bytes {
+                let (before, after) = additional_samples
+                    .entry("native_image_bytes".into())
+                    .or_default();
+                if role == "baseline" {
+                    before.push(bytes as f64);
+                } else {
+                    after.push(bytes as f64);
+                }
+            }
+        }
+    }
     Ok(Report {
-        schema: "omega-performance-report/1",
+        schema: "omega-performance-report/2",
         name: plan.name.clone(),
         metric: plan.metric(),
         comparison: compare_samples(&baseline, &candidate)?,
@@ -328,12 +404,19 @@ fn run(
             "Within-run bootstrap uncertainty does not cover host drift, contention, or workload selection.",
             "Only declared input paths are hashed. Declare dependency/library/lock inputs used by the workload.",
             "Compiler stage times are inclusive and may overlap; do not sum nested rows.",
+            "Observed p95/p99 are nearest-rank sample quantiles; small runs do not resolve population tails.",
         ],
-        memory: json!({"status":"unavailable", "reason":"The bounded child runner does not expose per-process memory observations."}),
+        additional_metrics: additional_samples.into_iter().map(|(name, (before, after))| {
+            let metric = if before.len() == plan.pairs && after.len() == plan.pairs {
+                match compare_samples(&before, &after) { Ok(comparison) => json!({"status":"measured","comparison":comparison}),
+                    Err(reason) => json!({"status":"unavailable","reason":reason}) }
+            } else { json!({"status":"unavailable","reason":"metric missing from one or more paired observations"}) };
+            (name, metric)
+        }).collect(),
     })
 }
 
-fn measure(
+pub(crate) fn measure(
     plan: &Plan,
     command: &CommandSpec,
     output: &Path,
@@ -410,6 +493,7 @@ fn measure(
                 String::from_utf8_lossy(&captured.stderr)
             );
             sample.compiler_stage_ms = stage_timings(&compiler_text);
+            sample.compiler_counters = phase_counters(&compiler_text);
             let published: Vec<_> = compiler_text
                 .lines()
                 .filter_map(|line| line.strip_prefix("published native output to "))
@@ -430,6 +514,14 @@ fn measure(
                 );
             }
             sample.artifact_sha256 = Some(file_digest(&artifact)?);
+            sample.artifact_relative_path = Some(
+                artifact
+                    .strip_prefix(output)
+                    .map_err(|error| error.to_string())?
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+            );
             sample.artifact_bytes = Some(
                 fs::metadata(&artifact)
                     .map_err(|error| error.to_string())?
@@ -468,7 +560,7 @@ fn check_output(expected: &ExpectedOutput, captured: &BoundedProcessOutput) -> R
     Ok(())
 }
 
-fn stage_timings(text: &str) -> BTreeMap<String, f64> {
+pub(crate) fn stage_timings(text: &str) -> BTreeMap<String, f64> {
     let mut stages = BTreeMap::new();
     for line in text.lines() {
         if let Some((duration, label)) = line.trim().split_once(" ms  ")
@@ -476,13 +568,34 @@ fn stage_timings(text: &str) -> BTreeMap<String, f64> {
             && duration.is_finite()
             && duration >= 0.0
         {
-            *stages.entry(label.trim().to_owned()).or_default() += duration;
+            let name = label
+                .trim()
+                .split_once(" x  ")
+                .filter(|(count, _)| count.trim().parse::<u64>().is_ok())
+                .map_or(label.trim(), |(_, name)| name);
+            *stages.entry(name.to_owned()).or_default() += duration;
         }
     }
     stages
 }
 
-fn snapshot(plan: &Plan, plan_path: &Path) -> Result<BTreeMap<String, String>, String> {
+pub(crate) fn phase_counters(text: &str) -> BTreeMap<String, u64> {
+    let mut counters = BTreeMap::new();
+    for line in text.lines() {
+        let line = line.trim();
+        let timed = line
+            .split_once(" ms  ")
+            .and_then(|(_, label)| label.trim().split_once(" x  "));
+        if let Some((count, name)) = timed.or_else(|| line.split_once(" n  "))
+            && let Ok(count) = count.trim().parse::<u64>()
+        {
+            *counters.entry(name.to_owned()).or_default() += count;
+        }
+    }
+    counters
+}
+
+pub(crate) fn snapshot(plan: &Plan, plan_path: &Path) -> Result<BTreeMap<String, String>, String> {
     let mut files = BTreeMap::new();
     for input in plan.inputs.iter().map(PathBuf::as_path).chain([
         plan_path,

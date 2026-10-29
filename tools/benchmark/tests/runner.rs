@@ -94,6 +94,16 @@ fn retains_warmups_abba_pairs_and_refuses_overwrite() {
         ]
     );
     assert_eq!(events.last().unwrap()["event"], "complete");
+    let validated = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("validate")
+        .arg(directory.path().join("result"))
+        .output()
+        .unwrap();
+    assert!(
+        validated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&validated.stderr)
+    );
     let journal_before = std::fs::read(directory.path().join("result/journal.jsonl")).unwrap();
     assert!(!execute(directory.path(), &plan).status.success());
     assert_eq!(
@@ -214,6 +224,16 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
         assert_eq!(event["sample"]["observations"].as_array().unwrap().len(), 2);
         assert!(event["sample"]["artifact_sha256"].is_string());
     }
+    let validation = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("validate")
+        .arg(directory.path().join("result"))
+        .output()
+        .unwrap();
+    assert!(
+        validation.status.success(),
+        "{}",
+        String::from_utf8_lossy(&validation.stderr)
+    );
 }
 
 #[test]
@@ -318,4 +338,292 @@ fn unoptimized_producers_and_stale_artifact_paths_are_refused() {
             String::from_utf8_lossy(&result.stderr)
         );
     }
+}
+
+#[test]
+fn kernel_resource_observations_recover_touched_memory_and_cpu_work() {
+    let directory = TestDirectory::new();
+    let mut plan = plan(directory.path());
+    for role in ["baseline", "candidate"] {
+        plan[role]["arguments"] = json!(["resources"]);
+    }
+    let result = execute(directory.path(), &plan);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    for event in events(directory.path())
+        .iter()
+        .filter(|event| event["event"] == "sample")
+    {
+        let resources = &event["sample"]["observations"][0]["resources"];
+        assert!(
+            resources["peak_resident_bytes"]["value"]
+                .as_u64()
+                .unwrap_or(0)
+                >= 32 * 1024 * 1024,
+            "{resources}"
+        );
+        assert!(
+            resources["user_cpu_ns"]["value"].as_u64().unwrap_or(0)
+                + resources["system_cpu_ns"]["value"].as_u64().unwrap_or(0)
+                > 0,
+            "{resources}"
+        );
+        if cfg!(windows) {
+            assert!(resources["cpu_cycles"]["value"].as_u64().unwrap_or(0) > 0);
+        }
+    }
+}
+
+#[test]
+fn validation_detects_changed_streams_and_recomputed_fake_summaries() {
+    use sha2::{Digest, Sha256};
+    let directory = TestDirectory::new();
+    let plan = plan(directory.path());
+    assert!(execute(directory.path(), &plan).status.success());
+    let validate = || {
+        Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+            .arg("validate")
+            .arg(directory.path().join("result"))
+            .output()
+            .unwrap()
+    };
+    let capture = directory
+        .path()
+        .join("result/pair-0000-baseline/subject.stdout");
+    let original = std::fs::read(&capture).unwrap();
+    std::fs::write(&capture, b"changed").unwrap();
+    assert!(!validate().status.success());
+    std::fs::write(&capture, original).unwrap();
+    assert!(validate().status.success());
+    let report_path = directory.path().join("result/report.json");
+    let mut report: Value = serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+    report["comparison"]["baseline"]["median"] = json!(0.0);
+    let report = serde_json::to_vec(&report).unwrap();
+    std::fs::write(report_path, &report).unwrap();
+    let mut events = events(directory.path());
+    events.last_mut().unwrap()["report_sha256"] = json!(format!("{:x}", Sha256::digest(&report)));
+    std::fs::write(
+        directory.path().join("result/journal.jsonl"),
+        events
+            .iter()
+            .map(|event| serde_json::to_string(event).unwrap() + "\n")
+            .collect::<String>(),
+    )
+    .unwrap();
+    let result = validate();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("summary disagrees"));
+}
+
+#[test]
+fn suite_preserves_successes_when_another_workload_fails() {
+    let directory = TestDirectory::new();
+    let good = plan(directory.path());
+    let mut bad = good.clone();
+    bad["measurement"]["expected"]["stdout"] = json!("incorrect");
+    for (name, plan) in [("good.json", good), ("bad.json", bad)] {
+        std::fs::write(
+            directory.path().join(name),
+            serde_json::to_vec(&plan).unwrap(),
+        )
+        .unwrap();
+    }
+    let suite = directory.path().join("suite.json");
+    std::fs::write(
+        &suite,
+        serde_json::to_vec(
+            &json!({"schema":"omega-performance-suite/1","plans":["good.json","bad.json"]}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("suite")
+        .arg(suite)
+        .arg(directory.path().join("suite-result"))
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    let outcomes: Value = serde_json::from_slice(
+        &std::fs::read(directory.path().join("suite-result/suite.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(outcomes["outcomes"][0]["status"], "complete");
+    assert_eq!(outcomes["outcomes"][1]["status"], "failed");
+}
+
+#[test]
+fn reference_workloads_agree_with_independent_oracles() {
+    for (kind, units, checksum) in [
+        ("compute", "1000000", "8724022130139432207"),
+        ("memory", "1000000", "2833458506033"),
+        ("calls", "1000000", "251382716753"),
+        ("allocations", "100000", "14442337"),
+    ] {
+        let result = Command::new(env!("CARGO_BIN_EXE_omega-bench-workload"))
+            .args([kind, units, "17"])
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        let report: Value = serde_json::from_slice(&result.stdout).unwrap();
+        assert_eq!(report["checksum"], checksum, "{kind}");
+        assert_eq!(
+            report["work_units"].as_u64().unwrap(),
+            units.parse::<u64>().unwrap()
+        );
+        assert!(report["elapsed_ns"].as_u64().unwrap() > 0);
+    }
+}
+
+#[cfg(feature = "allocation-observation")]
+#[test]
+fn allocation_profile_preserves_correctness_and_real_counters() {
+    let directory = TestDirectory::new();
+    let mut plan = plan(directory.path());
+    for role in ["baseline", "candidate"] {
+        plan[role] = json!({"program":env!("CARGO_BIN_EXE_omega-bench-workload"),"arguments":["allocations","100000","17"]});
+    }
+    plan["measurement"] =
+        json!({"kind":"reported_work","stdin":"","work_units":100000,"checksum":"14442337"});
+    let path = directory.path().join("profile-plan.json");
+    std::fs::write(&path, serde_json::to_vec(&plan).unwrap()).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("profile")
+        .arg(path)
+        .args(["candidate", "allocations"])
+        .arg(directory.path().join("profile"))
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let profile: Value = serde_json::from_slice(
+        &std::fs::read(directory.path().join("profile/profile.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(profile["status"], "complete");
+    assert!(profile["allocations"]["allocations"].as_u64().unwrap() >= 100000);
+    assert!(profile["allocations"]["requested_bytes"].as_u64().unwrap() > 6_400_000);
+}
+
+#[test]
+fn historical_comparisons_refuse_a_changed_workload_and_never_pair_separate_runs() {
+    let first = TestDirectory::new();
+    let second = TestDirectory::new();
+    let third = TestDirectory::new();
+    let plan = plan(first.path());
+    assert!(execute(first.path(), &plan).status.success());
+    assert!(execute(second.path(), &plan).status.success());
+    let history = |after: &Path| {
+        Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+            .arg("history")
+            .arg(first.path().join("result"))
+            .arg(after.join("result"))
+            .output()
+            .unwrap()
+    };
+    let result = history(second.path());
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let comparison: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(comparison["comparison_kind"], "unpaired_independent_runs");
+    std::fs::write(first.path().join("input.txt"), "different workload bytes").unwrap();
+    assert!(execute(third.path(), &plan).status.success());
+    let changed = history(third.path());
+    assert!(!changed.status.success());
+    assert!(String::from_utf8_lossy(&changed.stderr).contains("input bytes changed"));
+    let check = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("check")
+        .arg(first.path().join("result"))
+        .arg("5")
+        .output()
+        .unwrap();
+    assert_eq!(check.status.code(), Some(2));
+}
+
+#[test]
+fn regression_gate_refuses_nonfinite_budgets() {
+    // The unit-level statistics control is exercised through complete retained
+    // histories above; here the CLI must also reject nonfinite gate budgets.
+    let directory = TestDirectory::new();
+    let plan = plan(directory.path());
+    assert!(execute(directory.path(), &plan).status.success());
+    let invalid = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("check")
+        .arg(directory.path().join("result"))
+        .arg("NaN")
+        .output()
+        .unwrap();
+    assert_eq!(invalid.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("finite"));
+}
+
+#[test]
+fn malformed_profile_retains_the_checked_sample_and_failure_reason() {
+    let directory = TestDirectory::new();
+    let mut plan = plan(directory.path());
+    plan["candidate"]["environment"] = json!({"PROBE_BAD_ALLOCATION":"1"});
+    let path = directory.path().join("profile-plan.json");
+    std::fs::write(&path, serde_json::to_vec(&plan).unwrap()).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("profile")
+        .arg(path)
+        .args(["candidate", "allocations"])
+        .arg(directory.path().join("profile"))
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    let profile: Value = serde_json::from_slice(
+        &std::fs::read(directory.path().join("profile/profile.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(profile["status"], "failed");
+    assert!(profile["reason"].is_string());
+    assert!(
+        !profile["sample"]["observations"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn validation_binds_native_execution_to_the_published_compiler_artifact() {
+    let directory = TestDirectory::new();
+    let mut plan = plan(directory.path());
+    for role in ["baseline", "candidate"] {
+        plan[role]["arguments"] = json!([]);
+    }
+    plan["measurement"] = json!({"kind":"compiler","source":"input.txt","library_root":directory.path().join("library"),"target":if cfg!(windows){"windows_x86_64"}else if cfg!(target_os="macos"){if cfg!(target_arch="aarch64"){"macos_arm64"}else{"macos_x86_64"}}else if cfg!(target_arch="aarch64"){"linux_arm64"}else{"linux_x86_64"},"expected":{"exit_code":0,"stdout":"native ok\n","stderr":""},"require_identical_artifacts":true});
+    std::fs::create_dir(directory.path().join("library")).unwrap();
+    assert!(execute(directory.path(), &plan).status.success());
+    let mut journal = events(directory.path());
+    let sample = journal
+        .iter_mut()
+        .find(|event| event["event"] == "sample")
+        .unwrap();
+    sample["sample"]["observations"][1]["program"] = json!("unrelated-program");
+    std::fs::write(
+        directory.path().join("result/journal.jsonl"),
+        journal
+            .iter()
+            .map(|event| serde_json::to_string(event).unwrap() + "\n")
+            .collect::<String>(),
+    )
+    .unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("validate")
+        .arg(directory.path().join("result"))
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("native execution"));
 }

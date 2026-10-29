@@ -1,5 +1,11 @@
 # Rust benchmark comparison tooling - 2026-10-29
 
+Historical first-version snapshot, retained at local commit `d7cc3c44e92`.
+Its source hashes and `/1` records describe that implementation, not the expanded
+tooling submitted in this PR. See the later
+[complete tooling validation](../performance_tooling_complete_2026_10_29/README.md)
+for current resource, allocation, profile, suite and evidence-consumer checks.
+
 Outcome: a usable first Rust comparison runner in `tools/benchmark`, alongside
 the existing Python optimizer-record workflow. It compares identified commands
 with retained warmups and alternating A/B order, requires authored result

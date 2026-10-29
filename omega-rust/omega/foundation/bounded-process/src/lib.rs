@@ -18,7 +18,9 @@ pub use bounded_process::{
     BoundedProcessRunError, run_bounded_process,
 };
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
-pub use process_child::{BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus};
+pub use process_child::{
+    BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus, ProcessResourceUsage,
+};
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod private_observation;

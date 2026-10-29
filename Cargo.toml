@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "tools/benchmark",
+    "tools/benchmark/allocation-observation",
     "samples/cli/independent/thin_film_reflectometry/validation",
     "samples/cli/independent/wavelet_transient_denoising/validation",
     "samples/cli/independent/hidden_markov_inference/validation/terminal-driver",

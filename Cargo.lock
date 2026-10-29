@@ -85,6 +85,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocation-observation"
+version = "0.1.0"
+
+[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1403,6 +1407,7 @@ dependencies = [
 name = "omega"
 version = "0.1.0"
 dependencies = [
+ "allocation-observation",
  "artifacts",
  "bounded-process",
  "compilation-products",
@@ -1429,6 +1434,7 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
+ "allocation-observation",
  "bounded-process",
  "serde",
  "serde_json",

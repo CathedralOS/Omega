@@ -6,6 +6,11 @@ use std::time::{Duration, Instant};
 
 fn main() {
     let arguments: Vec<_> = std::env::args().skip(1).collect();
+    if std::env::var_os("PROBE_BAD_ALLOCATION").is_some()
+        && let Some(path) = std::env::var_os("OMEGA_ALLOCATION_PROFILE")
+    {
+        std::fs::write(path, "malformed allocation report").unwrap();
+    }
     match arguments.first().map(String::as_str) {
         Some("--build-profile") => {
             let level = if std::env::var_os("PROBE_UNOPTIMIZED").is_some() {
@@ -42,6 +47,23 @@ fn main() {
                 "{{\"schema\":\"omega-timed-work/1\",\"elapsed_ns\":{elapsed},\"work_units\":{work_units},\"checksum\":\"{accumulator}\"}}"
             );
         }
+        Some("resources") => {
+            let mut storage = vec![0_u8; 32 * 1024 * 1024];
+            for (page, bytes) in storage.chunks_mut(4096).enumerate() {
+                bytes[0] = (page % 251 + 1) as u8;
+            }
+            let started = Instant::now();
+            let mut accumulator = 17_u64;
+            while started.elapsed() < Duration::from_millis(100) {
+                accumulator = black_box(
+                    accumulator
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1),
+                );
+            }
+            black_box((accumulator, storage));
+            println!("native ok");
+        }
         _ => {
             if std::env::var_os("PROBE_COMPILE_FAIL").is_some() {
                 eprintln!("controlled compile failure");
@@ -66,6 +88,9 @@ fn main() {
                 println!("published native output to {}", artifact.display());
             }
             eprintln!("  1.25 ms  Stage fixture");
+            if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() {
+                eprintln!("  0.75 ms         2 x  fixture.pass\n          42 n  fixture.nodes");
+            }
         }
     }
 }
