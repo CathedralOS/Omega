@@ -13,6 +13,8 @@ use std::sync::Arc;
 use symbols::{SymbolHasher, SymbolKeyMap};
 use validation::CanonicalPlace;
 
+mod diagnostics;
+
 #[derive(Clone)]
 struct CaseObservation {
     place: Arc<CanonicalPlace>,
@@ -38,10 +40,18 @@ impl CaseExclusions {
     }
 
     fn identity_position(&self, fingerprint: u64, place: &CanonicalPlace) -> Option<usize> {
-        let &first = self.table.by_identity.get(&fingerprint)?;
+        let Some(&first) = self.table.by_identity.get(&fingerprint) else {
+            diagnostics::lookup(diagnostics::Lookup::Absent, 0);
+            return None;
+        };
         if self.table.observations[first].place.as_ref() == place {
+            diagnostics::lookup(diagnostics::Lookup::FirstEqual, 0);
             return Some(first);
         }
+        diagnostics::lookup(
+            diagnostics::Lookup::Collision,
+            self.table.observations.len(),
+        );
         // A collision keeps the first indexed row, while complete retained
         // paths distinguish every other observation with that fingerprint.
         self.table
@@ -53,8 +63,10 @@ impl CaseExclusions {
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
         let fingerprint = Self::observation_fingerprint(place);
         if self.identity_position(fingerprint, place).is_some() {
+            diagnostics::insert(true, &self.table);
             return;
         }
+        diagnostics::insert(false, &self.table);
         let table = Arc::make_mut(&mut self.table);
         table
             .by_identity
@@ -88,8 +100,10 @@ impl CaseExclusions {
             .iter()
             .position(|observation| !keep(&observation.place))
         else {
+            diagnostics::retain(false, &self.table);
             return;
         };
+        diagnostics::retain(true, &self.table);
         let table = Arc::make_mut(&mut self.table);
         let mut position = 0;
         table.observations.retain(|observation| {
