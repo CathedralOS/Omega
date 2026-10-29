@@ -93,56 +93,33 @@ pub(super) fn macho_ad_hoc_code_signature_for_container(
     let layout = CodeSignatureLayout::for_code_limit(code_limit, identifier, isa);
 
     let mut bytes = Vec::with_capacity(layout.blob_length());
+    macro_rules! write32 {
+        ($value:expr $(,)?) => {
+            write_be_u32(&mut bytes, $value)
+        };
+    }
     write_be_u32(&mut bytes, 0xfade0cc0);
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.super_blob_length).expect("code signature size overflow"),
-    );
+    write32!(u32::try_from(layout.super_blob_length).expect("code signature size overflow"));
     write_be_u32(&mut bytes, 3);
     write_be_u32(&mut bytes, 0);
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.code_directory_offset).expect("CodeDirectory offset overflow"),
-    );
+    write32!(u32::try_from(layout.code_directory_offset).expect("CodeDirectory offset overflow"));
     write_be_u32(&mut bytes, 2);
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.requirements_offset).expect("requirements offset overflow"),
-    );
+    write32!(u32::try_from(layout.requirements_offset).expect("requirements offset overflow"));
     write_be_u32(&mut bytes, 0x10000);
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.entitlements_offset).expect("entitlements offset overflow"),
-    );
+    write32!(u32::try_from(layout.entitlements_offset).expect("entitlements offset overflow"));
 
     let code_directory_start = bytes.len();
     write_be_u32(&mut bytes, 0xfade0c02);
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.code_directory_length).expect("CodeDirectory size overflow"),
-    );
+    write32!(u32::try_from(layout.code_directory_length).expect("CodeDirectory size overflow"));
     write_be_u32(&mut bytes, 0x20400);
     write_be_u32(&mut bytes, 0x2);
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.hash_offset).expect("CodeDirectory hash offset overflow"),
+    write32!(u32::try_from(layout.hash_offset).expect("CodeDirectory hash offset overflow"));
+    write32!(
+        u32::try_from(layout.identifier_offset).expect("CodeDirectory identifier offset overflow")
     );
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.identifier_offset).expect("CodeDirectory identifier offset overflow"),
-    );
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(SPECIAL_SLOT_COUNT).expect("CodeDirectory special slot count overflow"),
-    );
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(layout.page_count).expect("CodeDirectory page count overflow"),
-    );
-    write_be_u32(
-        &mut bytes,
-        u32::try_from(code_limit).expect("CodeDirectory code limit overflow"),
-    );
+    write32!(u32::try_from(SPECIAL_SLOT_COUNT).expect("CodeDirectory special slot count overflow"));
+    write32!(u32::try_from(layout.page_count).expect("CodeDirectory page count overflow"));
+    write32!(u32::try_from(code_limit).expect("CodeDirectory code limit overflow"));
     bytes.push(32);
     bytes.push(2);
     bytes.push(0);
