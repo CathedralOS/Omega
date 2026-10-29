@@ -121,16 +121,10 @@ fn assert_every_operand_substitution_rejected(
     }
 }
 
-#[test]
-fn saturating_subtract_binds_registers_condition_and_flag_effects() {
+fn saturating_binary_binds_registers(operation: SaturatingOperation, byte_length: usize) {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::SaturatingSubtract {
-        carrier: SaturatingCarrier::U64,
-    };
-    let key = alternative(
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
-        0,
-    );
+    let kind = saturating_kind(operation, SaturatingCarrier::U64);
+    let key = saturating_key(operation, SaturatingCarrier::U64);
     for left in ["rax", "rcx", "r8", "r15"] {
         for right in ["rax", "rcx", "r8", "r15"] {
             for destination in ["rax", "rcx", "r8", "r15"] {
@@ -145,7 +139,7 @@ fn saturating_subtract_binds_registers_condition_and_flag_effects() {
                     continue;
                 }
                 let encoded = encoded.unwrap();
-                assert_eq!(encoded.bytes().len(), 13);
+                assert_eq!(encoded.bytes().len(), byte_length);
                 let decoded = validate_x86_64_selected_form_encoding(
                     &physical,
                     kind,
@@ -177,58 +171,13 @@ fn saturating_subtract_binds_registers_condition_and_flag_effects() {
 }
 
 #[test]
+fn saturating_subtract_binds_registers_condition_and_flag_effects() {
+    saturating_binary_binds_registers(SaturatingOperation::Subtract, 13);
+}
+
+#[test]
 fn saturating_add_binds_registers_condition_and_flag_effects() {
-    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::SaturatingAdd {
-        carrier: SaturatingCarrier::U64,
-    };
-    let key = alternative(
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
-        0,
-    );
-    for left in ["rax", "rcx", "r8", "r15"] {
-        for right in ["rax", "rcx", "r8", "r15"] {
-            for destination in ["rax", "rcx", "r8", "r15"] {
-                let operands = [left, right, destination]
-                    .map(|name| physical.model().view_named(name).unwrap().id);
-                let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands);
-                if destination == left || destination == right {
-                    assert!(
-                        encoded.is_err(),
-                        "early-clobber output cannot overlap either input"
-                    );
-                    continue;
-                }
-                let encoded = encoded.unwrap();
-                assert_eq!(encoded.bytes().len(), 19);
-                let decoded = validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
-                assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
-                assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
-                assert!(
-                    !decoded
-                        .footprint()
-                        .encoded
-                        .implicit_unit_clobbers
-                        .is_empty()
-                );
-                assert_every_byte_change_rejected(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    encoded.bytes(),
-                    "changed",
-                );
-            }
-        }
-    }
+    saturating_binary_binds_registers(SaturatingOperation::Add, 19);
 }
 
 #[test]
