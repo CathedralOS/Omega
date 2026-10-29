@@ -62,6 +62,10 @@ pub(crate) enum Operand {
     },
     /// One completed runtime event, not a denotation reconstructed from its
     /// operands. Its inputs need not themselves be arithmetic observations.
+    ///
+    /// The difference-graph tests are the only constructors: the variant is
+    /// present in the configuration that names it and absent from the lib.
+    #[cfg(test)]
     CompletedCall {
         target: SymbolHandle,
         occurrence: ExpressionHandle,
@@ -201,6 +205,7 @@ impl Operand {
             Self::Call { arguments, .. } => arguments
                 .iter()
                 .all(|value| value.is_immutable_snapshot(program, state)),
+            #[cfg(test)]
             Self::CompletedCall { .. } => false,
             Self::Binary { operands, .. } => operands
                 .iter()
@@ -252,6 +257,7 @@ impl Operand {
             Self::Call { arguments, .. } => {
                 arguments.iter().all(|value| value.survives_paths(written))
             }
+            #[cfg(test)]
             Self::CompletedCall { .. } => written.is_empty(),
             Self::CollectionLength(collection) => collection.survives(written),
             Self::Indexed {
@@ -316,6 +322,7 @@ impl Operand {
             // A raw runtime event is local to this evaluation. Only an exact
             // direct binding above can carry its completed value across a state
             // edge; argument rebinding cannot recreate another invocation.
+            #[cfg(test)]
             Self::CompletedCall { .. } => Vec::new(),
             Self::Call {
                 target, arguments, ..
@@ -1343,7 +1350,9 @@ fn operand_carrier_bound(
         Operand::Indexed { primitive, .. } | Operand::Field { primitive, .. } => {
             primitive.and_then(primitive_range).map(|range| range.high)
         }
-        Operand::Call { .. } | Operand::CompletedCall { .. } => None,
+        Operand::Call { .. } => None,
+        #[cfg(test)]
+        Operand::CompletedCall { .. } => None,
     }
 }
 
