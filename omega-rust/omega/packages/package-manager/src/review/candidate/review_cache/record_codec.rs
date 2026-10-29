@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Entry-field tolerance is retired. Older records may describe provisional
 // reviews and must miss, never acquire complete admission by dropping their flag.
-const RECORD_VERSION: u16 = 13;
+const RECORD_VERSION: u16 = 15;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -458,6 +458,7 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
     encode_optional_identity(schema.trait_package_identity.as_ref(), out);
     crate::codec_bytes::push_count_u64(out, schema.receiver_applications.len());
     for application in &schema.receiver_applications {
+        encode_string(schema.identity_text(application.application), out);
         encode_string(schema.identity_text(application.trait_name), out);
         encode_optional_identity(application.trait_package_identity.as_ref(), out);
         for roster in [
@@ -491,6 +492,14 @@ fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceS
         trait_package_identity: recover_optional(cursor, recover_identity)?,
         receiver_applications: cursor_vec(cursor, |cursor| {
             Some(ServiceReceiverApplication {
+                application: {
+                    let identity = cursor_string(cursor)?;
+                    if identity.is_empty() {
+                        Default::default()
+                    } else {
+                        identities.intern(identity)
+                    }
+                },
                 trait_name: identities.intern(cursor_string(cursor)?),
                 trait_package_identity: recover_optional(cursor, recover_identity)?,
                 argument_identities: cursor_vec(cursor, |cursor| {
@@ -954,6 +963,7 @@ mod tests {
         let schema = ServiceSchema {
             trait_name,
             receiver_applications: vec![ServiceReceiverApplication {
+                application: Default::default(),
                 trait_name,
                 trait_package_identity: None,
                 argument_identities: vec![u32_type_identity],

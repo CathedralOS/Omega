@@ -128,6 +128,7 @@ impl TargetProviderPreparationRequest<'_> {
                         selection.subject.selects_schema(
                             schema,
                             candidate.plan.identity_text(row.requirement_identity),
+                            candidate.plan.schema.root_application_identity(),
                         )
                     })
                 });

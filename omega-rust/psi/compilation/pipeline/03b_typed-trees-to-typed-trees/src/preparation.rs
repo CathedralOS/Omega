@@ -5,6 +5,11 @@
 //! second program representation or permission to skip checking.
 
 mod data_applications;
+mod product_operands;
+pub use product_operands::{
+    PreparedProductRequirement, prepare_product_operand_application,
+    prepare_product_requirement_operand, prepare_retained_product_application,
+};
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;

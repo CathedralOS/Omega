@@ -96,6 +96,7 @@ pub(crate) fn derive(
                         name,
                         provider_type: provider,
                         provider_type_package_identity: Some(selection.supplier_package),
+                        provider_application: Default::default(),
                         target: target.target_name().to_owned(),
                         schema,
                         rows: Vec::new(),

@@ -6,7 +6,7 @@ A target-keyed provider call establishes `total >= 1000`, so exact subtraction
 Owner: [BUILD-OWNED-TARGET-SELECTION](../../../../TASKS.md). This row establishes
 that a dependency’s executed target keys select its private ordinary named
 implementations, while the application imports only the public boundary and
-retains its contract. Dependency defaults remain below explicit root overrides.
+retains its contract. Each private implementation has a complete type/const application: its private `Holder<u64>` or `Holder<u32>` type actual remains distinct while an ordinary Build helper forwards const tag 17. Dependency defaults remain below explicit root overrides.
 The same complete Build handoff carries generated source and these choices; it does not close the
 remaining target-family retirement or native-binding migration.
 
@@ -26,12 +26,17 @@ and [proof contracts](../../../../wiki/spec/proofs/contracts.md).
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
-`FirstReading` returns 1100 and `SecondReading` returns 2100. The same portable
-`Reading::total()` call has explicit Build rows selecting the first implementation
+At tag 17, `FirstReading<Holder<u64>, 17>` returns 1100 and
+`SecondReading<Holder<u32>, 17>` returns 2100. The same portable
+`Reading<17u64>::total()` call has explicit Build rows selecting the first implementation
 for Windows, Linux x86-64 and macOS x86-64, and the second for macOS ARM64
 and Linux ARM64. Every owning package records those rows through an ordinary generic Build
-helper; its generated invocation retains the exact authored declaration and
-original activation. Applications do not
+helper with `(8u64 + 9u64)` as its tag actual. Its generated invocation retains
+the exact authored declaration, original activation and supplying static
+telescope. The nested generic type and const actuals survive capture, package
+retention, receiving-world rejoining and provider-plan publication as one
+complete application. The public satisfied trait alone cannot identify a
+provider with unused type parameters. Applications do not
 repeat its private provider names. Both
 implementations are checked, and their stronger private result values do not
 become a caller premise. Each reject twin weakens only the public lower bound
@@ -71,13 +76,23 @@ fabricated Build receiver. The positive pins request `compiled-application`
 Terminal target provisions so each target receives its admitted ProgramEntry
 from the same source cohort and portable artifact.
 
+Additional corpus controls distinguish tag 29 from tag 17, retain a nested
+`Holder<T>` type application, reject two applications of the same implementation
+with different nested type actuals, and check a zero divisor in an unexecuted
+Build helper. A Product-only method remains unavailable as a Build descriptor
+computation: designated selection grants no execution or host nameability.
+These are compositions of this row, not additional transport places.
+
 ## Requirements and evidence
 
 - **Establishment:** `Reading::total` promises the lower bound; every provider
   independently proves it. No caller equality guard supplies the arithmetic premise.
 - **Identity and lifetime:** the bound follows the exact returned scalar through
-  each transport place. Each Build row retains exact requirement, implementation,
-  authored occurrence and evaluated catalog target under the original Build activation.
+  each transport place. Each Build row retains the exact complete requirement and implementation
+  applications, original type/value input occurrences and evaluated catalog
+  target under the original Build activation. Phantom type actuals, nested
+  generic arguments and const values participate in identity; compact
+  conformance commitments and outer declaration names cannot replace them.
   The activation and lexical helper author remain separate retained declarations;
   neither acquires a runtime declaration in a receiving application.
 - **Composition:** forwarding and arrival contracts preserve the bound, match
@@ -105,6 +120,7 @@ is not execution evidence. Windows/Linux Native execution remains unverified.
 
 Remaining parent acceptance: retire source prefixes and all family IR/codec/runtime
 paths; migrate their callers, layouts, callbacks, entry and audio witnesses;
-complete static/lifetime applications, selected-closure refusal controls and
-matching-host observations for the other targets. Build-owned native locators
+complete remaining structural type applications, evaluated const-call arguments
+in ordinary Build helpers, lifetime/evidence/callback applications, selected-closure
+refusal controls and matching-host observations for the other targets. Build-owned native locators
 are the paired BUILD-OWNED-NATIVE-BINDINGS outcome and remain separate acceptance.

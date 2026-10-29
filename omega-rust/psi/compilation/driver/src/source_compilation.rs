@@ -332,12 +332,95 @@ impl SourceContinuation {
             .map_err(refuse)
     }
 
+    /// Form a reached designated application in this exact joined Product.
+    /// Mutable preparation forks the whole continuation input, so retained
+    /// authored completion can only match the same prepared typed source.
+    pub fn prepare_product_requirement_operand(
+        &mut self,
+        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+        author: symbols::SymbolHandle,
+        static_environment: Option<
+            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+    ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
+        typed_trees_to_typed_trees::prepare_product_requirement_operand(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            operand,
+            author,
+            static_environment,
+        )
+    }
+
+    /// Prepare an inert nominal application in the same ordinary typing owner.
+    /// The demand records reached selection separately from source formation.
+    pub fn prepare_product_operand_application(
+        &mut self,
+        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+        role: language_semantics::declaration_selection::ProductOperandRole,
+        author: symbols::SymbolHandle,
+        static_environment: Option<
+            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+        demand: typed_trees::product_operand::ProductApplicationDemand,
+    ) -> Result<
+        Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
+        Vec<Diagnostic>,
+    > {
+        typed_trees_to_typed_trees::prepare_product_operand_application(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            operand,
+            role,
+            author,
+            static_environment,
+            demand,
+        )
+    }
+
+    /// Rejoin one admitted dependency's executed Product choice without
+    /// importing its Build code or resolving private names in the consumer.
+    pub fn rejoin_product_provider_selection(
+        &mut self,
+        selection: &build_time_evaluation::provider_declarations::RetainedProviderSelection,
+    ) -> Result<build_time_evaluation::provider_declarations::ProviderSelection, Diagnostic> {
+        selection.rejoin(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            source::DependencyScope::Product,
+            &[],
+        )
+    }
+
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {
         let input = Arc::make_mut(&mut self.input);
         BuildSourceInput {
             typed: input.typing.typed_mut(),
             pre_checks: &mut input.pending_pre_checks,
         }
+    }
+
+    /// Materialize original body edges when designated operands need their
+    /// exact lexical state. This is the same body-completion owner used by
+    /// complete_authored; constant evaluation and checking remain later steps.
+    pub fn materialize_authored_bodies(
+        self,
+        observer: &mut impl PsiCompilationObserver,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let Self { input, completions } = self;
+        let SourceCompletionInput {
+            typing,
+            pending_bodies,
+            pending_pre_checks,
+            context,
+        } = Arc::unwrap_or_clone(input);
+        let (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
+        Ok(Self {
+            input: Arc::new(SourceCompletionInput {
+                typing,
+                pending_bodies,
+                pending_pre_checks,
+                context,
+            }),
+            completions,
+        })
     }
 
     /// Consume the post-Build continuation and complete every authored body once.
@@ -360,28 +443,10 @@ impl SourceContinuation {
             pending_pre_checks,
             context,
         } = Arc::unwrap_or_clone(owned_input);
-        loop {
-            // Build may append concrete declarations. Join their exact suffix
-            // before body resolution allocates more symbols in the same owner.
-            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
-            let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
-            if selected.is_empty() {
-                break;
-            }
-            let resolved = {
-                let _profile =
-                    phase_profile::guard("psi.source.complete_authored.complete_machine_bodies");
-                observer.record_result(PsiCompilationStage::Resolution, || {
-                    pending_bodies.complete_machine_bodies(&selected)
-                })?
-            };
-            (typing, pending_bodies) = {
-                let _profile = phase_profile::guard("psi.source.complete_authored.complete_bodies");
-                observer.record_result(PsiCompilationStage::Typing, || {
-                    typing.complete_bodies(resolved)
-                })?
-            };
-        }
+        (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
+        // The paired resolved frontier remains alive until body completion; no
+        // consumer reconstructs it from typed declarations.
+        drop(pending_bodies);
         let mut deferred = Vec::new();
         let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
         for pre_check in pending_pre_checks {
@@ -402,6 +467,43 @@ impl SourceContinuation {
         completions.retain(input, &source)?;
         Ok(source)
     }
+}
+
+/// Resolution and typing stay paired across every demand for authored bodies.
+fn complete_authored_bodies(
+    mut typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    mut pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    observer: &mut impl PsiCompilationObserver,
+) -> Result<
+    (
+        symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    ),
+    Vec<Diagnostic>,
+> {
+    loop {
+        // Build may append concrete declarations. Join their exact suffix
+        // before body resolution allocates more symbols in the same owner.
+        pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+        let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
+        if selected.is_empty() {
+            break;
+        }
+        let resolved = {
+            let _profile =
+                phase_profile::guard("psi.source.complete_authored.complete_machine_bodies");
+            observer.record_result(PsiCompilationStage::Resolution, || {
+                pending_bodies.complete_machine_bodies(&selected)
+            })?
+        };
+        (typing, pending_bodies) = {
+            let _profile = phase_profile::guard("psi.source.complete_authored.complete_bodies");
+            observer.record_result(PsiCompilationStage::Typing, || {
+                typing.complete_bodies(resolved)
+            })?
+        };
+    }
+    Ok((typing, pending_bodies))
 }
 
 impl CompletedSource {

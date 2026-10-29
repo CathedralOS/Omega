@@ -11,6 +11,7 @@ fn schema(root: &str, calling: u8, shift_identity_slots: bool) -> ServiceSchema 
     let requirement = identities.intern("Parent::enter(u64)");
     let parameter = identities.intern("u64");
     let receiver = |name| ServiceReceiverApplication {
+        application: Default::default(),
         trait_name: name,
         trait_package_identity: None,
         argument_identities: vec![],

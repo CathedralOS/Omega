@@ -20,7 +20,10 @@ pub use declarations::operators::{
     derive_pre_flow_operator_selections, scoped_operator_application,
 };
 pub use declarations::traits::refinement_fit;
-pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_correspondence};
+pub use declarations::traits::{
+    ProviderRegionCorrespondence, closed_provider_region_correspondence,
+    provider_region_correspondence,
+};
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
@@ -327,6 +330,7 @@ pub use machine_calls::effect_inference::{
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
+pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
     PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
     ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,

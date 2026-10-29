@@ -591,6 +591,26 @@ pub(crate) fn lower_static_machine_argument(
             .map(|application| {
                 Ok::<_, Diagnostic>(Box::new(
                     symbol_resolved_trees::expression::StaticSymbolApplication {
+                        member: if application.member.is_valid() {
+                            let source = syntax_trees
+                                .expressions
+                                .static_member(application.member)
+                                .ok_or_else(|| {
+                                    Diagnostic::error(
+                                        "qualified static member has no owning syntax record",
+                                    )
+                                })?;
+                            let member =
+                                lower_static_machine_argument(lowerer, syntax_trees, source)?;
+                            lowerer
+                                .symbol_resolved_trees
+                                .tables
+                                .bodies
+                                .expressions
+                                .insert_static_member(member)
+                        } else {
+                            arena::Handle::invalid()
+                        },
                         lifetime_arguments: application
                             .lifetime_arguments
                             .iter()
