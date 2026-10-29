@@ -2,6 +2,10 @@
 members = [
     "samples/cli/independent/sample-runner",
     "samples/cli/independent/thin_film_reflectometry/validation",
+    "samples/cli/independent/laminate_stiffness_response/validation",
+    "samples/cli/independent/layered_seismic_refraction/validation",
+    "samples/cli/independent/molecular_pair_distribution/validation",
+    "samples/cli/independent/nonlinear_diode_sweep/validation/terminal-driver",
     "samples/cli/independent/wavelet_transient_denoising/validation",
     "samples/cli/independent/hidden_markov_inference/validation/terminal-driver",
     "samples/cli/independent/conservative_advection/validation",

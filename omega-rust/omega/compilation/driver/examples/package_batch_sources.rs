@@ -62,6 +62,19 @@ fn measure() {
             &mut completed,
         )
         .unwrap_or_else(|error| panic!("{:?}", error.failure.into_diagnostics()));
+        let mut owners = build
+            .package_inputs()
+            .packages()
+            .filter_map(|(identity, _)| {
+                (build.package_inputs().package_name(identity) == Some("audit_driver"))
+                    .then_some(identity)
+            });
+        let owner = owners.next().expect("audited dependency identity");
+        assert!(
+            owners.next().is_none(),
+            "unique audited dependency identity"
+        );
+        drop(owners);
         let review = session
             .compiler()
             .review_package_build(build, usize::MAX)
@@ -73,6 +86,10 @@ fn measure() {
             "duplicates collapse; untaken and dependency registrations stay absent"
         );
         assert_eq!(services[0].path(), "MotorControl");
+        assert_eq!(
+            services[0].owner(),
+            package_evidence::record::PackageReviewNominalOwner::Package(owner)
+        );
         println!(
             "service_audits=1 selected=MotorControl duplicate_collapsed=true untaken_absent=true dependency_policy_absent=true"
         );
@@ -234,7 +251,12 @@ fn discover(
     assert_eq!(
         admitted.requests.len(),
         targets.len(),
-        "every requested target admitted"
+        "every requested target admitted: {:?}",
+        admitted
+            .completion
+            .failures()
+            .map(|(target, error)| (target, error.to_string()))
+            .collect::<Vec<_>>()
     );
     assert!(
         admitted.requests.iter().all(|request| request

@@ -91,6 +91,7 @@ struct CompletedValue {
     evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
     conditional_inputs_from: Option<usize>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
+    possible_storage: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
     retention: Option<Handle<checked_trees::FlowOperandRetention>>,
     /// Descriptor contents substituted after operands, before callee writes.
     reference_leaves: Option<HandleSpan<checked_trees::FlowCapturedReferenceLeaf>>,
@@ -842,12 +843,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .unwrap_or_default()
         };
-        self.append_invocation_memberships(
-            completed.invocation,
-            &mut capture,
-            contexts,
-            constraints,
-        );
         let carries_borrows = !binds_view
             && validation::borrow_contracts::is_borrow_carrying_data(
                 self.program,
@@ -868,6 +863,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 Handle::invalid()
             };
         }
+        if let Some(backing) = self.capture_invocation_backing(completed.invocation, &capture) {
+            self.retain_possible_storage(&mut capture, &backing);
+        }
+        self.append_invocation_memberships(
+            completed.invocation,
+            &mut capture,
+            contexts,
+            constraints,
+        );
         if carries_borrows
             && matches!(
                 capture.completion,
@@ -1066,6 +1070,26 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         } else {
             capture.retention =
                 self.capture_storage_retention(&capture, completed.retention, completed.backing);
+        }
+        if let Some(possible_storage) = completed.possible_storage
+            && !possible_storage.is_empty()
+            && self
+                .context
+                .control
+                .operand_retentions
+                .is_valid(capture.retention)
+        {
+            let profile = *self
+                .context
+                .control
+                .operand_retentions
+                .get(capture.retention);
+            capture.retention = self.context.control.operand_retentions.insert(
+                checked_trees::FlowOperandRetention {
+                    possible_storage,
+                    ..profile
+                },
+            );
         }
         capture
     }
@@ -1508,6 +1532,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             evaluated_inputs,
             conditional_inputs_from,
             referents,
+            possible_storage,
             retention,
             reference_leaves,
         } = completed;
@@ -1594,6 +1619,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     &receiver.capture,
                     *constraints,
                     case_access,
+                    possible_storage,
                 ));
                 *retention = self.capture_member_retention(expression, &receiver.capture);
                 self.retain_value_observation(
