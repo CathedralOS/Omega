@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 
 import corpus_records
 from corpus_scoreboard import native_scoreboard, oracle_lookup
+from dashboard_performance import collect_performance
 
 ROOT = Path(__file__).resolve().parents[1]
 PLACES = ("local", "field", "parameter", "call_result", "match_join",
@@ -246,7 +247,8 @@ def collect(repository, evidence_root):
             "places": PLACES, "targets": TARGETS,
             "facts": collect_facts(repository, records),
             "native": collect_native(repository, warnings),
-            "claims": collect_claims(repository), "warnings": warnings}
+            "claims": collect_claims(repository), "warnings": warnings,
+            "performance": collect_performance(repository, warnings)}
     for host in data["native"]:
         host["history"] = []
         if host["available"]:
