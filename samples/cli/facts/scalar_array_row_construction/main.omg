@@ -1,0 +1,13 @@
+// A nested scalar array construction [a, b] flattens fixed-array rows into row-major element reads of their storage, preserving each row's element values across all nine places.
+// Expected exit: 0
+machine main() crashes Trap {
+    let a: [u64; 2] = [3, 5];
+    let b: [u64; 2] = [7, 11];
+    let result: [[u64; 2]; 2] = [a, b];
+    transition result[0][0] == 3 && result[0][1] == 5 && result[1][0] == 7 && result[1][1] == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
