@@ -281,21 +281,36 @@ pub fn produce_fixture(
 /// An authored rejection may also require the standalone batch API to retain
 /// attempted scalar charges. Observe it before package policy flattens failures
 /// to diagnostics; the ordinary package refusal is still exercised separately.
-pub fn observe_failed_scalar_accounting(
-    prepared: &ReviewedFixtureCompilation,
+fn observe_failed_scalar_accounting(
+    authored_project_root: &Path,
+    root_path: &Path,
+    inputs: &PackageCompilationInputs,
     profile: TargetProfile,
-    minimum_receipts: usize,
-    expected_diagnostics: &[String],
-    build_directory: &Path,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut request = compiler::CompileRequest::for_targets(
-        prepared.root_path.clone(),
-        build_directory.to_path_buf(),
+    let oracle_path = authored_project_root.join("expected_failed_scalar_accounting.txt");
+    let oracle = match fs::read_to_string(&oracle_path) {
+        Ok(oracle) => oracle,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(vec![Diagnostic::error(error.to_string())]),
+    };
+    let minimum_receipts = oracle
+        .trim()
+        .parse::<usize>()
+        .ok()
+        .filter(|count| *count > 0)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "failed scalar accounting oracle requires a positive receipt count",
+            )]
+        })?;
+    let expected_diagnostics = fs::read_to_string(authored_project_root.join("expected.txt"))
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let request = compiler::CompileRequest::for_targets(
+        root_path.to_path_buf(),
+        sealed_fixture_staging::fresh_staging_build_dir(&repo_root(), authored_project_root),
         vec![Some(profile)],
-    );
-    if let Some(inputs) = &prepared.package_inputs {
-        request = request.with_package_inputs(inputs.clone());
-    }
+    )
+    .with_package_inputs(inputs.clone());
     let outcomes = omega_build::compile_sources(
         &mut compiler::CompilationSession::default(),
         request,
@@ -350,7 +365,11 @@ pub fn observe_failed_scalar_accounting(
                 "failed scalar accounting probe unexpectedly produced a product",
             )]
         })?;
-        for expected in expected_diagnostics {
+        for expected in expected_diagnostics
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+        {
             if !diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.message.contains(expected))
@@ -639,6 +658,10 @@ pub fn review_fixture(
                     "entry fixture acceptance: {errors:?}"
                 ))]
             })?;
+        // A false declaration condition can refuse during preliminary review.
+        // Observe the standalone ledger with the admitted entry inputs first;
+        // do not let that earlier refusal silently skip the authored oracle.
+        observe_failed_scalar_accounting(authored_project_root, &root_path, &inputs, profile)?;
         let mut discovery = clone_fixture_occurrences(&request.occurrences)?;
         let Some(compiler::PackageSourceRequest::Product(root)) = discovery.last_mut() else {
             return Err(vec![Diagnostic::error(

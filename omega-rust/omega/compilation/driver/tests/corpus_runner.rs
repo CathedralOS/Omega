@@ -1425,39 +1425,6 @@ fn check_fail_fixture(
         let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
             .map_err(|error| vec![error])?;
         let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)?;
-        let accounting_oracle = root_path
-            .parent()
-            .unwrap_or(Path::new("."))
-            .join("expected_failed_scalar_accounting.txt");
-        match fs::read_to_string(&accounting_oracle) {
-            Ok(oracle) => {
-                let minimum = oracle
-                    .trim()
-                    .parse::<usize>()
-                    .ok()
-                    .filter(|count| *count > 0)
-                    .ok_or_else(|| {
-                        vec![diagnostics::Diagnostic::error(
-                            "failed scalar accounting oracle requires a positive receipt count",
-                        )]
-                    })?;
-                fixture_package_inputs::observe_failed_scalar_accounting(
-                    &prepared,
-                    profile,
-                    minimum,
-                    &fs::read_to_string(accounting_oracle.with_file_name("expected.txt"))
-                        .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?
-                        .lines()
-                        .map(str::trim)
-                        .filter(|line| !line.is_empty())
-                        .map(str::to_owned)
-                        .collect::<Vec<_>>(),
-                    &build_dir.join("failed-accounting"),
-                )?;
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
-        }
         fixture_package_inputs::produce_fixture(&mut prepared, target_name.as_deref()).map(|_| ())
     })();
     for output in absent_outputs {
