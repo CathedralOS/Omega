@@ -88,7 +88,7 @@ impl CurrentScalarValues<'_> {
         path: &[facts::PlaceSegment],
     ) -> Option<ScopedArithmeticValue> {
         if path.is_empty() {
-            return self.current(actual).map(ScopedArithmeticValue::Term);
+            return self.current_value(actual);
         }
         self.captured_scalar_fields(actual, 0)
             .into_iter()

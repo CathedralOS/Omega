@@ -216,6 +216,11 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// completion captures its records through it, and a structural return
     /// completes at its last statement.
     pub statement_count: u32,
+    /// Exact source exit selected before destination planning by a closed static
+    /// dispatch. Canonical flow and cleanup evidence retain every source arm;
+    /// executable cleanup and result custody consume only this coordinate.
+    /// None preserves the ordinary runtime control alternatives.
+    pub selected_exit: Option<crate::FlowClaimJoinExit>,
     pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
 }
 

@@ -52,9 +52,16 @@ pub(super) fn account<'calls>(
     )],
     operations: &mut [CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
+    selected_exit: Option<checked_trees::FlowClaimJoinExit>,
     completion: checked_trees::CheckedNormalCompletion,
     trace: &control::LocalConstructionTrace,
 ) -> Option<()> {
+    if selected_exit.is_some_and(|exit| {
+        exit.state_symbol != state.symbol
+            || exit.kind != checked_trees::FlowClaimJoinExitKind::TransitionTarget
+    }) {
+        return None;
+    }
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
     let has_normal_continuation = completion == checked_trees::CheckedNormalCompletion::Possible;
@@ -497,6 +504,12 @@ pub(super) fn account<'calls>(
         let release_owned_view = affine_view && owns_local_view_claim;
         let has_captured_view_loans = release_owned_view && has_captured_view_loans;
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
+            // A closed dispatch retains the selected arm even after its call
+            // becomes an ordinary completion. Never infer its disposal from
+            // the number of canonical (including inactive) source exits.
+            let statement = statement.or_else(|| {
+                selected_exit.and_then(|exit| u32::try_from(exit.statement_index).ok())
+            });
             !retired_whole
                 && reference_releases == 0
                 // A scheduled loan release is the one checked disposition of

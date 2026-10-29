@@ -58,6 +58,7 @@ impl ValidatedElfDynamicTagPlan {
         self.contents.rows.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn needed_row_count(&self) -> usize {
         self.descriptors
             .templates()

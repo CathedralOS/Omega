@@ -12,6 +12,7 @@ mod integer_predicates;
 mod invocation_entry;
 mod licenses;
 pub(super) mod normal_returns;
+mod resolution_queries;
 mod returned_fields;
 pub(super) mod selected_contracts;
 mod storage_effects;
@@ -121,6 +122,15 @@ pub(crate) enum StructuralTerm {
     BoundProjection {
         subject: SymbolHandle,
         path: String,
+    },
+    /// The same captured scalar bits viewed in another admitted carrier.
+    /// This records representation identity, never IEEE numeric equality.
+    /// Construction retains checked shared-read custody; reversing the view
+    /// recovers the original value without quieting or canonicalizing NaNs.
+    ScalarRepresentation {
+        source: typed_trees::types::PrimitiveType,
+        target: typed_trees::types::PrimitiveType,
+        value: Box<StructuralTerm>,
     },
     /// Exact literal value, independent of radix or authored spelling.
     Integer(numerics::bignum::BigInt),
@@ -300,6 +310,15 @@ impl StructuralTerm {
     /// about a completed collection, never the referent's contents.
     pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value: Box::new(map(*value)),
+            },
             StructuralTerm::IntegerEmbedding { reference, value } => {
                 StructuralTerm::IntegerEmbedding {
                     reference,
@@ -423,12 +442,19 @@ struct CompletedNominalCapture {
     anchor: ExpressionHandle,
     reference: TypeReferenceHandle,
     value: StructuralTerm,
+    observed_value: StructuralTerm,
 }
 
 impl CompletedNominalCapture {
     fn same_admission(&self, other: &Self) -> bool {
         self.anchor == other.anchor
             && self.reference == other.reference
+            && self
+                .observed_value
+                .observation_identity_key()
+                .is_some_and(|key| {
+                    other.observed_value.observation_identity_key().as_ref() == Some(&key)
+                })
             && self
                 .value
                 .observation_identity_key()
@@ -458,11 +484,12 @@ pub(super) struct StructuralJudge<'program> {
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
-    pub(super) returned_field_trace:
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) returned_field_trace:
         Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
+    active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -533,6 +560,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
+            active_application: self.active_application.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -980,6 +1008,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
+            active_application: None,
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -1444,6 +1473,7 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
+                | StructuralTerm::ScalarRepresentation { .. }
                 | StructuralTerm::ScalarBinary { .. },
                 _,
             ) => {
@@ -1460,6 +1490,7 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
+                | StructuralTerm::ScalarRepresentation { .. }
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
@@ -1560,6 +1591,10 @@ impl<'program> StructuralJudge<'program> {
                         .into_iter()
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect();
+                    let result_type = super::specification_calls::canonical_result_reference(
+                        self.program,
+                        result_type,
+                    );
                     let resolved = StructuralTerm::Application {
                         result_type,
                         target,
@@ -1575,21 +1610,11 @@ impl<'program> StructuralJudge<'program> {
                         return resolved;
                     }
                     if self.require_closed_computation {
-                        let StructuralTerm::Application {
-                            target,
-                            selections,
-                            machine,
-                            arguments,
-                            ..
-                        } = &resolved
-                        else {
-                            unreachable!();
-                        };
                         // Conditional normal-return guarantees are not proof
                         // that this evaluation completes. Compute its body
                         // using the same continuing invocation depth instead.
                         return self
-                            .unfold_application(*target, selections, machine, arguments, depth + 1)
+                            .unfold_application(&resolved, depth + 1)
                             .map_or(resolved.clone(), |value| self.resolve_at(value, depth + 1));
                     }
                     // Hypothesis rewrites first (the inductive hypothesis
@@ -1607,19 +1632,7 @@ impl<'program> StructuralJudge<'program> {
                         term = normalized;
                         continue;
                     }
-                    let StructuralTerm::Application {
-                        result_type: _,
-                        target,
-                        selections,
-                        machine,
-                        arguments,
-                    } = &resolved
-                    else {
-                        unreachable!();
-                    };
-                    if let Some(unfolded) =
-                        self.unfold_application(*target, selections, machine, arguments, depth + 1)
-                    {
+                    if let Some(unfolded) = self.unfold_application(&resolved, depth + 1) {
                         term = unfolded;
                         continue;
                     }
@@ -1777,6 +1790,22 @@ impl<'program> StructuralJudge<'program> {
                     }
                     return resolved;
                 }
+                StructuralTerm::ScalarRepresentation {
+                    source,
+                    target,
+                    value,
+                } => {
+                    let resolved = super::structural_terms::normalize_scalar_representation(
+                        source,
+                        target,
+                        self.resolve_at(*value, depth + 1),
+                    );
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
+                        term = replacement.clone();
+                        continue;
+                    }
+                    return resolved;
+                }
                 StructuralTerm::IntegerEmbedding { reference, value } => {
                     let value = self.resolve_at(*value, depth + 1);
                     return StructuralTerm::IntegerEmbedding {
@@ -1914,13 +1943,14 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value);
         }
-        let result = self.unfold_application(
+        let application = StructuralTerm::Application {
+            result_type,
             target,
-            selections,
-            machine.name.as_str(),
-            arguments,
-            depth + 1,
-        )?;
+            selections: selections.to_vec(),
+            machine: machine.name.as_str().to_owned(),
+            arguments: arguments.to_vec(),
+        };
+        let result = self.unfold_application(&application, depth + 1)?;
         let result = self.resolve_at(result, depth + 1);
         if self.require_closed_computation && !result.is_closed_value() {
             return None;
@@ -2002,7 +2032,14 @@ impl<'program> StructuralJudge<'program> {
                 0,
             )?,
             None => {
-                judge.unfold_application(target, selections, machine.name.as_str(), arguments, 0)?
+                let application = StructuralTerm::Application {
+                    result_type,
+                    target,
+                    selections: selections.to_vec(),
+                    machine: machine.name.as_str().to_owned(),
+                    arguments: arguments.to_vec(),
+                };
+                judge.unfold_application(&application, 0)?
             }
         };
         let value = judge.resolve(value);
@@ -2017,12 +2054,20 @@ impl<'program> StructuralJudge<'program> {
     /// No source initializer is replayed to reconstruct a caller snapshot.
     fn unfold_application(
         &self,
-        target: SymbolHandle,
-        selections: &[typed_trees::expression::StaticMachineArgument],
-        machine_name: &str,
-        arguments: &[StructuralTerm],
+        application: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralTerm> {
+        let StructuralTerm::Application {
+            target,
+            selections,
+            machine: machine_name,
+            arguments,
+            ..
+        } = application
+        else {
+            return None;
+        };
+        let target = *target;
         if super::struct_trace() {
             eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
         }
@@ -2096,8 +2141,7 @@ impl<'program> StructuralJudge<'program> {
         // This is an admitted application body, not another runtime event.
         // Nested calls still pass specification_application_candidate; both
         // ordinary and normalized terminal values use that same admission.
-        let mut specification = self.clone();
-        specification.specification_terms = true;
+        let specification = self.resolving_application(application)?;
 
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -2123,7 +2167,7 @@ impl<'program> StructuralJudge<'program> {
                     depth + 1,
                 )?;
                 let term = if self.require_closed_computation {
-                    let completed = self.resolve_at(term, depth + 1);
+                    let completed = specification.resolve_at(term, depth + 1);
                     if !completed.is_closed_value() {
                         return None;
                     }
@@ -2194,8 +2238,8 @@ impl<'program> StructuralJudge<'program> {
                         let subject_term = if position < parameter_count {
                             &environment[position].1
                         } else {
-                            local_subject =
-                                self.resolve_at(environment[position].1.clone(), depth + 1);
+                            local_subject = specification
+                                .resolve_at(environment[position].1.clone(), depth + 1);
                             &local_subject
                         };
                         let StructuralTerm::Constructor {
@@ -2454,6 +2498,12 @@ impl<'program> StructuralJudge<'program> {
             return Some(value);
         }
         let program = self.program;
+        if program.static_type_predicate_operands(expression).is_some() {
+            // Types have no runtime storage observation. Read the same
+            // declaration-owned proposition as contract term construction;
+            // an open proposition remains symbolic until a path establishes it.
+            return super::structural_terms::static_type_predicate_term(program, expression, &[]);
+        }
         // A selected collection measure observes the completed descriptor, not
         // its retired referent. Resolve the receiver through the ordinary value
         // owner first: only an exact completed value or a separately proved
@@ -2526,6 +2576,14 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => self.specification_match_term(
+                expression,
+                dispatch,
+                environment,
+                static_observations,
+                scope?,
+                depth + 1,
+            ),
             ExpressionNode::Name(path) => {
                 // Static values use the resolved declaration, not the runtime
                 // environment's spelling. A local may shadow a const binder;
@@ -2535,8 +2593,8 @@ impl<'program> StructuralJudge<'program> {
                     .iter()
                     .find(|(symbol, _, _)| *symbol == path.symbol)
                     && let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol)
-                    && let (typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference }) =
+                    && let typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } =
                         parameter.kind
                 {
                     return match super::static_applications::constant_value(program, selected) {
@@ -2730,17 +2788,21 @@ impl<'program> StructuralJudge<'program> {
                 let (machine, state, _) = scope?;
                 let source =
                     crate::expression_result_type_reference(program, machine, state, cast.value)?;
-                super::structural_terms::denotation_preserving_conversion(program, cast, source)
-                    .then(|| {
-                        self.callee_term(
-                            cast.value,
-                            environment,
-                            static_observations,
-                            scope,
-                            depth + 1,
-                        )
-                    })
-                    .flatten()
+                let value = self.callee_term(
+                    cast.value,
+                    environment,
+                    static_observations,
+                    scope,
+                    depth + 1,
+                )?;
+                if super::structural_terms::denotation_preserving_conversion(program, cast, source)
+                {
+                    Some(value)
+                } else {
+                    super::structural_terms::scalar_representation_term(
+                        program, cast, source, value,
+                    )
+                }
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {
@@ -3046,6 +3108,7 @@ impl<'program> StructuralJudge<'program> {
                         }
                         StructuralTerm::Integer(_)
                         | StructuralTerm::Float(_)
+                        | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
                         | StructuralTerm::CapturedValue { .. }
@@ -3631,6 +3694,7 @@ impl<'program> StructuralJudge<'program> {
             }
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
+            | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::BoundValue(_) => Some(term),
             StructuralTerm::CapturedValue { .. } => Some(term),
             application @ StructuralTerm::Application { .. } => {

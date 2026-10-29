@@ -1,9 +1,9 @@
 //! Finite signature families, probes and const identities.
 //!
 //! A trait requirement that declares local const/value binders is a finite
-//! generic method family only when its signature `where` clause is one
+//! generic method family only when its signature `requires` clause is one
 //! explicit disjunction of complete binder equalities, for example
-//! `where Width == 16 || Width == 32`. The roster extracted here is the
+//! `requires Width == 16 || Width == 32`. The roster extracted here is the
 //! single authority both the local `dyn` surface and the selected-dispatch
 //! boundary consume: duplicates and source order normalize deterministically,
 //! correlated `&&` alternatives keep their authored groupings, and partial
@@ -30,10 +30,10 @@ pub struct FamilyTuple {
     pub display: Box<[String]>,
 }
 
-/// The outcome of reading a generic requirement's signature `where` clause.
+/// The outcome of reading a generic requirement's signature `requires` clause.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FamilyProbe {
-    /// Not an explicit finite enumeration: no `where` clause, or facts that
+    /// Not an explicit finite enumeration: no `requires` clause, or facts that
     /// are not one disjunction of complete binder equalities. Opaque
     /// predicates, inequality ranges, and independently listed values never
     /// enumerate; the requirement stays dynamically ineligible for the
@@ -48,8 +48,8 @@ pub enum FamilyProbe {
 
 impl TypedTrees {
     /// Extract the explicit finite family declared by a generic requirement's
-    /// signature `where` clause: one disjunction of complete binder equalities
-    /// such as `where Width == 16 || Width == 32`. Multi-binder alternatives
+    /// signature `requires` clause: one disjunction of complete binder equalities
+    /// such as `requires Width == 16 || Width == 32`. Multi-binder alternatives
     /// must write each tuple's full correlation (`W == 16 && L == 4 || W ==
     /// 32 && L == 8`); the compiler never invents a Cartesian product from
     /// independently listed values.
@@ -80,35 +80,52 @@ impl TypedTrees {
                     .to_owned(),
             );
         }
-        let facts = self.proof_facts.span_or_empty(signature.where_facts);
-        let [fact] = facts else {
-            return if facts.is_empty() {
-                FamilyProbe::NotFinite("declares no finite-family `where` clause".to_owned())
-            } else {
-                FamilyProbe::NotFinite(
-                    "the finite family must be one explicit disjunction of complete binder equalities"
-                        .to_owned(),
-                )
+        let mut family =
+            FamilyProbe::NotFinite("declares no finite-family `requires` clause".to_owned());
+        for fact in self
+            .state_signature_contracts(signature)
+            .iter()
+            .filter(|contract| contract.kind == crate::signature::SignatureContractKind::Requires)
+            .flat_map(|contract| self.proof_facts.span_or_empty(contract.facts))
+        {
+            let Some(root) = fact.as_expression() else {
+                continue;
             };
-        };
-        let Some(root) = fact.as_expression() else {
-            return FamilyProbe::NotFinite(
-                "the `where` clause is a domain membership, not an explicit finite enumeration"
-                    .to_owned(),
-            );
-        };
+            let candidate = self.explicit_signature_family(signature, &binders, *root);
+            if matches!(&candidate, FamilyProbe::Finite { .. }) {
+                if matches!(&family, FamilyProbe::Finite { .. }) {
+                    return FamilyProbe::NotFinite(
+                        "the finite family must be one explicit disjunction of complete binder equalities".to_owned(),
+                    );
+                }
+                family = candidate;
+            } else if !matches!(&family, FamilyProbe::Finite { .. }) {
+                family = candidate;
+            }
+        }
+        family
+    }
 
+    /// Only a complete explicit enumeration supplies a roster. Independent
+    /// runtime entry predicates stay on the signature and are checked at calls;
+    /// they neither enumerate tuples nor erase a declared finite family.
+    fn explicit_signature_family(
+        &self,
+        signature: &crate::signature::StateSignature,
+        binders: &[&crate::data::TypeParameter],
+        root: crate::expression::ExpressionHandle,
+    ) -> FamilyProbe {
         let mut tuples = Vec::new();
-        for alternative in self.binary_chain_leaves(*root, crate::expression::BinaryOperator::Or) {
+        for alternative in self.binary_chain_leaves(root, crate::expression::BinaryOperator::Or) {
             let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
             for conjunct in
                 self.binary_chain_leaves(alternative, crate::expression::BinaryOperator::And)
             {
                 let Some((binder_index, value)) =
-                    self.equality_assignment(signature.symbol, &binders, conjunct)
+                    self.equality_assignment(signature.symbol, binders, conjunct)
                 else {
                     return FamilyProbe::NotFinite(
-                        "the `where` clause is not explicit `Binder == literal` equalities; opaque \
+                        "the `requires` clause is not explicit `Binder == literal` equalities; opaque \
                          predicates and inequalities do not enumerate a finite family"
                             .to_owned(),
                     );
@@ -204,7 +221,7 @@ impl TypedTrees {
     }
 
     /// Whether the operand names one of the signature's declared value
-    /// binders. Signature `where` expressions are not symbol-bound at this
+    /// binders. Signature `requires` expressions are not symbol-bound at this
     /// stage; the binder's own declaration name is the scoped reference.
     fn binder_operand(
         &self,

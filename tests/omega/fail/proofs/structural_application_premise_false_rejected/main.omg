@@ -1,0 +1,14 @@
+// An admitted predicate application remains opaque during its own premise query.
+// Expected exit: 0
+machine selected(value: u32) -> u32 {
+    transition value < 5u32 { true -> (value) _ -> (0u32) }
+}
+machine bounded(value: u32) -> u32
+requires selected(value) < 1u32 && value < 9u32
+ensures result < 10u32
+{ value }
+machine main() crashes Trap {
+    transition bounded(0u32) == 0u32 && bounded(3u32) == 3u32 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

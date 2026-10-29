@@ -13,6 +13,65 @@ use typed_trees::operator::OperatorConstBinding;
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Result consumers inspect this handle without a static application scope.
+/// Rejoin only existing, independently equivalent full recipes: reference
+/// shells, qualifications, policies and dependent indices remain effective.
+pub(in crate::proof_contracts::contract_entailment) fn canonical_result_reference(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return reference;
+    }
+    let Some(identity) = try_normalized_index_identity(
+        program,
+        IndexIdentityArgument::TypeArgument(reference),
+        &[],
+        &[],
+    ) else {
+        return reference;
+    };
+    result_reference_for_identity(program, &identity).unwrap_or(reference)
+}
+
+fn result_reference_for_identity(
+    program: &dyn crate::CheckingInput,
+    identity: &str,
+) -> Option<TypeReferenceHandle> {
+    use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
+    let memos = crate::frozen_program::frozen_program_memos(program);
+    if let Some(memos) = memos
+        && let Ok(references) = memos.effective_result_references.lock()
+        && let Some(reference) = references.get(identity)
+    {
+        return *reference;
+    }
+    let reference = program
+        .type_reference_table
+        .references()
+        .find_map(|(reference, _)| {
+            (try_normalized_index_identity(
+                program,
+                IndexIdentityArgument::TypeArgument(reference),
+                &[],
+                &[],
+            )
+            .as_deref()
+                == Some(identity))
+            .then_some(reference)
+        });
+    if let Some(memos) = memos
+        && let Ok(mut references) = memos.effective_result_references.lock()
+    {
+        references.insert(identity.to_owned(), reference);
+    }
+    reference
+}
+
 pub(super) type MachineBindings = Vec<(
     SymbolHandle,
     TypeReferenceHandle,
@@ -323,6 +382,152 @@ impl AppliedProofBindings {
             _ => owner_symbol(owner),
         };
         Self::for_application(program, owner, handle, arguments, &[], &[], declaration)
+    }
+
+    /// Relate a completed ordinary specialization to its retained source
+    /// application. Executable retargeting erases static operands, whereas a
+    /// caller's contract still names the source entry and tuple. The shared
+    /// correspondence owns the exact source-to-executable formal map; neither
+    /// clone spelling nor a similarly shaped signature supplies that identity.
+    /// Runtime header operands and requirement realizations keep their own
+    /// invocation owners and cannot be erased by this static projection.
+    pub fn source_value_application(
+        &self,
+        program: &dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        owner: &SelectedCallContract<'_>,
+        call: &TableCallExpression,
+        expression: typed_trees::expression::ExpressionHandle,
+        result_type: TypeReferenceHandle,
+        actuals: &[StructuralTerm],
+    ) -> Option<StructuralTerm> {
+        if call.static_requirement_dispatch.is_some()
+            || !matches!(owner, SelectedCallContract::Concrete(_, _))
+            || !call.authored_machine_application.is_valid()
+        {
+            return None;
+        }
+        let site = crate::CallSite::Expression { expression, call };
+        let correspondence =
+            crate::machine_calls::calls::call_binding_correspondence(program, caller, &site)
+                .ok()?;
+        if correspondence.public_owner != owner_symbol(owner)
+            || !correspondence.runtime_parameters.is_empty()
+        {
+            return None;
+        }
+        let declaration = program.machine_by_symbol(correspondence.declaration)?;
+        let entry = program.machine_states(declaration).first()?;
+        let header = program
+            .expression_table
+            .static_machine_application(call.authored_machine_application);
+        let selections = program
+            .expression_table
+            .static_machine_application_arguments(call.authored_machine_application);
+        if declaration.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            || !declaration.body_is_present
+            || ![declaration.symbol, entry.symbol].contains(&header.registration_operation)
+            || program.state_parameters(entry).len() != actuals.len()
+            || selections.len()
+                != program.machine_type_parameters(declaration).len()
+                    + declaration.conformance_bounds.len()
+        {
+            return None;
+        }
+        let SelectedCallContract::Concrete(instance, _) = owner else {
+            return None;
+        };
+        let mut specializations = program
+            .machine_specializations
+            .iter()
+            .filter(|selected| selected.instance == instance.symbol);
+        let selected = specializations.next()?;
+        if specializations.next().is_some()
+            || selected.template != declaration.symbol
+            || !selected.binding_application.is_valid()
+            || !program.machine_type_parameters(instance).is_empty()
+            || !declaration.lifetime_parameters.is_empty()
+            || !declaration.conformance_bounds.is_empty()
+            || !selected.machine_arguments.is_empty()
+            || !selected.conformance_arguments.is_empty()
+            || !selected.conformance_applications.is_empty()
+        {
+            return None;
+        }
+        let parameters = program.machine_type_parameters(declaration);
+        if program
+            .data_type_parameters
+            .span_or_empty(selected.template_parameters)
+            != parameters
+            || program
+                .expression_table
+                .static_machine_application(selected.binding_application)
+                .binding_declaration
+                != declaration.symbol
+        {
+            return None;
+        }
+        // The template lineage proves binder correspondence, not equality of
+        // the erased values. Rejoin both complete typed tuples before relating
+        // the source application to this particular executable instance. Type
+        // and Const operands are immutable; executable/evidence/captured
+        // telescopes require their own application authority and stay excluded.
+        use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
+        let tuple = |handle, source: bool| {
+            let bindings = program
+                .expression_table
+                .static_machine_application_bindings(handle);
+            if bindings.len() != parameters.len() {
+                return None;
+            }
+            parameters
+                .iter()
+                .map(|parameter| {
+                    let mut rows = bindings
+                        .iter()
+                        .filter(|binding| binding.parameter == parameter.symbol);
+                    let value = &rows.next()?.value;
+                    if rows.next().is_some() {
+                        return None;
+                    }
+                    let operand = match (&parameter.kind, value) {
+                        (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference))
+                            if reference.is_valid() =>
+                        {
+                            IndexIdentityArgument::TypeArgument(if source {
+                                program.statically_refined_type_reference(expression, *reference)
+                            } else {
+                                *reference
+                            })
+                        }
+                        (
+                            TypeParameterKind::Const { .. },
+                            StaticMachineBindingValue::Const(reference),
+                        ) if reference.is_valid() => {
+                            IndexIdentityArgument::TypeReference(*reference)
+                        }
+                        _ => return None,
+                    };
+                    try_normalized_index_identity(program, operand, &[], &[])
+                })
+                .collect::<Option<Vec<_>>>()
+        };
+        if tuple(call.authored_machine_application, true)?
+            != tuple(selected.binding_application, false)?
+        {
+            return None;
+        }
+        Some(StructuralTerm::Application {
+            result_type: canonical_result_reference(program, result_type),
+            target: entry.symbol,
+            selections: selections.to_vec(),
+            machine: super::super::structural_terms::structural_call_machine_name(
+                header.target.as_str(),
+                selections,
+                &[],
+            ),
+            arguments: actuals.to_vec(),
+        })
     }
 
     fn transport_parameters(&mut self, parameters: &[(SymbolHandle, SymbolHandle)]) -> Option<()> {
@@ -714,6 +919,7 @@ impl AppliedProofBindings {
         program: &dyn crate::CheckingInput,
         owner: &SelectedCallContract<'scope>,
         call: &TableCallExpression,
+        expression: typed_trees::expression::ExpressionHandle,
         observed: TypeReferenceHandle,
         applied_result_parameters: Option<&[typed_trees::signature::StateParameter]>,
         parameter_owner: SymbolHandle,
@@ -729,6 +935,7 @@ impl AppliedProofBindings {
                     program,
                     owner,
                     call,
+                    expression,
                     observed,
                     applied_result_parameters,
                 )?,
@@ -930,6 +1137,7 @@ impl AppliedProofBindings {
         program: &dyn crate::CheckingInput,
         owner: &SelectedCallContract<'_>,
         call: &TableCallExpression,
+        expression: typed_trees::expression::ExpressionHandle,
         observed: TypeReferenceHandle,
         applied_result_parameters: Option<&[typed_trees::signature::StateParameter]>,
     ) -> Option<TypeReferenceHandle> {
@@ -959,7 +1167,9 @@ impl AppliedProofBindings {
             .filter_map(|binding| match binding.value {
                 StaticMachineBindingValue::Type(reference) => Some((
                     binding.parameter,
-                    IndexIdentityArgument::TypeArgument(reference),
+                    IndexIdentityArgument::TypeArgument(
+                        program.statically_refined_type_reference(expression, reference),
+                    ),
                 )),
                 StaticMachineBindingValue::Const(reference) => Some((
                     binding.parameter,
@@ -993,6 +1203,14 @@ impl AppliedProofBindings {
         // identity owner substitutes them simultaneously without executing or
         // resolving their current values. Recursive calls cannot reapply the
         // receiving map to leaves of an already selected actual.
+        // The producer refines a delivered type at this exact call occurrence.
+        // Apply that same established static context to the supplying types,
+        // after selecting the simultaneous tuple; the raw generic declaration
+        // alone cannot agree with an already refined observation. Ordinary
+        // value indices and the full qualified recipe remain unchanged.
+        let observed = program.statically_refined_type_reference(expression, observed);
+        let public = program
+            .statically_refined_type_reference(expression, self.project_type(program, declared));
         let scope = AppliedTypeIdentityScope {
             declaration: super::owner_symbol(owner),
             arguments: &application,
@@ -1001,8 +1219,7 @@ impl AppliedProofBindings {
         if applied_declared_carrier_identity(program, observed, &[])?
             != applied_declared_carrier_identity(program, declared, &[scope])?
             || program.arithmetic_domain_for_type_reference(observed)
-                != program
-                    .arithmetic_domain_for_type_reference(self.project_type(program, declared))
+                != program.arithmetic_domain_for_type_reference(public)
         {
             return None;
         }
@@ -1023,32 +1240,7 @@ impl AppliedProofBindings {
         )?;
         // Full qualified identities must also be complete. An unavailable
         // index marker is diagnostic payload, never a matching public recipe.
-        let public = self.project_type(program, declared);
-        if try_normalized_index_identity(
-            program,
-            IndexIdentityArgument::TypeArgument(public),
-            &[],
-            &[],
-        )
-        .as_ref()
-            == Some(&identity)
-        {
-            return Some(public);
-        }
-        program
-            .type_reference_table
-            .references()
-            .find_map(|(reference, _)| {
-                (try_normalized_index_identity(
-                    program,
-                    IndexIdentityArgument::TypeArgument(reference),
-                    &[],
-                    &[],
-                )
-                .as_ref()
-                    == Some(&identity))
-                .then_some(reference)
-            })
+        result_reference_for_identity(program, &identity)
     }
 
     /// A direct formal type is read under this simultaneous application.

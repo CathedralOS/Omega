@@ -1844,44 +1844,6 @@ defines the complete product bar.
 
 ## Parallel language and compiler lanes
 
-- **CORE-INTEGER-FLOAT-APIS.** Implement the ratified ordinary checked
-  `omega::language::core::integer` and `omega::language::core::float` surfaces
-  under [numeric values](wiki/spec/language/numeric_values.md#core-integer-and-float-apis),
-  replacing primitive-member limit spellings and name-specific compiler rules.
-  - Supply integer extrema/width/signedness and float finite extrema, normal/
-    subnormal boundaries, epsilon, exponent/precision/decimal metadata and fixed
-    special values as ordinary library machines. Complete general exact type
-    refinement and semantic evaluation needed to return the correctly typed
-    carrier result; do not introduce name hooks, implicit conformance search,
-    layout-derived semantic widths, or arbitrary-domain extrema inference.
-  - Supply checked scalar bit wrappers, classification with exact sign/kind/
-    unsigned payload, bounded NaN convenience construction, and explicit quieting
-    and canonicalization. Preserve every presented representation bit where
-    promised, including signaling NaNs and signed zeros; keep proof-only
-    FloatMeaning erasure, masked controls and computed-NaN observation fences.
-    Payload convenience APIs are not permanent compiler mechanisms; arbitrary
-    width integers and general owned aggregate casts remain separate decisions.
-  - Remove the proof/checker spelling recognizers for `u32::MAX` and related
-    primitive-member aliases; migrate guides, library consumers, samples and
-    fixtures without changing their authored numeric results or reject oracles.
-    Core result facts must flow from checked definitions/contracts and exact
-    declaration identity, including through imports and differently named calls.
-  - Pin representative query-result and representation-transport facts across
-    all nine places, with obligation-sensitive reject twins. Cover all admitted
-    carrier endpoints/formats with focused exact vectors rather than duplicate
-    width-only fact rows; retain hexadecimal literal value and suffix behavior.
-  Integer milestone: ordinary `core::integer` extrema, width and signedness,
-  exact type refinement and static-call custody are exercised by
-  [the endpoint row](samples/cli/facts/core_integer_endpoint/README.md) and eight
-  carrier vectors. The floating API/representation row and its full acceptance
-  remain owned and open; the integer milestone does not close this task.
-  Acceptance: integer/float APIs pass `omega run --both` with exact authored
-  values and bit round trips on matching hosts. IEEE boundary and canonical-NaN
-  vectors agree; invalid payloads, wrong kinds, unsupported/qualified carriers,
-  false endpoint claims from same-spelling user machines and unfixed computed-NaN bit observations reject
-  for their own obligations. No primitive-member magic, per-API intrinsic, or
-  compatibility alias remains, and existing arithmetic/NaN oracles are unchanged.
-
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Produce reviewed native artifacts
   without receiver input under the
   [production/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)

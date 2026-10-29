@@ -32,7 +32,7 @@ pub(crate) use projection::validate_static_dependency_source;
 /// Selection is request custody, not source or package identity. Omitting the
 /// source field normalizes to the zero case, `Root`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSelection {
+pub(crate) enum PackageSelection {
     Root,
     Named(PackageName),
 }

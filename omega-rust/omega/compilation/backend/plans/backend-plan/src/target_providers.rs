@@ -34,6 +34,12 @@ pub struct TerminalTargetProviderSelection {
 pub struct TerminalTargetProviderPlan {
     pub plan: effects::provider_plan::ProviderPlan,
     pub provider_declaration: Option<String>,
+    /// Row-aligned exact numeric external realization declarations selected while source
+    /// custody exists. Callable spelling and numeric meaning cannot distinguish
+    /// a retained portable declaration from its target-scoped copy. None means
+    /// this row has no authored numeric realization, never permission to guess.
+    /// Host/placement rows retain their independent execution authority.
+    pub row_numeric_realizations: Vec<Option<String>>,
 }
 
 impl TerminalTargetProviderSelection {

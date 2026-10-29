@@ -59,9 +59,77 @@ pub(super) fn build_owner_environment_index(
     for (reached, environment) in super::environments::data_type_environments(program) {
         index.add_all(reached, || environment);
     }
+    // Initializer recipes have an exact declaration owner, even when their
+    // execution is deferred. This records lexical custody, not checked facts.
+    for declaration in program.const_declarations() {
+        let reached = [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ]
+        .into_iter()
+        .filter(|root| program.expression_table.expression_is_valid(*root))
+        .flat_map(|root| super::reachable_expressions(program, root));
+        index.add_all(reached, || TypeEnvironment {
+            owner: declaration.symbol,
+            ..Default::default()
+        });
+    }
     index_ranking_environments(program, &mut index);
     index_executable_environments(program, &mut index);
     index
+}
+
+/// Preparation needs the lexical binders of authored contracts, but cannot
+/// mint the checked fact handles installed by the checking pass above.
+pub(super) fn index_authored_contract_environments(
+    program: &dyn crate::CheckingInput,
+    index: &mut OwnerIndex,
+) {
+    let mut add_contracts = |contracts: &[typed_trees::signature::SignatureContract],
+                             environment| {
+        let reached = contracts
+            .iter()
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .flat_map(|fact| proof_fact_reachable_expressions(program, fact))
+            .collect::<HashSet<_>>();
+        index.add_all(reached, || environment);
+    };
+    for machine in program.machines() {
+        add_contracts(
+            program.machine_contracts(machine),
+            machine_environment(program, machine, program.machine_states(machine).first()),
+        );
+        for state in program.machine_states(machine) {
+            add_contracts(
+                program.state_contracts(state),
+                machine_environment(program, machine, Some(state)),
+            );
+        }
+    }
+    for definition in program.traits() {
+        for signature in program.trait_machine_signatures(definition) {
+            add_contracts(
+                program.state_signature_contracts(signature),
+                environment_from_parameters(
+                    signature.symbol,
+                    program.state_signature_parameters(signature),
+                    signature.return_type,
+                    None,
+                ),
+            );
+        }
+    }
+    for operator in program.all_operators() {
+        add_contracts(
+            program.operator_contracts(operator),
+            environment_from_parameters(
+                operator.symbol,
+                program.operator_parameters(operator),
+                operator.return_type,
+                None,
+            ),
+        );
+    }
 }
 
 /// Every expression handle a proof fact's roots reach — the indexed shape of

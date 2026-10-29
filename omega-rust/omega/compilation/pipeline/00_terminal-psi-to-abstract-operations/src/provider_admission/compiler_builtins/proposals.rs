@@ -21,6 +21,7 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
     /// callable's selection coordinate. Ordinary plans use their own schema.
     pub semantic_schema: &'a ServiceSchema,
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
+    pub row_numeric_realizations: &'a [Option<String>],
 }
 
 struct SelectedIntrinsicRow<'a> {
@@ -29,6 +30,7 @@ struct SelectedIntrinsicRow<'a> {
     row: &'a effects::provider_plan::ProviderPlanRow,
     semantic_schema: &'a ServiceSchema,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
+    external_realization: Option<&'a str>,
 }
 
 /// Project called intrinsic rows into native catalog proposals, each bound
@@ -51,7 +53,10 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     }
     let mut selected_rows = Vec::new();
     for (plan_index, (plan, retained)) in plans.iter().zip(provenance).enumerate() {
-        if retained.plan != plan || retained.row_executions.len() != plan.rows.len() {
+        if retained.plan != plan
+            || retained.row_executions.len() != plan.rows.len()
+            || retained.row_numeric_realizations.len() != plan.rows.len()
+        {
             return Err(vec![Diagnostic::error(format!(
                 "selected compiler-intrinsic plan `{}` has misaligned retained settlement provenance",
                 plan.name,
@@ -60,7 +65,12 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         if demanded_boundaries.is_empty() {
             continue;
         }
-        for (row, execution) in plan.rows.iter().zip(retained.row_executions) {
+        for ((row, execution), realization) in plan
+            .rows
+            .iter()
+            .zip(retained.row_executions)
+            .zip(retained.row_numeric_realizations)
+        {
             if matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -71,6 +81,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                     row,
                     semantic_schema: retained.semantic_schema,
                     execution: *execution,
+                    external_realization: realization.as_deref(),
                 });
             }
         }
@@ -127,6 +138,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             &plans[selected_row.plan_index],
             selected_row.row,
             selected_row.execution,
+            selected_row.external_realization,
         ) {
             Ok(identity) => identity,
             Err(reason) => {

@@ -1,0 +1,12 @@
+// Expected exit: 0
+use shapes;
+data Other { case First(number: u32); case Second(number: u32); }
+machine read(value: Other) -> u32 {
+    match value { shapes::Choice::First { number } -> number, shapes::Choice::Second { number } -> number | 1u32 }
+}
+machine main() crashes Trap {
+    transition read(Other::First { number: 11u32 }) == 11u32 && read(Other::Second { number: 20u32 }) == 21u32 {
+        true -> done() _ -> wrong()
+    }
+    machine done() {} machine wrong() { crash Trap; }
+}

@@ -97,9 +97,8 @@ pub(super) fn infer_hoist_temp_type(
         // (`let __hoist = self.dbl(5)`, syntax->symbol-resolved
         // `hoist_scalar_value_call_comparison`): the temp's type is the
         // callee's DECLARED return type, resolved by target symbol over
-        // the machine-state arena. An inferred-return callee cannot be
-        // typed at this phase -- reject it with the actionable fix
-        // instead of the confusing Unit frame-slot layout error.
+        // the machine-state arena. Calls awaiting typed overload selection
+        // retain the inference sentinel until preparation settles their result.
         ExpressionNode::Call(call) => {
             let target_symbol = if call.target_symbol.is_valid() {
                 call.target_symbol
@@ -111,7 +110,6 @@ pub(super) fn infer_hoist_temp_type(
                     &call.target,
                 )
             };
-            let target_name = call.target.as_str().to_string();
             let mut machine_substitutions = Vec::new();
             let declared_return = crate::expressions::call_results::declared_call_return(
                 lowerer.source_trees,
@@ -173,33 +171,11 @@ pub(super) fn infer_hoist_temp_type(
                             })
                     });
             let Some(declared_return) = declared_return else {
-                // An unresolved call spelling a sibling internal state is not a
-                // missing return annotation: states are transition
-                // destinations, never callables (state_contracts.md).
-                let program = lowerer.source_trees;
-                let internal_state = program.roots.machines.iter().any(|machine| {
-                    let states = program.machine_state_handles(machine.states);
-                    states
-                        .iter()
-                        .any(|handle| program.machine_state(*handle).symbol == state.symbol)
-                        && states.iter().skip(1).any(|handle| {
-                            program.machine_state(*handle).name.as_str() == target_name
-                        })
-                });
-                if internal_state {
-                    return Err(Diagnostic::error(format!(
-                        "`{target_name}` is an internal state of this machine and cannot be \
-                         called; ordinary calls invoke machines, not states: enter it with \
-                         `transition {{ _ -> {target_name}(..) }}`, or make it a machine if \
-                         its result is used as a value"
-                    )));
-                }
-                return Err(Diagnostic::error(format!(
-                    "a value-machine call in a guard comparison needs the callee's \
-                         return type declared: annotate `{target_name}` with an explicit \
-                         `-> Type`, or bind the call to a typed `let` first and guard \
-                         the local"
-                )));
+                // Overload selection belongs to typed preparation. An unresolved
+                // call does not imply an unannotated result: retain the inferred
+                // binding until that owner selects its declaration and refreshes
+                // the result through the shared expression-type query.
+                return Ok(None);
             };
             let declared_return = lower_type_reference_into_table(lowerer, &declared_return)?;
             let machine_substitutions = machine_substitutions

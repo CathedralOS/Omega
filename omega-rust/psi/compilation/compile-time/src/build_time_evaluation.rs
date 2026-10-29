@@ -356,6 +356,8 @@ pub struct PreCheckEvaluation {
 pub struct EvaluatedPreCheck {
     domain: EvaluationDomain,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    selected_operators: Vec<SelectedBuildTimeBinaryOperator>,
+    provider_bodies: Vec<SelectedBuildTimeProviderBody>,
 }
 
 impl EvaluatedPreCheck {
@@ -364,12 +366,17 @@ impl EvaluatedPreCheck {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.finish");
+        let selected = SelectedBuildTimeOperators {
+            operators: &self.selected_operators,
+            provider_bodies: &self.provider_bodies,
+        };
         {
             let _g = phase_profile::guard("evaluate_or_defer.finish.settle_target_observations");
             const_initializers::settle_target_observations(
                 typed,
                 self.selection_authority.clone(),
                 &self.domain,
+                selected,
             )?;
         }
         let _g = phase_profile::guard("evaluate_or_defer.finish.validate_retained_invocations");
@@ -377,6 +384,7 @@ impl EvaluatedPreCheck {
             typed,
             self.selection_authority,
             &self.domain,
+            selected,
         )
     }
 }
@@ -867,6 +875,8 @@ impl PreCheckEvaluation {
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,
+            selected_operators: self.selected_operators,
+            provider_bodies: self.provider_bodies,
         })
     }
 }

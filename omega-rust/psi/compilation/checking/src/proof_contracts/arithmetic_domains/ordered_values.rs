@@ -1127,13 +1127,17 @@ pub(super) fn subtract_floor_limited(
     let (Some(left_operand), Some(right_operand)) = (left_named, right_named) else {
         return None;
     };
-    let mut comparison = ValueComparison::new(&environment.ordered_values);
+    // Each operand owns its closure over this unchanged relation scan.
+    let mut left_comparison =
+        congruence::EqualityQuery::new(&environment.ordered_values, &left_operand, &left_operand);
+    let mut right_comparison =
+        congruence::EqualityQuery::new(&environment.ordered_values, &right_operand, &right_operand);
     environment
         .ordered_values
         .iter()
         .filter(|relation| {
-            comparison.same_value(&left_operand, &relation.left)
-                && comparison.same_value(&right_operand, &relation.right)
+            left_comparison.same_value(&left_operand, &relation.left)
+                && right_comparison.same_value(&right_operand, &relation.right)
         })
         .filter_map(Relation::minimum_difference)
         .max()

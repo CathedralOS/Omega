@@ -236,7 +236,7 @@ pub(super) fn collect_contract_call_selections(
                 .typed_program()
                 .callable_body_has_open_parameters(scope.machine),
             0,
-        ) && selection.is_complete()
+        ) && selection.has_bound_arguments()
             && !const_arguments::has_pending_type_arguments(program, &selection.type_bindings)
         {
             upsert_selection(&mut selections, selection);

@@ -143,11 +143,7 @@ fn prove_edge(
         authored_call_selection: *authored_call_selection,
     };
     // The arriving value of the target formal at `position`.
-    let arriving = |position: u32| {
-        values
-            .current(*edge.arguments.get(position as usize)?)
-            .map(ScopedArithmeticValue::Term)
-    };
+    let arriving = |position: u32| values.current_value(*edge.arguments.get(position as usize)?);
     let relation = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         values.proves_values_relation(program, machine, operator, left, right)
     };

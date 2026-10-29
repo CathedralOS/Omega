@@ -1286,7 +1286,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
                 FloatFormat::F64
             };
             let literal = match syntax.expressions.expression(expression) {
-                ExpressionNode::Float(text) => FloatLiteral::parse(text.as_str(syntax)),
+                ExpressionNode::Float(text) => text.literal(syntax),
                 ExpressionNode::Integer(integer) if integer.landing().is_none() => integer
                     .value_bignum()
                     .and_then(|value| FloatLiteral::parse(&value.to_string())),
@@ -1307,10 +1307,16 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
             // Round directly from exact literal meaning into the declared format;
             // an f64 intermediate would round binary32 midpoint cases twice.
             let bits = match format {
-                FloatFormat::F32 if !literal.value_f32().is_nan() => {
+                FloatFormat::F32
+                    if literal.presented_bits().is_some() || !literal.value_f32().is_nan() =>
+                {
                     u64::from(literal.value_f32().to_bits())
                 }
-                FloatFormat::F64 if !literal.value_f64().is_nan() => literal.value_f64().to_bits(),
+                FloatFormat::F64
+                    if literal.presented_bits().is_some() || !literal.value_f64().is_nan() =>
+                {
+                    literal.value_f64().to_bits()
+                }
                 _ => {
                     return Err(
                         "floating declaration identity requires explicit NaN representation bits"

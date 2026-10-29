@@ -1,0 +1,1 @@
+call `float::quiet_nan` supplies static machine arguments, but its generic callee did not resolve

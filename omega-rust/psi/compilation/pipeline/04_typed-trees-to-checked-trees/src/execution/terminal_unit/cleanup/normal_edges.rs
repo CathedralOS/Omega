@@ -83,6 +83,21 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
             ..Default::default()
         });
     }
+    // A statically selected abnormal completion has no normal cleanup edge.
+    // Source flow remains complete; this grants no normal-return disposition.
+    if state_plan.selected_exit.is_some()
+        && matches!(
+            state_plan.terminator,
+            checked_trees::CheckedComposedUnitControlTerminatorPlan::Crash { .. }
+                | checked_trees::CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
+                | checked_trees::CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal
+        )
+    {
+        return Ok(checked_trees::CheckedNormalExitCleanups {
+            completion: checked_trees::CheckedNormalCompletion::NoNormal,
+            ..Default::default()
+        });
+    }
     let rows = cleanup_rows(
         program,
         facts,
@@ -91,6 +106,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         machine.symbol,
         state,
         exits,
+        state_plan.selected_exit,
         |root| owner_source(program, facts, state, state_plan, root).map(Some),
     )?;
     Ok(retain_normal_exits(shapes, rows, completion))
@@ -130,6 +146,7 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         plan.machine,
         state,
         exits,
+        None,
         |root| {
             let operations = &plan.operations;
             if root.as_expression().is_some() {
@@ -170,7 +187,8 @@ fn cleanup_rows(
     shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
-    exits: Vec<checked_trees::FlowClaimJoinExit>,
+    source_exits: Vec<checked_trees::FlowClaimJoinExit>,
+    selected_exit: Option<checked_trees::FlowClaimJoinExit>,
     mut source_for_owner: impl FnMut(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
@@ -180,8 +198,13 @@ fn cleanup_rows(
         .control
         .state(machine, state.symbol)
         .ok_or("normal cleanup state has no retained control flow")?;
-    let mut rows = exits
-        .into_iter()
+    if selected_exit.is_some_and(|selected| !source_exits.contains(&selected)) {
+        return Err("selected normal cleanup has no exact source exit");
+    }
+    let mut rows = source_exits
+        .iter()
+        .copied()
+        .filter(|exit| selected_exit.is_none_or(|selected| selected == *exit))
         .map(|exit| NormalExitConstruction {
             exit,
             selected_regions: Vec::new(),
@@ -203,6 +226,15 @@ fn cleanup_rows(
         }
         if disposition.exit.state_symbol != state.symbol {
             return Err("normal cleanup disposition belongs to another state");
+        }
+        if selected_exit.is_some_and(|selected| disposition.exit != selected) {
+            // Preserve the full authored receipt roster. Only a different,
+            // validated source exit is absent from this executable completion;
+            // malformed or missing coordinates must not disappear here.
+            if !source_exits.contains(&disposition.exit) {
+                return Err("normal cleanup disposition has no matching exit");
+            }
+            continue;
         }
         // Capture authority belongs to the selected receipt, not a mutable
         // declaration namespace or a re-resolved prefix of its operation list.

@@ -1,0 +1,11 @@
+warning: `selected-instructions-to-selected-instructions` (lib test) generated 3 warnings (run `cargo fix --lib -p selected-instructions-to-selected-instructions --tests` to apply 2 suggestions)
+    Finished `test` profile [optimized] target(s) in 12.80s
+────────────
+ Nextest run ID 939d6aa1-83f8-441b-b337-bf18b258771e with nextest profile: default
+    Starting 2 tests across 1 binary (16 tests skipped)
+        PASS [   0.147s] (1/2) selected-instructions-to-selected-instructions rewrites::runtime_spill::slot::summary_tests::candidate_summary_preserves_last_events_and_empty_blocks
+        PASS [   0.199s] (2/2) selected-instructions-to-selected-instructions rewrites::runtime_spill::slot::summary_tests::candidate_summary_distinguishes_disjoint_and_destructive_windows
+────────────
+     Summary [   0.199s] 2 tests run: 2 passed, 16 skipped
+mbx[cache]: 0 hits, 1 misses; 0 B downloaded, 0 B uploaded, 1.7 MiB stored locally
+mbx[savings]: 1.7 TiB logical of files removed by collection so far

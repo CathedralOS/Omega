@@ -9,16 +9,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
-        let PreparedFilesystemCall::OpenPathHandle {
-            path,
-            desired_access: _,
-            share_mode: _,
-            security_attributes: _,
-            creation_disposition: _,
-            flags_and_attributes: _,
-            template_file: _,
-        } = call
-        else {
+        let PreparedFilesystemCall::OpenPathHandle { path, .. } = call else {
             unreachable!("dispatched serve_open_path_handle")
         };
         let path = path.into_native()?;
@@ -93,11 +84,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     }
 
     pub(super) fn serve_create_dir(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
-        let (PreparedFilesystemCall::CreateDir { path, mode: _ }
-        | PreparedFilesystemCall::CreateDirName {
-            name: path,
-            mode: _,
-        }) = call
+        let (PreparedFilesystemCall::CreateDir { path }
+        | PreparedFilesystemCall::CreateDirName { name: path }) = call
         else {
             unreachable!("dispatched serve_create_dir")
         };
@@ -259,12 +247,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
-        let PreparedFilesystemCall::CreateHardLink {
-            link,
-            existing,
-            security_attributes: _,
-        } = call
-        else {
+        let PreparedFilesystemCall::CreateHardLink { link, existing } = call else {
             unreachable!("dispatched serve_create_hard_link")
         };
         let link = link.into_native()?;

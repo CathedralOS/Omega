@@ -115,6 +115,7 @@ impl TypedTrees {
 pub struct StaticTypeContexts {
     boolean_equalities: Vec<ExpressionHandle>,
     rows: Vec<(ExpressionHandle, Vec<TypeWorld>)>,
+    transition_rows: Vec<(crate::statement::TransitionTargetHandle, Vec<TypeWorld>)>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -136,7 +137,14 @@ impl StaticTypeContexts {
         ) else {
             return reference;
         };
-        let worlds = &self.rows[index].1;
+        Self::refined_in_worlds(program, reference, &self.rows[index].1)
+    }
+
+    fn refined_in_worlds(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        worlds: &[TypeWorld],
+    ) -> TypeReferenceHandle {
         let mut result = None;
         for world in worlds {
             let current = world.resolve(program, reference);
@@ -166,6 +174,11 @@ impl StaticTypeContexts {
 #[derive(Default)]
 struct StaticContextBuilder {
     rows: std::collections::HashMap<ExpressionHandle, Vec<TypeWorld>, symbols::BuildSymbolHasher>,
+    transition_rows: std::collections::HashMap<
+        crate::statement::TransitionTargetHandle,
+        Vec<TypeWorld>,
+        symbols::BuildSymbolHasher,
+    >,
 }
 impl StaticContextBuilder {
     fn record(&mut self, expression: ExpressionHandle, worlds: &[TypeWorld]) {
@@ -541,19 +554,34 @@ impl TypedTrees {
             for contract in self.machine_contracts(machine) {
                 for fact in self.proof_facts.span_or_empty(contract.facts) {
                     if let crate::domain::ProofFact::Expression(expression) = fact {
+                        // Form each requirement under prior premises before its
+                        // static equations become available to later contracts
+                        // and the body. A goal cannot supply its own type facts.
                         visit_context(self, &mut contexts, *expression, &worlds, &mut active);
+                        if contract.kind == crate::signature::SignatureContractKind::Requires {
+                            worlds = condition(self, &worlds, *expression, true);
+                        }
                     }
                 }
             }
             for state in self.machine_states(machine) {
+                let mut remaining = worlds.clone();
                 for contract in self.state_contracts(state) {
                     for fact in self.proof_facts.span_or_empty(contract.facts) {
                         if let crate::domain::ProofFact::Expression(expression) = fact {
-                            visit_context(self, &mut contexts, *expression, &worlds, &mut active);
+                            visit_context(
+                                self,
+                                &mut contexts,
+                                *expression,
+                                &remaining,
+                                &mut active,
+                            );
+                            if contract.kind == crate::signature::SignatureContractKind::Requires {
+                                remaining = condition(self, &remaining, *expression, true);
+                            }
                         }
                     }
                 }
-                let mut remaining = worlds.clone();
                 for statement in self.statement_table.statements(state.statement_nodes) {
                     let mut visit = |expression, environment: &[TypeWorld]| {
                         visit_context(self, &mut contexts, expression, environment, &mut active)
@@ -567,14 +595,43 @@ impl TypedTrees {
                                     condition(self, &remaining, guard, true)
                                 }
                             };
+                            let complement = match transition.guard {
+                                TransitionGuardNode::Always => Vec::new(),
+                                TransitionGuardNode::When(guard) => {
+                                    condition(self, &remaining, guard, false)
+                                }
+                            };
                             for target in transition.targets() {
+                                let target_worlds = if target == transition.target {
+                                    &selected
+                                } else {
+                                    &complement
+                                };
+                                let retained = contexts.transition_rows.entry(target).or_default();
+                                for world in target_worlds {
+                                    if !retained.contains(world) {
+                                        retained.push(world.clone());
+                                    }
+                                }
                                 match self.statement_table.transition_target(target) {
-                                    TransitionTargetNode::Value(value) => visit(*value, &selected),
+                                    TransitionTargetNode::Value(value) => visit_context(
+                                        self,
+                                        &mut contexts,
+                                        *value,
+                                        target_worlds,
+                                        &mut active,
+                                    ),
                                     TransitionTargetNode::Named { arguments, .. } => {
                                         for &argument in
                                             self.statement_table.expression_handles(*arguments)
                                         {
-                                            visit(argument, &selected);
+                                            visit_context(
+                                                self,
+                                                &mut contexts,
+                                                argument,
+                                                target_worlds,
+                                                &mut active,
+                                            );
                                         }
                                     }
                                     TransitionTargetNode::Terminal => {}
@@ -620,6 +677,49 @@ impl TypedTrees {
             (expression.arena_index(), expression.generation())
         });
         self.static_type_contexts.rows = rows;
+        let mut transition_rows = contexts.transition_rows.into_iter().collect::<Vec<_>>();
+        transition_rows
+            .sort_unstable_by_key(|(target, _)| (target.arena_index(), target.generation()));
+        self.static_type_contexts.transition_rows = transition_rows;
+    }
+
+    pub fn static_transition_type_context_is_unreachable(
+        &self,
+        target: crate::statement::TransitionTargetHandle,
+    ) -> bool {
+        self.static_type_contexts
+            .transition_rows
+            .binary_search_by_key(
+                &(target.arena_index(), target.generation()),
+                |(owned, _)| (owned.arena_index(), owned.generation()),
+            )
+            .is_ok_and(|index| {
+                self.static_type_contexts.transition_rows[index]
+                    .1
+                    .is_empty()
+            })
+    }
+
+    pub fn statically_refined_transition_type_reference(
+        &self,
+        target: crate::statement::TransitionTargetHandle,
+        reference: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
+        let Ok(index) = self
+            .static_type_contexts
+            .transition_rows
+            .binary_search_by_key(
+                &(target.arena_index(), target.generation()),
+                |(owned, _)| (owned.arena_index(), owned.generation()),
+            )
+        else {
+            return reference;
+        };
+        StaticTypeContexts::refined_in_worlds(
+            self,
+            reference,
+            &self.static_type_contexts.transition_rows[index].1,
+        )
     }
 
     pub fn statically_refined_type_reference(

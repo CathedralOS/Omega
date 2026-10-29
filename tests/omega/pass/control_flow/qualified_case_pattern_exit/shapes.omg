@@ -1,0 +1,2 @@
+module shapes;
+public data Choice { case First(number: u32); case Second(number: u32); }
