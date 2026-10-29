@@ -854,8 +854,6 @@ pub enum LiteralFoldDecodeError {
 
 failed_display!(LiteralFoldDecodeError, "invalid terminal literal fold");
 
-impl std::error::Error for LiteralFoldDecodeError {}
-
 fn decode_constraint_key(
     cursor: &mut Cursor<'_>,
 ) -> Result<RegisterConstraintKey, LiteralFoldDecodeError> {

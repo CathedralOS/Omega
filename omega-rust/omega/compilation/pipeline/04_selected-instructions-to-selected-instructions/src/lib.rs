@@ -225,9 +225,10 @@ macro_rules! seal_plan {
     };
 }
 
-/// `Display` for the crate's `<context>: {self:?}` refusal convention. The
-/// caller passes the whole context, so both the `invalid <rewrite>` and the
-/// `<analysis> failed` spellings render from one owner.
+/// `Display` and `Error` for the crate's `<context>: {self:?}` refusal
+/// convention. The caller passes the whole context, so both the
+/// `invalid <rewrite>` and the `<analysis> failed` spellings render from one
+/// owner.
 macro_rules! failed_display {
     ($type:ty, $message:literal) => {
         impl std::fmt::Display for $type {
@@ -235,17 +236,9 @@ macro_rules! failed_display {
                 write!(formatter, concat!($message, ": {:?}"), self)
             }
         }
-    };
-}
 
-/// `std::error::Error` for the crate's refusal types: each one already
-/// carries its own `Display`, so the marker impl is a declarative row rather
-/// than a per-type block. The refusal a private module keeps unexported stays
-/// beside its declaration, where only that module can name it.
-macro_rules! std_error {
-    ($($error:ty),+ $(,)?) => {$(
-        impl std::error::Error for $error {}
-    )+};
+        impl std::error::Error for $type {}
+    };
 }
 
 mod analyses;
@@ -380,45 +373,3 @@ pub use rewrites::{
     FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,
 };
 
-// The refusal types this root re-exports carry the shared error marker; the
-// decode refusals a private module keeps stay beside their own declarations.
-std_error!(
-    AddressFoldError,
-    AllocationLegalityError,
-    AllocatorAvailabilityError,
-    ConstantBooleanError,
-    ConstantBranchError,
-    CopiedCallOperandError,
-    CopyRemovalError,
-    DeadCompareError,
-    EquivalentCompareError,
-    FixedOccurrencesError,
-    FixedPrecoloredIntervalError,
-    FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSplitRequirementError,
-    FixedViewCopyError,
-    LiteralFoldError,
-    LiveRangeError,
-    LivenessError,
-    MachineEffectError,
-    MachineEffectStageError,
-    OptimizedAllocationLegalityCustodyError,
-    OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError,
-    OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError,
-    OptimizedPreAllocationCustodyError,
-    OptimizedSelectedReanalysisError,
-    PressureRematerializationError,
-    RecoveryClassificationError,
-    RedundantCompareError,
-    RedundantExtensionError,
-    RuntimeRematerializationError,
-    RuntimeSpillError,
-    RuntimeSplitError,
-    SelectedInstructionOptimizationError,
-    SpillChoiceError,
-    StoredLoadForwardingError,
-    WorkDefect,
-);
