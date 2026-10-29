@@ -136,6 +136,12 @@ function performanceView(records){
 }
 const performanceRecord={id:'record1',path:'tools/benchmark/records/probe.json',record_revision:'commit',recorded:'2026-01-01T00:00:00Z',context_id:'host1',context:{target:'windows_x86_64',cpu:'CPU',omega_profile:'release'},subject:{name:'probe',root:'probe/main.omg',source_revision:'source'},selection:{enabled:[],disabled:[]},host:{},project:{sloc:100,files:[{}],sha256:'digest'},compile:{median:25,min:20,max:30,samples:[20,30]},compile_ms_kloc:250,runtime:{median:10,min:9,max:11,samples:[9,11]},runtime_oracle:true,runtime_status:'measured',compile_memory:null,run_memory:1024,code_bytes:1024,code_stable:true,notes:[],measurement:null,baseline_ratio:null,baseline_id:null};
 const historical=performanceView([performanceRecord]);
+const latestCompile=performanceView([performanceRecord,{...performanceRecord,id:'fresh',recorded:'2026-10-29T00:00:00Z',context_id:'host2',runtime:null,runtime_oracle:false,observation_warnings:['Prime preparation timed out (20 min)']}]);
+assert.equal(latestCompile['performance-host'].value,'host2');
+assert.match(latestCompile['performance-age'].textContent,/Measured/);
+assert.match(latestCompile['performance-quality'].textContent,/Prime preparation timed out/);
+const refreshed=performanceView([{...performanceRecord,observation_warnings:['Old timeout']},{...performanceRecord,id:'new',recorded:'2026-10-30T00:00:00Z'}]);
+assert.ok(!refreshed['performance-quality'].textContent.includes('Old timeout'));
 assert.match(historical['performance-runtime'].innerHTML,/10 <small>ms/);
 assert.match(historical['performance-runtime'].innerHTML,/Unpaired/);
 assert.match(historical['performance-pairs'].textContent,/no matched baseline/);

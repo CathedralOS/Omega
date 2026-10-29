@@ -411,13 +411,15 @@ function showDetail(fact,place){
 function renderPerformance(){
  const all=data.performance?.records||[],contexts=[...new Map(all.map(r=>[r.context_id,r.context])).entries()];
  const current=$('performance-host').value;
- const preferred=[...all].reverse().find(r=>r.runtime_oracle)||[...all].reverse().find(r=>r.compile)||all.at(-1);
+ const preferred=[...all].reverse().find(r=>r.compile)||all.at(-1);
  const selected=contexts.some(([id])=>id===current)?current:preferred?.context_id;
  $('performance-host').innerHTML=contexts.map(([id,c])=>`<option value="${id}">${escapeHTML((hosts[c.target]?.join(' ')||c.target)+' · '+(c.cpu||'Unknown CPU')+' · '+(c.omega_profile||'unknown profile')+(c.effective_profile?' opt '+c.effective_profile.opt_level:'')+(c.machine_id?' · host '+c.machine_id.slice(0,6):''))}</option>`).join('');
  $('performance-host').disabled=!contexts.length;if(selected)$('performance-host').value=selected;
  const rows=all.filter(r=>r.context_id===selected),pretty=n=>Number(n).toLocaleString(undefined,{maximumSignificantDigits:4}),stamp=t=>new Date(t).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
- $('performance-quality').textContent=rows.length&&rows.some(r=>!r.measurement?.compiler_profile)?'Effective producer optimization unrecorded':'';
- $('performance-age').textContent=rows.length?'Historical observations · '+stamp(rows[0].recorded)+' – '+stamp(rows.at(-1).recorded):'No benchmark records';
+ const warnings=[...(rows.at(-1)?.observation_warnings||[])];
+ if(rows.some(r=>!r.measurement?.compiler_profile))warnings.unshift('Effective producer optimization unrecorded');
+ $('performance-quality').textContent=warnings.join(' · ');
+ $('performance-age').textContent=rows.length?'Measured · '+stamp(rows[0].recorded)+' – '+stamp(rows.at(-1).recorded):'No benchmark records';
  $('performance-stats').innerHTML=[['Observations',rows.length],['Project LOC known',rows.filter(r=>r.project?.sloc>0).length],['Exit-verified records',rows.filter(r=>r.runtime_oracle).length]].map(([label,n])=>`<article class="stat"><div class="stat-label">${label}</div><div class="stat-value">${number(n)}</div></article>`).join('');
  const subjects=[...new Set(all.map(r=>r.subject.name))].sort(),palette=['#63a5ed','#ea9b6b','#72c8a7','#c4a3e6','#d9c07e'];
  const color=r=>palette[subjects.indexOf(r.subject.name)%palette.length],name=r=>readableName(r.subject.name),variant=r=>(r.selection.enabled.length+' enabled / '+r.selection.disabled.length+' disabled');

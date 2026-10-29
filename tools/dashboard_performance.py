@@ -126,6 +126,7 @@ def flatten(record, identity, path, revision, project):
             'run_memory': nonnegative(memory.get('run_max_rss')) if memory['status'] == 'measured' else None,
             'code_bytes': nonnegative(size.get('value')) if size['status'] == 'measured' else None,
             'code_stable': size.get('stable'), 'notes': record.get('notes', []),
+            'observation_warnings': record.get('observation_warnings', []),
             'measurement': record.get('measurement'), 'baseline_ratio': None, 'baseline_id': None}
 
 

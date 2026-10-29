@@ -321,7 +321,9 @@ def rustc_version():
 
 
 ENABLED_RULE = re.compile(
-    r"optimizations\.enable\s*\(\s*Optimization::([A-Z][A-Za-z0-9]*)"
+    r"(?:optimizations\.enable\s*\(\s*|"
+    r"Optimizations::enable\s*\(\s*&mut\s+[A-Za-z_][A-Za-z0-9_]*\.optimizations\s*,\s*)"
+    r"Optimization::([A-Z][A-Za-z0-9]*)"
 )
 
 
@@ -329,7 +331,8 @@ def authored_selection(root):
     """Exact rule names the subject's build script enables.
 
     The build vocabulary enables rules through
-    ``builder.optimizations.enable(Optimization::Name)`` in the sibling
+    ``Optimizations::enable(&mut builder.optimizations, Optimization::Name)``
+    (or the historical method syntax) in the sibling
     ``build.omg``; the CLI can only disable. The scan answers which
     names a default build requests -- it is a record-keeping read, not
     a substitute for the compiler's own selection. ``measure`` reconciles
@@ -947,6 +950,10 @@ def validate_record(record, path):
     need(schema in KNOWN_SCHEMAS,
          f"schema must be one of {KNOWN_SCHEMAS!r}, got {schema!r}")
     current = schema == SCHEMA
+    if 'observation_warnings' in record:
+        warnings = record['observation_warnings']
+        need(isinstance(warnings, list) and all(isinstance(item, str) for item in warnings),
+             'observation_warnings must be a list of strings')
     subject = record.get("subject", {})
     need(isinstance(subject.get("name"), str) and subject["name"],
          "subject.name is required")
