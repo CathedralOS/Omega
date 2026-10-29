@@ -352,3 +352,12 @@ The [spill-pressure screen](../measurements/spill_pressure_2026_10_28/README.md)
 then found 103 repeated register-allocation analysis rounds. Retaining pressure
 only when an unplaced component was rewritten barely activated and preserved
 all 103 rounds; that candidate was also rejected and reverted.
+
+The subsequent [unplaced-component batching experiment](../measurements/unplaced_batch_2026_10_28/README.md)
+changed victim selection and reduced reanalysis from 103 rounds to 11. Six
+pairs per cache regime measured 31.8% lower warm and 21.1% lower cold wall
+time on the 32-argument workload, with fewer spills and a smaller executable.
+Focused native/Terminal/reject checks passed; tiny workloads showed no
+consistent effect in follow-up blocks. The change is retained locally, without
+remote publication. This meets the bounded search's substantial-win target by
+shortening repeated serial work rather than increasing worker count.
