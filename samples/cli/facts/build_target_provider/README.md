@@ -81,7 +81,7 @@ Additional corpus controls distinguish tag 29 from tag 17, retain a nested
 with different nested type actuals, and check a zero divisor in an unexecuted
 Build helper. A Product-only method remains unavailable as a Build descriptor
 computation: designated selection grants no execution or host nameability.
-Repeated equal structural array types from distinct Build rows share capture code only under the same exact supplying owner and complete checked scope. Every original selection keeps its independent formation and source occurrence receipt; different array extents remain distinct provider applications. These are compositions of this row, not additional transport places.
+Repeated equal structural array types from distinct Build rows share capture code only under the same exact supplying owner and complete checked scope. Repeated ordinary calls retain their checked invocation correspondence, and a partial array extent rejects before it can seed a capture. Every original selection keeps its independent formation and source occurrence receipt; different array extents remain distinct provider applications. These are compositions of this row, not additional transport places.
 
 ## Requirements and evidence
 

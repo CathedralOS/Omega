@@ -14,7 +14,6 @@ SecondReading<T, const Tag: u64> satisfies Reading<Tag> {
     }
 }
 // A target-keyed provider call establishes total >= 1000, so exact subtraction total - 1000 preserves the selected provider result.
-// Expected exit: 0
 machine journey(expected: u64) reaches Reading crashes Trap {
     let total: u64 = Reading<17u64>::total();
     let difference: u64 = total - 1000u64;

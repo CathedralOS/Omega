@@ -55,7 +55,8 @@ impl TypedTrees {
     /// Compare capture code inputs without confusing a structural type's arena
     /// address with its meaning. Each supplying occurrence retains its own
     /// ordinary formation/binding receipt; this query grants no source custody.
-    /// The same original owner and complete receiving scope remain mandatory.
+    /// Raw equality keeps its existing validity contract. Structural sharing
+    /// additionally requires the same original owner and complete receiving scope.
     pub fn closed_conformance_applications_match(
         &self,
         left: &crate::typed_trees::ClosedConformanceApplication,
