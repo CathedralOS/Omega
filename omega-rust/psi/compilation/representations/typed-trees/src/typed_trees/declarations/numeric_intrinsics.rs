@@ -84,6 +84,17 @@ impl TypedTrees {
             })
         });
         if let Some(machine) = machine {
+            if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerPrimitive {
+                let [conformance] = self.machine_trait_conformances(machine) else {
+                    return None;
+                };
+                return self
+                    .sealed_numeric_realization_descriptor(
+                        machine.symbol,
+                        conformance.requirement_symbol,
+                    )
+                    .map(|catalogue| catalogue.execution);
+            }
             if machine.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
                 || machine.body_is_present
                 || !self.machine_type_parameters(machine).is_empty()

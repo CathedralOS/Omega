@@ -256,11 +256,7 @@ fn invocation_reference_effects(
         trace_refusal("checked-callee-application");
         return None;
     }
-    if matches!(
-        callee.supply_mode,
-        language_semantics::MachineSupplyMode::Boundary
-            | language_semantics::MachineSupplyMode::AdmissionClaim
-    ) {
+    if callee.has_bodyless_signature() {
         return opaque_outputs::effects(
             program,
             machine,
