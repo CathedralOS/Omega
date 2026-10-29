@@ -56,9 +56,10 @@ pub enum ScalarRangeCondition {
     },
 }
 
-/// Forming a declaration may require a constant entry to return normally even
-/// when no comparison consumes its result. This is work debt, not a proposition
-/// that can justify its own operands or the enclosing contract.
+/// Forming a declaration may require a scalar application to complete even
+/// when no comparison consumes its result. Evaluation entries must return
+/// normally; layout observations must yield their defined measurement. This
+/// is work debt, not a proposition that can justify its own operands.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ScalarCompletionCondition {
     #[default]

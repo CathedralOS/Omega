@@ -272,32 +272,7 @@ fn produce_shared_terminal(
     let view = &first.request.view;
     let checked_program = view.program;
     let typed = &checked_program.typed;
-    let context =
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-    let mut boundary_roots = provider_planning::target_machines::provider_selection_roots(
-        context,
-        view.provider_defaults
-            .iter()
-            .flat_map(|row| &row.selections)
-            .chain(&view.build.config.provider_selections),
-    )?;
-    // Nonexecuting assumption operands retain both declarations, including
-    // intermediate links. Installation owns runtime supply and root consent.
-    for relationship in &view.build.config.assumed_bindings {
-        boundary_roots.extend([relationship.required, relationship.supplied]);
-    }
-    // Folded uses may be the last reference to these requirements. Retain their
-    // catalog custody without inventing calls.
-    boundary_roots.extend(
-        typed
-            .constant_recipe_closure
-            .receipts
-            .iter()
-            .filter(|receipt| receipt.provider_machine.is_valid())
-            .map(|receipt| receipt.requirement),
-    );
-    boundary_roots.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-    boundary_roots.dedup();
+    let boundary_roots = retained_boundary_roots(view)?;
     let mut machines = view.build.config.program_roots();
     if machines.is_empty() {
         machines.push(first.selected_machine);
@@ -331,22 +306,71 @@ fn produce_shared_terminal(
         .iter()
         .map(AdmittedTerminalApplication::custody)
         .collect::<Vec<_>>();
-    psi_compiler::TerminalProductionRequest {
-        publication: terminal_codec::TerminalPublication::Portable,
-        checked: checked_program,
-        external_declarations: Some(view.external_declarations),
-        exact_toolchain_sources: view.sources.exact_toolchain_sources(),
-        machine: psi_compiler::TerminalMachineSelection::Symbol(default),
-        roots: psi_compiler::TerminalProgramRoots {
+    produce_terminal(
+        view,
+        first.request.selections,
+        psi_compiler::TerminalMachineSelection::Symbol(default),
+        psi_compiler::TerminalProgramRoots {
             machines: &machines,
             boundaries: &boundary_roots,
         },
-        optimization_selections: first.request.selections.project_psi().selections().clone(),
+        &applications,
+        timings,
+    )
+}
+
+fn retained_boundary_roots(
+    view: &TerminalProductionView<'_>,
+) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
+    let typed = &view.program.typed;
+    let context =
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let mut boundary_roots = provider_planning::target_machines::provider_selection_roots(
+        context,
+        view.provider_defaults
+            .iter()
+            .flat_map(|row| &row.selections)
+            .chain(&view.build.config.provider_selections),
+    )?;
+    // Nonexecuting assumption operands retain both declarations, including
+    // intermediate links. Installation owns runtime supply and root consent.
+    for relationship in &view.build.config.assumed_bindings {
+        boundary_roots.extend([relationship.required, relationship.supplied]);
+    }
+    // Folded uses may be the last reference to these requirements. Retain their
+    // catalog custody without inventing calls.
+    boundary_roots.extend(
+        typed
+            .constant_recipe_closure
+            .receipts
+            .iter()
+            .filter(|receipt| receipt.provider_machine.is_valid())
+            .map(|receipt| receipt.requirement),
+    );
+    boundary_roots.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    boundary_roots.dedup();
+    Ok(boundary_roots)
+}
+
+fn produce_terminal(
+    view: &TerminalProductionView<'_>,
+    selections: &OptimizationSelections,
+    machine: psi_compiler::TerminalMachineSelection<'_>,
+    roots: psi_compiler::TerminalProgramRoots<'_>,
+    applications: &[TerminalApplicationCustody<'_>],
+    timings: &mut CompileTimings,
+) -> Result<psi_compiler::ProducedTerminalProgram, Vec<Diagnostic>> {
+    psi_compiler::TerminalProductionRequest {
+        publication: terminal_codec::TerminalPublication::Portable,
+        checked: view.program,
+        external_declarations: Some(view.external_declarations),
+        exact_toolchain_sources: view.sources.exact_toolchain_sources(),
+        machine,
+        roots,
+        optimization_selections: selections.project_psi().selections().clone(),
     }
     .produce(
-        TerminalProductionCustody {
-            applications: &applications,
-        },
+        TerminalProductionCustody { applications },
         &mut PsiStageTimings::new(timings),
     )
     .map_err(|error| error.diagnostics())
@@ -452,6 +476,20 @@ fn prepare_target_provider_publication(
             .target_name()
             .to_owned(),
     );
+    targets.extend(
+        checked_trees::ProofApplications::new(
+            &source.program.facts.proof_applications,
+            &source.program.facts.operational,
+        )
+        .scopes(
+            source
+                .selected_target_profile
+                .unwrap_or_else(target::TargetProfile::host)
+                .target_name(),
+        )
+        .into_iter()
+        .map(str::to_owned),
+    );
     targets.sort();
     targets.dedup();
     provider_planning::target_machines::TargetProviderPreparationRequest {
@@ -467,4 +505,84 @@ fn prepare_target_provider_publication(
         targets: &targets,
     }
     .prepare()
+}
+
+/// Check declarations through the ordinary Terminal producer without inventing
+/// an executable product entry. Only the retained conditions demand evaluation.
+pub(crate) fn check_terminal_conditions(
+    selection: &mut SelectedProviderCustody,
+) -> Result<(), Vec<Diagnostic>> {
+    if !selection
+        .execution
+        .program
+        .facts
+        .proof_applications
+        .has_obligations
+    {
+        return Ok(());
+    }
+    let view = TerminalProductionView::selection(selection, None);
+    let boundaries = retained_boundary_roots(&view)?;
+    let providers = prepare_target_provider_publication(&view);
+    let selections = OptimizationSelections::default();
+    let mut timings = std::mem::take(view.timings);
+    let started = std::time::Instant::now();
+    let produced = produce_terminal(
+        &view,
+        &selections,
+        psi_compiler::TerminalMachineSelection::Declarations,
+        psi_compiler::TerminalProgramRoots {
+            machines: &[],
+            boundaries: &boundaries,
+        },
+        &[],
+        &mut timings,
+    );
+    timings.add_completed(TERMINAL_PRODUCTION_STAGE, started.elapsed().as_micros());
+    *view.timings = timings;
+    let produced = produced?;
+    let (artifact, _) = produced
+        .into_parts()
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let artifact = Arc::new(artifact);
+    let proposals = providers.publish(artifact.view(), selections.identity());
+    let target = view
+        .selected_target_profile
+        .unwrap_or_else(target::TargetProfile::host);
+    build_time_evaluation::complete_scalar_applications(
+        &artifact,
+        target.target_name(),
+        &[],
+        &mut selection.source_completion_accounting,
+        |scope| {
+            let proposal = proposals
+                .iter()
+                .find(|proposal| proposal.target == scope)
+                .ok_or_else(|| format!("scalar checking has no provider inputs for {scope}"))?;
+            let providers = proposal
+                .selection
+                .as_ref()
+                .map_err(|reasons| reasons.join("; "))?
+                .admit(artifact.view(), scope)?;
+            let profile = target::TargetProfile::from_canonical_target_name(scope)
+                .map_err(|diagnostic| diagnostic.message)?;
+            let model = target::TargetSemantics::close_address_model(profile);
+            let address_model = model.map(|model| terminal_installation::ScalarAddressModel {
+                target: scope.to_owned(),
+                carrier: model.carrier(),
+                semantics_version: model.semantics_version(),
+                commitment: model.commitment(),
+            });
+            Ok(build_time_evaluation::ScalarScopeEvaluation {
+                targets: terminal_installation::admit_target_machine_selections(
+                    artifact.view(),
+                    scope,
+                ),
+                providers,
+                address_model: Ok(address_model),
+            })
+        },
+    )
+    .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
+    Ok(())
 }

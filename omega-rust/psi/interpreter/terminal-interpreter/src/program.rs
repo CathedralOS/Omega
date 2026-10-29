@@ -116,7 +116,8 @@ impl AdmittedTerminalProgram<'_> {
         }
         let root = installation
             .and_then(|supplies| supplies.entry)
-            .unwrap_or(self.catalogs.entry);
+            .or(self.catalogs.entry)
+            .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
         let selected = installation.and_then(|installation| installation.target_machines.as_ref());
         let machine = match selected {
             Some(selected) => selected
@@ -1026,7 +1027,7 @@ mod private_entry_target_tests {
                 .admit_runtime_supplies(crate::effects::TerminalRuntimeSupplyRequest {
                     x86_flags: None,
                     memory_ordering: None,
-                    entry: Some(artifact.semantic_module().entry),
+                    entry: artifact.semantic_module().entry,
                     installation: None,
                     host_imports: &[],
                     target_machines: Some(&other_machines),

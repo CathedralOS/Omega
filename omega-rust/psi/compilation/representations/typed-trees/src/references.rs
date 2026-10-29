@@ -311,6 +311,48 @@ pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurre
     occurrences.types
 }
 
+/// Exact live operand ownership, including shared nodes used by several
+/// declarations. Slot lookup still compares the full generational handle.
+pub struct ProgramOperandOwners {
+    types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
+    expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
+}
+
+impl ProgramOperandOwners {
+    pub fn type_owners(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.types
+            .get(reference.arena_index() as usize)
+            .into_iter()
+            .flatten()
+            .filter(move |(_, retained)| *retained == reference)
+            .map(|(owner, _)| *owner)
+    }
+
+    pub fn expression_owners(
+        &self,
+        expression: ExpressionHandle,
+    ) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.expressions
+            .get(expression.arena_index() as usize)
+            .into_iter()
+            .flatten()
+            .filter(move |(_, retained)| *retained == expression)
+            .map(|(owner, _)| *owner)
+    }
+}
+
+pub fn collect_program_operand_owners(program: &TypedTrees) -> ProgramOperandOwners {
+    let mut occurrences = TypeOccurrences::default();
+    visit_program(program, &mut occurrences);
+    ProgramOperandOwners {
+        types: occurrences.seen_types,
+        expressions: occurrences.seen_expressions,
+    }
+}
+
 /// Exact authored call applications reached from retained declaration/body
 /// roots. This inventory creates neither execution reach nor admission.
 pub fn collect_program_conformance_occurrences(

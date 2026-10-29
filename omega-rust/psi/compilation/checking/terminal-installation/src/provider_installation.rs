@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// Omega-owned policy input naming one exact verified terminal provider row.
 /// Selection is intentionally separate from terminal-Psi semantic bytes.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ProviderInstallationSelection {
     pub boundary: BoundaryMachineId,
     pub provider_identity: String,
@@ -32,7 +32,7 @@ pub struct ProviderInstallationSelection {
 /// relationship applies at this crossing only; it mints no
 /// `provider_candidates` conformance and no `installed` redirect, so a
 /// direct call of the supplied requirement keeps its own checked evidence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AssumedBindingSelection {
     /// The caller-facing requirement (`Required::operation`) whose link the
     /// root assumes.
@@ -343,10 +343,8 @@ fn admit_provider_selections(
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
     if !selections.is_empty() {
-        let mut candidates_by_boundary = BTreeMap::<
-            BoundaryMachineId,
-            Vec<&terminal_psi::ProviderCandidateConformance>,
-        >::new();
+        let mut candidates_by_boundary =
+            BTreeMap::<BoundaryMachineId, Vec<&terminal_psi::ProviderCandidateConformance>>::new();
         for candidate in &module.provider_candidates {
             candidates_by_boundary
                 .entry(candidate.boundary)

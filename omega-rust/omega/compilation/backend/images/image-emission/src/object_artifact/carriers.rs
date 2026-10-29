@@ -128,9 +128,9 @@ impl ObjectArtifact {
             entry
         } else {
             match module.entry {
-                terminal_psi::TargetMachineCallable::Machine(machine) => machine,
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
-                    return Err("native family entry requires retained deployment selection");
+                Some(terminal_psi::TargetMachineCallable::Machine(machine)) => machine,
+                Some(terminal_psi::TargetMachineCallable::Boundary(_)) | None => {
+                    return Err("native entry requires retained deployment selection");
                 }
             }
         };

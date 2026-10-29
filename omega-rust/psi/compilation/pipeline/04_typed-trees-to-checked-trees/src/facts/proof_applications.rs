@@ -37,7 +37,19 @@ pub(crate) fn retain(checked: &CheckedTrees) -> ProofApplicationPlan {
     plan.has_obligations = !facts.constant_predicate_obligations.is_empty()
         || !facts.integer_range_obligations.is_empty()
         || !facts.constant_recipe_obligations.is_empty()
-        || !completion_owners.is_empty();
+        || !completion_owners.is_empty()
+        || typed
+            .constant_recipes
+            .iter()
+            .any(|(recipe, _)| typed.closed_constant_recipe_value(recipe).is_none())
+        || typed.const_declarations().iter().any(|declaration| {
+            declaration.evaluated_value.is_none() && declaration.evaluation_entry.is_valid()
+        })
+        || !facts
+            .flow
+            .terminal_unit_effects
+            .layout_observations
+            .is_empty();
     if !plan.has_obligations {
         return plan;
     }

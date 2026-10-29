@@ -159,8 +159,8 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
     /// nor values, and predicate diagnostics precede address-model/range failures.
     pub fn close_scope(
         &mut self,
-        observations: ScalarApplicationObservations<'artifact>,
-        conditions: ScalarConditionSelection<'artifact>,
+        observations: ScalarApplicationObservations<'_>,
+        conditions: ScalarConditionSelection<'_>,
         address_model: Result<Option<ScalarAddressModel>, String>,
     ) -> Result<(), String> {
         if observations.artifact().identity() != self.artifact.identity()

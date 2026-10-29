@@ -20,6 +20,7 @@ checked-interpreter = { path = "../../interpreter/checked-interpreter" }
 psi-terminal-production = { path = "../driver/terminal-production" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
 terminal-installation = { path = "../checking/terminal-installation" }
+terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }
 terminal-fuel = { path = "../representations/terminal-psi/fuel" }
@@ -41,6 +42,5 @@ typed-trees = { path = "../representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../pipeline/04_typed-trees-to-checked-trees" }
 
 [dev-dependencies]
-terminal-codec = { path = "../representations/terminal-psi/codec" }
 source-files-to-tokens = { path = "../pipeline/00_source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../pipeline/01_tokens-to-syntax-trees" }

@@ -712,7 +712,12 @@ pub(crate) fn lower_unit_closure(
             identities: identities.snapshot(),
             // The root may be a bodyless portable contract. Every family body
             // stays in the catalog; no target member stands in for its head.
-            entry: target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)?,
+            entry: entry
+                .is_valid()
+                .then(|| {
+                    target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)
+                })
+                .transpose()?,
             structural_types,
             structural_referents,
             structural_domains,

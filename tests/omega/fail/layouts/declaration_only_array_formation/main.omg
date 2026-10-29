@@ -1,0 +1,11 @@
+// The same extent is invalid even though no executable reads Envelope.
+data Cell { first: u64; }
+machine extent() -> u64 crashes Trap {
+    transition size_of<Cell>() == 16u64 {
+        true -> accepted()
+        false -> rejected()
+    }
+    machine accepted() -> u64 { 16u64 }
+    machine rejected() -> u64 { crash Trap; }
+}
+data Envelope { bytes: [u8; extent()]; }

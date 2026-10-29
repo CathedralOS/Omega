@@ -152,7 +152,7 @@ fn native_scope_preserves_target_member_exclusion() {
     let input = prepare(module.clone()).unwrap();
     assert_eq!(input.plan().functions.len(), 1);
     assert_eq!(input.plan().functions[0].machine, machine_id(1));
-    module.entry = callable(2);
+    module.entry = Some(callable(2));
     assert!(matches!(
         prepare(module.clone()),
         Err(ArtifactLoweringError::TargetFamily(_))

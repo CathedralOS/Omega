@@ -111,7 +111,9 @@ pub struct TerminalModule {
     /// Portable callable root. A target-family head is a contract, not an
     /// executable representative: installation selects its exact tagged body
     /// without changing this root or the canonical artifact.
-    pub entry: TargetMachineCallable,
+    /// Optional default invocation root. Declaration-only products carry no
+    /// entry; executing a retained callable requires an explicit selection.
+    pub entry: Option<TargetMachineCallable>,
     /// Canonical scalar membership vocabulary and explicit successor-edge coercions.
     pub scalar_qualifications: ScalarQualificationCatalog,
     /// Concrete target-neutral instantiated type shapes, ordered by `id`.
@@ -275,12 +277,20 @@ impl TerminalModule {
     /// producer's literal.
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
+            entry: Some(TargetMachineCallable::Machine(entry)),
+            ..Self::declarations()
+        }
+    }
+
+    /// An empty declaration catalog without an executable default.
+    pub fn declarations() -> Self {
+        Self {
             scalar_applications: Default::default(),
             folded_constants: Default::default(),
             indexed_theorems: Vec::new(),
             mathematical_carriers: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: TargetMachineCallable::Machine(entry),
+            entry: None,
             identities: Default::default(),
             scalar_qualifications: Default::default(),
             structural_types: Vec::new(),

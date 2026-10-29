@@ -330,8 +330,9 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
     use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
 
     match module.entry {
-        TargetMachineCallable::Machine(machine) if module.machine(machine).is_some() => {}
-        head @ TargetMachineCallable::Boundary(boundary)
+        None if module.root_service_reach == terminal_psi::TerminalRootServiceReach::default() => {}
+        Some(TargetMachineCallable::Machine(machine)) if module.machine(machine).is_some() => {}
+        Some(head @ TargetMachineCallable::Boundary(boundary))
             if module.target_machine_families.iter().any(|family| {
                 family.canonical == head
                     && !family.members.iter().any(|member| member.callable == head)

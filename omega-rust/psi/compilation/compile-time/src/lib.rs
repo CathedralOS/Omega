@@ -28,16 +28,18 @@ mod const_evaluation;
 mod evaluation_accounting;
 mod fnv;
 pub use evaluation_accounting::{
-    PureEvaluationOutcome, PureEvaluationProgram, PureEvaluationReceipt, PureEvaluationRecord,
-    PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt, RecordedPreCheck,
-    SourceCompletionAccounting,
+    CanonicalScalarEvaluationReceipt, PureEvaluationOutcome, PureEvaluationProgram,
+    PureEvaluationReceipt, PureEvaluationRecord, PureTerminalEvaluationOutcome,
+    PureTerminalEvaluationReceipt, RecordedPreCheck, SourceCompletionAccounting,
 };
 mod layouts;
 mod machine_execution;
 pub mod provider_declarations;
 mod reflection;
 mod scalar_applications;
-pub use scalar_applications::evaluate_scalar_applications;
+pub use scalar_applications::{
+    ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
+};
 mod syntax_probes;
 mod wire_demands;
 

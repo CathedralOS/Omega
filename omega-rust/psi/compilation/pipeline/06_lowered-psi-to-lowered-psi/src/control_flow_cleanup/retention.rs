@@ -228,7 +228,7 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     }
     roots.extend(module.quotients.adaptations.iter().map(|row| row.machine));
 
-    if let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry {
+    if let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry {
         roots.insert(entry);
     }
     roots.extend(module.target_machine_families.iter().flat_map(|family| {

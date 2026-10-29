@@ -1,4 +1,4 @@
-//! Retained contract roots become ordinary checked expression bodies here.
+//! Retained constant roots become ordinary checked expression bodies here.
 //! Open lexical templates retain only descriptions; concrete specializations
 //! own separate entries. The next round of the existing specialization loop
 //! closes helper calls in those bodies, without another driver pipeline.
@@ -9,6 +9,35 @@ use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::{RetainedConstantPosition, create_evaluation_entry};
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic>> {
+    // Initializer entries are retained before executable preparation. Admit
+    // only entries of live declarations, keeping their existing expression
+    // and owner rather than constructing a second evaluator projection.
+    let mut initializers = Vec::new();
+    for declaration in program.const_declarations() {
+        if declaration.evaluated_value.is_some()
+            || !declaration.evaluation_entry.is_valid()
+            || has_open_scope(program, declaration.symbol)
+        {
+            continue;
+        }
+        if !program
+            .tables
+            .machines
+            .is_valid(declaration.evaluation_entry)
+        {
+            return Err(vec![Diagnostic::error(
+                "constant initializer lost its retained evaluation entry",
+            )]);
+        }
+        let entry = program.tables.machines.get(declaration.evaluation_entry);
+        if program.machine_by_symbol(entry.symbol).is_none() {
+            initializers.push(entry.clone());
+        }
+    }
+    let initializer_count = initializers.len();
+    for entry in initializers {
+        program.push_machine(entry);
+    }
     // Private evaluation projections preserve backing arenas, not ownership
     // of every retained recipe. Only live clauses may introduce executable
     // entries; otherwise preparation resurrects excluded declarations.
@@ -38,7 +67,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnos
             pending.push((handle, context, expression));
         }
     }
-    let count = pending.len();
+    let count = initializer_count + pending.len();
     for (handle, context, expression) in pending {
         if !program.expression_table.expression_is_valid(expression) {
             return Err(vec![Diagnostic::error(

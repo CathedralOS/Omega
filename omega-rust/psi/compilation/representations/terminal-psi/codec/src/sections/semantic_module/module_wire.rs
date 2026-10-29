@@ -74,7 +74,10 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.bytes(MAGIC);
     writer.u16(FORMAT_MARKER);
     writer.u16(module.vocabulary_marker.get());
-    target_family_wire::encode_callable(&mut writer, module.entry);
+    writer.boolean(module.entry.is_some());
+    if let Some(entry) = module.entry {
+        target_family_wire::encode_callable(&mut writer, entry);
+    }
     writer.len("identities", module.identities.entries().len())?;
     for identity in module.identities.entries() {
         writer.string("identity", identity)?;
@@ -277,7 +280,11 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         ));
     }
     let vocabulary_marker = VocabularyMarker::CURRENT;
-    let entry = target_family_wire::decode_callable(reader)?;
+    let entry = if reader.boolean()? {
+        Some(target_family_wire::decode_callable(reader)?)
+    } else {
+        None
+    };
     let identity_entries = decode_counted(reader, |reader| reader.string("identity"))?;
     if identity_entries.first().map(String::as_str) != Some("") {
         return Err(CodecError::MalformedStructuralFoundation(

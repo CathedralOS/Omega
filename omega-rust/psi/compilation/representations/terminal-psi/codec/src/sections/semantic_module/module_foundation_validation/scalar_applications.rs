@@ -132,9 +132,9 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         validate_subject(module, subject)?;
         if !matches!(
             module.scalar_applications.declaration(*application),
-            Some(ScalarApplication::Evaluate { .. })
+            Some(ScalarApplication::Evaluate { .. } | ScalarApplication::LayoutObservation { .. })
         ) {
-            return malformed("scalar completion has no complete evaluation entry");
+            return malformed("scalar completion has no defined application");
         }
     }
     for condition in conditions.ranges() {

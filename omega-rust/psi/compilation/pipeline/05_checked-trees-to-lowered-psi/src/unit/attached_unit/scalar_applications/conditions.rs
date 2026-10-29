@@ -20,7 +20,6 @@ use terminal_psi::{
     TargetMachineCallable, TerminalMachine,
 };
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::type_identity::TypeIdentityId;
 
 pub(super) struct Condition {
     owner: SymbolHandle,
@@ -66,10 +65,7 @@ pub(super) fn completion(
 
 enum Subject {
     Module,
-    Declaration {
-        owner: SymbolHandle,
-        type_root: TypeIdentityId,
-    },
+    Declaration { owner: SymbolHandle },
     Application(ScalarApplicationId),
 }
 
@@ -86,13 +82,6 @@ enum Observation {
 }
 
 impl Condition {
-    pub(super) fn type_root(&self) -> Option<TypeIdentityId> {
-        match self.subject {
-            Subject::Declaration { type_root, .. } if type_root.is_valid() => Some(type_root),
-            _ => None,
-        }
-    }
-
     fn error(&self, reason: String) -> LoweringError {
         LoweringError::UnpublishedScalarCondition {
             owner: self.owner,
@@ -284,22 +273,14 @@ fn subject(
                     .contains(&owner)
         })
     {
-        return Ok(Subject::Declaration {
-            owner,
-            type_root: TypeIdentityId::default(),
-        });
+        return Ok(Subject::Declaration { owner });
     }
-    if program.const_declaration_by_symbol(owner).is_some() {
-        return Ok(Subject::Declaration {
-            owner,
-            type_root: TypeIdentityId::default(),
-        });
-    }
-    if program.data_definition_by_symbol(owner).is_some() {
-        return program
-            .normalized_nominal_type_identity(owner)
-            .map(|type_root| Subject::Declaration { owner, type_root })
-            .ok_or_else(|| "scalar condition's data owner has no exact type identity".to_owned());
+    if program.const_declaration_by_symbol(owner).is_some()
+        || program.data_definition_by_symbol(owner).is_some()
+    {
+        // Logical ownership does not request physical storage. A measurement
+        // roots its actual queried type through its LayoutObservation row.
+        return Ok(Subject::Declaration { owner });
     }
     // Bodyless declarations still owe formation of their contract operands.
     // The checked producer retained this exact owner; no spelling or missing
@@ -310,10 +291,7 @@ fn subject(
         .span_or_empty(plan.declarations)
         .contains(&owner)
     {
-        return Ok(Subject::Declaration {
-            owner,
-            type_root: TypeIdentityId::default(),
-        });
+        return Ok(Subject::Declaration { owner });
     }
     Err("scalar condition has no retained declaration or evaluation owner".to_owned())
 }

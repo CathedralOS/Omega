@@ -48,7 +48,7 @@ pub fn lower_artifact(
 pub(crate) fn lower_decoded_artifact(
     module: &terminal_psi::TerminalModule,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         return Err(ArtifactLoweringError::TargetSelectionRequired);
     };
     native::lower_decoded_native_module(module, entry, None)

@@ -66,6 +66,23 @@ impl ScalarApplicationValues {
         let position = usize::try_from(application.get() - 1).ok()?;
         self.0.storage_slice().get(position)?.value
     }
+
+    /// Exact completed scalar inputs of a subsequent job, for its execution
+    /// record. This descriptive snapshot does not create an admitted result.
+    pub fn observed(
+        &self,
+    ) -> impl Iterator<Item = (ScalarApplicationId, TerminalScalarValue)> + '_ {
+        self.0
+            .storage_slice()
+            .iter()
+            .enumerate()
+            .filter_map(|(position, row)| {
+                let value = row.value?;
+                let application =
+                    ScalarApplicationId::new(u64::try_from(position).ok()?.checked_add(1)?)?;
+                Some((application, value))
+            })
+    }
 }
 
 impl<'artifact> ScalarApplicationObservations<'artifact> {

@@ -288,7 +288,7 @@ fn exercise_owned_and_borrowed_instances() {
     );
     let (transferred_module, _) = published.into_semantics();
     assert_eq!(machine_storage, transferred_module.machines.as_ptr());
-    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         panic!("this fixture has an ordinary machine entry");
     };
     let entry = module.machine(entry).unwrap();

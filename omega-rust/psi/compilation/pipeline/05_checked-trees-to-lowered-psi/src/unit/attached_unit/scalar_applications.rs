@@ -60,6 +60,7 @@ impl SourceScalarApplications {
     pub(crate) fn prepare(checked: &CheckedTrees) -> Result<Self, LoweringError> {
         let mut applications = Self::default();
         let references = typed_trees::references::collect_program_references(&checked.typed);
+        let owners = typed_trees::references::collect_program_operand_owners(&checked.typed);
         // A closed source program still carries historical recipe coordinates.
         // Only genuinely pending values need a portable application.
         for (recipe, declaration) in checked.typed.constant_recipes.iter() {
@@ -106,8 +107,82 @@ impl SourceScalarApplications {
                     }
                 }
             } else {
-                applications.retain_recipe_in(checked, recipe, symbols::SymbolHandle::invalid())?;
+                let declaring_owners = match declaration.position {
+                    RetainedConstantPosition::ArrayLength(reference)
+                    | RetainedConstantPosition::ConstApplication {
+                        site: reference, ..
+                    } => owners.type_owners(reference).collect::<Vec<_>>(),
+                    RetainedConstantPosition::RangeEndpoint(expression) => {
+                        owners.expression_owners(expression).collect()
+                    }
+                    _ => Vec::new(),
+                };
+                if declaring_owners.is_empty() {
+                    return Err(LoweringError::Unsupported(
+                        "live constant formation has no exact declaring owner",
+                    ));
+                }
+                for owner in declaring_owners {
+                    let application = applications.retain_recipe_in(checked, recipe, owner)?;
+                    let condition =
+                        conditions::completion(checked, &mut applications, owner, application)?;
+                    applications.conditions.push(condition);
+                }
             }
+        }
+        // Initializer formation is owed by the declaration even when no
+        // executable use reads its value. Retain its real complete entry.
+        for declaration in checked.typed.const_declarations() {
+            if declaration.evaluated_value.is_some() || !declaration.evaluation_entry.is_valid() {
+                continue;
+            }
+            if !checked
+                .typed
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+            {
+                return Err(LoweringError::Unsupported(
+                    "constant declaration has a stale evaluation entry",
+                ));
+            }
+            let entry = checked
+                .typed
+                .tables
+                .machines
+                .get(declaration.evaluation_entry)
+                .symbol;
+            let entry = checked.typed.constant_evaluation_entry(entry).ok_or(
+                LoweringError::Unsupported("constant declaration lost its evaluation entry"),
+            )?;
+            let application = applications.retain_entry(checked, entry)?;
+            let condition = conditions::completion(
+                checked,
+                &mut applications,
+                declaration.symbol,
+                application,
+            )?;
+            applications.conditions.push(condition);
+        }
+        // Authored layout queries owe a defined observation in their lexical
+        // scope independently of runtime reach. A measurement is not a fake
+        // executable entry; its ordinary application kind remains explicit.
+        for observation in &checked.facts.flow.terminal_unit_effects.layout_observations {
+            if !references.expressions.contains(&observation.expression)
+                || checked
+                    .landed_integer_constant(observation.expression)
+                    .is_some()
+            {
+                continue;
+            }
+            let application = applications.retain_expression_in(
+                checked,
+                observation.expression,
+                observation.owner,
+            )?;
+            let condition =
+                conditions::completion(checked, &mut applications, observation.owner, application)?;
+            applications.conditions.push(condition);
         }
         for (_, computation) in checked.facts.values.scalar_computations.nodes.iter() {
             if let CheckedScalarComputationKind::RetainedConstant { expression } = computation.kind
@@ -436,17 +511,10 @@ impl SourceScalarApplications {
     }
 
     pub(crate) fn type_roots(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
-        self.rows
-            .iter()
-            .filter_map(|row| match row.definition {
-                Definition::Layout { subject, .. } => Some(subject),
-                _ => None,
-            })
-            .chain(
-                self.conditions
-                    .iter()
-                    .filter_map(conditions::Condition::type_root),
-            )
+        self.rows.iter().filter_map(|row| match row.definition {
+            Definition::Layout { subject, .. } => Some(subject),
+            _ => None,
+        })
     }
 
     pub(crate) fn publish(

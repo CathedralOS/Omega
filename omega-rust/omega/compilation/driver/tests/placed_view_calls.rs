@@ -160,7 +160,7 @@ fn qualify_helper(machine: &str, writes: bool) {
         terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
             &artifact,
             target::TargetProfile::host(),
-            module.entry,
+            module.entry.expect("fixture default entry"),
             std::slice::from_ref(&establishment),
             &terminal_psi_to_abstract_operations::NativeExecutionSelection {
                 scalar_applications: None,

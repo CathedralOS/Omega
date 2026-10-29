@@ -132,7 +132,11 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
     proposal
         .prepare_native_callable_execution(
             recovered.artifact(),
-            recovered.artifact().semantic_module().entry,
+            recovered
+                .artifact()
+                .semantic_module()
+                .entry
+                .expect("fixture default entry"),
         )
         .expect("reloaded numeric providers settle executable demand");
     recovered
