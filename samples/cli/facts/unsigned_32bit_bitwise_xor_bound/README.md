@@ -138,8 +138,9 @@ Non-singleton intervals are never evaluated only at their endpoints.
 All original exact subtractions and the final sum subtraction execute before
 an additional runtime check for the transported value 52. This makes a wrong
 join arm or wrong in-range value observable without a caller guard supplying
-the proof. Reject twins still change only the XOR mask to 127, producing 68;
-they must reject the original 40..63 bound obligation before that runtime check.
+the proof. Reject twins retain their original XOR mask 127, producing 68; the call-result
+twin also omits the helper’s upper-bound guarantee. Each rejects the original
+40..63 bound obligation before that runtime check.
 The target-body place uses ordinary X86/ARM implementations selected by explicit
 Build rows and separate 17/29 entry/body guards; all nine places bind five hosted
 profiles and request same-artifact Terminal installations. Fresh execution and
