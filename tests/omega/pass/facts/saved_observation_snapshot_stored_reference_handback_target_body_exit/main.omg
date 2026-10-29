@@ -1,9 +1,9 @@
 // A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
 // Expected exit: 0
 
-data Holder { before: u64; items: &mut [u64; 2]; after: u64; }
+data Holder<'storage> { before: u64; items: &'storage mut [u64; 2]; after: u64; }
 machine kept(values: &[u64; 2]) -> bool { values[0] == 7 }
-machine preserve(holder: &mut Holder)
+machine preserve<'storage>(holder: &mut Holder<'storage>)
 requires kept(&holder.items) == true
 ensures kept(&holder.items) == true
 {
@@ -16,12 +16,12 @@ requires observed == current && observed == 7
 ensures result == observed
 { observed }
 boundary trait HostedObservation {
-    machine observe(holder: &mut Holder) -> u64 reaches
+    machine observe<'storage>(holder: &mut Holder<'storage>) -> u64 reaches
     requires kept(&holder.items) == true
     ensures result == holder.items[0] && result == 7;
 }
 HostedObservationBody satisfies HostedObservation {
-    machine observe(holder: &mut Holder) -> u64
+    machine observe<'storage>(holder: &mut Holder<'storage>) -> u64
     requires kept(&holder.items) == true
     ensures result == holder.items[0] && result == 7
     {
