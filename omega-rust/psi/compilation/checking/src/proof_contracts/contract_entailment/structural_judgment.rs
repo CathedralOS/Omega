@@ -504,7 +504,7 @@ pub(super) struct StructuralJudge<'program> {
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Producer identity comes only from the captured public result contract.
     // Selected branch equalities remain ordinary normal-path proof facts.
-    captured_result_equations: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
+    captured_result_equations: Arc<Vec<normal_returns::CapturedResultEquation>>,
     resolve_applications: bool,
     // Closed computation owes completion of every eager operand. Symbolic
     // law normalization can retain applications without asserting completion.

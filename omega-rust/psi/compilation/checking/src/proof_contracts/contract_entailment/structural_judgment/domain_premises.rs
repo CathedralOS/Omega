@@ -1025,8 +1025,9 @@ impl StructuralJudge<'_> {
         }
         self.rewrites.entries().iter().any(|(left, right)| {
             mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
-        }) || self.captured_result_equations.iter().any(|(left, right)| {
-            mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
+        }) || self.captured_result_equations.iter().any(|equation| {
+            mentions_projection_of(&equation.left, root_sem)
+                || mentions_projection_of(&equation.right, root_sem)
         }) || self
             .substitutions
             .iter()

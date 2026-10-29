@@ -1493,7 +1493,7 @@ impl<'program> StructuralJudge<'program> {
             let truth_sem = match truth.semantic_value() {
                 sem @ StructuralTerm::Constructor { .. } => sem,
                 _ => {
-                    resolved_truth = self.resolve(truth.clone());
+                    resolved_truth = self.integer_projection_value(truth.clone());
                     resolved_truth.semantic_value()
                 }
             };
@@ -1750,7 +1750,20 @@ impl<'program> StructuralJudge<'program> {
         {
             return IntegerComparisonProjection::NotInteger;
         }
-        let [left, right] = [left, right].map(|operand| self.resolve(operand.as_ref().clone()));
+        let [left, right] =
+            [(left, references[0]), (right, references[1])].map(|(operand, reference)| {
+                if super::super::structural_terms::scalar_operand_is_observed(
+                    self.program,
+                    reference,
+                    operand,
+                ) {
+                    self.integer_projection_value(operand.as_ref().clone())
+                } else {
+                    // An unobserved original operand cannot gain the new
+                    // completed-call route by resolving to a different shell.
+                    self.resolve(operand.as_ref().clone())
+                }
+            });
         if ![&left, &right]
             .into_iter()
             .zip(references)
@@ -1781,6 +1794,14 @@ impl<'program> StructuralJudge<'program> {
         ))
     }
 
+    /// A completed call denotes its saved scalar here; public recipes retain
+    /// their operation trees in integer_value. Unobserved terms use the ordinary
+    /// resolver, including its original formation and completion checks.
+    fn integer_projection_value(&self, value: StructuralTerm) -> StructuralTerm {
+        self.completed_integer_call(&value)
+            .map_or_else(|| self.resolve(value), |(captured, _, _)| captured)
+    }
+
     fn integer_value(
         &self,
         value: &StructuralTerm,
@@ -1800,15 +1821,30 @@ impl<'program> StructuralJudge<'program> {
             }
             _ => false,
         };
+        let call = self
+            .completed_integer_call(value)
+            .filter(|(_, _, observed)| *observed == primitive);
+        let value = call.as_ref().map_or(value, |(captured, _, _)| captured);
         let completed = self.completed_scalar_observation(value, primitive);
-        let description = self.completed_value_identity(value.clone());
+        let canonical_atom = |identity: &StructuralTerm| {
+            call.as_ref()
+                .filter(|(original, _, _)| original.same_resolution_payload(identity))
+                .map_or_else(|| identity.clone(), |(_, canonical, _)| canonical.clone())
+        };
+        let description = if call.is_some() {
+            // Eligibility already established that every peer has no public
+            // scalar recipe. Keep this occurrence until an atom is installed.
+            value.clone()
+        } else {
+            self.completed_value_identity(value.clone())
+        };
         // Preserve the authored operation tree until each node has admitted
         // its own children. General ring resolution may cancel an unsafe node.
         let value = match description.semantic_value() {
             StructuralTerm::ScalarBinary { .. } | StructuralTerm::MathematicalBinary { .. } => {
                 description
             }
-            _ => self.resolve(description),
+            _ => self.integer_projection_value(description),
         };
         let value = value.semantic_value();
         if let Some((identity, policy)) = completed.as_ref()
@@ -1820,7 +1856,7 @@ impl<'program> StructuralJudge<'program> {
             )
             && !matches!(value, StructuralTerm::ScalarBinary { .. })
         {
-            return observations.observed_atom(identity.clone(), primitive);
+            return observations.observed_atom(canonical_atom(identity), primitive);
         }
         if let StructuralTerm::Integer(integer) = value {
             let value = Polynomial::constant(integer.clone());
@@ -1879,7 +1915,7 @@ impl<'program> StructuralJudge<'program> {
             });
             let (value, formation) = if let Some((completed, _)) = completed {
                 (
-                    observations.observed_atom(completed, primitive)?,
+                    observations.observed_atom(canonical_atom(&completed), primitive)?,
                     OperationFormation::CompletedValue,
                 )
             } else {
@@ -1901,7 +1937,7 @@ impl<'program> StructuralJudge<'program> {
         }
         // Only an opaque completed leaf receives intrinsic carrier bounds;
         // an unadmitted recipe has neither a carrier assumption nor an interval.
-        observations.observed_atom(value.clone(), primitive)
+        observations.observed_atom(canonical_atom(value), primitive)
     }
 
     fn mathematical_value(
@@ -1912,6 +1948,9 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<Polynomial> {
         if depth >= 64 {
             return None;
+        }
+        if let Some((captured, _, primitive)) = self.completed_integer_call(value) {
+            return self.integer_value(&captured, primitive, observations, depth + 1);
         }
         if let StructuralTerm::IntegerEmbedding { reference, value } = value.semantic_value() {
             let (primitive, _) = super::super::structural_terms::scalar_operand_meaning(
@@ -1928,7 +1967,7 @@ impl<'program> StructuralJudge<'program> {
         // scalar operands still resolve normally, with formation checked below.
         let value = match value.semantic_value() {
             StructuralTerm::MathematicalBinary { .. } => value.clone(),
-            _ => self.resolve(value.clone()),
+            _ => self.integer_projection_value(value.clone()),
         };
         match value.semantic_value() {
             StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),
