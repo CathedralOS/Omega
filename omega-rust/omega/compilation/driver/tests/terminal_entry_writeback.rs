@@ -497,6 +497,22 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
     }
 }
 
+fn zeroed_instance<'host, 'artifact>(
+    program: &TerminalProgram<'artifact>,
+    arguments: &[TerminalStructuralValue],
+) -> terminal_interpreter::TerminalInstance<'host, 'artifact> {
+    program
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            structural_inputs: TerminalStructuralInputs {
+                arguments,
+                zero_initialized_arguments: &[0],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap()
+}
+
 fn assert_bytes(observed: TerminalEntryStorageValue<'_>, expected: &[u8]) {
     let TerminalEntryStorageValue::Bytes(bytes) = observed else {
         panic!("expected byte readback");
@@ -521,17 +537,7 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
             program.entry().unwrap().structural_parameters[0].structural_type,
             Vec::new(),
         )];
-        let mut instance = program
-            .instantiate(terminal_interpreter::TerminalInstantiation {
-                scalar_arguments: &[],
-                structural_inputs: TerminalStructuralInputs {
-                    arguments: &arguments,
-                    zero_initialized_arguments: &[0],
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .unwrap();
+        let mut instance = zeroed_instance(&program, &arguments);
         let status = instance
             .invoke(&mut TerminalFuelMeter::unbounded())
             .unwrap();
@@ -592,17 +598,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 None,
             )
             .unwrap();
-            let mut instance = program
-                .instantiate(terminal_interpreter::TerminalInstantiation {
-                    scalar_arguments: &[],
-                    structural_inputs: TerminalStructuralInputs {
-                        arguments: &arguments,
-                        zero_initialized_arguments: &[0],
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                })
-                .unwrap();
+            let mut instance = zeroed_instance(&program, &arguments);
             for boundary in instance.unbound_imports().collect::<Vec<_>>() {
                 let declaration = artifact
                     .semantic_module()
@@ -768,17 +764,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         )
         .unwrap();
         let arguments = [original];
-        let mut instance = program
-            .instantiate(terminal_interpreter::TerminalInstantiation {
-                scalar_arguments: &[],
-                structural_inputs: TerminalStructuralInputs {
-                    arguments: &arguments,
-                    zero_initialized_arguments: &[0],
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .unwrap();
+        let mut instance = zeroed_instance(&program, &arguments);
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
             let declaration = artifact
                 .semantic_module()
@@ -1141,16 +1127,7 @@ fn a_fault_after_a_host_effect_cannot_reenter_the_same_call() {
         Vec::new(),
     )];
     let calls = AtomicUsize::new(0);
-    let mut instance = program
-        .instantiate(terminal_interpreter::TerminalInstantiation {
-            structural_inputs: TerminalStructuralInputs {
-                arguments: &arguments,
-                zero_initialized_arguments: &[0],
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .unwrap();
+    let mut instance = zeroed_instance(&program, &arguments);
     let imports = instance.unbound_imports().collect::<Vec<_>>();
     assert_eq!(imports.len(), 1);
     let boundary = artifact
