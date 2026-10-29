@@ -85,8 +85,8 @@ pub use reference_origins::{
 };
 pub use reference_storage_geometry::{
     ReferenceStorageGeometry, ReferenceStorageProjection, ReferenceStorageRegion,
-    StorageGeometryError, reference_storage_layout, reference_storage_projection,
-    reference_storage_region, reference_storage_size,
+    StorageGeometryError, reference_storage_dependencies, reference_storage_layout,
+    reference_storage_projection, reference_storage_region, reference_storage_size,
 };
 mod invocation_inputs;
 pub use invocation_inputs::validate_empty_erased_invocation_inputs;

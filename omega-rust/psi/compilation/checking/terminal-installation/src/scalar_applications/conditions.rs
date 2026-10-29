@@ -89,6 +89,27 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
         &self.predicates
     }
 
+    /// Grow entry-owned debt as dependency discovery demands more jobs. The
+    /// target/declaration membership prepared at selection remains unchanged.
+    pub fn include_applications(&mut self, demanded: &[ScalarApplicationId]) {
+        for (position, condition) in self.conditions.ranges().iter().enumerate() {
+            if matches!(condition, ScalarRangeCondition::Range { subject: ScalarConditionSubject::Application(application), .. } if demanded.contains(application))
+                && !self.ranges.contains(&position)
+            {
+                self.ranges.push(position);
+            }
+        }
+        for (position, condition) in self.conditions.predicates().iter().enumerate() {
+            if matches!(condition.subject, ScalarConditionSubject::Application(application) if demanded.contains(&application))
+                && !self.predicates.contains(&position)
+            {
+                self.predicates.push(position);
+            }
+        }
+        self.ranges.sort_unstable();
+        self.predicates.sort_unstable();
+    }
+
     /// Observe only selected debts. These include intermediate entry results,
     /// not just each application's returned scalar.
     pub fn observations(&self) -> Result<Vec<&'artifact ScalarRangeObservation>, String> {

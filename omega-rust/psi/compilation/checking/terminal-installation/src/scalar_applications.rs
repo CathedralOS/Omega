@@ -271,6 +271,60 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         Ok(())
     }
 
+    /// Read an exact capture after its complete entry returned normally. A
+    /// completed job without this capture cannot be replayed to fill it later.
+    pub fn entry_result(
+        &self,
+        application: ScalarApplicationId,
+        machine: MachineId,
+        result: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<TerminalScalarValue, String> {
+        if self.entry(application)? != machine {
+            return Err("scalar condition names another entry activation".into());
+        }
+        let row = &self.applications.storage_slice()[self.position(application)?];
+        if row.value.is_none() {
+            return Err("scalar entry has not completed normally".into());
+        }
+        let value = row
+            .results
+            .storage_slice()
+            .iter()
+            .find_map(|row| match row {
+                EntryResult::Observed {
+                    result: observed,
+                    value,
+                } if *observed == result => Some(*value),
+                _ => None,
+            })
+            .ok_or("scalar condition has an unobserved entry result")?;
+        validate_value(value, scalar_type)?;
+        Ok(value)
+    }
+
+    /// Geometry demand follows the same selected authored declarations and
+    /// recursive shape rules as concrete measurement, without evaluating jobs.
+    pub fn layout_dependencies(
+        &self,
+        application: ScalarApplicationId,
+    ) -> Result<Vec<ScalarApplicationId>, String> {
+        let Some(ScalarApplication::LayoutObservation { subject, .. }) = self
+            .artifact
+            .module()
+            .scalar_applications
+            .declaration(application)
+        else {
+            return Err("application is not a layout observation".into());
+        };
+        let geometry = self
+            .layouts
+            .geometry(self.artifact)
+            .map_err(|error| error.to_string())?;
+        terminal_semantics::reference_storage_dependencies(geometry.declarations(), *subject)
+            .map_err(|error| error.to_string())
+    }
+
     /// Resolve through the ordinary byte-geometry owner. An outstanding array
     /// extent returns its exact dependency before any layout result is stored.
     pub fn observe_layout(
@@ -366,29 +420,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                 machine,
                 result,
                 scalar_type,
-            } => {
-                if self.entry(*application)? != *machine {
-                    return Err("scalar condition names another entry activation".into());
-                }
-                let row = &self.applications.storage_slice()[self.position(*application)?];
-                if row.value.is_none() {
-                    return Err("scalar entry has not completed normally".into());
-                }
-                let value = row
-                    .results
-                    .storage_slice()
-                    .iter()
-                    .find_map(|row| match row {
-                        EntryResult::Observed {
-                            result: observed,
-                            value,
-                        } if *observed == *result => Some(*value),
-                        _ => None,
-                    })
-                    .ok_or("scalar condition has an unobserved entry result")?;
-                validate_value(value, *scalar_type)?;
-                value
-            }
+            } => self.entry_result(*application, *machine, *result, *scalar_type)?,
             ScalarRangeObservation::Missing => {
                 return Err("scalar condition has an absent observation".into());
             }

@@ -43,8 +43,8 @@ fn field_geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     field: &StructuralFieldDeclaration,
     active: &mut Vec<StructuralTypeId>,
-    extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
-) -> Result<(u64, u64), StorageGeometryError> {
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if let Some(scalar) = field.field_type.scalar_type() {
         return scalar_geometry(
             field
@@ -53,6 +53,7 @@ fn field_geometry<'types>(
                 .and_then(AuthoredFieldStorage::stored_scalar)
                 .unwrap_or(scalar),
         )
+        .map(Some)
         .ok_or(StorageGeometryError::UnsupportedScalar(scalar));
     }
     let child = field
@@ -74,6 +75,7 @@ pub enum StorageGeometryError {
     UnsupportedScalar(ScalarType),
     UnsupportedField,
     UnresolvedExtent(ScalarApplicationId),
+    UnresolvedLayout(StructuralTypeId),
     Overflow,
 }
 
@@ -103,16 +105,39 @@ where
     }
 
     pub fn layout(&mut self, root: StructuralTypeId) -> Result<(u64, u64), StorageGeometryError> {
-        geometry(self.types.clone(), root, &mut Vec::new(), &mut self.extents)
+        geometry(
+            self.types.clone(),
+            root,
+            &mut Vec::new(),
+            &mut |application| (self.extents)(application).map(Some),
+        )?
+        .ok_or(StorageGeometryError::UnresolvedLayout(root))
     }
+}
+
+/// Discover every extent the ordinary geometry traversal requires before any
+/// scalar entry executes. Unknown sizes remain unknown, so later siblings are
+/// visited without inventing byte geometry or publishing a placeholder count.
+pub fn reference_storage_dependencies<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {
+    let mut dependencies = Vec::new();
+    geometry(types, root, &mut Vec::new(), &mut |application| {
+        if !dependencies.contains(&application) {
+            dependencies.push(application);
+        }
+        Ok(None)
+    })?;
+    Ok(dependencies)
 }
 
 fn geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     active: &mut Vec<StructuralTypeId>,
-    extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
-) -> Result<(u64, u64), StorageGeometryError> {
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if active.len() >= 128 {
         return Err(StorageGeometryError::NestingLimit);
     }
@@ -126,42 +151,55 @@ fn geometry<'types>(
         .shape;
     active.push(root);
     let result = (|| match shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => {
-            scalar_geometry(*scalar).ok_or(StorageGeometryError::UnsupportedScalar(*scalar))
-        }
+        StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar)
+            .map(Some)
+            .ok_or(StorageGeometryError::UnsupportedScalar(*scalar)),
         StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Authored(storage),
             ..
-        } => Ok((storage.byte_size, storage.byte_alignment)),
+        } => Ok(Some((storage.byte_size, storage.byte_alignment))),
         StructuralTypeShape::Record {
             fields,
             storage: StructuralRecordStorage::Packed,
         } => {
-            let mut size = 0;
+            let mut size = Some(0);
             let mut alignment = 1;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let (child_size, child_alignment) =
-                    field_geometry(types.clone(), field, active, extents)?;
-                size = align(size, child_alignment)
-                    .and_then(|offset| offset.checked_add(child_size))
-                    .ok_or(StorageGeometryError::Overflow)?;
+                let child = field_geometry(types.clone(), field, active, extents)?;
+                let Some((child_size, child_alignment)) = child else {
+                    size = None;
+                    continue;
+                };
+                if let Some(current) = size {
+                    size = Some(
+                        align(current, child_alignment)
+                            .and_then(|offset| offset.checked_add(child_size))
+                            .ok_or(StorageGeometryError::Overflow)?,
+                    );
+                }
                 alignment = alignment.max(child_alignment);
             }
-            Ok((
-                align(size, alignment).ok_or(StorageGeometryError::Overflow)?,
-                alignment,
-            ))
+            size.map(|size| {
+                Ok((
+                    align(size, alignment).ok_or(StorageGeometryError::Overflow)?,
+                    alignment,
+                ))
+            })
+            .transpose()
         }
         StructuralTypeShape::FixedArray { element, length } => {
             let length = match length {
-                terminal_psi::ArrayExtent::Literal(length) => *length,
+                terminal_psi::ArrayExtent::Literal(length) => Some(*length),
                 terminal_psi::ArrayExtent::Application(application) => extents(*application)?,
             };
-            let (size, alignment) = geometry(types.clone(), *element, active, extents)?;
+            let element = geometry(types.clone(), *element, active, extents)?;
+            let (Some(length), Some((size, alignment))) = (length, element) else {
+                return Ok(None);
+            };
             let size = align(size, alignment)
                 .and_then(|stride| stride.checked_mul(length))
                 .ok_or(StorageGeometryError::Overflow)?;
-            Ok((size, alignment))
+            Ok(Some((size, alignment)))
         }
         _ => Err(StorageGeometryError::UnsupportedType(root)),
     })();
@@ -305,7 +343,7 @@ fn storage_path<'types>(
                                     Err(StorageGeometryError::UnresolvedExtent(application))
                                 },
                             )
-                            .ok()?;
+                            .ok()??;
                             offset = align(offset, alignment)?;
                             if candidate.id == field.id {
                                 break;
@@ -387,6 +425,117 @@ mod tests {
             field_type,
             storage,
         }
+    }
+
+    #[test]
+    fn extent_discovery_visits_unknown_siblings_but_respects_storage_and_erasure() {
+        let application = |value| ScalarApplicationId::new(value).unwrap();
+        let declaration = |value, shape| StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            id: identity(value),
+            identity: terminal_psi::TerminalIdentityIndex(value as u32),
+            shape,
+        };
+        let mut types = vec![
+            declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(64))),
+            declaration(
+                2,
+                StructuralTypeShape::FixedArray {
+                    element: identity(1),
+                    length: terminal_psi::ArrayExtent::Application(application(1)),
+                },
+            ),
+            declaration(
+                3,
+                StructuralTypeShape::FixedArray {
+                    element: identity(1),
+                    length: terminal_psi::ArrayExtent::Application(application(2)),
+                },
+            ),
+            declaration(
+                4,
+                StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Packed,
+                    fields: vec![
+                        field(1, StructuralFieldType::Structural(identity(2)), None),
+                        field(2, StructuralFieldType::Structural(identity(3)), None),
+                    ],
+                },
+            ),
+        ];
+        assert_eq!(
+            reference_storage_dependencies(types.iter(), identity(4)),
+            Ok(vec![application(1), application(2)])
+        );
+        assert_eq!(
+            reference_storage_layout(types.iter(), identity(4)),
+            None,
+            "discovery cannot publish unknown geometry"
+        );
+        assert_eq!(
+            ReferenceStorageGeometry::new(types.iter(), |dependency| Ok(dependency.get()))
+                .layout(identity(4)),
+            Ok((24, 8))
+        );
+        let StructuralTypeShape::Record { fields, .. } = &mut types[3].shape else {
+            panic!("record");
+        };
+        fields[0].relevance = BindingRelevance::Erased;
+        assert_eq!(
+            reference_storage_dependencies(types.iter(), identity(4)),
+            Ok(vec![application(2)])
+        );
+        let StructuralTypeShape::Record { storage, .. } = &mut types[3].shape else {
+            panic!("record");
+        };
+        *storage = StructuralRecordStorage::Authored(AuthoredRecordStorage {
+            byte_size: 3,
+            byte_alignment: 1,
+        });
+        assert_eq!(
+            reference_storage_dependencies(types.iter(), identity(4)),
+            Ok(Vec::new())
+        );
+        assert_eq!(
+            reference_storage_layout(types.iter(), identity(4)),
+            Some((3, 1))
+        );
+
+        // Even a zero count does not waive element geometry formation.
+        types[1].shape = StructuralTypeShape::FixedArray {
+            element: identity(3),
+            length: terminal_psi::ArrayExtent::Literal(0),
+        };
+        assert_eq!(
+            reference_storage_dependencies(types.iter(), identity(2)),
+            Ok(vec![application(2)])
+        );
+        types[2].shape = StructuralTypeShape::BindingCarrier;
+        assert_eq!(
+            reference_storage_dependencies(types.iter(), identity(2)),
+            Err(StorageGeometryError::UnsupportedType(identity(3)))
+        );
+        types[2].shape = StructuralTypeShape::FixedArray {
+            element: identity(2),
+            length: terminal_psi::ArrayExtent::Literal(0),
+        };
+        assert_eq!(
+            reference_storage_dependencies(types.iter(), identity(2)),
+            Err(StorageGeometryError::RecursiveType(identity(2)))
+        );
+        types[2].shape = StructuralTypeShape::FixedArray {
+            element: identity(99),
+            length: terminal_psi::ArrayExtent::Literal(0),
+        };
+        assert_eq!(
+            reference_storage_dependencies(types.iter(), identity(2)),
+            Err(StorageGeometryError::MissingType(identity(99)))
+        );
     }
 
     #[test]
