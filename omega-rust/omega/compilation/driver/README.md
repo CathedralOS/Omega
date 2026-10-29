@@ -189,11 +189,17 @@ permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
 production submit the same `CompilationProduct` through `omega_build::produce_source`;
-source checking returns selected provider custody internally. Standalone and
+named inspection joins shared Terminal production and completes declaration
+conditions against that artifact, rather than producing a disposable check
+artifact first. Same-name requests share code and exact Build companions;
+different inspected roots retain distinct products. Source checking returns
+selected provider custody internally. Standalone and
 package products both complete source-side provider preparation before Terminal,
 then admit receiving permissions and complete artifact proposals. There is no
 late source installation phase or alternate checked-to-product continuation. Check-only and artifact-only
-requests stop without Terminal production. Review descriptions borrow the same
+requests stop at their requested boundary; scalar-bearing Check still produces
+its rootless declaration artifact, and artifact-only requests do not emit native
+images. Review descriptions borrow the same
 Terminal production inputs without making the producer branch on review history.
 
 Checked-only consumers supply `CheckedCompileRequest` to `omega_build::check_source`.

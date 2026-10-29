@@ -44,18 +44,14 @@ fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
     owners[0]
 }
 
-fn artifact(root: &Path) -> CanonicalTerminalArtifact {
+fn artifact(root: &Path) -> std::sync::Arc<CanonicalTerminalArtifact> {
     omega_build::produce_source(
         &mut CompilationSession::default(),
         CheckedCompileRequest::new(&root.join("library.omg"), None),
         CompilationProduct::Inspection("library::read".to_owned()),
     )
     .and_then(CompilationOutput::into_inspection)
-    .map(|produced| {
-        produced
-            .into_artifact()
-            .expect("portable inspection product")
-    })
+    .map(|produced| std::sync::Arc::clone(produced.artifact()))
     .unwrap_or_else(|error| {
         panic!(
             "anonymous Terminal publication: {:?}",
