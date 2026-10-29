@@ -304,12 +304,7 @@ impl<'program> CurrentScalarValues<'program> {
                     );
                     let scalar_fields = values.captured_scalar_fields(local.initial_value, 0);
                     values.replace_scalar_fields(local.symbol, &[], scalar_fields);
-                    values.capture_record_fields(
-                        local.symbol,
-                        &[],
-                        local.name.as_str(),
-                        local.initial_value,
-                    );
+                    values.capture_record_fields(local.symbol, &[], local.initial_value);
                     if let Some(primitive) = integer_carrier(program, local.type_reference) {
                         // The executed initializer has one value even when its
                         // computation is unavailable to arithmetic reasoning.
@@ -429,12 +424,7 @@ impl<'program> CurrentScalarValues<'program> {
                     if let Some((owner, path)) = field_storage_path(program, assignment.target) {
                         values.replace_conditions(owner, &path, conditions);
                         values.replace_scalar_fields(owner, &path, scalar_fields);
-                        values.replace_record_fields(
-                            owner,
-                            &path,
-                            &program.expression_table.display_name(assignment.target),
-                            fields,
-                        );
+                        values.replace_record_fields(owner, &path, fields);
                     }
                 }
                 StatementNode::Call(call) => {

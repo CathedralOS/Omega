@@ -211,7 +211,9 @@ impl Coordinate {
             validation::RankPremiseObservation::Value => {
                 values.projected_scalar_value(actual, &self.path)
             }
-            validation::RankPremiseObservation::Length => values.current_collection_length(actual),
+            validation::RankPremiseObservation::Length => {
+                values.projected_collection_length(actual, &self.path)
+            }
         }
     }
 }
@@ -258,9 +260,9 @@ fn coordinates(
                 });
             }
         }
+        // The entry seed walks owned inline records only. Borrowed storage
+        // and erased/static parameters cannot acquire a private read here.
         if observation == validation::RankPremiseObservation::Value {
-            // The entry seed walks owned inline records only. Borrowed storage
-            // and erased/static parameters cannot acquire a private read here.
             for (path, primitive, value) in values.scalar_field_observations(parameter.symbol) {
                 coordinates.push(Coordinate {
                     parameter: parameter.symbol,
@@ -271,6 +273,36 @@ fn coordinates(
                     entry_value: value.clone(),
                     position,
                     primitive,
+                    observation,
+                });
+            }
+        } else {
+            for (path, value) in values.length_field_observations(parameter.symbol) {
+                let path = path
+                    .iter()
+                    .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                    .collect::<Vec<_>>();
+                // Extents also include fixed arrays. The ordinary coordinate
+                // owner authenticates that this selected leaf is a descriptor
+                // observation before it can enter a Slice::Length component.
+                if validation::ranking_slice_length_observation(
+                    program,
+                    state,
+                    &validation::RankSubjectCoordinate {
+                        parameter: parameter.symbol,
+                        path: path.clone(),
+                    },
+                )
+                .is_none()
+                {
+                    continue;
+                }
+                coordinates.push(Coordinate {
+                    parameter: parameter.symbol,
+                    path,
+                    entry_value: value.clone(),
+                    position,
+                    primitive: PrimitiveType::U64,
                     observation,
                 });
             }
