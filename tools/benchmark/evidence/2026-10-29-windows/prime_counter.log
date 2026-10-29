@@ -1,0 +1,2 @@
+omega.lock missing; settling package review via omega update (records project acceptance, not an audit)
+package-review settlement failed; omega.lock missing in C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\samples\cli\arithmetic\prime_counter (update exit 124)

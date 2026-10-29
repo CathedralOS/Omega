@@ -35,7 +35,7 @@ samples' `press Enter` idiom) receive EOF immediately.
 
 `--enable <ExactName>` augments the enabled-selection key for subjects
 whose `build.omg` cannot express it; normally the enabled set is read
-from the subject's sibling `build.omg` `optimizations.enable(...)`
+from the subject's sibling `build.omg` `Optimizations::enable(...)`
 calls, because the CLI can only disable. `--no-run` marks the runtime
 leg `skipped` for cross targets the host cannot execute. New target
 profiles need no code change — pass the profile name to `--target`.
@@ -90,6 +90,11 @@ the submitted source; never include it in a PR. Remove only owned disposable
 state when cleaning up the task's worktree.
 
 ## Record schema `omega-benchmark-record/2`
+
+Optional `observation_warnings` strings qualify the recorded observation or its
+measurement batch. The dashboard shows the newest observation's warnings above
+the charts. Retain raw diagnostics alongside a failed attempt; warnings never
+turn a refusal or timeout into a successful timing.
 
 Each file in `records/` is one JSON object. Committed `/1` rows remain
 readable and valid under their own rules; `measure` only writes `/2`.
