@@ -18,7 +18,7 @@ pub(crate) fn lower_decoded_module(
     module: &TerminalModule,
     entry: semantic_vocabulary::MachineId,
 ) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_selected_module(module, entry, module.structural_types.clone(), None)
+    lower_selected_module(module, entry, module.structural_types.clone(), None, None)
 }
 
 /// Consume the invocation's work domain and geometry before lowering any body.
@@ -28,11 +28,12 @@ pub(crate) fn lower_selected_module(
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     scope: Option<&crate::native_execution_scope::NativeExecutionScope>,
+    scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
     // Catalog retention and successful source checking are not target closure.
     // Native lowering must consume a complete scalar admission before this
     // conditional program can acquire an executable plan.
-    if !module.scalar_applications.conditions.is_empty() {
+    if !module.scalar_applications.conditions.is_empty() && scalar_applications.is_none() {
         return Err(LoweringError::UnclosedScalarConditions);
     }
     // Boundary crash contracts ride through `boundary_machines` unchanged.
@@ -46,7 +47,7 @@ pub(crate) fn lower_selected_module(
         .machines
         .iter()
         .filter(|machine| scope.is_none_or(|scope| scope.contains_machine(machine.id)))
-        .map(|machine| lower_machine(module, machine, &structural_types))
+        .map(|machine| lower_machine(module, machine, &structural_types, scalar_applications))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(AbstractOperationPlan {
         psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,

@@ -163,6 +163,7 @@ fn qualify_helper(machine: &str, writes: bool) {
             module.entry,
             std::slice::from_ref(&establishment),
             &terminal_psi_to_abstract_operations::NativeExecutionSelection {
+                scalar_applications: None,
                 providers: &[],
                 plans: &effects::SelectedProviderPlanFacts::default(),
                 callbacks: &[],

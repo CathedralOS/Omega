@@ -56,6 +56,7 @@ pub fn admit_native_realization<'execution>(
         request.entry,
         request.private_entry_ram,
         &crate::NativeExecutionSelection {
+            scalar_applications: None,
             providers: request.providers.checked_adapters,
             plans: request.providers.selected_provider_plans,
             callbacks: &[],

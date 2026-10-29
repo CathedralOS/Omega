@@ -30,13 +30,13 @@ pub use closure::{
     AdmittedScalarApplications, ScalarAddressModel, ScalarApplicationClosure, ScalarScopeInputs,
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct ApplicationObservations {
     value: Option<TerminalScalarValue>,
     results: Arena<EntryResult>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 enum EntryResult {
     #[default]
     Missing,
@@ -58,7 +58,7 @@ pub struct ScalarApplicationObservations<'artifact> {
 
 /// Immutable provisional inputs to one evaluation. Cloning shares the retained
 /// rows; recording the next completed job cannot mutate a suspended invocation.
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarApplicationValues(std::sync::Arc<Arena<ApplicationObservations>>);
 
 impl ScalarApplicationValues {

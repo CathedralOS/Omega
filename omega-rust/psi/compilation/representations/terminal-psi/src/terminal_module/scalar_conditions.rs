@@ -139,6 +139,16 @@ impl ScalarPredicateCondition {
 }
 
 impl ScalarConditions {
+    /// Whether this exact subject owns any retained checking debt.
+    pub fn contains_subject(&self, subject: ScalarConditionSubject) -> bool {
+        self.ranges().iter().any(|condition| {
+            matches!(condition, ScalarRangeCondition::Range { subject: owner, .. } if *owner == subject)
+        }) || self.predicates().iter().any(|condition| condition.subject == subject)
+            || self.completions().iter().any(|condition| {
+                matches!(condition, ScalarCompletionCondition::Complete { subject: owner, .. } if *owner == subject)
+            })
+    }
+
     pub fn completions(&self) -> &[ScalarCompletionCondition] {
         self.completions.storage_slice()
     }

@@ -26,6 +26,7 @@ pub struct VerifiedNativeArtifactInput {
 /// Invocation choices needed before executable lowering. These select work;
 /// provider admission still owns the authority to install the selected supply.
 pub struct NativeExecutionSelection<'request> {
+    pub scalar_applications: Option<super::NativeScalarApplications<'request>>,
     pub providers: &'request [crate::SelectedProviderAdapter],
     pub plans: &'request effects::SelectedProviderPlanFacts,
     pub callbacks: &'request [backend_plan::TerminalCallbackOccurrenceProposal],
@@ -71,8 +72,18 @@ impl VerifiedNativeArtifactInput {
             selection.callbacks,
         )
         .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+        let scalar_applications = selection
+            .scalar_applications
+            .as_ref()
+            .map(|inputs| inputs.bind(artifact, profile, &selections, &layouts, selection, &scope))
+            .transpose()
+            .map_err(ArtifactLoweringError::TargetFamily)?;
         let mut structural_types = module.structural_types.clone();
-        for resolved in layouts.resolved_records() {
+        let geometry = scalar_applications.map_or_else(
+            || layouts.resolved_records(),
+            |closed| closed.geometry().as_ref(),
+        );
+        for resolved in geometry {
             let declaration = structural_types
                 .iter_mut()
                 .find(|row| row.id == resolved.id)
@@ -83,13 +94,19 @@ impl VerifiedNativeArtifactInput {
                 })?;
             *declaration = resolved.clone();
         }
-        let plan =
-            crate::lowering::lower_selected_module(module, entry, structural_types, Some(&scope))
-                .map_err(ArtifactLoweringError::Lowering)?;
+        let plan = crate::lowering::lower_selected_module(
+            module,
+            entry,
+            structural_types,
+            Some(&scope),
+            scalar_applications,
+        )
+        .map_err(ArtifactLoweringError::Lowering)?;
         let mut input = retain_native_plan(module, plan, Some(selections))
             .try_into_native_input(establishments)?;
         input.optimization_input.selected_program_entry_call = selection.entry_call.cloned();
         input.optimization_input.target_layout_selections = Some(layouts);
+        input.optimization_input.scalar_applications = scalar_applications.cloned();
         Ok(input)
     }
 
@@ -327,6 +344,7 @@ fn retain_native_plan(
     let context = retain_optimization_context(module);
     AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput {
+            scalar_applications: None,
             selected_program_entry_call: None,
             plan,
             context,
@@ -437,6 +455,7 @@ mod private_entry_target_tests {
                 artifact.semantic_module().entry,
                 std::slice::from_ref(&recipe),
                 &NativeExecutionSelection {
+                    scalar_applications: None,
                     providers: &[],
                     plans: &effects::SelectedProviderPlanFacts::default(),
                     callbacks: &[],

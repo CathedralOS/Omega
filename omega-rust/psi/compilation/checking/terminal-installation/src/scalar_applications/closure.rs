@@ -51,14 +51,14 @@ impl ScalarScopeInputs {
 /// Completed conditional judgment and primary values for one exact deployment.
 /// Supplemental scopes retain their dependencies, never replace primary values.
 /// No public constructor or codec can promote an unfinished provisional ledger.
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedScalarApplications {
     terminal: TerminalPsiIdentity,
     primary: CompletedScalarScope,
     supplemental: Vec<ScalarScopeInputs>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct CompletedScalarScope {
     inputs: ScalarScopeInputs,
     values: ScalarApplicationValues,

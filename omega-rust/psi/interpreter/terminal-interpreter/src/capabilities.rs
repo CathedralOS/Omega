@@ -408,10 +408,7 @@ pub(crate) fn check_with_private_entry_ram(
             .and_then(semantic_vocabulary::ScalarApplicationId::new)
             .ok_or_else(crate::errors::malformed)?;
         let subject = terminal_psi::ScalarConditionSubject::Application(application);
-        let has_debt = catalog.conditions.ranges().iter().any(|condition| matches!(condition, terminal_psi::ScalarRangeCondition::Range { subject: owner, .. } if *owner == subject))
-            || catalog.conditions.predicates().iter().any(|condition| condition.subject == subject)
-            || catalog.conditions.completions().iter().any(|condition| matches!(condition, terminal_psi::ScalarCompletionCondition::Complete { subject: owner, .. } if *owner == subject));
-        if has_debt {
+        if catalog.conditions.contains_subject(subject) {
             scalar_entry_conditions.push(application);
         }
     }

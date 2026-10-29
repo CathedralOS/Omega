@@ -165,6 +165,7 @@ fn source_checked_obligation_facts(
 /// optimizer-only input cannot grant native admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
+    pub(crate) scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
     pub(crate) selected_program_entry_call: Option<crate::SelectedProgramEntryCall>,
     pub(crate) plan: AbstractOperationPlan,
     pub(crate) context: VerifiedPsiOptimizationContext,
@@ -183,6 +184,13 @@ pub struct VerifiedPsiOptimizationInput {
 }
 
 impl VerifiedPsiOptimizationInput {
+    /// Completed target-bound scalar judgment used to produce this plan.
+    pub fn scalar_applications(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+        self.scalar_applications.as_ref()
+    }
+
     pub fn selected_program_entry_call(&self) -> Option<&crate::SelectedProgramEntryCall> {
         self.selected_program_entry_call.as_ref()
     }

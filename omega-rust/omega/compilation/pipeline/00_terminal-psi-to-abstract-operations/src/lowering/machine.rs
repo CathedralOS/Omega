@@ -27,6 +27,7 @@ pub(super) fn lower_machine(
     module: &terminal_psi::TerminalModule,
     machine: &TerminalMachine,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
 ) -> Result<AbstractFunction, LoweringError> {
     let result = machine.result.scalar();
     let blocks = machine
@@ -95,6 +96,7 @@ pub(super) fn lower_machine(
                 machine,
                 module,
                 structural_types,
+                scalar_applications,
                 &module.placed_view_plans,
                 &value_types,
                 &byte_sequence_literals,

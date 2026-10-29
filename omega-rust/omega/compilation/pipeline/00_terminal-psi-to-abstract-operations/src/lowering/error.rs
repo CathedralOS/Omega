@@ -4,6 +4,7 @@ use terminal_codec::CodecError;
 pub enum LoweringError {
     UnclosedScalarConditions,
     UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
+    ScalarApplicationCarrierMismatch(semantic_vocabulary::OperationId),
     /// A caller-activation operation lost its authenticated carrier or custody.
     InvalidActivationStorage(semantic_vocabulary::OperationId),
     /// Native publication must retain executable reference loan custody before

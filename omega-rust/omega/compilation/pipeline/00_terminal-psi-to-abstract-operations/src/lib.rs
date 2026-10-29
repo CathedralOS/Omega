@@ -70,8 +70,8 @@ pub use retained_terminal::{
 
 pub(crate) use artifact_admission::ArtifactLoweringError;
 pub use artifact_admission::{
-    ArtifactSections, NativeExecutionSelection, TerminalPlacedViewEstablishment,
-    VerifiedNativeArtifactInput, lower_artifact,
+    ArtifactSections, NativeExecutionSelection, NativeScalarApplications,
+    TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
 pub(crate) use callback_settlement::{

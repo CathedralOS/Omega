@@ -7,6 +7,7 @@ mod error;
 mod establishment;
 mod native;
 mod retention;
+mod scalar_applications;
 
 #[cfg(test)]
 mod qualified_cleanup_receiving_tests;
@@ -15,6 +16,7 @@ pub(crate) use error::ArtifactLoweringError;
 pub use establishment::TerminalPlacedViewEstablishment;
 pub(crate) use native::AdmittedNativeArtifact;
 pub use native::{NativeExecutionSelection, VerifiedNativeArtifactInput};
+pub use scalar_applications::NativeScalarApplications;
 
 /// Canonical artifact sections.
 #[derive(Clone, Copy)]

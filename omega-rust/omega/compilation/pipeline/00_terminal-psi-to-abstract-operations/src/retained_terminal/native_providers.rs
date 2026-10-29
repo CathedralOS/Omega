@@ -167,6 +167,7 @@ impl TerminalNativeRealizationProposal {
             root,
             private_entry_ram,
             &crate::NativeExecutionSelection {
+                scalar_applications: None,
                 providers: &local_adapters,
                 plans: &self.providers().selection,
                 callbacks: &self.occurrences().callbacks,
@@ -196,6 +197,7 @@ impl TerminalNativeRealizationProposal {
             entry,
             &[],
             &crate::NativeExecutionSelection {
+                scalar_applications: None,
                 providers: &self.providers().checked_adapters,
                 plans: &self.providers().selection,
                 callbacks: &self.occurrences().callbacks,

@@ -118,6 +118,7 @@ fn prepare_at(
         reloaded.semantic_module().entry,
         &[],
         &NativeExecutionSelection {
+            scalar_applications: None,
             providers: &[],
             plans: &effects::SelectedProviderPlanFacts::default(),
             callbacks: &[],
