@@ -1,4 +1,4 @@
-//! Bounded receiving view of the existing complete v4 plan commitment input.
+//! Bounded receiving view of the current complete plan commitment input.
 //!
 //! This reader does not mint a ProviderPlan, evaluated binding receipt, or
 //! selection authority. It authenticates the original normalized bytes and
@@ -8,7 +8,7 @@
 
 use sha2::{Digest, Sha256};
 
-const DOMAIN: &[u8] = b"omega.provider-plan.sha256.v4\0";
+use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
 
@@ -36,16 +36,18 @@ impl<'a> ProviderPlanInput<'a> {
             return Err("provider plan input differs from its complete commitment");
         }
         let mut reader = Reader { bytes, offset: 0 };
-        if reader.take(DOMAIN.len())? != DOMAIN {
+        if reader.take(PROVIDER_PLAN_DOMAIN.len())? != PROVIDER_PLAN_DOMAIN {
             return Err("unknown provider plan input schema");
         }
         reader.nonempty_string()?; // selection name
         let provider = reader.string()?;
+        reader.string()?; // complete applied provider identity, or empty for a declaration
         let provider_package = reader.package()?;
         let target = reader.string()?;
         reader.nonempty_string()?; // schema identity
         reader.package()?;
         for _ in 0..reader.count()? {
+            reader.string()?; // complete applied receiver identity
             reader.nonempty_string()?;
             reader.package()?;
             reader.strings()?;
@@ -366,7 +368,8 @@ mod tests {
         unknown_schema[0] ^= 1;
         assert!(read(&unknown_schema).is_err());
         let mut overflowing_string = bytes;
-        overflowing_string[DOMAIN.len()..DOMAIN.len() + 8].copy_from_slice(&u64::MAX.to_le_bytes());
+        overflowing_string[PROVIDER_PLAN_DOMAIN.len()..PROVIDER_PLAN_DOMAIN.len() + 8]
+            .copy_from_slice(&u64::MAX.to_le_bytes());
         assert!(read(&overflowing_string).is_err());
         let mut repeated = plan.clone();
         repeated.rows.push(repeated.rows[0].clone());
