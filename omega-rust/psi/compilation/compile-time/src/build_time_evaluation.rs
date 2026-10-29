@@ -886,7 +886,6 @@ impl compiler_storage::Record for PreCheckEvaluation {
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
         output.record(|output| {
             self.domain.write(output)?;
             self.wire_schema_frontier.write(output)?;

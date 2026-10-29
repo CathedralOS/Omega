@@ -170,6 +170,7 @@ impl PendingSourceResolution {
             requester: self.owner.requester.key().clone(),
             purpose: self.purpose,
             dependency_index: self.dependency_index,
+            #[cfg(test)]
             request: self.source().clone(),
             error,
         }

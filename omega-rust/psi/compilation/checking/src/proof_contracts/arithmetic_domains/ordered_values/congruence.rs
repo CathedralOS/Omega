@@ -558,7 +558,9 @@ fn collect_term<'terms>(
         children: Vec::new(),
     });
     let children: Vec<&Operand> = match operand {
-        Operand::Place { .. } | Operand::Integer(..) | Operand::CompletedCall { .. } => Vec::new(),
+        Operand::Place { .. } | Operand::Integer(..) => Vec::new(),
+        #[cfg(test)]
+        Operand::CompletedCall { .. } => Vec::new(),
         Operand::Field { receiver, .. } | Operand::CollectionLength(receiver) => vec![receiver],
         Operand::Indexed {
             collection, index, ..
