@@ -344,6 +344,12 @@ pub enum BuiltinFunction {
     IntegerEmbed,
 }
 
+macro_rules! roster {
+    ($name:ident => $spelling:literal) => {
+        (Self::$name, $spelling)
+    };
+}
+
 impl BuiltinFunction {
     pub const COUNT: usize = 103;
 
@@ -381,14 +387,8 @@ impl BuiltinFunction {
         (Self::FloatIsNan, "float#is_nan"),
         (Self::FloatMultiplyThenAddF32, "float#multiply_then_add_f32"),
         (Self::FloatMultiplyThenAddF64, "float#multiply_then_add_f64"),
-        (
-            Self::FloatFusedMultiplyAddF32,
-            "float#fused_multiply_add_f32",
-        ),
-        (
-            Self::FloatFusedMultiplyAddF64,
-            "float#fused_multiply_add_f64",
-        ),
+        roster!(FloatFusedMultiplyAddF32 => "float#fused_multiply_add_f32"),
+        roster!(FloatFusedMultiplyAddF64 => "float#fused_multiply_add_f64"),
         (Self::FloatIsFinite, "float#is_finite"),
         (Self::FloatIsInfinite, "float#is_infinite"),
         (Self::FloatIsNormal, "float#is_normal"),
@@ -399,120 +399,36 @@ impl BuiltinFunction {
         (Self::ContentSeparate, "separate"),
         (Self::FloatAddTowardZeroF32, "float#add_toward_zero_f32"),
         (Self::FloatAddTowardZeroF64, "float#add_toward_zero_f64"),
-        (
-            Self::FloatAddTowardPositiveF32,
-            "float#add_toward_positive_f32",
-        ),
-        (
-            Self::FloatAddTowardPositiveF64,
-            "float#add_toward_positive_f64",
-        ),
-        (
-            Self::FloatAddTowardNegativeF32,
-            "float#add_toward_negative_f32",
-        ),
-        (
-            Self::FloatAddTowardNegativeF64,
-            "float#add_toward_negative_f64",
-        ),
-        (
-            Self::FloatSubtractTowardZeroF32,
-            "float#subtract_toward_zero_f32",
-        ),
-        (
-            Self::FloatSubtractTowardZeroF64,
-            "float#subtract_toward_zero_f64",
-        ),
-        (
-            Self::FloatSubtractTowardPositiveF32,
-            "float#subtract_toward_positive_f32",
-        ),
-        (
-            Self::FloatSubtractTowardPositiveF64,
-            "float#subtract_toward_positive_f64",
-        ),
-        (
-            Self::FloatSubtractTowardNegativeF32,
-            "float#subtract_toward_negative_f32",
-        ),
-        (
-            Self::FloatSubtractTowardNegativeF64,
-            "float#subtract_toward_negative_f64",
-        ),
-        (
-            Self::FloatMultiplyTowardZeroF32,
-            "float#multiply_toward_zero_f32",
-        ),
-        (
-            Self::FloatMultiplyTowardZeroF64,
-            "float#multiply_toward_zero_f64",
-        ),
-        (
-            Self::FloatMultiplyTowardPositiveF32,
-            "float#multiply_toward_positive_f32",
-        ),
-        (
-            Self::FloatMultiplyTowardPositiveF64,
-            "float#multiply_toward_positive_f64",
-        ),
-        (
-            Self::FloatMultiplyTowardNegativeF32,
-            "float#multiply_toward_negative_f32",
-        ),
-        (
-            Self::FloatMultiplyTowardNegativeF64,
-            "float#multiply_toward_negative_f64",
-        ),
-        (
-            Self::FloatDivideTowardZeroF32,
-            "float#divide_toward_zero_f32",
-        ),
-        (
-            Self::FloatDivideTowardZeroF64,
-            "float#divide_toward_zero_f64",
-        ),
-        (
-            Self::FloatDivideTowardPositiveF32,
-            "float#divide_toward_positive_f32",
-        ),
-        (
-            Self::FloatDivideTowardPositiveF64,
-            "float#divide_toward_positive_f64",
-        ),
-        (
-            Self::FloatDivideTowardNegativeF32,
-            "float#divide_toward_negative_f32",
-        ),
-        (
-            Self::FloatDivideTowardNegativeF64,
-            "float#divide_toward_negative_f64",
-        ),
+        roster!(FloatAddTowardPositiveF32 => "float#add_toward_positive_f32"),
+        roster!(FloatAddTowardPositiveF64 => "float#add_toward_positive_f64"),
+        roster!(FloatAddTowardNegativeF32 => "float#add_toward_negative_f32"),
+        roster!(FloatAddTowardNegativeF64 => "float#add_toward_negative_f64"),
+        roster!(FloatSubtractTowardZeroF32 => "float#subtract_toward_zero_f32"),
+        roster!(FloatSubtractTowardZeroF64 => "float#subtract_toward_zero_f64"),
+        roster!(FloatSubtractTowardPositiveF32 => "float#subtract_toward_positive_f32"),
+        roster!(FloatSubtractTowardPositiveF64 => "float#subtract_toward_positive_f64"),
+        roster!(FloatSubtractTowardNegativeF32 => "float#subtract_toward_negative_f32"),
+        roster!(FloatSubtractTowardNegativeF64 => "float#subtract_toward_negative_f64"),
+        roster!(FloatMultiplyTowardZeroF32 => "float#multiply_toward_zero_f32"),
+        roster!(FloatMultiplyTowardZeroF64 => "float#multiply_toward_zero_f64"),
+        roster!(FloatMultiplyTowardPositiveF32 => "float#multiply_toward_positive_f32"),
+        roster!(FloatMultiplyTowardPositiveF64 => "float#multiply_toward_positive_f64"),
+        roster!(FloatMultiplyTowardNegativeF32 => "float#multiply_toward_negative_f32"),
+        roster!(FloatMultiplyTowardNegativeF64 => "float#multiply_toward_negative_f64"),
+        roster!(FloatDivideTowardZeroF32 => "float#divide_toward_zero_f32"),
+        roster!(FloatDivideTowardZeroF64 => "float#divide_toward_zero_f64"),
+        roster!(FloatDivideTowardPositiveF32 => "float#divide_toward_positive_f32"),
+        roster!(FloatDivideTowardPositiveF64 => "float#divide_toward_positive_f64"),
+        roster!(FloatDivideTowardNegativeF32 => "float#divide_toward_negative_f32"),
+        roster!(FloatDivideTowardNegativeF64 => "float#divide_toward_negative_f64"),
         (Self::FloatSqrtTowardZeroF32, "float#sqrt_toward_zero_f32"),
         (Self::FloatSqrtTowardZeroF64, "float#sqrt_toward_zero_f64"),
-        (
-            Self::FloatSqrtTowardPositiveF32,
-            "float#sqrt_toward_positive_f32",
-        ),
-        (
-            Self::FloatSqrtTowardPositiveF64,
-            "float#sqrt_toward_positive_f64",
-        ),
-        (
-            Self::FloatSqrtTowardNegativeF32,
-            "float#sqrt_toward_negative_f32",
-        ),
-        (
-            Self::FloatSqrtTowardNegativeF64,
-            "float#sqrt_toward_negative_f64",
-        ),
-        (
-            Self::FloatFusedMultiplyAddTowardZeroF32,
-            "float#fused_multiply_add_toward_zero_f32",
-        ),
-        (
-            Self::FloatFusedMultiplyAddTowardZeroF64,
-            "float#fused_multiply_add_toward_zero_f64",
-        ),
+        roster!(FloatSqrtTowardPositiveF32 => "float#sqrt_toward_positive_f32"),
+        roster!(FloatSqrtTowardPositiveF64 => "float#sqrt_toward_positive_f64"),
+        roster!(FloatSqrtTowardNegativeF32 => "float#sqrt_toward_negative_f32"),
+        roster!(FloatSqrtTowardNegativeF64 => "float#sqrt_toward_negative_f64"),
+        roster!(FloatFusedMultiplyAddTowardZeroF32 => "float#fused_multiply_add_toward_zero_f32"),
+        roster!(FloatFusedMultiplyAddTowardZeroF64 => "float#fused_multiply_add_toward_zero_f64"),
         (
             Self::FloatFusedMultiplyAddTowardPositiveF32,
             "float#fused_multiply_add_toward_positive_f32",
