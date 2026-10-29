@@ -4,9 +4,10 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[4]
-DATA = ROOT / 'build/unplaced-batch-experiment/qualification'
+DATA = ROOT / (sys.argv[1] if len(sys.argv) > 1 else 'build/unplaced-batch-experiment') / 'qualification'
 DATA.mkdir(exist_ok=True)
 spec = importlib.util.spec_from_file_location('first', ROOT / 'wiki/drafts/measurements/compiler_parallelism_2026_10_28/sweep.py')
 first = importlib.util.module_from_spec(spec)

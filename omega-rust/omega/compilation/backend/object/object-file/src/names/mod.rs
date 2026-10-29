@@ -143,6 +143,7 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
     .to_owned()
 }
 
+#[cfg(test)]
 pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
     match section {
         SymbolSection::None => String::new(),

@@ -27,13 +27,13 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub use numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 
-/// Collision-resistant commitment to the exact selected ProviderPlan.
-///
-/// Psi owns this opaque byte carrier so checked operator evidence can retain
-/// Omega's plan digest without introducing an upward dependency on
-/// `effects`. The provider-planning boundary is responsible for copying
-/// the digest from the exact selected plan.
 typed_trees::digest_commitment! {
+    /// Collision-resistant commitment to the exact selected ProviderPlan.
+    ///
+    /// Psi owns this opaque byte carrier so checked operator evidence can retain
+    /// Omega's plan digest without introducing an upward dependency on
+    /// `effects`. The provider-planning boundary is responsible for copying
+    /// the digest from the exact selected plan.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
     CheckedProviderPlanCommitment
 }

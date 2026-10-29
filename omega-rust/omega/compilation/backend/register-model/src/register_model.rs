@@ -95,6 +95,8 @@ impl ValidatedPhysicalRegisterModel {
         self.identity
     }
 
+    /// Unwrap for tests that mutate the validated model and validate it again.
+    #[cfg(test)]
     pub(crate) fn into_model(self) -> PhysicalRegisterModel {
         self.model
     }

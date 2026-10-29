@@ -44,13 +44,15 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         }
         .build_dir(),
     };
-    let (work, _occupancies) = build_directory::admit_outputs(
-        &profiles,
-        &base_directory,
-        &request.root_path,
-        matches!(request.targets, BuildTargets::Batch(_)),
-        check_workspace.is_some(),
-    );
+    let (work, _occupancies) = phase_profile::scope("build.admit_outputs", || {
+        build_directory::admit_outputs(
+            &profiles,
+            &base_directory,
+            &request.root_path,
+            matches!(request.targets, BuildTargets::Batch(_)),
+            check_workspace.is_some(),
+        )
+    });
     let prepared = timings
         .record_result(
             StageMeta::new("prepare", "project", "prepared sources"),
@@ -85,20 +87,24 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
                         "Build execution needs an admitted host profile",
                     )])
                 })?;
-                let mut session = crate::BuildSession::create_retained(&base_directory)
-                    .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
-                let resolved = crate::resolve_project_sources(
-                    &mut session,
-                    crate::ProjectSourceRequest {
-                        preparation,
-                        execution: package_compilation::BuildExecutionInputs {
-                            profile: Some(host),
-                            snapshot: request.build_snapshot.clone(),
-                            ..Default::default()
+                let mut session = phase_profile::scope("build.create_session", || {
+                    crate::BuildSession::create_retained(&base_directory)
+                })
+                .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
+                let resolved = phase_profile::scope("build.resolve_sources", || {
+                    crate::resolve_project_sources(
+                        &mut session,
+                        crate::ProjectSourceRequest {
+                            preparation,
+                            execution: package_compilation::BuildExecutionInputs {
+                                profile: Some(host),
+                                snapshot: request.build_snapshot.clone(),
+                                ..Default::default()
+                            },
+                            collect_timings: request.timings,
                         },
-                        collect_timings: request.timings,
-                    },
-                );
+                    )
+                });
                 let resolved = match resolved {
                     Ok(resolved) => resolved,
                     Err(error) => {

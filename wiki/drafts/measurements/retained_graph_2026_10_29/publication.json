@@ -1,0 +1,23 @@
+{
+  "pull_request": "https://github.com/CathedralOS/Omega/pull/755",
+  "state": "MERGED",
+  "submitted_head": "9ebe45062d8d550465a01077d64a965dec65f838",
+  "published_commit": "06f2cccfa51c3d265da5dbf04eae9d5b0fdce220",
+  "published_ancestor_of_fetched_main": true,
+  "pull_request_check": "https://github.com/CathedralOS/Omega/actions/runs/40830514153",
+  "integration_check": "https://github.com/CathedralOS/Omega/actions/runs/40831029468",
+  "integration_conclusion": "success",
+  "exact_published_smoke": {
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40831278050",
+    "conclusion": "cancelled",
+    "reason": "superseded pending run; not runtime evidence"
+  },
+  "newer_main_smoke": {
+    "commit": "975705175c7de3cfd970192cc5551759cade46ab",
+    "contains_published_commit": true,
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40831730950",
+    "conclusion": "success",
+    "job": "regression (ubuntu-24.04)"
+  },
+  "qualification_boundary": "Historical Windows benchmark observations remain bound to the original source and producer, not relabelled as runs of the published compiler. Postlanding verification was read-only; no local rebuild or acceptance rerun against moving main."
+}

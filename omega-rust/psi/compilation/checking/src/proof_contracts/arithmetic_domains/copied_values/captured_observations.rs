@@ -90,6 +90,7 @@ impl CapturedValue<'_> {
                 }),
             Operand::Binary { operands, .. } => operands.iter().all(survives),
             Operand::Call { arguments, .. } => arguments.iter().all(survives),
+            #[cfg(test)]
             Operand::CompletedCall { .. } => false,
             Operand::Place { .. } | Operand::Integer(..) => false,
         }

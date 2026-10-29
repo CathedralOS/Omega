@@ -4,9 +4,11 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 
 ROOT = Path(__file__).resolve().parents[4]
-BASE = ROOT / 'build/unplaced-batch-experiment'
+BASE = ROOT / (sys.argv[1] if len(sys.argv) > 1 else 'build/unplaced-batch-experiment')
+SUBJECTS = tuple(sys.argv[2:]) or ('length', 'dispatch')
 DATA = BASE / 'small-followup'
 DATA.mkdir()
 spec = importlib.util.spec_from_file_location('first', ROOT / 'wiki/drafts/measurements/compiler_parallelism_2026_10_28/sweep.py')
@@ -49,12 +51,12 @@ def compile_one(flavor, subject, label, profile=False):
 
 for flavor, producer in producers.items():
     assert first.require_optimized(producer['binary'])['sha256'] == producer['sha256']
-    for subject in ('length', 'dispatch'):
+    for subject in SUBJECTS:
         records['profiles'].append(compile_one(flavor, subject, f'profile-{flavor}-{subject}', True))
         retain()
 for block in range(4):
     order = ['baseline', 'candidate', 'candidate', 'baseline'] if block % 2 == 0 else ['candidate', 'baseline', 'baseline', 'candidate']
-    for subject in ('length', 'dispatch'):
+    for subject in SUBJECTS:
         for ordinal, flavor in enumerate(order):
             row = compile_one(flavor, subject, f'{block}-{subject}-{ordinal}-{flavor}')
             row['block'] = block

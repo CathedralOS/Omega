@@ -431,7 +431,6 @@ impl compiler_storage::Record for PreparedSource {
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
         output.record(|output| {
             self.root.write(output)?;
             self.inputs.write(output)?;

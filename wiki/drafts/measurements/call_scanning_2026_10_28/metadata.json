@@ -1,0 +1,45 @@
+{
+  "fixed_base": "ba621694ff483f2b66c2e8343aac4d8b24098581",
+  "decision": "inconclusive; candidate removed from production source",
+  "build_command": "python tools/build_slot.py -- pwsh -NoProfile -File build/call-scan-loop/candidate-chain.ps1",
+  "candidate_build": [
+    "mbx",
+    "build",
+    "-p",
+    "omega",
+    "--locked",
+    "--target-dir",
+    "build/pass-producer"
+  ],
+  "build_exit": 0,
+  "screen_command": [
+    "python",
+    "wiki/drafts/measurements/spill_loop_2026_10_28/ablate.py",
+    "build/statement-loop/candidate/omega.exe",
+    "build/call-scan-loop/candidate/omega.exe",
+    "build/call-scan-loop/screen"
+  ],
+  "screen_exit": 0,
+  "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "target": "windows_x86_64",
+  "environment": "Fresh LOCALAPPDATA and project per observation; package review outside measured compile; OMEGA_PHASE_PROFILE=1",
+  "producers": {
+    "A": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "sha256": "67c79dda5d51d0034320ae0244b957a041794c751b69f07cdd42a08d453702b3",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "B": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\call-scan-loop\\candidate\\omega.exe",
+      "sha256": "eaed205f3551077ee27108ed9dc9754e74e115e8da5b24d41f8a7638fc13d884",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "quality": "All six compiler exits and native exits were 0; byte-identical PE across A/B. No diagnostic parity or focused contract-control run was performed after the inconclusive screen."
+}

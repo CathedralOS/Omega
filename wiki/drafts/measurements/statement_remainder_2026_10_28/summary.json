@@ -1,0 +1,131 @@
+{
+  "stack32": {
+    "A": {
+      "wall_ms": {
+        "median": 6557.369950001885,
+        "minimum": 5808.795699995244,
+        "maximum": 7578.370800008997,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 2431.0,
+        "minimum": 2216.323,
+        "maximum": 2658.244,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1335052288.0,
+        "minimum": 1306251264,
+        "maximum": 1368702976,
+        "count": 4
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 6175.246450002305,
+        "minimum": 5462.828500007163,
+        "maximum": 6941.629199995077,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 2180.7355,
+        "minimum": 1858.153,
+        "maximum": 2460.611,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1361977344.0,
+        "minimum": 1331568640,
+        "maximum": 1394675712,
+        "count": 4
+      }
+    },
+    "wall_reduction_percent": 5.827389683869666
+  },
+  "length": {
+    "A": {
+      "wall_ms": {
+        "median": 3185.8453000022564,
+        "minimum": 3058.5260999941966,
+        "maximum": 3275.406499989913,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1587.0900000000001,
+        "minimum": 1549.08,
+        "maximum": 1706.27,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1251796992.0,
+        "minimum": 1208745984,
+        "maximum": 1284550656,
+        "count": 4
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 2995.80179998884,
+        "minimum": 2879.888800001936,
+        "maximum": 3078.3874000044307,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1564.324,
+        "minimum": 1515.662,
+        "maximum": 1602.171,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1223692288.0,
+        "minimum": 1185693696,
+        "maximum": 1254195200,
+        "count": 4
+      }
+    },
+    "wall_reduction_percent": 5.96524570773358
+  },
+  "dispatch": {
+    "A": {
+      "wall_ms": {
+        "median": 2539.3738499988103,
+        "minimum": 2386.910400004126,
+        "maximum": 2840.158599996357,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1300.4245,
+        "minimum": 1208.43,
+        "maximum": 1450.978,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1266874368.0,
+        "minimum": 1224384512,
+        "maximum": 1281531904,
+        "count": 4
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 2394.6928500008653,
+        "minimum": 2365.768499992555,
+        "maximum": 2399.864199993317,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1208.2269999999999,
+        "minimum": 1190.155,
+        "maximum": 1216.88,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1310908416.0,
+        "minimum": 1307533312,
+        "maximum": 1326981120,
+        "count": 4
+      }
+    },
+    "wall_reduction_percent": 5.697506887298731
+  }
+}

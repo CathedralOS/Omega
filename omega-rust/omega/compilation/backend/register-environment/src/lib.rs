@@ -168,6 +168,11 @@ impl ValidatedTargetRegisterEnvironment {
     /// Target-selected scalar-call constraint. This is validated environment
     /// data only; it does not claim that the selected CFG can lower a general
     /// scalar call yet.
+    ///
+    /// Nothing but the call-clobber tests reads it while general selected call
+    /// lowering is unimplemented, so it stays a catalog witness rather than a
+    /// production accessor.
+    #[cfg(test)]
     pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
         self.constraint(self::catalog::scalar_call_constraint_key(self.target)?)
     }
