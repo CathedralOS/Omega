@@ -17,6 +17,12 @@ use super::scalar_term_wire::encode_scalar_term;
 use super::wire::{Writer, require_increasing, strictly_increasing};
 use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH};
 
+macro_rules! noncanonical {
+    ($reason:expr) => {
+        CodecError::NonCanonicalOrder($reason)
+    };
+}
+
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     require_increasing(
         module
@@ -96,9 +102,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 .iter()
                 .any(|live| !strictly_increasing(live.claims.iter().copied()))
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "task activation live carry claims",
-                ));
+                return Err(noncanonical!("task activation live carry claims"));
             }
         }
     }
@@ -153,9 +157,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 }
                 for (ordinal, argument) in arguments.iter().enumerate() {
                     if usize::try_from(argument.binder_ordinal()).ok() != Some(ordinal) {
-                        return Err(CodecError::NonCanonicalOrder(
-                            "boundary application binders",
-                        ));
+                        return Err(noncanonical!("boundary application binders"));
                     }
                     if let terminal_psi::BoundaryApplicationArgument::Const {
                         value_type,
@@ -210,14 +212,14 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         if contract.published_routes.is_empty()
             || !crash_routes_are_canonical(&contract.published_routes)
         {
-            return Err(CodecError::NonCanonicalOrder(
-                "operation crash contract published route buckets",
+            return Err(noncanonical!(
+                "operation crash contract published route buckets"
             ));
         }
         validate_crash_route_predicates(&contract.published_routes)?;
         if !crash_routes_are_canonical(&contract.crash_continuations) {
-            return Err(CodecError::NonCanonicalOrder(
-                "operation crash contract continuation buckets",
+            return Err(noncanonical!(
+                "operation crash contract continuation buckets"
             ));
         }
         validate_crash_route_predicates(&contract.crash_continuations)?;
@@ -247,8 +249,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .map(|live| (&live.place, live.storage, live.value_type, live.effective))
             .is_sorted()
         {
-            return Err(CodecError::NonCanonicalOrder(
-                "suspension live values by place, storage, type, and policy",
+            return Err(noncanonical!(
+                "suspension live values by place, storage, type, and policy"
             ));
         }
         if plan
@@ -256,9 +258,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .iter()
             .any(|live| !strictly_increasing(live.claims.iter().copied()))
         {
-            return Err(CodecError::NonCanonicalOrder(
-                "suspension live claims by ClaimId",
-            ));
+            return Err(noncanonical!("suspension live claims by ClaimId"));
         }
     }
     require_increasing(
@@ -298,9 +298,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .enumerate()
             .any(|(position, output)| u32::try_from(position).ok() != Some(output.output_position))
         {
-            return Err(CodecError::NonCanonicalOrder(
-                "evidence package outputs by position",
-            ));
+            return Err(noncanonical!("evidence package outputs by position"));
         }
     }
     for declaration in &module.structural_types {
@@ -328,47 +326,39 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             StructuralTypeShape::Record { fields, .. }
                 if !strictly_increasing(fields.iter().map(|field| field.id)) =>
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "structural fields by StructuralFieldId",
-                ));
+                return Err(noncanonical!("structural fields by StructuralFieldId"));
             }
             StructuralTypeShape::Sum { cases }
                 if !strictly_increasing(cases.iter().map(|case| case.id)) =>
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "structural cases by StructuralCaseId",
-                ));
+                return Err(noncanonical!("structural cases by StructuralCaseId"));
             }
             StructuralTypeShape::Sum { cases }
                 if cases
                     .iter()
                     .any(|case| !strictly_increasing(case.fields.iter().map(|field| field.id))) =>
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "structural case fields by StructuralFieldId",
-                ));
+                return Err(noncanonical!("structural case fields by StructuralFieldId"));
             }
             StructuralTypeShape::Mixed { fields, .. }
                 if !strictly_increasing(fields.iter().map(|field| field.id)) =>
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "mixed structural fields by StructuralFieldId",
+                return Err(noncanonical!(
+                    "mixed structural fields by StructuralFieldId"
                 ));
             }
             StructuralTypeShape::Mixed { cases, .. }
                 if !strictly_increasing(cases.iter().map(|case| case.id)) =>
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "mixed structural cases by StructuralCaseId",
-                ));
+                return Err(noncanonical!("mixed structural cases by StructuralCaseId"));
             }
             StructuralTypeShape::Mixed { cases, .. }
                 if cases
                     .iter()
                     .any(|case| !strictly_increasing(case.fields.iter().map(|field| field.id))) =>
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "mixed structural case fields by StructuralFieldId",
+                return Err(noncanonical!(
+                    "mixed structural case fields by StructuralFieldId"
                 ));
             }
             _ => {}
@@ -390,9 +380,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         .iter()
         .any(|declaration| !strictly_increasing(declaration.parents.iter().copied()))
     {
-        return Err(CodecError::NonCanonicalOrder(
-            "service parents by ServiceId",
-        ));
+        return Err(noncanonical!("service parents by ServiceId"));
     }
     require_increasing(
         module.root_service_reach.concrete.iter().copied(),
@@ -417,8 +405,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         .iter()
         .any(|dependency| !strictly_increasing(dependency.upper_bound.iter().copied()))
     {
-        return Err(CodecError::NonCanonicalOrder(
-            "installation reach upper bounds by ServiceId",
+        return Err(noncanonical!(
+            "installation reach upper bounds by ServiceId"
         ));
     }
     if module
@@ -432,8 +420,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             proposition.id != ProofPropositionId(index) || proposition.left > proposition.right
         })
     {
-        return Err(CodecError::NonCanonicalOrder(
-            "float-meaning equalities by dense proposition ID and ordered operands",
+        return Err(noncanonical!(
+            "float-meaning equalities by dense proposition ID and ordered operands"
         ));
     }
     require_increasing(
@@ -450,15 +438,13 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "boundary result qualifications by StructuralDomainId",
             )?;
             if !strictly_increasing(result.projected_qualifications.iter()) {
-                return Err(CodecError::NonCanonicalOrder(
-                    "boundary result projected qualifications by path and domain",
+                return Err(noncanonical!(
+                    "boundary result projected qualifications by path and domain"
                 ));
             }
         }
         if !crash_routes_are_canonical(&declaration.crash_routes) {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary crash route buckets",
-            ));
+            return Err(noncanonical!("boundary crash route buckets"));
         }
         validate_crash_route_predicates(&declaration.crash_routes)?;
         validate_parameter_order(&declaration.structural_parameters)?;
@@ -478,17 +464,13 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             validate_canonical_proposition(proposition, 0)?;
         }
         if !canonical_propositions_strictly_increase(&declaration.scalar_requires)? {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary scalar requires propositions",
-            ));
+            return Err(noncanonical!("boundary scalar requires propositions"));
         }
         for proposition in &declaration.scalar_ensures {
             validate_canonical_proposition(proposition, 0)?;
         }
         if !canonical_propositions_strictly_increase(&declaration.scalar_ensures)? {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary scalar ensures propositions",
-            ));
+            return Err(noncanonical!("boundary scalar ensures propositions"));
         }
         require_increasing(
             declaration.published_service_ceiling.iter().copied(),
@@ -523,26 +505,26 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     let mut float_projection_sources = Vec::new();
     for (index, projection) in module.float_meaning_projections.iter().enumerate() {
         let Ok(index) = u32::try_from(index) else {
-            return Err(CodecError::NonCanonicalOrder(
-                "float-meaning projections by dense proof value and first-use source IDs",
+            return Err(noncanonical!(
+                "float-meaning projections by dense proof value and first-use source IDs"
             ));
         };
         if projection.result.id != ProofValueId(index) {
-            return Err(CodecError::NonCanonicalOrder(
-                "float-meaning projections by dense proof value and first-use source IDs",
+            return Err(noncanonical!(
+                "float-meaning projections by dense proof value and first-use source IDs"
             ));
         }
         if let terminal_psi::FloatMeaningSource::TransitionalInput(source) = &projection.source
             && !float_projection_sources.contains(&source.id)
         {
             let Ok(expected) = u32::try_from(float_projection_sources.len()) else {
-                return Err(CodecError::NonCanonicalOrder(
-                    "float-meaning projections by dense proof value and first-use transitional source IDs",
+                return Err(noncanonical!(
+                    "float-meaning projections by dense proof value and first-use transitional source IDs"
                 ));
             };
             if source.id.0 != expected {
-                return Err(CodecError::NonCanonicalOrder(
-                    "float-meaning projections by dense proof value and first-use transitional source IDs",
+                return Err(noncanonical!(
+                    "float-meaning projections by dense proof value and first-use transitional source IDs"
                 ));
             }
             float_projection_sources.push(source.id);
@@ -615,9 +597,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     "invocation claim transfers by claim and argument index",
                 )?;
                 if !crash_routes_are_canonical(invocation.crash_continuations) {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "invocation crash continuation buckets",
-                    ));
+                    return Err(noncanonical!("invocation crash continuation buckets"));
                 }
                 validate_crash_route_predicates(invocation.crash_continuations)?;
             }
@@ -627,8 +607,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             } = &block.terminator
                 && !strictly_increasing(frontier_lower_bound.iter().copied())
             {
-                return Err(CodecError::NonCanonicalOrder(
-                    "external completion frontier lower bound by ClaimId",
+                return Err(noncanonical!(
+                    "external completion frontier lower bound by ClaimId"
                 ));
             }
             validate_parameter_order(&block.structural_parameters)?;
@@ -659,7 +639,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "machine published service ceiling by ServiceId",
         )?;
         if !crash_routes_are_canonical(&machine.contract.crash_routes) {
-            return Err(CodecError::NonCanonicalOrder("crash route buckets"));
+            return Err(noncanonical!("crash route buckets"));
         }
         validate_crash_route_predicates(&machine.contract.crash_routes)?;
         require_increasing(
@@ -698,9 +678,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             };
             if let Some(crash_continuations) = crash_continuations {
                 if !crash_routes_are_canonical(crash_continuations) {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "call crash continuation buckets",
-                    ));
+                    return Err(noncanonical!("call crash continuation buckets"));
                 }
                 validate_crash_route_predicates(crash_continuations)?;
             }
@@ -714,8 +692,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 | OperationKind::CallStructural {
                     claim_transfers, ..
                 } if !strictly_increasing(claim_transfers.iter()) => {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "call claim transfers by claim and argument index",
+                    return Err(noncanonical!(
+                        "call claim transfers by claim and argument index"
                     ));
                 }
                 terminal_psi::call_structural_pair_pattern!(selected_evidence, ..)
@@ -737,16 +715,16 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                             || !strictly_increasing(binding.uses.iter().cloned())
                     }) =>
                 {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "guarded-call selections or validity dependency roots",
+                    return Err(noncanonical!(
+                        "guarded-call selections or validity dependency roots"
                     ));
                 }
                 OperationKind::BoundaryCall {
                     completion_receipts,
                     ..
                 } if !strictly_increasing(completion_receipts.iter()) => {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "boundary claim settlements by claim and argument index",
+                    return Err(noncanonical!(
+                        "boundary claim settlements by claim and argument index"
                     ));
                 }
                 _ => {}
@@ -775,9 +753,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                         !places_and_paths.insert((discard.place, discard.path.as_slice()))
                     })
                 {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "partial affine residual discards are unique",
-                    ));
+                    return Err(noncanonical!("partial affine residual discards are unique"));
                 }
             }
         }
@@ -797,8 +773,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .iter()
             .any(|binding| !strictly_increasing(binding.projections.iter()))
         {
-            return Err(CodecError::NonCanonicalOrder(
-                "entry-claim content projections by identity and algebra",
+            return Err(noncanonical!(
+                "entry-claim content projections by identity and algebra"
             ));
         }
         validate_identity_reshuffles(&machine.content_identity_reshuffles)?;
@@ -847,12 +823,10 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             validate_canonical_proposition(proposition, 0)?;
         }
         if !canonical_propositions_strictly_increase(&machine.contract.requires)? {
-            return Err(CodecError::NonCanonicalOrder("requires propositions"));
+            return Err(noncanonical!("requires propositions"));
         }
         if !canonical_propositions_strictly_increase(&machine.contract.source_checked_requires)? {
-            return Err(CodecError::NonCanonicalOrder(
-                "source-checked requires propositions",
-            ));
+            return Err(noncanonical!("source-checked requires propositions"));
         }
     }
     Ok(())
@@ -866,24 +840,22 @@ fn validate_parameter_order(
         .enumerate()
         .any(|(index, parameter)| parameter.position != index as u32)
     {
-        return Err(CodecError::NonCanonicalOrder(
-            "structural parameters by dense position",
-        ));
+        return Err(noncanonical!("structural parameters by dense position"));
     }
     if parameters
         .iter()
         .any(|parameter| !strictly_increasing(parameter.qualifications.iter().copied()))
     {
-        return Err(CodecError::NonCanonicalOrder(
-            "structural parameter qualifications by StructuralDomainId",
+        return Err(noncanonical!(
+            "structural parameter qualifications by StructuralDomainId"
         ));
     }
     if parameters
         .iter()
         .any(|parameter| !strictly_increasing(parameter.projected_qualifications.iter()))
     {
-        return Err(CodecError::NonCanonicalOrder(
-            "projected structural qualifications by path and StructuralDomainId",
+        return Err(noncanonical!(
+            "projected structural qualifications by path and StructuralDomainId"
         ));
     }
     Ok(())
@@ -942,7 +914,7 @@ fn validate_canonical_proposition(
                         validate_scalar_term_depth(right)?;
                         if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)?
                         {
-                            return Err(CodecError::NonCanonicalOrder("equality operands"));
+                            return Err(noncanonical!("equality operands"));
                         }
                     }
                     Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
@@ -953,9 +925,7 @@ fn validate_canonical_proposition(
                         validate_integer_math_term_depth(left)?;
                         validate_integer_math_term_depth(right)?;
                         if left > right {
-                            return Err(CodecError::NonCanonicalOrder(
-                                "mathematical integer equality operands",
-                            ));
+                            return Err(noncanonical!("mathematical integer equality operands"));
                         }
                     }
                     Proposition::IntegerMathLessThan(left, right)
@@ -967,7 +937,7 @@ fn validate_canonical_proposition(
                         kind, left, right, ..
                     } => {
                         if kind.is_symmetric() && left > right {
-                            return Err(CodecError::NonCanonicalOrder("IEEE equality operands"));
+                            return Err(noncanonical!("IEEE equality operands"));
                         }
                     }
                     Proposition::ScalarIeeeFloatComparison {
@@ -976,24 +946,18 @@ fn validate_canonical_proposition(
                         validate_scalar_term_depth(left)?;
                         validate_scalar_term_depth(right)?;
                         if kind.is_symmetric() && left > right {
-                            return Err(CodecError::NonCanonicalOrder(
-                                "scalar IEEE equality operands",
-                            ));
+                            return Err(noncanonical!("scalar IEEE equality operands"));
                         }
                     }
                     Proposition::ByteSequenceEqual { left, right } => {
                         if left > right {
-                            return Err(CodecError::NonCanonicalOrder(
-                                "byte-sequence equality operands",
-                            ));
+                            return Err(noncanonical!("byte-sequence equality operands"));
                         }
                     }
                     Proposition::StructuralCaseMembership { .. } => {}
                     Proposition::StructuralIdentity { left, right } => {
                         if left > right {
-                            return Err(CodecError::NonCanonicalOrder(
-                                "structural identity operands",
-                            ));
+                            return Err(noncanonical!("structural identity operands"));
                         }
                     }
                     Proposition::Conjunction(conjuncts) => {
@@ -1045,7 +1009,7 @@ fn validate_canonical_proposition(
             }
             Step::StrictlyIncreasing(propositions, order_label) => {
                 if !canonical_propositions_strictly_increase(propositions)? {
-                    return Err(CodecError::NonCanonicalOrder(order_label));
+                    return Err(noncanonical!(order_label));
                 }
             }
         }
@@ -1164,16 +1128,16 @@ fn validate_identity_reshuffles(
                     || !previous.output.is_case_alternative(&row.output))
         })
     }) {
-        return Err(CodecError::NonCanonicalOrder(
-            "content identity reshuffles by claim and exclusive output case",
+        return Err(noncanonical!(
+            "content identity reshuffles by claim and exclusive output case"
         ));
     }
     if rows
         .iter()
         .any(|reshuffle| !strictly_increasing(reshuffle.projections.iter()))
     {
-        return Err(CodecError::NonCanonicalOrder(
-            "claim content projections by identity and algebra",
+        return Err(noncanonical!(
+            "claim content projections by identity and algebra"
         ));
     }
     Ok(())
