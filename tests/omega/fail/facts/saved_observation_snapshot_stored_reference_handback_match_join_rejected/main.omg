@@ -1,0 +1,50 @@
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+
+data Holder { before: u64; items: &mut [u64; 2]; after: u64; }
+machine kept(values: &[u64; 2]) -> bool { values[0] == 7 }
+machine preserve(holder: &mut Holder)
+requires kept(&holder.items) == true
+ensures kept(&holder.items) == true
+{
+    let mut copied: [u64; 2] = holder.items;
+    copied[0] = 4;
+    holder.items[0] = copied[0];
+}
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+ensures result == observed
+{ observed }
+machine capture(source: u64, marker: &mut u64, event: u64) -> u64
+ensures result == source
+{ marker = event; source }
+machine probe(select: bool, marker: &mut u64) -> u64 {
+    let mut items: [u64; 2] = [7, 1];
+    let mut holder: Holder = Holder { before: 11, items: &mut items, after: 13 };
+    let saved: u64 = match select {
+        true -> capture(holder.items[0], marker, 11)
+        false -> capture(holder.items[0], marker, 13)
+    };
+    preserve(&mut holder);
+    let result: u64 = agree(saved, holder.items[0]);
+    let current_zero: u64 = holder.items[0];
+    let current_one: u64 = holder.items[1];
+    let backing_zero: u64 = items[0];
+    let backing_one: u64 = items[1];
+    transition current_zero == 7 && current_one == 4 && backing_zero == 7 && backing_one == 4 && holder.before == 11 && holder.after == 13 {
+        true -> result
+        false -> 777
+    }
+}
+machine main() crashes Trap {
+    let mut marker: u64 = 0;
+    let first: u64 = probe(true, &mut marker);
+    let first_trace: bool = marker == 11;
+    let second: u64 = probe(false, &mut marker);
+    transition first == 7 && second == 7 && first_trace && marker == 13 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
