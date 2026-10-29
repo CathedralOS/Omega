@@ -75,7 +75,25 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
                 writer.u8(3);
                 writer.string("unavailable proof declaration", reason)?;
             }
+            ProofScopeDeclaration::Operator(requirement) => {
+                writer.u8(4);
+                super::boundary_application_wire::encode_requirement(writer, requirement)?;
+            }
         }
+    }
+    writer.len("proof scope callables", scope.callables.len())?;
+    for (_, row) in scope.callables.iter() {
+        let terminal_psi::ProofCallableAssociation::Callable {
+            declaration,
+            callable,
+        } = row
+        else {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "proof scope callable association is absent",
+            ));
+        };
+        writer.u32(declaration.0);
+        super::target_family_wire::encode_callable(writer, *callable);
     }
     let plan = &scope.plan;
     writer.boolean(plan.has_obligations);
@@ -193,9 +211,20 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             3 => {
                 ProofScopeDeclaration::Unavailable(reader.string("unavailable proof declaration")?)
             }
+            4 => ProofScopeDeclaration::Operator(
+                super::boundary_application_wire::decode_requirement(reader)?,
+            ),
             tag => return Err(CodecError::InvalidTag("ProofScopeDeclaration", tag)),
         };
         result.declarations.insert(declaration);
+    }
+    for _ in 0..reader.count()? {
+        result
+            .callables
+            .insert(terminal_psi::ProofCallableAssociation::Callable {
+                declaration: ProofDeclarationId(reader.u32()?),
+                callable: super::target_family_wire::decode_callable(reader)?,
+            });
     }
     let plan = &mut result.plan;
     plan.has_obligations = reader.boolean()?;
@@ -344,12 +373,49 @@ mod tests {
 
     #[test]
     fn proof_scope_round_trip_preserves_distinct_declarations_and_nested_bindings() {
-        let scope = scope();
+        let mut scope = scope();
+        for (declaration, callable) in [
+            (
+                1,
+                terminal_psi::TargetMachineCallable::Machine(
+                    semantic_vocabulary::MachineId::new(41).unwrap(),
+                ),
+            ),
+            (
+                2,
+                terminal_psi::TargetMachineCallable::Machine(
+                    semantic_vocabulary::MachineId::new(42).unwrap(),
+                ),
+            ),
+            (
+                9,
+                terminal_psi::TargetMachineCallable::Boundary(
+                    semantic_vocabulary::BoundaryMachineId::new(41).unwrap(),
+                ),
+            ),
+        ] {
+            scope
+                .callables
+                .insert(terminal_psi::ProofCallableAssociation::Callable {
+                    declaration: ProofDeclarationId(declaration),
+                    callable,
+                });
+        }
+        scope.declarations.insert(ProofScopeDeclaration::Operator(
+            terminal_psi::BoundaryOperatorRequirement::new(
+                terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+                "operator::compare(u64,u64)->bool".into(),
+                semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+            )
+            .unwrap(),
+        ));
         let mut writer = Writer::default();
         encode(&mut writer, &scope).unwrap();
         let bytes = writer.finish();
         let mut reader = Reader::new(&bytes);
         let decoded = decode(&mut reader).unwrap();
+        assert_eq!(decoded.declarations, scope.declarations);
+        assert_eq!(decoded.callables, scope.callables);
         assert_eq!(reader.remaining(), 0);
         let before = scope.applications().membership("macos_arm64", false, &[]);
         let after = decoded.applications().membership("macos_arm64", false, &[]);

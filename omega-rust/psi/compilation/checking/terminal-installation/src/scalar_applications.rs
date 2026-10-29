@@ -23,6 +23,9 @@ use crate::{
     TerminalScalarValue,
 };
 
+mod conditions;
+pub use conditions::ScalarConditionSelection;
+
 #[derive(Debug, Clone, Default)]
 struct ApplicationObservations {
     value: Option<TerminalScalarValue>,
@@ -114,6 +117,29 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
 
     pub fn values(&self) -> ScalarApplicationValues {
         ScalarApplicationValues(std::sync::Arc::clone(&self.applications))
+    }
+
+    /// Select this target's debt and the explicitly demanded evaluation jobs.
+    /// The primary value scope additionally owes ground declaration formation.
+    pub fn conditions(
+        &self,
+        value_scope: &str,
+        demanded: &[ScalarApplicationId],
+    ) -> Result<ScalarConditionSelection<'artifact>, String> {
+        let catalog = &self.artifact.module().scalar_applications;
+        ScalarConditionSelection::select(
+            &catalog.proof_scope,
+            &catalog.conditions,
+            self.targets.target(),
+            self.targets.target() == value_scope,
+            self.providers.providers().chain(
+                self.providers
+                    .assumed_bindings()
+                    .iter()
+                    .map(|binding| (binding.required, binding.implementation)),
+            ),
+            demanded,
+        )
     }
 
     fn position(&self, application: ScalarApplicationId) -> Result<usize, String> {

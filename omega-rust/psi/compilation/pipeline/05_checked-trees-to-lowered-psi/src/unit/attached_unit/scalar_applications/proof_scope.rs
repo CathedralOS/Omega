@@ -20,6 +20,8 @@ pub(super) fn publish(
     checked: &CheckedTrees,
     identities: &mut TerminalIdentityTableBuilder,
     sources: &[(source::SourceId, [u8; 32])],
+    machines: &[(SymbolHandle, semantic_vocabulary::MachineId)],
+    boundaries: &[super::super::operation_frame::BoundaryParameters],
 ) -> Result<PublishedScope, LoweringError> {
     let source = &checked.facts.proof_applications;
     let mut coordinates = Vec::new();
@@ -38,18 +40,7 @@ pub(super) fn publish(
                 "proof declaration namespace is exhausted",
             ))?;
         let identity = ProofDeclarationId(ordinal);
-        let description = if checked
-            .facts
-            .declaration_descriptions
-            .description(symbol)
-            .is_some()
-        {
-            declarations::identity(identities, checked, sources, symbol)
-                .map(ProofScopeDeclaration::Callable)
-        } else {
-            declarations::semantic_identity(identities, checked, symbol)
-                .map(ProofScopeDeclaration::Nominal)
-        };
+        let description = describe(checked, identities, sources, symbol);
         descriptions.insert(description.unwrap_or_else(ProofScopeDeclaration::Unavailable));
         coordinates.push((symbol, identity));
         Ok(identity)
@@ -60,12 +51,55 @@ pub(super) fn publish(
         source.machines.iter().map(|(_, row)| row.machine),
         &mut identity,
     )?;
+    let mut callables = arena::Arena::new();
+    for &(source, body) in machines {
+        callables.insert(terminal_psi::ProofCallableAssociation::Callable {
+            declaration: identity(source)?,
+            callable: terminal_psi::TargetMachineCallable::Machine(body),
+        });
+    }
+    for boundary in boundaries {
+        callables.insert(terminal_psi::ProofCallableAssociation::Callable {
+            declaration: identity(boundary.source)?,
+            callable: terminal_psi::TargetMachineCallable::Boundary(boundary.id),
+        });
+    }
     Ok(PublishedScope {
         scope: ProofApplicationScope {
             declarations: descriptions,
+            callables,
             plan,
             calls,
         },
         coordinates,
     })
+}
+
+fn describe(
+    checked: &CheckedTrees,
+    identities: &mut TerminalIdentityTableBuilder,
+    sources: &[(source::SourceId, [u8; 32])],
+    symbol: SymbolHandle,
+) -> Result<ProofScopeDeclaration, String> {
+    if let Some(declaration) =
+        declarations::boundary_identity(identities, checked, sources, symbol)?
+    {
+        return Ok(ProofScopeDeclaration::Callable(declaration));
+    }
+    if let Some(operator) = checked.typed.operator_definition_by_symbol(symbol)
+        && operator.is_boundary
+    {
+        return declarations::operator_requirement(
+            identities,
+            checked,
+            sources,
+            symbol,
+            checked
+                .typed
+                .boundary_operator_requirement_callable_identity(operator),
+        )
+        .map(ProofScopeDeclaration::Operator)
+        .map_err(str::to_owned);
+    }
+    declarations::semantic_identity(identities, checked, symbol).map(ProofScopeDeclaration::Nominal)
 }

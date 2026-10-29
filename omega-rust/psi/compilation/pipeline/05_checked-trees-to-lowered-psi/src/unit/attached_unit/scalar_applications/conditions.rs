@@ -7,13 +7,13 @@
 
 use super::SourceScalarApplications;
 use crate::lowering_error::LoweringError;
-use crate::unit::attached_unit::{BoundaryParameters, lookup_type_id, target_families};
+use crate::unit::attached_unit::{BoundaryParameters, target_families};
 use checked_trees::{CheckedTrees, NominalMachineUseSite};
 use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite};
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::{PredicateNode, PredicateOperator};
-use semantic_vocabulary::{MachineId, ScalarApplicationId, StructuralTypeId};
+use semantic_vocabulary::{MachineId, ScalarApplicationId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     ScalarConditionSubject, ScalarConditions, ScalarRangeObservation, ScalarRangeRequirement,
@@ -43,8 +43,10 @@ enum Requirement {
 
 enum Subject {
     Module,
-    Callable(SymbolHandle),
-    StructuralType(TypeIdentityId),
+    Declaration {
+        owner: SymbolHandle,
+        type_root: TypeIdentityId,
+    },
     Application(ScalarApplicationId),
 }
 
@@ -63,7 +65,7 @@ enum Observation {
 impl Condition {
     pub(super) fn type_root(&self) -> Option<TypeIdentityId> {
         match self.subject {
-            Subject::StructuralType(subject) => Some(subject),
+            Subject::Declaration { type_root, .. } if type_root.is_valid() => Some(type_root),
             _ => None,
         }
     }
@@ -244,34 +246,36 @@ fn subject(
             .map(Subject::Application)
             .map_err(|error| error.to_string());
     }
-    if let Some((_, machine)) =
-        checked
-            .facts
-            .proof_applications
-            .machines
-            .iter()
-            .find(|(_, machine)| {
-                machine.machine == owner
-                    || checked
-                        .facts
-                        .proof_applications
-                        .symbols
-                        .span_or_empty(machine.states)
-                        .contains(&owner)
-            })
+    if checked
+        .facts
+        .proof_applications
+        .machines
+        .iter()
+        .any(|(_, machine)| {
+            machine.machine == owner
+                || checked
+                    .facts
+                    .proof_applications
+                    .symbols
+                    .span_or_empty(machine.states)
+                    .contains(&owner)
+        })
     {
-        return Ok(Subject::Callable(machine.machine));
+        return Ok(Subject::Declaration {
+            owner,
+            type_root: TypeIdentityId::default(),
+        });
     }
-    if let Some(declaration) = program.const_declaration_by_symbol(owner) {
-        return applications
-            .retain_expression(checked, declaration.materialized_initializer)
-            .map(Subject::Application)
-            .map_err(|error| error.to_string());
+    if program.const_declaration_by_symbol(owner).is_some() {
+        return Ok(Subject::Declaration {
+            owner,
+            type_root: TypeIdentityId::default(),
+        });
     }
     if program.data_definition_by_symbol(owner).is_some() {
         return program
             .normalized_nominal_type_identity(owner)
-            .map(Subject::StructuralType)
+            .map(|type_root| Subject::Declaration { owner, type_root })
             .ok_or_else(|| "scalar condition's data owner has no exact type identity".to_owned());
     }
     Err("scalar condition has no retained callable, constant or data owner".to_owned())
@@ -326,7 +330,6 @@ pub(crate) struct EmittedScalars<'a> {
 
 pub(super) fn publish(
     ranges: &[Condition],
-    types: &[(TypeIdentityId, StructuralTypeId)],
     machines: &[(SymbolHandle, MachineId)],
     boundaries: &[BoundaryParameters],
     declarations: &[(SymbolHandle, terminal_psi::ProofDeclarationId)],
@@ -336,7 +339,7 @@ pub(super) fn publish(
     for range in ranges {
         let subject = match range.subject {
             Subject::Module => ScalarConditionSubject::Module,
-            Subject::Callable(source) => ScalarConditionSubject::Declaration(
+            Subject::Declaration { owner: source, .. } => ScalarConditionSubject::Declaration(
                 declarations
                     .iter()
                     .find(|(owner, _)| *owner == source)
@@ -347,9 +350,6 @@ pub(super) fn publish(
                         )
                     })?,
             ),
-            Subject::StructuralType(source) => {
-                ScalarConditionSubject::StructuralType(lookup_type_id(types, &source)?)
-            }
             Subject::Application(application) => ScalarConditionSubject::Application(application),
         };
         match &range.requirement {
@@ -479,6 +479,27 @@ mod tests {
     use typed_trees::constant_recipes::RetainedConstantRecipe;
 
     #[test]
+    fn scalar_condition_publication_keeps_the_exact_state_owner() {
+        let machine = SymbolHandle::from_parts(1, 1);
+        let state = SymbolHandle::from_parts(2, 1);
+        let mut facts = CheckFacts::default();
+        let states = facts.proof_applications.symbols.insert_many([state]);
+        facts.proof_applications.machines.insert(
+            semantic_vocabulary::proof_applications::ProofApplicationMachine {
+                machine,
+                states,
+                ..Default::default()
+            },
+        );
+        let checked = CheckedTrees::with_roots(typed_trees::TypedTrees::default(), facts);
+        let mut applications = SourceScalarApplications::default();
+        assert!(
+            matches!(subject(&checked, &mut applications, state).unwrap(),
+            Subject::Declaration { owner, .. } if owner == state)
+        );
+    }
+
+    #[test]
     fn scalar_condition_publication_retains_recipe_relations_and_explicit_module_scope() {
         let mut typed = typed_trees::TypedTrees::default();
         let first = typed
@@ -516,7 +537,6 @@ mod tests {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let conditions = publish(
             &prepared,
-            &[],
             &[],
             &[],
             &[],

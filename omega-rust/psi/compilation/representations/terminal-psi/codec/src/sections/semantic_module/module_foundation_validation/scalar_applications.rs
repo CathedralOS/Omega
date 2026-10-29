@@ -10,6 +10,47 @@ use terminal_psi::{
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
     super::proof_scope::validate(&module.scalar_applications.proof_scope, &module.identities)?;
+    let scope = &module.scalar_applications.proof_scope;
+    for (_, row) in scope.callables.iter() {
+        let terminal_psi::ProofCallableAssociation::Callable {
+            declaration,
+            callable,
+        } = row
+        else {
+            return malformed("proof scope callable association is absent");
+        };
+        let emitted = match callable {
+            TargetMachineCallable::Machine(body) => module
+                .machine(*body)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "proof scope names an absent emitted body",
+                ))?
+                .declaration
+                .as_ref(),
+            TargetMachineCallable::Boundary(boundary) => {
+                let boundary = module.boundary_machine(*boundary).ok_or(
+                    CodecError::MalformedStructuralFoundation(
+                        "proof scope names an absent emitted boundary",
+                    ),
+                )?;
+                if boundary.declaration.is_none()
+                    && boundary.kind == terminal_psi::BoundaryRequirementKind::Operator
+                {
+                    validate_operator_association(
+                        module,
+                        boundary,
+                        scope.declaration(*declaration),
+                    )?;
+                }
+                boundary.declaration.as_ref().map(|row| &row.source)
+            }
+        };
+        if let Some(emitted) = emitted
+            && !matches!(scope.declaration(*declaration), Some(terminal_psi::ProofScopeDeclaration::Callable(retained)) if retained == emitted)
+        {
+            return malformed("proof scope callable differs from its emitted declaration");
+        }
+    }
     for declaration in &module.structural_types {
         if let terminal_psi::StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Application(application),
@@ -143,6 +184,38 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
     Ok(())
 }
 
+/// Operator signatures retain a requirement rather than an ordinary machine
+/// declaration. Compare that exact coordinate, never treat `None` as a match.
+fn validate_operator_association(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    declaration: Option<&terminal_psi::ProofScopeDeclaration>,
+) -> Result<(), CodecError> {
+    let Some(terminal_psi::ProofScopeDeclaration::Operator(requirement)) = declaration else {
+        return malformed("proof scope operator has no exact requirement declaration");
+    };
+    if requirement.declaration() != &boundary.owner
+        || module.identities.text(boundary.identity) != Some(requirement.overload())
+    {
+        return malformed("proof scope operator differs from its emitted requirement");
+    }
+    for operation in module.operations() {
+        if !matches!(operation.kind, terminal_psi::OperationKind::BoundaryCall { boundary: called, .. } if called == boundary.id)
+        {
+            continue;
+        }
+        if let Some(demand) = module
+            .boundary_application_demands
+            .iter()
+            .find(|demand| demand.terminal_operation() == operation.id)
+            && demand.requirement() != requirement
+        {
+            return malformed("proof scope operator differs from its application demand");
+        }
+    }
+    Ok(())
+}
+
 fn validate_subject(
     module: &TerminalModule,
     subject: &ScalarConditionSubject,
@@ -154,9 +227,6 @@ fn validate_subject(
             .proof_scope
             .declaration(*declaration)
             .is_some(),
-        ScalarConditionSubject::StructuralType(subject) => {
-            module.structural_type(*subject).is_some()
-        }
         ScalarConditionSubject::Application(application) => module
             .scalar_applications
             .declaration(*application)
@@ -167,4 +237,140 @@ fn validate_subject(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sections::semantic_module::target_family_tests::{identity_table, unit_machine};
+    use semantic_vocabulary::MachineId;
+    use terminal_psi::{
+        ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration, TerminalIdentityIndex,
+    };
+
+    #[test]
+    fn proof_scope_refuses_swapped_same_nominal_callable_descriptions() {
+        let first = MachineId::new(1).unwrap();
+        let second = MachineId::new(2).unwrap();
+        let mut module = TerminalModule::for_entry(first);
+        module.identities = identity_table(10);
+        for (position, machine) in [(1, first), (2, second)] {
+            let mut body = unit_machine(machine);
+            let declaration = body.declaration.as_mut().unwrap();
+            declaration.semantic_declaration = TerminalIdentityIndex(3);
+            declaration.callable = TerminalIdentityIndex(4);
+            declaration.result_type = TerminalIdentityIndex(5);
+            declaration.specialization = Some(terminal_psi::CheckedMachineSpecialization {
+                template: declaration.machine.clone(),
+                template_callable: declaration.callable,
+                template_semantic_declaration: declaration.semantic_declaration,
+                commitment: [position as u8; 32],
+                capture: None,
+            });
+            module
+                .scalar_applications
+                .proof_scope
+                .declarations
+                .insert(ProofScopeDeclaration::Callable(declaration.clone()));
+            module.scalar_applications.proof_scope.callables.insert(
+                ProofCallableAssociation::Callable {
+                    declaration: ProofDeclarationId(position),
+                    callable: TargetMachineCallable::Machine(machine),
+                },
+            );
+            module.machines.push(body);
+        }
+        validate(&module).unwrap();
+        module
+            .scalar_applications
+            .proof_scope
+            .callables
+            .for_each_mut(|_, row| {
+                if let ProofCallableAssociation::Callable { declaration, .. } = row {
+                    declaration.0 = 3 - declaration.0;
+                }
+            });
+        assert!(matches!(
+            validate(&module),
+            Err(CodecError::MalformedStructuralFoundation(
+                "proof scope callable differs from its emitted declaration"
+            ))
+        ));
+    }
+
+    #[test]
+    fn proof_scope_refuses_swapped_operator_associations_without_machine_descriptions() {
+        let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let overload = identities.intern("operator::choose(u64,u64)->u64");
+        let owner =
+            terminal_psi::NominalDeclarationIdentity::new(identities.intern("package::choose"));
+        let other_owner =
+            terminal_psi::NominalDeclarationIdentity::new(identities.intern("other::choose"));
+        module.identities = identities.build();
+        let boundary = terminal_psi::BoundaryMachineDeclaration {
+            id: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+            declaration: None,
+            numeric_intrinsic: None,
+            role: terminal_psi::BoundaryDeclarationRole::Callable,
+            kind: terminal_psi::BoundaryRequirementKind::Operator,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
+            unconditional_termination: false,
+            identity: overload,
+            owner: owner.clone(),
+            attachment: None,
+            parameter_order: Vec::new(),
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            requires: Vec::new(),
+            normal_qualifications: Vec::new(),
+            scalar_domain_requirements: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            reference_outputs: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            owning_service: None,
+            published_service_ceiling: Vec::new(),
+        };
+        module.boundary_machines.push(boundary);
+        let description = |owner, overload: &str| {
+            ProofScopeDeclaration::Operator(
+                terminal_psi::BoundaryOperatorRequirement::new(owner, overload.into(), None)
+                    .unwrap(),
+            )
+        };
+        let scope = &mut module.scalar_applications.proof_scope;
+        for row in [
+            description(owner.clone(), "operator::choose(u64,u64)->u64"),
+            description(other_owner, "operator::choose(u64,u64)->u64"),
+            description(owner, "operator::choose(u32,u32)->u32"),
+            ProofScopeDeclaration::Nominal(overload),
+        ] {
+            scope.declarations.insert(row);
+        }
+        let association = scope.callables.insert(ProofCallableAssociation::Callable {
+            declaration: ProofDeclarationId(1),
+            callable: TargetMachineCallable::Boundary(module.boundary_machines[0].id),
+        });
+        validate(&module).unwrap();
+        for owner in 2..=4 {
+            let ProofCallableAssociation::Callable { declaration, .. } = module
+                .scalar_applications
+                .proof_scope
+                .callables
+                .get_mut(association)
+            else {
+                unreachable!()
+            };
+            *declaration = ProofDeclarationId(owner);
+            assert!(
+                validate(&module).is_err(),
+                "wrong owner/overload or nominal fallback {owner}"
+            );
+        }
+    }
 }

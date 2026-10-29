@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 208 even when every table
+order below. This layout uses semantic format marker 209 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -165,15 +165,18 @@ An explicitly unscoped recipe requirement retains a module-wide subject; a
 failed lookup for an authored owner never becomes module authority.
 
 A condition subject is tagged as module-wide (1), a `u32` proof-declaration
-coordinate (2), a structural type (3), or a scalar application (4). Declaration
+coordinate (2), or a scalar application (4). Tag 3 is retired: a data owner's
+structural type cannot replace its declaration for formation applicability. Declaration
 coordinates are one-based positions in this artifact's scope catalog; zero is
 absence. They are neither executable machine IDs nor source arena coordinates.
 Each declaration retains a nominal identity (tag 1), the complete checked
-callable description (tag 2), or an unavailable-description reason (tag 3).
+callable description (tag 2), an unavailable-description reason (tag 3), or
+an exact boundary operator requirement (tag 4: nominal owner, overload and package).
 Equal nominal names do not merge distinct graph coordinates. An unavailable
 description cannot supply an exact external callable join.
 
-Scope publication retains, in order: declaration descriptions; obligation flags;
+Scope publication retains, in order: declaration descriptions; emitted callable
+associations; obligation flags;
 machine/state/binder and legacy target-family relationships; declaration
 formation dependencies; declaration and obligation-owner rosters; discovery-only
 provider candidates; and operational call summaries. Each summary retains calls,
@@ -182,6 +185,16 @@ collection is counted; spans encode their contents, never arena generations.
 Machine summaries may be absent, which differs from a present empty summary.
 Static binding nesting has the ordinary 256-level encoding bound.
 
+Each emitted callable association contains a proof-declaration coordinate and
+the ordinary tagged machine/boundary callable coordinate. Both directions are
+unique. Ingress checks existence and exact checked-declaration equality when
+the emitted callable carries that description. A same-name overload or another
+specialization cannot stand in. A descriptor-less operator must match its exact
+nominal owner and canonical overload, and any retained call demand must name that
+same requirement. Synthetic absence cannot satisfy this operator join. Provider
+satisfaction and application admission remain separate checks.
+Removing dead code removes its emitted association, not the declaration graph.
+
 Membership consumes explicitly settled provider edges, not discovery candidates.
 Product eligibility is independent of retained descriptions. Declaring a proof
 owner does not root an executable body; actual evaluation entries and observed
@@ -189,6 +202,12 @@ entry results still retain their bodies. Receiving validation rejects dangling
 coordinates, ambiguous state ownership, repeated static parameters, malformed
 family correspondence, and missing spans. The legacy family rows remain
 migration metadata, not authorization to retain target-prefixed source syntax.
+
+Target-scoped membership selects fixed ranges and predicates by their exact
+recorded owner. Address-model ranges additionally include the selected declaration
+closure and, in the primary value scope, retained ground declarations. Generated
+entry conditions apply only to demanded scalar applications. Neither a catalog
+entry nor an available provider candidate is itself an execution demand.
 
 ### Scalar and structural operation rows
 

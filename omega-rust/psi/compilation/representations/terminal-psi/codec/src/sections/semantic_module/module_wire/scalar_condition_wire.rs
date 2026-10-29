@@ -130,10 +130,6 @@ pub(super) fn encode_subject(writer: &mut Writer, subject: ScalarConditionSubjec
             writer.u8(2);
             writer.u32(declaration.0);
         }
-        ScalarConditionSubject::StructuralType(subject) => {
-            writer.u8(3);
-            writer.id(subject);
-        }
         ScalarConditionSubject::Application(application) => {
             writer.u8(4);
             writer.id(application);
@@ -147,7 +143,6 @@ pub(super) fn decode_subject(
     Ok(match reader.u8()? {
         1 => ScalarConditionSubject::Module,
         2 => ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(reader.u32()?)),
-        3 => ScalarConditionSubject::StructuralType(reader.id("StructuralTypeId")?),
         4 => ScalarConditionSubject::Application(reader.id("ScalarApplicationId")?),
         tag => return Err(CodecError::InvalidTag("ScalarConditionSubject", tag)),
     })
@@ -207,8 +202,7 @@ pub(super) fn decode_observation(
 mod tests {
     use super::*;
     use semantic_vocabulary::{
-        IntegerSign, IntegerType, MachineId, ScalarApplicationId, ScalarType, StructuralTypeId,
-        ValueId,
+        IntegerSign, IntegerType, MachineId, ScalarApplicationId, ScalarType, ValueId,
     };
     use terminal_psi::ProofDeclarationId;
 
@@ -250,7 +244,6 @@ mod tests {
         for subject in [
             ScalarConditionSubject::Module,
             ScalarConditionSubject::Declaration(ProofDeclarationId(7)),
-            ScalarConditionSubject::StructuralType(StructuralTypeId::new(13).unwrap()),
             ScalarConditionSubject::Application(application),
         ] {
             for requirement in [

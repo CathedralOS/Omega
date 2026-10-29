@@ -216,6 +216,26 @@ pub(crate) fn boundary_identity(
     }))
 }
 
+/// The same exact operator slot used by executable application demands and
+/// declaration-only proof scope. Neither an overload name nor a package owner
+/// alone identifies the requirement.
+pub(crate) fn operator_requirement(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    symbol: SymbolHandle,
+    callable: typed_trees::type_identity::CallableIdentityId,
+) -> Result<terminal_psi::BoundaryOperatorRequirement, &'static str> {
+    if !callable.is_valid() {
+        return Err("boundary operator has no complete callable identity");
+    }
+    terminal_psi::BoundaryOperatorRequirement::new(
+        nominal(identities, checked, sources, symbol)?,
+        checked.typed.callable_identity_text(callable),
+        checked.symbols.symbol_package_identity(symbol),
+    )
+}
+
 pub(super) fn retain(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,

@@ -40,6 +40,12 @@ pub(super) fn validate(
                 }
             }
             ProofScopeDeclaration::Nominal(identity) => text(*identity)?,
+            ProofScopeDeclaration::Operator(requirement) => {
+                text(requirement.declaration().identity())?;
+                if requirement.overload().is_empty() {
+                    return malformed("proof scope operator lost its exact overload");
+                }
+            }
             ProofScopeDeclaration::Callable(row) => {
                 for identity in [
                     row.machine.identity(),
@@ -66,6 +72,21 @@ pub(super) fn validate(
                     }
                 }
             }
+        }
+    }
+    let mut bound_declarations = BTreeSet::new();
+    let mut callables = BTreeSet::new();
+    for (_, row) in scope.callables.iter() {
+        let terminal_psi::ProofCallableAssociation::Callable {
+            declaration: owner,
+            callable,
+        } = row
+        else {
+            return malformed("proof scope callable association is absent");
+        };
+        declaration(*owner)?;
+        if !bound_declarations.insert(*owner) || !callables.insert(*callable) {
+            return malformed("proof scope has an ambiguous emitted callable association");
         }
     }
     let plan = &scope.plan;
@@ -306,5 +327,32 @@ mod tests {
                 "proof scope static application repeats a parameter"
             ))
         ));
+    }
+
+    #[test]
+    fn proof_scope_rejects_ambiguous_callable_associations() {
+        let (scope, identities) = scope();
+        let body = |number| {
+            terminal_psi::TargetMachineCallable::Machine(
+                semantic_vocabulary::MachineId::new(number).unwrap(),
+            )
+        };
+        for (second_owner, second_callable) in [(1, body(2)), (2, body(1))] {
+            let mut duplicate = scope.clone();
+            for (owner, callable) in [(1, body(1)), (second_owner, second_callable)] {
+                duplicate
+                    .callables
+                    .insert(terminal_psi::ProofCallableAssociation::Callable {
+                        declaration: ProofDeclarationId(owner),
+                        callable,
+                    });
+            }
+            assert!(matches!(
+                validate(&duplicate, &identities),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "proof scope has an ambiguous emitted callable association"
+                ))
+            ));
+        }
     }
 }

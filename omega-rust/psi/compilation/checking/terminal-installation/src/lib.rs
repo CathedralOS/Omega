@@ -36,7 +36,8 @@ pub use provider_installation::{
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 pub use scalar_applications::{
-    ScalarApplicationObservations, ScalarApplicationValues, ScalarLayoutObservationError,
+    ScalarApplicationObservations, ScalarApplicationValues, ScalarConditionSelection,
+    ScalarLayoutObservationError,
 };
 pub use target_families::{
     AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,

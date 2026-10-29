@@ -9,7 +9,7 @@ use arena::{Arena, Handle, HandleSpan};
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::{PredicateNode, PredicateValueKind, ScalarValue, evaluate_nodes};
-use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, StructuralTypeId, ValueId};
+use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, ValueId};
 
 use super::ProofDeclarationId;
 
@@ -19,7 +19,6 @@ use super::ProofDeclarationId;
 pub enum ScalarConditionSubject {
     Module,
     Declaration(ProofDeclarationId),
-    StructuralType(StructuralTypeId),
     Application(ScalarApplicationId),
 }
 

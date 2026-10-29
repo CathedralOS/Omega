@@ -6,8 +6,8 @@ use checked_trees::{CheckedBoundaryOperatorApplicationUseSite, CheckedTrees};
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::OperationId;
 use terminal_psi::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
-    BoundaryTypeIdentity, NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryTypeIdentity,
+    TerminalBoundaryApplicationDemand,
 };
 use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
@@ -109,19 +109,12 @@ pub(super) fn retain<'a>(
     for occurrence in &occurrences {
         let application =
             &checked.facts.operators.boundary_applications[occurrence.application_index];
-        let declaration = checked
-            .exact_owner_nominal_identity(application.requirement_symbol, exact_toolchain_sources)
-            .ok_or("boundary requirement has no exact package or toolchain owner")?;
-        let requirement = BoundaryOperatorRequirement::new(
-            NominalDeclarationIdentity::new(
-                identities.intern(&checked.type_identity_text(declaration).unwrap_or_default()),
-            ),
-            checked
-                .typed
-                .callable_identity_text(application.requirement_identity),
-            checked
-                .symbols
-                .symbol_package_identity(application.requirement_symbol),
+        let requirement = super::declarations::operator_requirement(
+            identities,
+            checked,
+            exact_toolchain_sources,
+            application.requirement_symbol,
+            application.requirement_identity,
         )?;
         let arguments =
             project_application(identities, checked, exact_toolchain_sources, application)?;

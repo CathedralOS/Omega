@@ -19,7 +19,7 @@ pub mod proof_application_scope;
 pub mod scalar_applications;
 pub mod scalar_conditions;
 pub use proof_application_scope::{
-    ProofApplicationScope, ProofDeclarationId, ProofScopeDeclaration,
+    ProofApplicationScope, ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
 };
 pub use scalar_applications::{
     ArrayExtent, LayoutMeasurement, ScalarApplication, ScalarApplications,

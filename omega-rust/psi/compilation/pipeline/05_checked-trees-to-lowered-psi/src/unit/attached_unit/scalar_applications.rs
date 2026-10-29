@@ -448,7 +448,13 @@ impl SourceScalarApplications {
         emitted: conditions::EmittedScalars<'_>,
     ) -> Result<ScalarApplications, LoweringError> {
         let mut result = ScalarApplications::default();
-        let scope = proof_scope::publish(emitted.checked, emitted.identities, emitted.sources)?;
+        let scope = proof_scope::publish(
+            emitted.checked,
+            emitted.identities,
+            emitted.sources,
+            machines,
+            boundaries,
+        )?;
         result.proof_scope = scope.scope;
         for row in &self.rows {
             let declaration = match row.definition {
@@ -472,7 +478,6 @@ impl SourceScalarApplications {
         }
         result.conditions = conditions::publish(
             &self.conditions,
-            types,
             machines,
             boundaries,
             &scope.coordinates,
