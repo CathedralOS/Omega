@@ -307,6 +307,43 @@ fn select_checked_providers(
     ))
 }
 
+/// One entry/recipe root policy shared by provider demand and value closure.
+/// Provider nominations add their exact members after ordinary admission.
+fn product_application_roots(
+    source: &CheckedProductSource,
+    profile: target::TargetProfile,
+) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
+    let build = &source.computed_build_config.config;
+    if build.root_bindings.is_empty() {
+        // A reusable library describes every body, but executing its pending
+        // values starts only from their actual retained recipe callees.
+        return Ok(source
+            .program
+            .typed
+            .constant_recipes
+            .iter()
+            .map(|(_, recipe)| recipe.machine)
+            .filter(|machine| machine.is_valid())
+            .collect());
+    }
+    if !build.root_bindings.iter().any(|binding| {
+        binding.slot.rsplit_once("::").is_some_and(|(owner, _)| {
+            target::TargetProfile::from_root_slot_owner(owner).ok() == Some(profile)
+        })
+    }) {
+        return Ok(Vec::new());
+    }
+    Ok(
+        provider_planning::program_entry::selected_program_entry_machine(
+            &build.root_bindings,
+            Some(profile),
+        )?
+        .into_iter()
+        .map(|entry| entry.machine_symbol)
+        .collect(),
+    )
+}
+
 /// Prepare the exact provider and ABI inputs for either a product or an
 /// authored-target proof application. Neither use bypasses provider admission;
 /// only executable products need a ProgramEntry and deployment claim.
@@ -347,31 +384,7 @@ fn prepare_target_provider_selection(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
     let profile = selected_target_profile.unwrap_or_else(target::TargetProfile::host);
-    let application_roots = if build_config.root_bindings.is_empty() {
-        // A reusable library has no executable entry. Retained constant
-        // applications still have actual callees; metadata bodies remain
-        // Source-checked without installing every service they describe.
-        typed
-            .constant_recipes
-            .iter()
-            .map(|(_, recipe)| recipe.machine)
-            .filter(|machine| machine.is_valid())
-            .collect::<Vec<_>>()
-    } else if build_config.root_bindings.iter().any(|binding| {
-        binding.slot.rsplit_once("::").is_some_and(|(owner, _)| {
-            target::TargetProfile::from_root_slot_owner(owner).ok() == Some(profile)
-        })
-    }) {
-        provider_planning::program_entry::selected_program_entry_machine(
-            &build_config.root_bindings,
-            Some(profile),
-        )?
-        .into_iter()
-        .map(|entry| entry.machine_symbol)
-        .collect()
-    } else {
-        Vec::new()
-    };
+    let application_roots = product_application_roots(source, profile)?;
     provider_planning::settle_checked_providers(
         &source.program,
         settled_target_machines,

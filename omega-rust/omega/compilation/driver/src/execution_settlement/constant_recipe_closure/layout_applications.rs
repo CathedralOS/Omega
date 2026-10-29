@@ -1,4 +1,4 @@
-//! Layout applicability follows authored Build entries and exact provider rows.
+//! Value and layout applicability follow authored Build entries and exact provider rows.
 //! This walk borrows the shared checked graph; retaining an unrelated type or
 //! policy declaration does not make it executable in another target capsule.
 use super::{ConstantProviders, Diagnostic};
@@ -91,19 +91,7 @@ pub(super) fn collect(
                 .provenance
         };
         let edges = provider_edges(provenance);
-        let mut roots = Vec::new();
-        if build.root_bindings.iter().any(|binding| {
-            binding.slot.rsplit_once("::").is_some_and(|(owner, _)| {
-                TargetProfile::from_root_slot_owner(owner).ok() == Some(profile)
-            })
-        }) {
-            if let Some(entry) = provider_planning::program_entry::selected_program_entry_machine(
-                &build.root_bindings,
-                Some(profile),
-            )? {
-                roots.push(entry.machine_symbol);
-            }
-        }
+        let mut roots = super::super::product_application_roots(source, profile)?;
         // An authored provider choice scopes every member of that supplied
         // implementation even when this compilation realizes another target.
         for row in provenance {
@@ -128,18 +116,10 @@ pub(super) fn collect(
         }
         application_roots.push(checked_trees::applications::TargetApplicationRoots {
             target: profile.target_name().to_owned(),
-            machines: if unscoped {
-                source
-                    .program
-                    .typed
-                    .machines()
-                    .iter()
-                    .map(|machine| machine.symbol)
-                    .collect()
-            } else {
-                roots.clone()
-            },
+            machines: roots.clone(),
         });
+        // Reusable type formation is a description inventory, distinct from
+        // the actual invocation roots used by constant/query value jobs.
         let declarations = if unscoped {
             typed_trees::references::DeclarationSelection::from_program(&source.program.typed)
         } else {
@@ -150,12 +130,6 @@ pub(super) fn collect(
                 &edges,
             )
         };
-        let facts = profile.layout_target_facts().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "target `{}` has no compiler-issued layout representation context",
-                profile.target_name()
-            ))]
-        })?;
         for occurrence in typed_trees::references::collect_selected_program_type_occurrences(
             &source.program.typed,
             &declarations,
@@ -179,6 +153,15 @@ pub(super) fn collect(
             {
                 continue;
             }
+            // Root discovery is also needed by ordinary constant/query work.
+            // Only a concrete representation application requests a physical
+            // target snapshot; an inactive non-native entry needs none.
+            let facts = profile.layout_target_facts().ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "target `{}` has no compiler-issued layout representation context",
+                    profile.target_name()
+                ))]
+            })?;
             let application = source
                 .program
                 .typed

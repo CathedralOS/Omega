@@ -67,7 +67,10 @@ pub(crate) fn close_constant_recipes(
     // A captured model-fit obligation needs no source evaluation or dummy
     // recipe. Only real constant dependencies resume their continuation.
     let mut supplemental_providers = Vec::new();
-    let applications = if representation_demands {
+    // The same application scope owns ordinary value queries and explicit
+    // representation plans. A size/align query must not acquire all retained
+    // bodies merely because its type uses ordinary packing.
+    let applications = if needs_constant_values {
         layout_applications::collect(
             source,
             selected_target_profile,
