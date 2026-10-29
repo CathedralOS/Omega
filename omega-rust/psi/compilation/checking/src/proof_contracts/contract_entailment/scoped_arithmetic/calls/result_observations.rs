@@ -23,6 +23,13 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
     if matches!(owner, SelectedCallContract::DynamicSlot { .. }) {
         return Vec::new();
     }
+    // A concrete completion's arithmetic telescope is its entry state, while
+    // reserved result projections belong to the machine declaration. Keep
+    // those identities separate rather than comparing their handle positions.
+    let result_owner = match owner {
+        SelectedCallContract::Concrete(machine, _) => machine.symbol,
+        _ => owner_symbol(&owner),
+    };
     let reference =
         crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
     // Only inline owned result bits are independent snapshots. A returned
@@ -48,7 +55,7 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
         }
         visited.push(selected);
         if let Some(place) = crate::reserved_result_place(program, selected)
-            && place.machine_symbol == owner_symbol(&owner)
+            && place.machine_symbol == result_owner
             && !place.segments.is_empty()
             && let Some(geometry) = crate::structural_scalar_coordinate_in_type(
                 program,

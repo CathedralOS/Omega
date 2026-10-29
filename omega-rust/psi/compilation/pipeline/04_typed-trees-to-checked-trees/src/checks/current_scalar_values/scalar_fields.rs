@@ -29,7 +29,7 @@ pub(super) struct CapturedScalarField {
     pub(super) carrier: PrimitiveType,
     pub(super) value: ScopedArithmeticValue,
     pub(super) read_dependencies: Vec<String>,
-    pub(super) source: Option<String>,
+    pub(super) sources: Vec<String>,
 }
 
 impl ScalarField {
@@ -318,7 +318,7 @@ impl CurrentScalarValues<'_> {
                             carrier: observation.primitive_type,
                             value: observation.value,
                             read_dependencies: Vec::new(),
-                            source: None,
+                            sources: Vec::new(),
                         });
                     }
                 }
@@ -392,7 +392,7 @@ impl CurrentScalarValues<'_> {
                             carrier,
                             value,
                             read_dependencies: Vec::new(),
-                            source: None,
+                            sources: Vec::new(),
                         });
                     }
                 }
@@ -416,7 +416,7 @@ impl CurrentScalarValues<'_> {
                             carrier: field.carrier,
                             value: field.value.clone()?,
                             read_dependencies: field.read_dependencies.clone(),
-                            source: Some(field.name.clone()),
+                            sources: vec![field.name.clone()],
                         })
                     })
                     .collect()
@@ -439,7 +439,7 @@ impl CurrentScalarValues<'_> {
                 // Copies of owned values become independent snapshots; a
                 // descriptor only copies a binding to live backing. Retain
                 // that original coordinate before window paths are rebased.
-                if let Some(source) = &field.source {
+                for source in &field.sources {
                     crate::collections::push_unique(&mut field.read_dependencies, source.clone());
                 }
             }

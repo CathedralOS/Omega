@@ -528,6 +528,13 @@ impl<'program> CurrentScalarValues<'program> {
                         && let Some((owner, path)) = values.scalar_storage_path(assignment.target)
                     {
                         values.replace_scalar_fields(owner, &path, scalar_fields);
+                        if stored_value.is_none() {
+                            values.assume_aggregate_call_ensures(
+                                assignment.value,
+                                &actuals,
+                                ordinal,
+                            );
+                        }
                     }
                     if target_remains_current
                         && let Some((owner, path)) = field_storage_path(program, assignment.target)
