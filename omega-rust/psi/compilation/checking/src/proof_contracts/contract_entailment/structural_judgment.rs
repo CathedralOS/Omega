@@ -1172,19 +1172,6 @@ impl<'program> StructuralJudge<'program> {
         self.judge_observed_predicate(predicate, depth)
     }
 
-    pub(super) fn application_is_independent(
-        &self,
-        callee: SymbolHandle,
-        selections: &[typed_trees::expression::StaticMachineArgument],
-    ) -> bool {
-        crate::machine_calls::contract_dependencies::independent_application(
-            self.program,
-            self.machine_symbol,
-            callee,
-            selections,
-        )
-    }
-
     pub(super) fn declaration_expression_type(
         &self,
         expression: ExpressionHandle,

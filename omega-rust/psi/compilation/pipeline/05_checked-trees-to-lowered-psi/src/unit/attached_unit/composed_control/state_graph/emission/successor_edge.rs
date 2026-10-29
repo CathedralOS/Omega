@@ -1163,12 +1163,21 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let mut cleanup_regions = if let Some(exit) = super::super::cleanup::optional_coordinate(
-            self.catalogs.cleanup_control,
-            state,
-            edge.statement_ordinal as usize,
-            false,
-        )? {
+        // A fused invocation keeps its own completion classification. A
+        // different returning arm can make the enclosing body resumable.
+        let selected_exit = match edge.completion {
+            checked_trees::CheckedSuccessorCompletion::NoNormalInvocation => None,
+            checked_trees::CheckedSuccessorCompletion::StateArrival
+            | checked_trees::CheckedSuccessorCompletion::ReturningInvocation => {
+                super::super::cleanup::optional_coordinate(
+                    self.catalogs.cleanup_control,
+                    state,
+                    edge.statement_ordinal as usize,
+                    false,
+                )?
+            }
+        };
+        let mut cleanup_regions = if let Some(exit) = selected_exit {
             let mut cleanup_regions = super::super::cleanup::for_exit_regions(
                 identities,
                 self.claims.published(),

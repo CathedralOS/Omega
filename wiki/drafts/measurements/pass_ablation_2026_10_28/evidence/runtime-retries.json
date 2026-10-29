@@ -1,0 +1,26 @@
+[
+  {
+    "place": "root",
+    "command": [
+      "build/pass-producer/debug/omega.exe",
+      "run",
+      "--both",
+      "samples/cli/facts/dyn_dispatch_selector_payload_bound/main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "supersedes_setup_attempt": "validation2/root-positive/output.txt"
+  },
+  {
+    "place": "target_body",
+    "command": [
+      "build/pass-producer/debug/omega.exe",
+      "run",
+      "--both",
+      "samples/cli/facts/dyn_dispatch_selector_payload_bound/target_body/main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "supersedes_setup_attempt": "validation2/target_body-positive/output.txt"
+  }
+]

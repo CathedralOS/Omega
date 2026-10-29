@@ -93,14 +93,6 @@ impl CurrentScalarValues<'_> {
         }
     }
 
-    pub(crate) fn application_value(
-        &self,
-        expression: ExpressionHandle,
-        arguments: &[(SymbolHandle, Option<ExpressionHandle>)],
-    ) -> Option<ScopedArithmeticExpression> {
-        self.application_value_with_captured(expression, arguments, &[])
-    }
-
     pub(crate) fn application_value_with_captured(
         &self,
         expression: ExpressionHandle,

@@ -1158,6 +1158,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     Some(CheckedStructuralControlSuccessorPlan::new(
         ordinal,
         target.symbol,
+        crate::execution::successor_completion::classify(program, machine, arrival.target),
         false,
         transfers,
         scalar_arguments,

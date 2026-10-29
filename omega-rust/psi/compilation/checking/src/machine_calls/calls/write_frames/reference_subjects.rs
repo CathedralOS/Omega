@@ -2,9 +2,9 @@
 use super::place_paths::{push_unique_origin, single_place_origin};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    FrameSourcePlace, Machine, MachineSymbols, State, StateParameter, StatementNode,
-    StoredLocalOrigins, SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
-    caller_aliases, frame_place_path, local_aliases, reference_origins, stored_origins,
+    FrameSourcePlace, Machine, State, StateParameter, StatementNode, StoredLocalOrigins,
+    SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, caller_aliases,
+    frame_place_path, local_aliases, reference_origins, stored_origins,
     type_is_caller_isolated_local, type_may_carry_write, type_reference_is_reference,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;

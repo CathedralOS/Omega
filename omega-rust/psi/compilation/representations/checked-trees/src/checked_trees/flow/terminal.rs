@@ -80,6 +80,7 @@ pub use structural_control_plans::{
     CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedSuccessorCompletion,
 };
 pub use structural_return::{
     CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedReferenceOriginSourcePlan,

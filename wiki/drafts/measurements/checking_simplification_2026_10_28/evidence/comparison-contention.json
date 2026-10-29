@@ -1,0 +1,5 @@
+{
+  "recorded_at": "2026-10-28T20:05:08.6837949-07:00",
+  "free_physical_kib": 49198548,
+  "note": "ComfyUI active during comparison; observed private memory 82.6 GiB and working set 39.22 GiB. No other applications interrupted."
+}

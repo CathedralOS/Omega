@@ -1509,21 +1509,6 @@ fn substituted_type_label(
     }
 }
 
-pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression(
-    syntax: &SyntaxTrees,
-    type_name: &Identifier,
-    expression: ExpressionHandle,
-    selection: Option<&ConstantSelection>,
-) -> Result<CanonicalConstNode, String> {
-    canonicalize_data_const_expression_with_admission(
-        syntax,
-        type_name,
-        expression,
-        selection,
-        ConstPredicateAdmission::ProveSyntax,
-    )
-}
-
 pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression_with_admission(
     syntax: &SyntaxTrees,
     type_name: &Identifier,

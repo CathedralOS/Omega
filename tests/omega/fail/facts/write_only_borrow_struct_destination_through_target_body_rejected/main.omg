@@ -12,45 +12,79 @@ machine initialize_destination(destination: &write DestinationSlot) {
     destination.written = 35u64;
 }
 
-linux_x86_64 machine target_probe() -> u64
-ensures
-    result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
-    initialize_destination(&write slot);
-    95u64 - slot.written
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe() -> u64
-ensures
-    result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
-    initialize_destination(&write slot);
-    95u64 - slot.written
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe() -> u64
-ensures
-    result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
-    initialize_destination(&write slot);
-    95u64 - slot.written
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe() -> u64
-ensures
-    result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
-    initialize_destination(&write slot);
-    95u64 - slot.written
+boundary trait SelectedProbe {
+    machine target_probe() -> u64
+        reaches SelectedBodyCheck crashes Trap
+        ensures
+        result <= 95u64;
 }
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe() -> u64
+        reaches SelectedBodyCheck crashes Trap
+        ensures
+        result <= 95u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
+        initialize_destination(&write slot);
+        95u64 - slot.written
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe() -> u64
+        reaches SelectedBodyCheck crashes Trap
+        ensures
+        result <= 95u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
+        initialize_destination(&write slot);
+        95u64 - slot.written
+    }
+}
+
+
+
+
+
+
+
+
 
 machine probe() -> u64
-ensures
-    result <= 95u64 {
-    target_probe()
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
+    ensures
+    result <= 95u64
+{
+    SelectedProbe::target_probe()
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let diff: u64 = probe();
     transition diff == 60u64 {
         true -> done()
@@ -58,4 +92,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

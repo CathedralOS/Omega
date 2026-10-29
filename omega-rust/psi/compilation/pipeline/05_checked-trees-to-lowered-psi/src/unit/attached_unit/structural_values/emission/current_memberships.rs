@@ -4,6 +4,8 @@
 use super::{Emission, LoweringError, StructuralArgument};
 use terminal_psi::{StructuralPathQualification, StructuralPathSegment};
 
+mod descriptor_bindings;
+
 type Memberships = (
     Vec<semantic_vocabulary::StructuralDomainId>,
     Vec<StructuralPathQualification>,
@@ -59,40 +61,63 @@ impl Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "completed source has no published memberships",
                 ))?;
-        let (mut whole, mut projected) =
+        let (mut whole, projected) =
             StructuralPathQualification::select(whole, projected, &source.path);
         if whole.is_empty() && projected.is_empty() {
             return Ok((whole, projected));
+        }
+        let projection = self.completed_projections.iter().rev().find(|projection| {
+            projection.expression == expression && projection.argument == *source
+        });
+        let source_root = projection.map_or(source.place, |projection| projection.source_root);
+        let projection_captures = projection
+            .map(|_| {
+                validation::completed_storage::consumer_captures(
+                    &self.checked.facts.flow.control,
+                    self.state,
+                    self.statement as usize,
+                    expression,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "completed projection has no exact consumer capture",
+                ))
+            })
+            .transpose()?;
+        if projection_captures.as_ref().is_some_and(|captures| {
+            !captures
+                .iter()
+                .all(|capture| descriptor_bindings::unchanged(self.checked, *capture))
+        }) {
+            // The physical endpoint remains captured, but facts about its old
+            // source spelling no longer describe it. Withhold those memberships.
+            return Ok((Vec::new(), Vec::new()));
         }
         let is_local = self
             .evaluation
             .structural_locals
             .iter()
-            .any(|local| local.argument.place == source.place);
+            .any(|local| local.argument.place == source_root);
         let is_ingress = self
             .evaluation
             .structural_parameters
             .iter()
-            .any(|(_, parameter)| parameter.place == source.place);
+            .any(|(_, parameter)| parameter.place == source_root);
         if !is_local && !is_ingress {
-            let published_here = self
+            // Materialization records only actual producers or owned arrivals.
+            // Their exact contract above remains authoritative even after the
+            // producing operation moves into a sealed private block.
+            if self
                 .operations
-                .structural_materialization_statement(source.place, self.state)?
+                .structural_materialization_statement(source_root, self.state)?
                 == Some(self.statement)
-                && (self.operations.iter().any(|operation| {
-                    operation
-                        .result
-                        .structural()
-                        .is_some_and(|result| result.place == source.place)
-                }) || self
-                    .operations
-                    .arrival_claims
-                    .iter()
-                    .any(|(place, _)| *place == source.place));
-            if published_here {
+            {
                 return Ok((whole, projected));
             }
-            return Err(LoweringError::Unsupported(
+            return Err(LoweringError::at_statement(
+                self.checked,
+                self.machine,
+                self.state,
+                self.statement,
                 "membership source lacks its completed physical/source correspondence",
             ));
         }
@@ -105,20 +130,20 @@ impl Emission<'_, '_, '_> {
         .ok_or(LoweringError::Unsupported(
             "resident membership source has no canonical observation",
         ))?;
-        let mut expected_path = if let Some(local) = self
+        let prefix = if let Some(local) = self
             .evaluation
             .structural_locals
             .iter()
-            .find(|local| local.argument.place == source.place && local.root == subject.root)
+            .find(|local| local.argument.place == source_root && local.root == subject.root)
         {
-            self.membership_source_path(identities, &local.argument.path)
+            local.argument.path.as_slice()
         } else {
             let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
             self.evaluation
                 .structural_parameters
                 .iter()
                 .any(|(index, parameter)| {
-                    parameter.place == source.place
+                    parameter.place == source_root
                         && self
                             .checked
                             .state_parameters(state)
@@ -127,51 +152,32 @@ impl Emission<'_, '_, '_> {
                                 subject.root == facts::PlaceRoot::Symbol(parameter.symbol)
                             })
                 })
-                .then(Vec::new)
-        }
-        .ok_or(LoweringError::Unsupported(
-            "resident membership home has no exact source projection",
-        ))?;
-        expected_path.extend_from_slice(&subject.segments);
-        let physical_path = self
-            .membership_source_path(identities, &source.path)
-            .ok_or(LoweringError::Unsupported(
-                "resident membership read lacks its typed physical path",
-            ))?;
-        if expected_path.len() != physical_path.len()
-            || !expected_path
-                .iter()
-                .zip(&physical_path)
-                .all(|(left, right)| {
-                    validation::storage_path_relations::canonical_place_segments_equal(
-                        &self.checked.typed,
-                        *left,
-                        *right,
-                    ) || match (left, right) {
-                        (
-                            facts::PlaceSegment::Field { symbol: left },
-                            facts::PlaceSegment::Field { symbol: right },
-                        ) => {
-                            self.checked.typed.symbols.name(*left)
-                                == self.checked.typed.symbols.name(*right)
-                        }
-                        _ => false,
-                    }
-                })
+                .then_some(&[][..])
+                .ok_or(LoweringError::Unsupported(
+                    "resident membership home has no exact source projection",
+                ))?
+        };
+        if projection.is_none()
+            && !source.path.strip_prefix(prefix).is_some_and(|suffix| {
+                self.membership_path_matches(identities, suffix, &subject.segments)
+            })
         {
             return Err(LoweringError::Unsupported(
                 "resident membership physical and source paths differ",
             ));
         }
-        let captures = validation::completed_storage::consumer_captures(
-            &self.checked.facts.flow.control,
-            self.state,
-            self.statement as usize,
-            expression,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "resident membership read has no exact completed consumer",
-        ))?;
+        let captures = match projection_captures {
+            Some(captures) => captures,
+            None => validation::completed_storage::consumer_captures(
+                &self.checked.facts.flow.control,
+                self.state,
+                self.statement as usize,
+                expression,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "resident membership read has no exact completed consumer",
+            ))?,
+        };
         let birth = self
             .operations
             .structural_materialization_statement(source.place, self.state)?
@@ -214,10 +220,16 @@ impl Emission<'_, '_, '_> {
                         .iter()
                         .any(|segment| matches!(segment, StructuralPathSegment::Referent))
                 });
-        let current = |domain, path: &[StructuralPathSegment]| {
-            let Some(relative) = self.membership_source_path(identities, path) else {
-                return false;
-            };
+        let source_type = validation::canonical_place_type_reference(
+            &self.checked.typed,
+            self.state,
+            self.statement as usize,
+            &subject,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "membership source lost its exact declared carrier",
+        ))?;
+        let current = |domain, path: &[StructuralPathSegment], relative: &[facts::PlaceSegment]| {
             let Some(binding) = self
                 .domain_ids
                 .iter()
@@ -225,14 +237,15 @@ impl Emission<'_, '_, '_> {
             else {
                 return false;
             };
-            let domain_symbol = self
+            let domain_symbols = self
                 .checked
                 .domain_definitions()
                 .iter()
-                .find(|definition| definition.semantic_id == binding.semantic_domain)
-                .map(|definition| definition.symbol);
+                .filter(|definition| definition.semantic_id == binding.semantic_domain)
+                .map(|definition| definition.symbol)
+                .collect::<Vec<_>>();
             let mut target = subject.clone();
-            target.segments.extend_from_slice(&relative);
+            target.segments.extend_from_slice(relative);
             captures.iter().all(|capture| {
                 let operand = self.checked.facts.flow.control.operands.get(*capture);
                 // A missing/unknown storage observation never becomes an empty
@@ -253,9 +266,6 @@ impl Emission<'_, '_, '_> {
                 {
                     return true;
                 }
-                let Some(domain_symbol) = domain_symbol else {
-                    return false;
-                };
                 let contexts = self
                     .checked
                     .facts
@@ -263,104 +273,142 @@ impl Emission<'_, '_, '_> {
                     .contexts
                     .semantic_constraint_contexts(operand.constraints)
                     .collect::<Vec<_>>();
-                validation::membership_evidence::MembershipEvidence::prepare(
+                let evidence = validation::membership_evidence::MembershipEvidence::prepare(
                     &self.checked.typed,
                     &self.checked.facts.semantic,
                     &contexts,
-                )
-                .contains(&target, domain_symbol, binding.semantic_domain)
-                    || validation::completed_storage::completed_membership(
-                        &self.checked.typed,
-                        &self.checked.facts,
-                        *capture,
-                        &relative,
-                        domain_symbol,
-                        binding.semantic_domain,
-                    )
+                );
+                // One checked semantic family can have several capacity
+                // declarations. Each receipt retains its exact declaration;
+                // a first-match reverse lookup would select another capacity.
+                // Same-family consistency is checked before Terminal lowering.
+                domain_symbols.iter().any(|domain_symbol| {
+                    evidence.contains(&target, *domain_symbol, binding.semantic_domain)
+                        || validation::completed_storage::completed_membership(
+                            &self.checked.typed,
+                            &self.checked.facts,
+                            *capture,
+                            relative,
+                            *domain_symbol,
+                            binding.semantic_domain,
+                        )
+                })
             })
         };
-        whole.retain(|domain| current(*domain, &[]));
-        projected.retain(|row| current(row.domain, &row.path));
-        Ok((whole, projected))
+        whole.retain(|domain| current(*domain, &[], &[]));
+        let mut retained = Vec::with_capacity(projected.len());
+        for row in projected {
+            let relative = self.membership_source_path(identities, source_type, &row.path)?;
+            if current(row.domain, &row.path, &relative) {
+                retained.push(row);
+            }
+        }
+        Ok((whole, retained))
     }
 
     fn membership_source_path(
         &self,
         identities: &terminal_psi::TerminalIdentityTableBuilder,
+        source_type: typed_trees::types::TypeReferenceHandle,
         path: &[StructuralPathSegment],
-    ) -> Option<Vec<facts::PlaceSegment>> {
-        use checked_trees::data::DataMember;
-        let mut result = Vec::new();
+    ) -> Result<Vec<facts::PlaceSegment>, LoweringError> {
+        use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+        let mut checked_path = Vec::with_capacity(path.len());
         for segment in path {
-            result.push(match segment {
+            checked_path.push(match segment {
                 StructuralPathSegment::Field(identity) => {
-                    let identity = identities.text(*identity)?;
-                    let symbol = self
-                        .checked
-                        .data_definitions()
-                        .iter()
-                        .find_map(|definition| {
-                            self.checked
-                                .data_members(definition)
-                                .iter()
-                                .find_map(|member| match member {
-                                    DataMember::Field(field)
-                                        if field.path_identity() == identity =>
-                                    {
-                                        Some(field.symbol)
-                                    }
-                                    DataMember::Variant(variant) => self
-                                        .checked
-                                        .data_payload_fields(variant)
-                                        .iter()
-                                        .find(|field| field.path_identity() == identity)
-                                        .map(|field| field.symbol),
-                                    _ => None,
-                                })
-                        })?;
-                    facts::PlaceSegment::Field { symbol }
+                    Segment::Field(checked_trees::CheckedMemberIdentity::of_spelling(
+                        identities
+                            .text(*identity)
+                            .ok_or(LoweringError::Unsupported(
+                                "membership field identity is absent",
+                            ))?,
+                    ))
                 }
-                StructuralPathSegment::Case(case) => {
-                    let identity = self
+                StructuralPathSegment::Case(selected) => {
+                    let case = self
                         .structural_types
                         .iter()
-                        .flat_map(|ty| ty.shape.sum_cases().into_iter().flatten())
-                        .find(|candidate| candidate.id == *case)
-                        .and_then(|case| identities.text(case.identity))?;
-                    let variant =
-                        self.checked
-                            .data_definitions()
-                            .iter()
-                            .find_map(|definition| {
-                                self.checked
-                                    .data_members(definition)
-                                    .iter()
-                                    .find_map(|member| match member {
-                                        DataMember::Variant(variant)
-                                            if variant.path_identity() == identity =>
-                                        {
-                                            Some(variant.symbol)
-                                        }
-                                        _ => None,
-                                    })
-                            })?;
-                    facts::PlaceSegment::Case { variant }
+                        .flat_map(|declaration| declaration.shape.sum_cases().into_iter().flatten())
+                        .find(|case| case.id == *selected)
+                        .ok_or(LoweringError::Unsupported(
+                            "membership case identity is absent",
+                        ))?;
+                    Segment::Case(checked_trees::CheckedMemberIdentity::of_spelling(
+                        identities
+                            .text(case.identity)
+                            .ok_or(LoweringError::Unsupported(
+                                "membership case spelling is absent",
+                            ))?,
+                    ))
                 }
-                StructuralPathSegment::FixedIndex(index) => facts::PlaceSegment::FixedIndex {
-                    index: usize::try_from(*index).ok()?,
-                },
-                StructuralPathSegment::AllElements => facts::PlaceSegment::FixedRange {
-                    start: 0,
-                    end: usize::MAX,
-                },
-                // Semantic membership coordinates denote the referent. The
-                // caller forbids Contents preservation across this boundary;
-                // the published Terminal row retains its Referent segment.
-                StructuralPathSegment::Referent => continue,
-                _ => return None,
+                StructuralPathSegment::FixedIndex(index) => Segment::FixedIndex(*index),
+                StructuralPathSegment::AllElements => Segment::AllElements,
+                StructuralPathSegment::Referent => Segment::Referent,
+                _ => {
+                    return Err(LoweringError::Unsupported(
+                        "membership has a nonstatic path coordinate",
+                    ));
+                }
             });
         }
-        Some(result)
+        validation::canonical_qualification_path(&self.checked.typed, source_type, &checked_path)
+            .map_err(LoweringError::Unsupported)
+    }
+
+    /// Source symbols already identify their exact owner. Compare their scoped
+    /// path identities forward to physical geometry, never reverse a spelling
+    /// through an unrelated global declaration.
+    fn membership_path_matches(
+        &self,
+        identities: &terminal_psi::TerminalIdentityTableBuilder,
+        physical: &[StructuralPathSegment],
+        source: &[facts::PlaceSegment],
+    ) -> bool {
+        let physical = physical
+            .iter()
+            .filter(|segment| !matches!(segment, StructuralPathSegment::Referent))
+            .collect::<Vec<_>>();
+        physical.len() == source.len()
+            && physical
+                .into_iter()
+                .zip(source)
+                .all(|(physical, source)| match (physical, source) {
+                    (
+                        StructuralPathSegment::Field(identity),
+                        facts::PlaceSegment::Field { symbol },
+                    ) => validation::structural_member_identity(&self.checked.typed, *symbol)
+                        .is_some_and(|member| {
+                            identities.text(*identity) == Some(member.spelling().as_str())
+                        }),
+                    (
+                        StructuralPathSegment::Case(selected),
+                        facts::PlaceSegment::Case { variant },
+                    ) => {
+                        let identity = self
+                            .structural_types
+                            .iter()
+                            .flat_map(|declaration| {
+                                declaration.shape.sum_cases().into_iter().flatten()
+                            })
+                            .find(|case| case.id == *selected)
+                            .and_then(|case| identities.text(case.identity));
+                        validation::structural_member_identity(&self.checked.typed, *variant)
+                            .is_some_and(|member| identity == Some(member.spelling().as_str()))
+                    }
+                    (
+                        StructuralPathSegment::FixedIndex(index),
+                        facts::PlaceSegment::FixedIndex { index: source },
+                    ) => usize::try_from(*index).ok() == Some(*source),
+                    (
+                        StructuralPathSegment::AllElements,
+                        facts::PlaceSegment::FixedRange {
+                            start: 0,
+                            end: usize::MAX,
+                        },
+                    ) => true,
+                    _ => false,
+                })
     }
 }
 

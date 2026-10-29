@@ -61,10 +61,20 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 
+/// Arrival and caller completion are separate: fusing a terminal invocation
+/// into a graph edge does not create a normal return from its callee.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedSuccessorCompletion {
+    StateArrival,
+    ReturningInvocation,
+    NoNormalInvocation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlSuccessorPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
+    pub completion: CheckedSuccessorCompletion,
     /// Whether the transition selects the state's authored continuation
     /// rather than its ordinary target. Scalar terminators and the composed
     /// route share this one plan; a scalar edge carries only this identity
@@ -89,6 +99,7 @@ impl CheckedStructuralControlSuccessorPlan {
     pub fn new(
         statement_ordinal: u32,
         target_state: SymbolHandle,
+        completion: CheckedSuccessorCompletion,
         is_continuation: bool,
         transfers: Vec<CheckedStructuralControlTransferPlan>,
         scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
@@ -99,6 +110,7 @@ impl CheckedStructuralControlSuccessorPlan {
         CheckedStructuralControlSuccessorPlan {
             statement_ordinal,
             target_state,
+            completion,
             is_continuation,
             transfers,
             scalar_arguments,
@@ -135,6 +147,14 @@ impl CheckedStructuralControlSuccessorPlan {
         self.operand_operations()
             .flat_map(crate::CheckedUnitEffectOperationPlan::with_value_calls)
             .filter(|operation| operation.call().is_some())
+    }
+
+    /// A normal source completion owes its selected lexical disposal. An
+    /// invocation without a return still evaluates operands and enters its
+    /// target; it does not invent disposal or domain-abandonment authority.
+    pub fn has_normal_caller_completion(&self) -> bool {
+        self.completion != CheckedSuccessorCompletion::NoNormalInvocation
+            && self.has_normal_continuation()
     }
 
     /// Operand evaluation can stop before any state arrival or transfer.

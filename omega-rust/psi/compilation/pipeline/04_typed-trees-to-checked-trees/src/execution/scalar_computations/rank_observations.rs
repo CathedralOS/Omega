@@ -169,7 +169,7 @@ pub(super) fn record(
             scalar_occurrences: Vec::new(),
             integer_occurrences: Vec::new(),
         };
-        if let Some(root) = observation(&mut builder, rank, subject, &bindings) {
+        if let Some(root) = observation(&mut builder, rank, subject, &bindings, admitted) {
             let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
         }
     }
@@ -237,6 +237,7 @@ fn observation(
     rank: &CheckedStateNaturalRank,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedScalarComputationHandle> {
     match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
@@ -292,15 +293,15 @@ fn observation(
         CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
             input_coordinate(builder, rank, subject, bindings, primitive_type)
         }
-        CheckedNaturalRankMeasure::SequenceLength { subject } => {
-            let (owner, state) = validation::find_state(builder.program, builder.state)?;
-            let (parameter, position, expression) = validation::ranking_slice_length_observation(
-                builder.program,
-                owner,
-                state,
-                bindings,
-                subject,
-            )?;
+        CheckedNaturalRankMeasure::SequenceLength { coordinate } => {
+            let (_, state) = validation::find_state(builder.program, builder.state)?;
+            let coordinate = admitted.coordinates.get(coordinate);
+            let coordinate = validation::RankSubjectCoordinate {
+                parameter: coordinate.parameter,
+                path: admitted.path_segments.span(coordinate.path)?.to_vec(),
+            };
+            let (parameter, position, expression) =
+                validation::ranking_slice_length_observation(builder.program, state, &coordinate)?;
             (parameter == rank.parameter && position == rank.parameter_position).then_some(())?;
             Some(builder.insert(
                 PrimitiveType::U64,

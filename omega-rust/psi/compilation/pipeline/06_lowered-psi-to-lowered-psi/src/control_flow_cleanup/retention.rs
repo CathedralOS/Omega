@@ -215,6 +215,15 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     if let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry {
         roots.insert(entry);
     }
+    // Published dispatch tables retain their callees without a direct call edge.
+    roots.extend(
+        module
+            .dynamic_dispatch
+            .tables
+            .iter()
+            .flat_map(|table| table.rows.iter().flatten())
+            .copied(),
+    );
     roots.extend(module.target_machine_families.iter().flat_map(|family| {
         family
             .members

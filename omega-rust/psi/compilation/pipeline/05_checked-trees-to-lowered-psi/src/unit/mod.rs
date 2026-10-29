@@ -30,11 +30,11 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
-    ClaimTransfer, ContractClause, EntryClaim, InstallationReachDependency, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult,
-    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, ProviderParameterRefinement,
-    ProviderRefinement, ProviderSignature, ProviderSignatureParameter, ServiceDeclaration,
-    StructuralAccess, StructuralArgument, StructuralCaseDeclaration, StructuralCaseSuccessorEdge,
+    ContractClause, EntryClaim, InstallationReachDependency, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, OperationResult, ProgramLocalRootIntroductionSchema,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    ProviderSignature, ProviderSignatureParameter, ServiceDeclaration, StructuralAccess,
+    StructuralArgument, StructuralCaseDeclaration, StructuralCaseSuccessorEdge,
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,

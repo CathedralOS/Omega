@@ -3,7 +3,7 @@
 //! storage coordinates. A direct returned view needs the same origin evidence
 //! as one first captured in a local; address preservation alone cannot erase it.
 
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
 use crate::machine_calls::calls::write_frames::call_trees::parameter_relative_expression_preserves_transparent_result;
 use crate::machine_calls::calls::write_frames::inference::FrameInference;

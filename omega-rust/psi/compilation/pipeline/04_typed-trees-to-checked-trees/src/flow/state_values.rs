@@ -347,7 +347,6 @@ pub(super) fn record_transition(
         program,
         semantic,
         build,
-        machine,
         state,
         destination,
         statement_index,

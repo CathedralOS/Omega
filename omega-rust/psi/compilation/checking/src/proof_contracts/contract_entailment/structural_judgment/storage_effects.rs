@@ -320,14 +320,6 @@ impl StructuralJudge<'_> {
         Some(())
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
-        &mut self,
-        state: &State,
-        written: &[String],
-    ) -> Option<()> {
-        self.observe_storage_effects(state, Some(written))
-    }
-
     /// Unknown effects retire every live storage observation, not immutable
     /// model premises or detached values captured before the call. Absence of
     /// a complete frame is never an empty frame or evidence of non-interference.

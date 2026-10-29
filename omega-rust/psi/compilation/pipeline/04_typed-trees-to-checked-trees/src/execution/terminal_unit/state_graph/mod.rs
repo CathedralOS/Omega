@@ -151,6 +151,24 @@ pub(super) fn natural_rank_plans_for_fused(
                 rank.state == state.state
                     && rank.parameter == state.parameter
                     && rank.parameter_position == state.parameter_position
+                    && match (state.observation, rank.measure) {
+                        (
+                            validation::RankPremiseObservation::Value,
+                            checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                                primitive_type,
+                            },
+                        ) => primitive_type == state.primitive_type,
+                        (
+                            validation::RankPremiseObservation::Length,
+                            checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate },
+                        ) => {
+                            let coordinate = admitted.coordinates.get(coordinate);
+                            coordinate.parameter == state.coordinate.parameter
+                                && admitted.path_segments.span(coordinate.path)
+                                    == Some(state.coordinate.path.as_slice())
+                        }
+                        _ => false,
+                    }
             })
         }) {
             return None;

@@ -16,7 +16,7 @@ pub(super) mod non_adjacent_merge;
 pub(super) mod scalar_identity;
 pub(crate) mod substitutions;
 pub(super) mod terminal_fusion;
-pub(super) mod threading;
+pub(crate) mod threading;
 
 pub(crate) fn preserve_edge_custody(
     node: &optimization_unit::OptimizationNode,

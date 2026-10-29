@@ -22,7 +22,6 @@ use validation::find_call_site;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{CallMutationWrite, StorageRegion, WritePlaceNamespace};
 
-use super::local_origins::rebase_storage_region;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
 use symbols::SymbolHandle;
@@ -161,8 +160,11 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
     let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
     let target_machine_symbol = machine_symbol_for_state(program, target_state);
     let target_machine = program.machine_by_symbol(target_machine_symbol)?;
-    let data_binding =
-        program.data_binding_parameter(target_machine, program.state_parameters(target_state));
+    let data_binding = super::family_data_binding_parameter(
+        program,
+        target_machine.symbol,
+        program.state_parameters(target_state),
+    );
     let summary = state_mutation_summary(program, borrow, cache, target_state, None)?;
     let run = target_run(
         program,

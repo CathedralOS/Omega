@@ -1,44 +1,75 @@
 // Fact: an 8-bit signed i8 exact addition of bounded inputs (lhs >= 20i8 && lhs <= 45i8, rhs >= 15i8 && rhs <= 35i8) establishes sum >= 35i8 && sum <= 80i8 so exact 8-bit signed subtraction 80i8 - sum is proved overflow-free across all nine places.
 // Place: target_body. Each hosted target body computes the 8-bit signed exact addition and subtraction.
 // Expected exit: 0
-linux_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 35
-{
-    let sum: i8 = lhs + rhs;
-    let headroom: i8 = 80 - sum;
-    headroom
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 35
-{
-    let sum: i8 = lhs + rhs;
-    let headroom: i8 = 80 - sum;
-    headroom
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 35
-{
-    let sum: i8 = lhs + rhs;
-    let headroom: i8 = 80 - sum;
-    headroom
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 35
-{
-    let sum: i8 = lhs + rhs;
-    let headroom: i8 = 80 - sum;
-    headroom
+boundary trait SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 35;
 }
 
-machine evaluate() -> i32 {
-    let h: i8 = compute_target_body(30, 25);
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 35
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let sum: i8 = lhs + rhs;
+        let headroom: i8 = 80 - sum;
+        headroom
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 35
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let sum: i8 = lhs + rhs;
+        let headroom: i8 = 80 - sum;
+        headroom
+    }
+}
+
+
+
+
+
+
+
+
+
+machine evaluate() -> i32
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
+{
+    let h: i8 = SelectedProbe::compute_target_body(30, 25);
     h as i32
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let res: i32 = evaluate();
     transition res == 25 {
         true -> done()
@@ -46,4 +77,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -394,12 +394,6 @@ pub(crate) struct Evaluator<'program> {
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
     host_boundary_touched: bool,
-    /// Like `host_boundary_touched` but EXCLUDING the filesystem family: the
-    /// GRANTED build entry (`evaluate_granted_build_machine_arguments`) allows
-    /// fs ops (the grant is the audit surface, open-work #3's settled design)
-    /// while still rejecting every OTHER host boundary (console, clock, gui)
-    /// as its dynamic backstop.
-    non_fs_host_boundary_touched: bool,
     /// Ordered filesystem outcomes, rooted authorization and output coordinates,
     /// and logical handle lifetimes. Payload buffers are not retained.
     pub(super) filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,

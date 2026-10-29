@@ -1,1 +1,1 @@
-machine `forwarded` where type predicate does not hold for the supplied arguments
+value call to `forwarded` violates required fact `type == type`: the instantiated fact is structurally false
