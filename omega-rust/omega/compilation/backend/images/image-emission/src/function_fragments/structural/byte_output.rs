@@ -1,10 +1,10 @@
 //! Selected byte-output custody rejoins source SSA, resolved scratch and decoded bytes.
 use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
 use crate::ObjectBoundarySettlement;
-use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
+use crate::object_artifact::replay::boundary::runtime_scalar_custody::hosted_i32_argument;
 use machine_code::{
     BoundaryExecutionRecord, BoundaryResultRecord, BoundarySettlementRecord,
-    ForeignCallScalarArgumentRecord, InternalUnitScalarArgumentSourceRecord, SemanticCodeSite,
+    InternalUnitScalarArgumentSourceRecord, SemanticCodeSite,
 };
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use selected_instructions::{
@@ -76,25 +76,17 @@ pub(super) fn settlement(
         execution: execution.into(),
         realization,
         scalar_arguments: Vec::new(),
-        runtime_scalar_arguments: vec![ForeignCallScalarArgumentRecord {
-            parameter_index: 0,
-            source: InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+        runtime_scalar_arguments: vec![hosted_i32_argument(
+            InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
                 source_value: value,
                 scalar_type,
                 instruction: instruction.id,
                 scratch_byte_offset: scratch.frame_offset_bytes,
             },
-            placement: ValuePlacement {
-                shape: ValueShape::integer(4, 4),
-                locations: vec![ValueLocation::Register {
-                    register,
-                    value_byte_offset: 0,
-                    byte_size: 4,
-                }],
-            },
+            register,
             code_offset,
-            byte_count: span.bytes.len(),
-        }],
+            span.bytes.len(),
+        )],
         arguments: Vec::new(),
         byte_sequence_arguments: Vec::new(),
         completion_claim_sources: Vec::new(),

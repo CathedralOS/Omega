@@ -32,6 +32,12 @@ fn structural_call_result(
     }
 }
 
+/// The operation slot a fixture observes, named once: every call site otherwise
+/// repeats the same three-line argument scaffolding.
+fn retained_at(function: &AbstractFunction, operation: usize, target: &TargetFunction) -> bool {
+    replacement_retained(function, &function.operations[operation], target)
+}
+
 #[test]
 fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
@@ -560,11 +566,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                 },
                 obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
             };
-        assert!(replacement_retained(
-            &stored_function,
-            &stored_function.operations[1],
-            &stored_target
-        ));
+        assert!(retained_at(&stored_function, 1, &stored_target));
         {
             for corruption in 0..4 {
                 let mut changed = stored_target.clone();
@@ -594,11 +596,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    !replacement_retained(
-                        &stored_function,
-                        &stored_function.operations[1],
-                        &changed
-                    ),
+                    !retained_at(&stored_function, 1, &changed),
                     "forged owned replacement {corruption}"
                 );
             }
@@ -711,11 +709,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
                     operation_offset: 0,
                 });
         }
-        assert!(replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(retained_at(&function, 0, &target));
         for corruption in ["access", "type", "position", "qualification"] {
             let mut changed = target.clone();
             if arrival {
@@ -740,7 +734,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
                 }
             }
             assert!(
-                !replacement_retained(&function, &function.operations[0], &changed),
+                !retained_at(&function, 0, &changed),
                 "arrival={arrival}, {corruption}"
             );
         }
@@ -754,11 +748,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
             function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
             target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
         }
-        assert!(!replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(!retained_at(&function, 0, &target));
     }
 }
 
@@ -809,11 +799,7 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
                 },
                 obligation,
             };
-        assert!(replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(retained_at(&function, 0, &target));
         assert!(super::super::requires_graph_storage_replay(
             &function.operations
         ));
@@ -858,21 +844,14 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
                     changed.graph.blocks[0].operations.push(duplicate);
                 }
             }
-            assert!(
-                !replacement_retained(&function, &function.operations[0], &changed),
-                "mutation {mutation}"
-            );
+            assert!(!retained_at(&function, 0, &changed), "mutation {mutation}");
         }
         // Equal producer/target operands do not turn a shared loan into write authority.
         function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
         target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
         let destination = byte_store_destination_mut(&mut target.graph, 0).unwrap();
         destination.access = StructuralAccess::SharedBorrow;
-        assert!(!replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(!retained_at(&function, 0, &target));
     }
 }
 
@@ -1073,11 +1052,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             obligation,
         },
     ];
-    assert!(replacement_retained(
-        &function,
-        &function.operations[1],
-        &target
-    ));
+    assert!(retained_at(&function, 1, &target));
 
     // The selected pointer, not the first candidate, remains the write subject.
     let mut grouped = target.clone();
@@ -1103,19 +1078,11 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(18)),
             )],
         });
-    assert!(replacement_retained(
-        &function,
-        &function.operations[1],
-        &grouped
-    ));
+    assert!(retained_at(&function, 1, &grouped));
     assert_reference_field_read_retains_carrier(&function, &grouped, holder_type);
     let reference_results = structural_call_reference_results_mut(&mut grouped.graph, 0);
     reference_results[0].origins.swap(0, 1);
-    assert!(!replacement_retained(
-        &function,
-        &function.operations[1],
-        &grouped
-    ));
+    assert!(!retained_at(&function, 1, &grouped));
 
     use selected_instructions::{
         SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin as Origin,
@@ -1244,11 +1211,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             }
         }
         assert!(
-            !replacement_retained(
-                &changed_function,
-                &changed_function.operations[1],
-                &changed_target,
-            ),
+            !retained_at(&changed_function, 1, &changed_target),
             "corruption {corruption}"
         );
     }
@@ -1772,7 +1735,10 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(26),
-                shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(2) },
+                shape: terminal_psi::StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(2),
+                },
             },
             terminal_psi::StructuralTypeDeclaration {
                 quotient_carrier: None,
