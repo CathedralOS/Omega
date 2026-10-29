@@ -14,6 +14,18 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
     let machine = program.machines().get(application.machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
+    if machine.name.as_str() == "kept" {
+        super::super::storage_trace(
+            "exact-start",
+            &(
+                parameters
+                    .iter()
+                    .map(|p| (p.is_mutable, value_shape(program, p.type_reference)))
+                    .collect::<Vec<_>>(),
+                application.arguments.len(),
+            ),
+        );
+    }
     if !admitted_activation_parameters(program, parameters, application.arguments.len()) {
         return None;
     }
@@ -121,23 +133,38 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
     }
     // Retain authored guards first. Every later partial read must form from
     // preceding conditions, independently of the predicate being replaced.
+    if machine.name.as_str() == "kept" {
+        super::super::storage_trace("candidates", &candidates.len());
+    }
     candidates.sort_by_key(Candidate::has_reads);
     let mut selected = Vec::new();
     let mut paths = vec![initial.clone()];
     for candidate in candidates {
-        if necessary(
+        let necessity = necessary(
             &mut proof,
             application,
             &frame,
             &arguments,
             &initial,
             &candidate,
-        )? {
-            paths = proof.form_condition(&frame, &paths, &candidate)?;
+        );
+        if machine.name.as_str() == "kept" {
+            super::super::storage_trace("necessity", &necessity);
+        }
+        if necessity? {
+            let formed = proof.form_condition(&frame, &paths, &candidate);
+            if machine.name.as_str() == "kept" {
+                super::super::storage_trace("formation", &formed.as_ref().map(Vec::len));
+            }
+            paths = formed?;
             selected.push(candidate.into_condition());
         }
     }
-    if sufficient(&mut proof, application, &arguments, &paths)? {
+    let sufficiency = sufficient(&mut proof, application, &arguments, &paths);
+    if machine.name.as_str() == "kept" {
+        super::super::storage_trace("sufficiency", &sufficiency);
+    }
+    if sufficiency? {
         return (!selected.is_empty()).then_some(selected);
     }
 

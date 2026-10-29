@@ -122,7 +122,31 @@ fn predicate_call(
     if !call.is_ordinary_positional_call() {
         return None;
     }
-    let machine = exploration::admitted_predicate_machine(program, call.target_symbol, false)?;
+    let admitted = exploration::admitted_predicate_machine(program, call.target_symbol, false);
+    if std::env::var_os("OMEGA_STORAGE_PREDICATE_TRACE").is_some() {
+        if let Some(candidate) =
+            exploration::admitted_predicate_machine(program, call.target_symbol, true)
+        {
+            let selected = &program.machines()[candidate];
+            if selected.name.as_str() == "kept" {
+                storage_trace(
+                    "call-admission",
+                    &(
+                        selected.name.as_str(),
+                        admitted,
+                        program
+                            .machine_contracts(selected)
+                            .iter()
+                            .map(|c| c.kind)
+                            .collect::<Vec<_>>(),
+                    ),
+                );
+            }
+        } else {
+            storage_trace("no-call-admission", &call.target_symbol);
+        }
+    }
+    let machine = admitted?;
     let arguments = program.expression_table.expression_handles(call.arguments);
     if arguments.len() != call.arguments.len() {
         return None;
@@ -844,4 +868,17 @@ pub fn premises_prove_expression(
     goal: ExpressionHandle,
 ) -> bool {
     implication::proves(program, machine, goal)
+}
+
+pub(crate) fn storage_trace(stage: &str, value: &impl std::fmt::Debug) {
+    if let Some(path) = std::env::var_os("OMEGA_STORAGE_PREDICATE_TRACE") {
+        use std::io::Write as _;
+        if let Ok(mut output) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = output.write_all(format!("QUERY {stage} {value:?}\n").as_bytes());
+        }
+    }
 }
