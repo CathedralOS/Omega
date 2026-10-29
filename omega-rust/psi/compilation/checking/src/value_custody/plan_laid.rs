@@ -11,29 +11,28 @@ pub(crate) fn validate_plans(
 ) {
     let mut data_symbols = Vec::with_capacity(program.plan_laid_layouts.len());
     for plan in &program.plan_laid_layouts {
+        macro_rules! laid {
+            ($detail:literal) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    concat!("plan-laid value type `{}` ", $detail),
+                    plan.data_name
+                )))
+            };
+        }
         if data_symbols.contains(&plan.data_symbol) {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` repeats its exact synthesized data identity",
-                plan.data_name
-            )));
+            laid!("repeats its exact synthesized data identity");
             continue;
         }
         data_symbols.push(plan.data_symbol);
         if !crate::layout_checking::layout_family_is_complete(program, plan) {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` lost its complete exact target-family application roster",
-                plan.data_name
-            )));
+            laid!("lost its complete exact target-family application roster");
             continue;
         }
 
         let Some(data) =
             crate::declarations::data_queries::data_definition_by_symbol(program, plan.data_symbol)
         else {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` no longer names its exact synthesized data identity",
-                plan.data_name
-            )));
+            laid!("no longer names its exact synthesized data identity");
             continue;
         };
         let data_fields = runtime_fields(program, data);
@@ -46,10 +45,7 @@ pub(crate) fn validate_plans(
                 .geometries(program.typed_program())
                 .any(|geometry| geometry.offsets.len() != plan.field_symbols.len())
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact synthesized field identity inventory",
-                plan.data_name
-            )));
+            laid!("changed its exact synthesized field identity inventory");
             continue;
         }
 
@@ -57,10 +53,7 @@ pub(crate) fn validate_plans(
             program,
             plan.schema_symbol,
         ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` no longer names its exact source schema identity",
-                plan.data_name
-            )));
+            laid!("no longer names its exact source schema identity");
             continue;
         };
         let schema_fields = runtime_fields(program, schema);
@@ -70,17 +63,11 @@ pub(crate) fn validate_plans(
             .ne(plan.schema_field_symbols.iter().copied())
             || plan.schema_field_symbols.len() != plan.field_symbols.len()
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact source schema field identity inventory",
-                plan.data_name
-            )));
+            laid!("changed its exact source schema field identity inventory");
             continue;
         }
         if !schema_argument_matches(program, plan, &schema_fields) {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` lost its exact complete captured Schema argument",
-                plan.data_name
-            )));
+            laid!("lost its exact complete captured Schema argument");
             continue;
         }
         if data_fields
@@ -95,39 +82,27 @@ pub(crate) fn validate_plans(
                             .display_type_reference_with_constraints(schema_field.type_reference)
             })
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact schema-to-synthesized field correspondence",
-                plan.data_name
-            )));
+            laid!("changed its exact schema-to-synthesized field correspondence");
             continue;
         }
         if !plan.geometries(program.typed_program()).all(|geometry| {
             target_neutral_report_matches(program, geometry, schema, &schema_fields)
         }) {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact target-neutral layout report identity",
-                plan.data_name
-            )));
+            laid!("changed its exact target-neutral layout report identity");
             continue;
         }
         if !plan
             .geometries(program.typed_program())
             .all(|geometry| geometry_matches(geometry, &schema_fields))
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact validated geometry projection",
-                plan.data_name
-            )));
+            laid!("changed its exact validated geometry projection");
             continue;
         }
         if !plan
             .geometries(program.typed_program())
             .all(|geometry| stored_integer_capabilities_match(program, geometry, &schema_fields))
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact stored-integer type capability",
-                plan.data_name
-            )));
+            laid!("changed its exact stored-integer type capability");
             continue;
         }
 
@@ -135,17 +110,11 @@ pub(crate) fn validate_plans(
             program,
             plan.policy_symbol,
         ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` no longer names its exact nominal policy identity",
-                plan.data_name
-            )));
+            laid!("no longer names its exact nominal policy identity");
             continue;
         };
         let Some(machine) = program.machine(plan.policy_plan_machine_symbol) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` no longer names its exact policy plan machine",
-                plan.data_name
-            )));
+            laid!("no longer names its exact policy plan machine");
             continue;
         };
         if machine
@@ -154,10 +123,7 @@ pub(crate) fn validate_plans(
             .is_none_or(|attached| attached.as_str() != policy.name.as_str())
             || machine.name.as_str() != format!("{}::plan", policy.name.as_str())
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact nominal policy binding",
-                plan.data_name
-            )));
+            laid!("changed its exact nominal policy binding");
         }
     }
 }
