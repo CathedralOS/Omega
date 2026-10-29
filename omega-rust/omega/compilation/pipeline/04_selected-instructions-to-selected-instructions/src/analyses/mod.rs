@@ -5,6 +5,7 @@ pub(crate) mod live_ranges;
 pub(crate) mod liveness;
 pub(crate) mod machine_effects;
 mod reanalysis;
+mod storage_census;
 
 pub(crate) use legality::stage_optimized_allocation_legality_for_frameless_leaf;
 pub use legality::{
@@ -118,6 +119,12 @@ impl UnsealedRecoveryFacts {
         legality: &ValidatedAllocationLegality,
     ) -> Self {
         let count = liveness.plan().functions.len();
+        storage_census::roster(
+            "validated-anchor",
+            &liveness.plan().functions,
+            &ranges.plan().functions,
+            &legality.plan().functions,
+        );
         Self {
             liveness_functions: liveness.plan().functions.clone(),
             liveness_materialized: vec![true; count],
@@ -146,6 +153,12 @@ impl UnsealedRecoveryFacts {
     ) -> Result<Self, RecoveryReanalysisError> {
         let prev_plan = previous.selected_plan();
         let next_plan = selected.selected_plan();
+        storage_census::roster(
+            "prior-facts",
+            &self.liveness_functions,
+            &self.range_functions,
+            &self.legality_functions,
+        );
         let count = next_plan.functions.len();
         let mut changed = vec![false; count];
         for (index, function) in next_plan.functions.iter().enumerate() {
@@ -164,19 +177,37 @@ impl UnsealedRecoveryFacts {
         }
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
-                liveness_functions[index] = std::sync::Arc::new(
+                storage_census::function(index, function);
+                let replacement = std::sync::Arc::new(
                     phase_profile::scope("06.1.d.05.i.1_liveness", || {
                         liveness::compute::compute_function_for_ranges(index, function)
                     })
                     .map_err(RecoveryReanalysisError::Liveness)?,
                 );
+                if phase_profile::enabled() {
+                    storage_census::replacement(
+                        "liveness",
+                        index,
+                        storage_census::liveness(&liveness_functions[index]),
+                        storage_census::liveness(&replacement),
+                        std::sync::Arc::strong_count(&liveness_functions[index]),
+                    );
+                }
+                liveness_functions[index] = replacement;
                 liveness_materialized[index] = false;
             }
         }
+        storage_census::roster(
+            "liveness-replaced",
+            &liveness_functions,
+            &self.range_functions,
+            &self.legality_functions,
+        );
+        storage_census::sharing("liveness", &self.liveness_functions, &liveness_functions);
         let mut range_functions = self.range_functions.clone();
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
-                range_functions[index] = std::sync::Arc::new(
+                let replacement = std::sync::Arc::new(
                     phase_profile::scope("06.1.d.05.i.2_live_ranges", || {
                         live_ranges::compute::compute_function(
                             index,
@@ -186,8 +217,25 @@ impl UnsealedRecoveryFacts {
                     })
                     .map_err(RecoveryReanalysisError::Ranges)?,
                 );
+                if phase_profile::enabled() {
+                    storage_census::replacement(
+                        "ranges",
+                        index,
+                        storage_census::ranges(&range_functions[index]),
+                        storage_census::ranges(&replacement),
+                        std::sync::Arc::strong_count(&range_functions[index]),
+                    );
+                }
+                range_functions[index] = replacement;
             }
         }
+        storage_census::roster(
+            "ranges-replaced",
+            &liveness_functions,
+            &range_functions,
+            &self.legality_functions,
+        );
+        storage_census::sharing("ranges", &self.range_functions, &range_functions);
         let mut legality_functions = self.legality_functions.clone();
         for index in 0..count {
             if changed[index] {
@@ -209,9 +257,25 @@ impl UnsealedRecoveryFacts {
                 .map_err(RecoveryReanalysisError::Legality)?;
                 allocation_legality::validate::FunctionCounts::new(&computed, index)
                     .map_err(RecoveryReanalysisError::Legality)?;
+                if phase_profile::enabled() {
+                    storage_census::replacement(
+                        "legality",
+                        index,
+                        storage_census::legality(&legality_functions[index]),
+                        storage_census::legality(&computed),
+                        std::sync::Arc::strong_count(&legality_functions[index]),
+                    );
+                }
                 legality_functions[index] = std::sync::Arc::new(computed);
             }
         }
+        storage_census::roster(
+            "all-replaced",
+            &liveness_functions,
+            &range_functions,
+            &legality_functions,
+        );
+        storage_census::sharing("legality", &self.legality_functions, &legality_functions);
         Ok(Self {
             liveness_functions,
             liveness_materialized,
@@ -257,21 +321,29 @@ impl UnsealedRecoveryFacts {
                     .functions
                     .shares_function_storage(&next_plan.functions, index)
                     || anchor_plan.functions.get(index) == Some(function))
-                    && anchor_liveness.plan().functions.get(index).is_some_and(|a| {
-                        liveness_functions
-                            .get(index)
-                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
-                    })
+                    && anchor_liveness
+                        .plan()
+                        .functions
+                        .get(index)
+                        .is_some_and(|a| {
+                            liveness_functions
+                                .get(index)
+                                .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                        })
                     && anchor_ranges.plan().functions.get(index).is_some_and(|a| {
                         self.range_functions
                             .get(index)
                             .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
                     })
-                    && anchor_legality.plan().functions.get(index).is_some_and(|a| {
-                        self.legality_functions
-                            .get(index)
-                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
-                    })
+                    && anchor_legality
+                        .plan()
+                        .functions
+                        .get(index)
+                        .is_some_and(|a| {
+                            self.legality_functions
+                                .get(index)
+                                .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                        })
             })
             .collect();
         let liveness_plan = selected_instructions::LivenessPlan {

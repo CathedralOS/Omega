@@ -158,7 +158,7 @@ pub(crate) fn compute_function(
 
     let architectural_units = architectural_units(function_index, liveness)?;
 
-    let interference = super::interference(&virtual_rows);
+    let interference = super::interference(function_index, &virtual_rows);
     Ok(FunctionLiveRanges {
         machine: selected.machine,
         block_domains,

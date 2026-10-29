@@ -324,6 +324,30 @@ impl FunctionFlow {
         {
             return Ok(flow);
         }
+        if phase_profile::enabled() {
+            let matrix_bytes = function
+                .blocks
+                .len()
+                .saturating_mul(word_count)
+                .saturating_mul(16);
+            let parameter_bytes = flow.edges.iter().flatten().fold(0usize, |sum, edge| {
+                sum.saturating_add(edge.param_bits.capacity().saturating_mul(8))
+            });
+            if matrix_bytes.saturating_add(parameter_bytes) >= 1024 * 1024 {
+                let max_id = function.virtual_registers.iter().map(|r| r.id.0).max();
+                let edges = flow
+                    .edges
+                    .iter()
+                    .fold(0usize, |sum, row| sum.saturating_add(row.len()));
+                eprintln!(
+                    "storage-census flow-before function={function_index} machine={:?} blocks={} registers={} max_declared_vreg_id={max_id:?} words={word_count} edges={edges} planned_two_matrix_payload_bytes={matrix_bytes} scratch_payload_bytes={} parameter_capacity_bytes={parameter_bytes}",
+                    function.machine,
+                    function.blocks.len(),
+                    function.virtual_registers.len(),
+                    word_count.saturating_mul(16)
+                );
+            }
+        }
         let mut virtual_entry_bits = vec![vec![0u64; word_count]; function.blocks.len()];
         let mut virtual_exit_bits = vec![vec![0u64; word_count]; function.blocks.len()];
         let mut next_exit_bits = vec![0u64; word_count];
@@ -480,6 +504,24 @@ impl FunctionFlow {
             } else {
                 state.unit_entry = unit_entry_sets[block_index].iter().copied().collect();
                 state.unit_exit = unit_exit_sets[block_index].iter().copied().collect();
+            }
+        }
+        if phase_profile::enabled() {
+            let matrix_bytes = virtual_entry_bits
+                .iter()
+                .chain(&virtual_exit_bits)
+                .fold(0usize, |sum, row| {
+                    sum.saturating_add(row.capacity().saturating_mul(8))
+                });
+            let frontier_bytes = flow.blocks.iter().fold(0usize, |sum, block| {
+                sum.saturating_add(block.virtual_entry.capacity().saturating_mul(4))
+                    .saturating_add(block.virtual_exit.capacity().saturating_mul(4))
+            });
+            if matrix_bytes.saturating_add(frontier_bytes) >= 1024 * 1024 {
+                eprintln!(
+                    "storage-census flow-after function={function_index} machine={:?} matrix_payload_capacity_bytes={matrix_bytes} materialized_virtual_frontier_capacity_bytes={frontier_bytes}",
+                    function.machine
+                );
             }
         }
         Ok(flow)
