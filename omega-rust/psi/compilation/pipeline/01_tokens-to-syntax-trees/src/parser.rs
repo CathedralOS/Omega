@@ -118,7 +118,12 @@ pub fn parse_source_pages_from(
     let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
     let source_count = lexed_sources.len();
     let desired_pages = source_count
-        .min(rayon::current_num_threads().max(1).saturating_mul(4))
+        .min(
+            parse_thread_pool()
+                .current_num_threads()
+                .max(1)
+                .saturating_mul(4),
+        )
         .max(1);
     parse_source_pages_with_count(lexed_sources, desired_pages, first_page_identity)
 }
