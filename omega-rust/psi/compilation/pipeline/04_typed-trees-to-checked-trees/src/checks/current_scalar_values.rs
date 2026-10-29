@@ -98,6 +98,7 @@ pub(crate) struct CurrentScalarValues<'program> {
     initial: Vec<Binding>,
     current: Vec<Binding>,
     lengths: Vec<Length>,
+    initial_lengths: Vec<Length>,
     fields: Vec<ScalarField>,
     conditions: Vec<ConditionBinding>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
@@ -221,6 +222,7 @@ impl<'program> CurrentScalarValues<'program> {
             current: initial.clone(),
             initial,
             lengths,
+            initial_lengths: Vec::new(),
             fields: Vec::new(),
             conditions: Vec::new(),
             hypotheses: Vec::new(),
@@ -228,6 +230,7 @@ impl<'program> CurrentScalarValues<'program> {
             scalar_observations: std::cell::OnceCell::new(),
         };
         values.seed_parameter_fields();
+        values.initial_lengths = values.lengths.clone();
         let owned_frames = frames
             .is_none()
             .then(|| validation::CallFrameResolver::new(program))

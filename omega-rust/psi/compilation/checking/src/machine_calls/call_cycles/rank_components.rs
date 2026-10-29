@@ -154,6 +154,7 @@ pub fn retain_runtime_rank_component(
                     coordinate,
                     parameter_position: state.parameter_position,
                     primitive_type: state.primitive_type,
+                    observation: state.observation,
                 }
             })
             .collect::<Vec<_>>();
@@ -226,6 +227,7 @@ pub fn retained_runtime_natural_components(
                         },
                         parameter_position: state.parameter_position,
                         primitive_type: state.primitive_type,
+                        observation: state.observation,
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;

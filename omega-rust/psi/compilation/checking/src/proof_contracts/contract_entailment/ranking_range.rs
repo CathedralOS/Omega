@@ -211,29 +211,36 @@ fn slice_rank_coordinate<'program>(
     }
 }
 
-/// Compile the source range owner's selected sequence coordinate into the
-/// existing checked scalar observation vocabulary. The supplied telescope is
-/// an established arrival correspondence, not a type-based guess. This query
-/// grants no range, descent, access or write-preservation authority; those
-/// remain independently proved by the caller's ranking judgment.
+/// Compile the exact admitted descriptor coordinate in its state's namespace.
+/// The coordinate is an established arrival correspondence, not a type-based
+/// guess. This grants no range, descent, access or write-preservation authority;
+/// those remain independently proved by the caller's ranking judgment.
+/// The source witness and inferred private coordinates use this same query;
+/// neither execution planning nor lowering needs an authored AST occurrence.
 pub fn ranking_slice_length_observation(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: &State,
-    entry_parameters: &RankStateBindings,
-    subject: ExpressionHandle,
+    coordinate: &RankSubjectCoordinate,
 ) -> Option<(
     symbols::SymbolHandle,
     u32,
     checked_trees::CheckedScalarExpression,
 )> {
-    let root = program.machine_states(machine).first()?;
-    let coordinate = slice_rank_coordinate(program, root, state, Some(entry_parameters), subject)?;
-    let (parameter, path) = if let Some(coordinate) = coordinate {
-        let path = coordinate
+    let (parameter, path) = if coordinate.path.is_empty() {
+        let parameter = program.state_parameter_by_symbol(state, coordinate.parameter)?;
+        lengths::is_slice(program, parameter.type_reference).then_some(())?;
+        (parameter, Vec::new())
+    } else {
+        let field = coordinate::Coordinate::at_coordinate(
+            program,
+            state,
+            coordinate,
+            coordinate::CoordinateKind::Length,
+        )?;
+        let path = field
             .steps
             .iter()
-            .chain([&coordinate.field])
+            .chain([&field.field])
             .map(|field| {
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(
                     checked_trees::CheckedMemberIdentity::of_member(
@@ -243,19 +250,7 @@ pub fn ranking_slice_length_observation(
                 )
             })
             .collect();
-        (coordinate.parameter, path)
-    } else {
-        let formal = lengths::parameter(program, root, subject)?;
-        let destination = entry_parameters.destination(&RankSubjectCoordinate {
-            parameter: formal.symbol,
-            path: Vec::new(),
-        })?;
-        if !destination.path.is_empty() {
-            return None;
-        }
-        let carrier = program.state_parameter_by_symbol(state, destination.parameter)?;
-        lengths::is_slice(program, carrier.type_reference).then_some(())?;
-        (carrier, Vec::new())
+        (field.parameter, path)
     };
     let position = program
         .state_parameters(state)
@@ -511,15 +506,7 @@ pub fn ranking_range_premise_symbols(
     state_aliases::premise_symbols(program, machine, range, measure, true)
 }
 
-/// How a ranking judgment reads one carrier: its whole arrival value, or only
-/// a collection's extent through `.len`. A store into a collection's elements
-/// leaves its extent as it was, so the observation decides which prefix
-/// writes a premise survives.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RankPremiseObservation {
-    Value,
-    Length,
-}
+pub use checked_trees::CheckedRankObservation as RankPremiseObservation;
 
 /// One root formal a ranking judgment reads, and how much of it: the whole
 /// formal, or the extent of the collection at `path` beneath it.

@@ -35,6 +35,7 @@ pub struct ValidatedRuntimeNaturalState {
     pub coordinate: crate::RankSubjectCoordinate,
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
+    pub observation: crate::RankPremiseObservation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
