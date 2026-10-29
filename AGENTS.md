@@ -570,6 +570,16 @@ The rules that touch every edit:
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Inline cases follow all common fields as a consecutive tail. Destructure data
+  by named fields plus `case as binding`, or positionally by authored common-field
+  order then one case-only view. Case patterns bind payload fields only; common
+  fields in case patterns are retired. Preserve normal nested-match, subject,
+  borrow, ownership and cleanup rules; source order is not physical layout.
+  Irrefutable `let` bindings use the same named/positional patterns and evaluate
+  their initializer once; they add no hidden branch, trap, copying permission or
+  special match-as header. Keep the ordinary match forms valid.
+  Follow [data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition);
+  `DATA-DECOMPOSITION` owns compiler/source/tooling migration.
 - Source `where` is retired. Use `requires` for data/default-domain and generic
   predicates and static callable requirements; assembly carries `requires`,
   `ensures` and `clobbers` directly after `asm`. Keep nested callable contracts
