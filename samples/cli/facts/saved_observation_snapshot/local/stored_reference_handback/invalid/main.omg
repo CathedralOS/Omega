@@ -20,7 +20,12 @@ machine main() crashes Trap {
     let mut holder: Holder = Holder { before: 11, items: &mut items, after: 13 };
     let saved: u64 = holder.items[0];
     preserve(&mut holder);
-    transition agree(saved, holder.items[0]) == 7 && holder.items[0] == 7 && holder.items[1] == 4 && holder.before == 11 && holder.after == 13 {
+    let observed: u64 = agree(saved, holder.items[0]);
+    let current_zero: u64 = holder.items[0];
+    let current_one: u64 = holder.items[1];
+    let backing_zero: u64 = items[0];
+    let backing_one: u64 = items[1];
+    transition observed == 7 && current_zero == 7 && current_one == 4 && backing_zero == 7 && backing_one == 4 && holder.before == 11 && holder.after == 13 {
         true -> done()
         false -> bad()
     }

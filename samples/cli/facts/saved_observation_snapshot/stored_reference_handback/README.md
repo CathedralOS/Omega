@@ -12,8 +12,10 @@ runtime checks observe both original cells and the carrier neighbors.
 
 The twin changes only the final store destination from index one to zero.
 It must reject preserve's own Ensures. Formation or access refusal does not
-establish that obligation. Sources and oracles are frozen before the initial
-exact-source baseline; current status is unverified. Fixed base:
+establish that obligation. The first frozen source checks and its twin rejects preserve’s own Ensures on
+optimized B0. The strengthened runtime oracle also reads the original backing
+array after the stored reference’s last use. Its source and runtime outcomes
+remain unverified; no compiler defect is claimed. Fixed base:
 52929b02d410af19e925c30218b1b00626734041.
 
 Initial witness: [local](../local/stored_reference_handback/main.omg),
