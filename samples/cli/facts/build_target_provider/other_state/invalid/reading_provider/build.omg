@@ -3,9 +3,9 @@ machine build(builder: &mut Build) {
     configure<true, (8u64 + 9u64)>(builder);
 }
 machine configure<const Flag: bool, const Tag: u64>(builder: &mut Build) {
-    Build::select_provider<Reading<Tag>, FirstReading<Holder<u64>, Tag>>(builder, windows_x86_64);
-    Build::select_provider<Reading<Tag>, FirstReading<Holder<u64>, Tag>>(builder, macos_x86_64);
-    Build::select_provider<Reading<Tag>, FirstReading<Holder<u64>, Tag>>(builder, linux_x86_64);
-    Build::select_provider<Reading<Tag>, SecondReading<Holder<u32>, Tag>>(builder, macos_arm64);
-    Build::select_provider<Reading<Tag>, SecondReading<Holder<u32>, Tag>>(builder, linux_arm64);
+    Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, windows_x86_64);
+    Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, macos_x86_64);
+    Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);
+    Build::select_provider<Reading<Tag>, SecondReading<[Holder<u32>; 2], Tag>>(builder, macos_arm64);
+    Build::select_provider<Reading<Tag>, SecondReading<[Holder<u32>; 2], Tag>>(builder, linux_arm64);
 }
