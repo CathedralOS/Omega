@@ -524,7 +524,7 @@ def main() -> None:
              b"machine f() satisfies T::helper {}",
              NOT_A_REQUIREMENT, b"helper", 2)
     rejected(program, "conformance-nested-helper-is-not-an-exported-member",
-             b"trait T { machine required(); } conformance C satisfies T { "
+             b"trait T { machine required(); } C satisfies T { "
              b"machine required() { machine helper() {} } } machine f() { C::helper(); }",
              UNKNOWN_NAME, b"C::helper")
     every_builtin = b"data A {" + b"".join(
