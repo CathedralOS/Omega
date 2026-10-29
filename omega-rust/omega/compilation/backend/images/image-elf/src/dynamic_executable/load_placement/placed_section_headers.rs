@@ -57,6 +57,7 @@ impl ValidatedElfPlacedSectionHeaderTable {
         &self.contents.bytes
     }
 
+    #[cfg(test)]
     pub(crate) fn applied_placements(&self) -> &[ElfAppliedSectionHeaderPlacement] {
         &self.contents.applications
     }
