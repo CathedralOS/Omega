@@ -55,8 +55,11 @@ pub(crate) fn exact_checked_contract_operator_meaning(
                     ))
                 }
                 _ => Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` contract selected an operator without one retained declaration",
-                    context.subject_kind, context.subject_name
+                    "reviewed {} `{}` contract selected an operator without one retained declaration (resolved {:?} `{}`)",
+                    context.subject_kind,
+                    context.subject_name,
+                    compilation.symbols.get(symbol).kind,
+                    compilation.symbols.display_path(symbol, "::"),
                 ))]),
             }
         }
