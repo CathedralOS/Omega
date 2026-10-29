@@ -1,0 +1,10 @@
+windows_x86_64: checked 2 source packages.
+Audit recommended: dungeon_crawler_cli [b30cca7b8ce2].
+Audit recommended: omega_language_std [4c3c7fd10ee8].
+Source diff: dungeon_crawler_cli [b30cca7b8ce2]: 0 changed entries.
+Source diff: omega_language_std [4c3c7fd10ee8]: 0 changed entries.
+Capability comparison uses accepted lock policy independently of old-source availability.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\proof-profile-20261028\samples\cli\games\dungeon_crawler_cli\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 2 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\proof-profile-20261028\samples\cli\games\dungeon_crawler_cli\build\package-manager\review-windows_x86_64.txt

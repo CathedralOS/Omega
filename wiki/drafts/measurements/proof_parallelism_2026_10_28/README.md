@@ -52,6 +52,12 @@ The detailed profiler adds a global mutex and records nested/concurrent scopes;
 its rows must not be summed into a serial-time total. Its timings are diagnostic,
 not samples in the worker table.
 
+The [follow-up split](reconciliation/README.md) attributes over 99.98% of that
+reconciliation region to payload membership transport on this program. Its
+median is 2.278 seconds; place reconciliation and descriptor residences together
+take about 0.23 milliseconds. This later observation does not replace the
+original run's timing or imply an optimization speedup.
+
 ## Are expressions checked repeatedly?
 
 Yes, but most revisits have different recorded inputs. In a separate counts run:
