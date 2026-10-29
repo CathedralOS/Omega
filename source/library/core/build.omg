@@ -502,4 +502,6 @@ machine build(builder: &mut Build) {
     Build::select_provider<F64SquareRootTowardPositive, core::native::x86_64_float::X86F64SquareRootTowardPositive>(builder, macos_x86_64);
     Build::select_provider<F32SquareRootTowardNegative, core::native::x86_64_float::X86F32SquareRootTowardNegative>(builder, macos_x86_64);
     Build::select_provider<F64SquareRootTowardNegative, core::native::x86_64_float::X86F64SquareRootTowardNegative>(builder, macos_x86_64);
+    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, uefi_x86_64);
+    Build::select_provider<ProgramImage, ProgramImageNativeProvider>(builder, uefi_x86_64);
 }

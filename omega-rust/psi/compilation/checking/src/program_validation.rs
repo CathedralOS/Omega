@@ -540,15 +540,7 @@ fn validate<'program>(
             &mut formation_obligations,
         );
         if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerPrimitive {
-            let authenticated = match program.machine_trait_conformances(machine) {
-                [conformance] => program
-                    .sealed_numeric_realization_descriptor(
-                        machine.symbol,
-                        conformance.requirement_symbol,
-                    )
-                    .is_some(),
-                _ => false,
-            };
+            let authenticated = program.has_authenticated_compiler_primitive_supply(machine);
             if !authenticated {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "compiler primitive `{}` has no exact immutable catalogue realization",

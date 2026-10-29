@@ -507,7 +507,30 @@ fn push_call(
     calls: &mut Vec<CallWork>,
     state_to_machine: &StateToMachine,
 ) {
-    let boundary_signature = boundary_trait_for_signature(program, target);
+    // A direct request for an exact Core catalogue arithmetic meaning is a
+    // compiler semantic primitive, rather than a user-selected component
+    // invocation. Ordinary copies and same-shaped traits do not authenticate.
+    // Keep machine/dyn binding parameters as actual invocation edges even when
+    // their interface happens to be a numeric catalogue requirement. Traversal
+    // already retained all ordinary calls within the argument expressions.
+    let catalogue_primitive = !static_machine_parameter.is_valid()
+        && program
+            .trait_machine_signature(target)
+            .is_some_and(|(owner, signature)| {
+                let directly_named = match receiver {
+                    None => true,
+                    Some(InvocationTarget::Service(service)) => service == owner.symbol,
+                    Some(InvocationTarget::Parameter(_)) => false,
+                };
+                directly_named
+                    && program
+                        .sealed_numeric_requirement(owner, signature)
+                        .is_some()
+            });
+    let receiver = if catalogue_primitive { None } else { receiver };
+    let boundary_signature = (!catalogue_primitive)
+        .then(|| boundary_trait_for_signature(program, target))
+        .flatten();
     let crosses_boundary = receiver.is_some() || boundary_signature.is_some();
     if let Some(receiver) = receiver {
         typed_trees::invocations::insert_target(direct, receiver);

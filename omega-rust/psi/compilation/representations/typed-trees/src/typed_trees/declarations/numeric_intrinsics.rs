@@ -356,15 +356,7 @@ impl TypedTrees {
     pub fn retain_compiler_primitive_supplies(&mut self) {
         for position in 0..self.machines().len() {
             let machine = &self.machines()[position];
-            let authenticated = match self.machine_trait_conformances(machine) {
-                [conformance] => self
-                    .sealed_numeric_realization_descriptor(
-                        machine.symbol,
-                        conformance.requirement_symbol,
-                    )
-                    .is_some(),
-                _ => false,
-            };
+            let authenticated = self.has_authenticated_compiler_primitive_supply(machine);
             if authenticated {
                 self.machines_mut()[position].supply_mode =
                     language_semantics::MachineSupplyMode::CompilerPrimitive;

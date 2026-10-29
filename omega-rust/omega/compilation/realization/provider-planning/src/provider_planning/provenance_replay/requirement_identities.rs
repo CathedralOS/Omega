@@ -30,74 +30,17 @@ pub(crate) fn exact_satisfied_requirement_identity(
         .unwrap_or_default()
 }
 
-/// Payload-free selected-target compiler leaf: a bodyless `boundary machine`
-/// satisfying a boundary-trait requirement, claimed by exactly one selected
-/// target-machine origin. Hosted targets admit only the catalog above —
-/// their realization machinery is name-keyed and every listed leaf is gated
-/// per target. Every other target package owns its compiler leaves outright:
-/// a `boundary machine` satisfies on the selected non-hosted target binds by
-/// its exact normalized realization identity. Candidate derivation only:
-/// realization authority is re-derived downstream from that same identity
-/// and custody.
-pub(crate) fn inferred_selected_target_compiler_leaf(
-    typed: &TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-    conformance: &checked_trees::typed_trees::machine::TraitConformance,
-    selected_target: Option<&str>,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
-    let hosted = selected_target
-        .is_none_or(|target| HostedIntrinsicBundle::from_target_name(target).is_some());
-    if hosted
-        || typed.hosted_intrinsic_declaration(machine.symbol).is_some()
-        || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
-        || machine.body_is_present
-        || machine.attached_data.is_none()
-        || !machine.lifetime_parameters.is_empty()
-        || !typed.machine_type_parameters(machine).is_empty()
-    {
-        return None;
-    }
-    let origin = sole_machine_origin(target_machine_origins, machine.symbol, |origin| {
-        selected_target == Some(origin.target.as_str())
-    })?;
-    let checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
-        definition,
-        requirement,
-    } = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
-        typed,
-        machine,
-        conformance,
-    )?
-    else {
-        return None;
-    };
-    if !definition.is_boundary
-        || definition.symbol != conformance.symbol
-        || requirement.symbol != conformance.requirement_symbol
-    {
-        return None;
-    }
-    let [_entry] = typed.machine_states(machine) else {
-        return None;
-    };
-    let machine = typed.machine_callable_identity_text(machine)?;
-    (!machine.is_empty()).then_some((
-        ProviderBinding::CompilerIntrinsic { machine },
-        (*origin).clone(),
-    ))
-}
-
 /// Exact immutable numeric catalogue membership establishes primitive meaning;
-/// the receiving target independently checks its ISA availability. Other hosted
-/// catalogues retain their exact target-origin requirement. Neither route grants
+/// the receiving target independently checks its ISA availability. Core entry
+/// and hosted catalogues retain exact source/requirement meaning. No authored
+/// target prefix or selected-family origin can create supply. No route grants
 /// package authority or substitutes for receiving realization admission.
 pub(crate) fn inferred_compiler_leaf_binding(
     typed: &TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
     conformance: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
+    _target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, Option<SelectedTargetMachineOrigin>)> {
     let numeric =
         typed.sealed_numeric_realization_descriptor(machine.symbol, conformance.requirement_symbol);
@@ -106,6 +49,20 @@ pub(crate) fn inferred_compiler_leaf_binding(
             selected_target?,
         )?;
         if !catalogue.instruction_set.supports(target) {
+            return None;
+        }
+        return Some((
+            ProviderBinding::CompilerIntrinsic {
+                machine: typed.machine_callable_identity_text(machine)?,
+            },
+            None,
+        ));
+    }
+    if typed
+        .sealed_core_entry_realization(machine.symbol, conformance.requirement_symbol)
+        .is_some()
+    {
+        if selected_target != Some("uefi_x86_64") {
             return None;
         }
         return Some((
@@ -133,14 +90,7 @@ pub(crate) fn inferred_compiler_leaf_binding(
             None,
         ));
     }
-    inferred_selected_target_compiler_leaf(
-        typed,
-        machine,
-        conformance,
-        selected_target,
-        target_machine_origins,
-    )
-    .map(|(binding, origin)| (binding, Some(origin)))
+    None
 }
 
 pub(crate) fn realization_machine_identity(
@@ -200,21 +150,4 @@ pub fn satisfies_plan_name(target: &str, trait_name: &str, provider_type: &str) 
         (true, false) => format!("{provider_type}::satisfies::{trait_name}"),
         (false, false) => format!("{target}::{provider_type}::satisfies::{trait_name}"),
     }
-}
-
-/// The single target-machine origin claiming `machine` under `admits`, when
-/// exactly one does.
-fn sole_machine_origin<'origins>(
-    target_machine_origins: &'origins [SelectedTargetMachineOrigin],
-    machine: symbols::SymbolHandle,
-    admits: impl Fn(&SelectedTargetMachineOrigin) -> bool,
-) -> Option<&'origins SelectedTargetMachineOrigin> {
-    let origins = target_machine_origins
-        .iter()
-        .filter(|origin| origin.machine == machine && admits(origin))
-        .collect::<Vec<_>>();
-    let [origin] = origins.as_slice() else {
-        return None;
-    };
-    Some(origin)
 }

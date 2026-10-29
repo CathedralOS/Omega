@@ -9,6 +9,7 @@ use language_semantics::MachineSupplyMode;
 use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use target::HostedIntrinsicBundle;
+use typed_trees::typed_trees::declarations::core_entry_intrinsics::CoreEntryIntrinsic;
 use typed_trees::typed_trees::declarations::hosted_intrinsics::{
     CATALOGUE_PATH, CATALOGUE_SOURCE, HostedIntrinsicRole,
 };
@@ -172,7 +173,9 @@ pub(crate) fn row_execution_identity(
     // same-named leaf, even with an ABI-compatible pair of records, cannot
     // obtain Build-entry dispatch. Native admission separately joins this
     // catalog identity to the exact selected entry of this artifact.
-    if selected_target == Some("uefi_x86_64")
+    if checked.sealed_core_entry_realization(realization_symbol, requirement_symbol)
+        == Some(CoreEntryIntrinsic::ProgramStorageEnter)
+        && selected_target == Some("uefi_x86_64")
         && plan.target == "uefi_x86_64"
         && [trait_symbol, requirement_symbol, realization_symbol]
             .into_iter()
@@ -195,7 +198,7 @@ pub(crate) fn row_execution_identity(
             realization_symbol,
             "ProgramStorageEntry",
             "enter",
-            "ProgramStorageEntryNativeProvider::enter",
+            "program_storage_enter",
             BoundaryIntrinsicShape::ProgramStorageToUnit,
         )?
     {
@@ -205,7 +208,9 @@ pub(crate) fn row_execution_identity(
     }
     // Only the byte-exact toolchain declaration closes this image observation.
     // Its scalar result is not a storage grant and identifies no firmware object.
-    if selected_target == Some("uefi_x86_64")
+    if checked.sealed_core_entry_realization(realization_symbol, requirement_symbol)
+        == Some(CoreEntryIntrinsic::ProgramImageRetainedSuffixStart)
+        && selected_target == Some("uefi_x86_64")
         && plan.target == "uefi_x86_64"
         && [trait_symbol, requirement_symbol, realization_symbol]
             .into_iter()
@@ -228,7 +233,7 @@ pub(crate) fn row_execution_identity(
             realization_symbol,
             "ProgramImage",
             "retained_suffix_start",
-            "ProgramImageNativeProvider::retained_suffix_start",
+            "program_image_retained_suffix_start",
             BoundaryIntrinsicShape::UnitToAddress,
         )?
     {
