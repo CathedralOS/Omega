@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-type SymbolIdentity = (u32, u32);
+type SymbolIdentity = (symbols::SymbolHandle, Option<TypeReferenceHandle>);
 
 enum ByteRegionExtent {
     Fixed(i64),
@@ -384,22 +384,18 @@ pub(super) fn push_offset_unproven(
 /// fact-free scalar primitives or records with no default-domain facts.
 fn record_view_is_fact_free(
     program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
+    data: &typed_trees::data::DataDefinition,
     visiting: &mut HashSet<SymbolIdentity>,
 ) -> bool {
-    if !symbol.is_valid() {
-        return false;
-    }
-    let symbol_identity = (symbol.arena_index(), symbol.generation());
+    let symbol_identity = (data.symbol, data.generic_instance);
     if !visiting.insert(symbol_identity) {
         return false;
     }
-    let Some(data) = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
-    else {
-        visiting.remove(&symbol_identity);
-        return false;
-    };
-    if !data.where_facts.is_empty() || data.zero_gated {
+    if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+        || data.quotient.is_some()
+        || !data.where_facts.is_empty()
+        || data.zero_gated
+    {
         visiting.remove(&symbol_identity);
         return false;
     }
@@ -433,9 +429,14 @@ pub(super) fn record_view_type_is_fact_free(
                 super::representation_types::exact_primitive_type(program, type_reference)
                     .is_some_and(|primitive| primitive != PrimitiveType::Bool)
             } else {
-                record_view_is_fact_free(program, *symbol, visiting)
+                program
+                    .closed_data_definition(type_reference)
+                    .is_some_and(|data| record_view_is_fact_free(program, data, visiting))
             }
         }
+        TypeReferenceNode::Generic { .. } => program
+            .closed_data_definition(type_reference)
+            .is_some_and(|data| record_view_is_fact_free(program, data, visiting)),
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(_),
