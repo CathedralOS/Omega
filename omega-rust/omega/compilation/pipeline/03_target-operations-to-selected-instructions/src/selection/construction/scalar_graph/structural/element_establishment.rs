@@ -182,10 +182,22 @@ pub(super) fn establish(
     let base = if completed.is_some() {
         None
     } else {
+        let mut pointer_slots = geometry.pointer_slots.as_slice();
         let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
             && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
         {
             constant(builder, row, 0, 0)?
+        } else if !geometry.pointer_slots.is_empty() {
+            let (base, slots) = super::runtime_address::projection_origin(
+                function,
+                builder,
+                row,
+                source.place,
+                field_offset,
+                pointer_slots,
+            )?;
+            pointer_slots = slots;
+            base.ok_or_else(invalid)?
         } else if parameter.is_some() || descriptor_root.is_some() {
             // An empty path selects the collection carrier itself. Its geometry
             // below resolves borrowed backing once; projection_base would already
@@ -236,7 +248,22 @@ pub(super) fn establish(
         {
             base
         } else {
-            super::runtime_address::scale(builder, row, source.place, field_offset, base, indices)?
+            let (base, leaf_index) = super::runtime_address::cross_references(
+                builder,
+                row,
+                source.place,
+                base,
+                indices,
+                pointer_slots,
+            )?;
+            super::runtime_address::scale(
+                builder,
+                row,
+                source.place,
+                field_offset,
+                base,
+                &indices[leaf_index..],
+            )?
         };
         Some(base)
     };

@@ -42,7 +42,9 @@
       "Responsive comparison row",
       "Evidence methods on demand",
       "Full-width fact result bars and grid",
-      "Visible claim notes, owners, scope and expiry"
+      "Visible claim notes, owners, scope and expiry",
+      "Historical performance with labeled source scope",
+      "Separate host/producer contexts and explicit unpaired observations"
     ],
     "rules": [
       {

@@ -71,9 +71,12 @@ impl Builder<'_, '_> {
                     selector,
                     collection_type,
                     element_type,
+                    collection_path,
                     extent,
+                    ..
                 } => {
                     let path_step = u32::try_from(path_step).ok()?;
+                    let extent = extent.map(u64::try_from).transpose().ok()?;
                     let mut bounds = entry_indexes.iter().filter(|bound| {
                         bound.state == self.state
                             && bound.parameter == symbol
@@ -81,22 +84,30 @@ impl Builder<'_, '_> {
                             && bound.selector == selector
                             && bound.collection_type == collection_type
                             && bound.element_type == element_type
-                            && Some(bound.extent) == u64::try_from(extent).ok()
+                            && bound.collection_path == collection_path
+                            && bound.extent == extent
                     });
                     let bound = bounds.next()?;
                     if bounds.next().is_some() {
                         return None;
                     }
-                    let selector_value = crate::values::scalar::scalar_lowering::pure_selector(
-                        self.program,
-                        self.operators,
-                        selector,
-                        self.parameters,
-                        self.authored_parameters,
-                        self.parameter_types,
-                        self.locals,
-                        self.exact_integer_casts,
-                    )?;
+                    let selector_value = match selector {
+                        checked_trees::CheckedEntryIndexSelector::Expression(selector) => {
+                            crate::values::scalar::scalar_lowering::pure_selector(
+                                self.program,
+                                self.operators,
+                                selector,
+                                self.parameters,
+                                self.authored_parameters,
+                                self.parameter_types,
+                                self.locals,
+                                self.exact_integer_casts,
+                            )?
+                        }
+                        checked_trees::CheckedEntryIndexSelector::Constant(value) => {
+                            facts::u64_integer_literal(value, bound.primitive_type)?
+                        }
+                    };
                     if crate::values::scalar::expression_facts::scalar_expression_type(
                         &selector_value,
                     ) != Some(bound.primitive_type)

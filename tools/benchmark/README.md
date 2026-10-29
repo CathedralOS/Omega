@@ -98,7 +98,7 @@ readable and valid under their own rules; `measure` only writes `/2`.
 | --- | --- |
 | `schema` | The literal string `omega-benchmark-record/2`. Bumping it requires updating this section and `SCHEMA` in `benchmark.py` together; the guard test fails on drift. |
 | `recorded_utc` | UTC timestamp of the measurement run. |
-| `subject` | `name`, `root` (repository-relative .omg path), and `source_revision` (full lowercase commit the subject and compiler were taken from). |
+| `subject` | `name`, `root` (repository-relative .omg path), and `source_revision` (full lowercase commit of the source checkout). The producer has its own exact binary hash/version in `host`; it may be a newer compiler measuring a frozen source checkout. |
 | `key` | The row identity: `target` (a target profile name like `linux_x86_64`) and `selection`, a sorted-unique `enabled`/`disabled` pair of exact rule names as `Optimization::` identifiers. The empty selection serializes as `enabled: []`, `disabled: []` and lands in the `default` filename slot. `key.selection_receipt` carries the compile's verbatim `optimizer rollback:` receipt (`requested`/`applied`/`effective`) whenever one was emitted — always for `/2` measured rows with a nonempty request — and `key.probe_disable` names the no-op probe used to elicit it. |
 | `host` | `os`, `machine`, `cpu`, `logical_cpus`, `python`, `rustc`, `omega_binary`, `omega_binary_sha256`, `omega_version`, and `omega_profile` of the measuring host. `/2` rows bind the exact binary that produced the numbers: the hash pins its bytes and the version string is its self-reported identity. Numbers from different hosts are different rows' context, never silently mixed. |
 | `metrics.compile_time_ms` | `measured`; per-sample wall-clock milliseconds plus `median_ms`, `min_ms`, and the last sample's `--timings` stage table. |
@@ -106,6 +106,32 @@ readable and valid under their own rules; `measure` only writes `/2`.
 | `metrics.code_size_bytes` | `measured`; published executable size per sample plus `stable` (whether every sample produced the identical size). |
 | `metrics.runtime_ms` | `measured` with per-sample wall-clock milliseconds, observed `exit_codes`, `exit_code_expected`, and `exit_code_match`; `skipped` for `--no-run` (e.g. a cross target with no host runtime); `unavailable` if no artifact was produced. Each non-measured status carries a `reason`. `exit_code_match` present is always `true` — a false observation fails the measurement instead of publishing. |
 | `notes` | Free-form strings supplied through `--note`. Each note describes the measurement — subject, leg, host — never the lane or agent that ran it; a re-measurement overwrites the record in place, so a refreshed row's notes replace rather than append. |
+| `measurement` | Optional on retained rows; new measurements record protocol `omega-benchmark-process-v1/fresh-build-dir`, clean tracked/untracked `.omg` source checks before and after measurement, stdin identity, dependency-lock digest and stability, hashed node identity, verified effective compiler profile, `runtime_scope: whole-process-including-startup`, and `file_cache: uncontrolled`. A changed checkout revision or producer binary refuses publication. A changing dependency lock retains raw timings but prevents pairing. |
+
+`--work-units N` optionally records a positive, author-declared operation count
+per whole run. It is not inferred from LOC and does not prove those operations
+survive optimization; the benchmark must make their result observable and use
+an authored exit oracle. Without it, runtime remains whole-process milliseconds.
+Runtime timing includes startup, and source cleanliness does not audit arbitrary
+external files the subject may read. Run repeated comparisons in an isolated,
+fixed source checkout with controlled inputs and inspect all samples.
+
+The dashboard recovers historical versions of these records from Git. It counts
+nonblank, non-comment lines in tracked `.omg` files below each subject directory
+at that record's source revision, with file digests and a project-inventory hash.
+This is **project KLOC**, including potentially unused project files and excluding
+sources outside that directory; it is not a measurement of the full imported
+compiler source closure. Modified measured sources cannot bind a Git LOC count.
+Missing Git objects leave normalization unknown and preserve raw timings.
+
+The earliest matched runtime observation supplies a descriptive median baseline.
+Pairing requires clean source, identical source revision/root, recorded machine,
+target, toolchain, effective profile, protocol, input and dependency lock, work
+unit count, and a matching expected exit. Unpaired records show no speedup.
+Legacy records retain their measurements; missing comparison provenance is never
+backfilled from the current host. Cache/load effects and full stdout correctness
+remain separate qualification requirements. Records' Git history provides the
+timeline; there is no second metrics ledger to update.
 
 Filenames are `<subject>__<target>__<selection>.json` where the
 selection slot is `default` for an empty selection or `sel-<hash>`

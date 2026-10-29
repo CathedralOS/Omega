@@ -6,6 +6,7 @@
 //! application. Reflexive equality and body unfolding do not waive this gate.
 
 mod applied_bindings;
+mod collection_operations;
 pub(super) use applied_bindings::{AppliedProofBindings, canonical_result_reference};
 
 use super::refuted_requires::instantiated_selected_fact_judgment;
@@ -857,12 +858,31 @@ fn validate_specification_expression_in_scope(
         {
             return;
         }
-        ExpressionNode::Binary(binary) => {
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
-            else {
-                return;
+        ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
+            let (spelling, arguments) = match node {
+                ExpressionNode::Binary(binary) => {
+                    let Some(spelling) =
+                        typed_trees::operator::binary_operator_spelling(binary.operator)
+                    else {
+                        return;
+                    };
+                    (spelling, vec![binary.left, binary.right])
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    if let Some(range) = program.expression_table.range_node(indexed.index) {
+                        (
+                            language_core::OperatorSpelling::Range,
+                            vec![indexed.collection, range.start, range.end],
+                        )
+                    } else {
+                        (
+                            language_core::OperatorSpelling::Index,
+                            vec![indexed.collection, indexed.index],
+                        )
+                    }
+                }
+                _ => unreachable!(),
             };
-            let arguments = vec![binary.left, binary.right];
             let types = arguments
                 .iter()
                 .map(|argument| caller.expression_type(program, *argument))
@@ -878,22 +898,34 @@ fn validate_specification_expression_in_scope(
                 crate::scoped_operator_application(program, &scope, expression, spelling, &types);
             if resolution.status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
             {
-                crate::value_custody::expression_types::validate_builtin_comparison_operand_landing(
-                    program,
-                    binary.operator,
-                    [(binary.left, types[0]), (binary.right, types[1])],
-                    owner,
-                    &mut |peer, target| {
-                        declaration_anonymous_fit(program, caller, peer, prior_facts, target)
-                            .retain(
-                                expression,
-                                caller.symbol(),
-                                "anonymous address comparison operand",
-                                formation_obligations,
-                            )
-                    },
-                    diagnostics,
-                );
+                if let ExpressionNode::Binary(binary) = node {
+                    crate::value_custody::expression_types::validate_builtin_comparison_operand_landing(
+                        program,
+                        binary.operator,
+                        [(binary.left, types[0]), (binary.right, types[1])],
+                        owner,
+                        &mut |peer, target| {
+                            declaration_anonymous_fit(program, caller, peer, prior_facts, target)
+                                .retain(
+                                    expression,
+                                    caller.symbol(),
+                                    "anonymous address comparison operand",
+                                    formation_obligations,
+                                )
+                        },
+                        diagnostics,
+                    );
+                } else {
+                    collection_operations::validate_builtin_index(
+                        program,
+                        caller,
+                        expression,
+                        prior_facts,
+                        &arguments,
+                        owner,
+                        diagnostics,
+                    );
+                }
                 return;
             }
             let Some(selected) = resolution.into_selected() else {
@@ -1764,7 +1796,12 @@ fn structurally_substitutable_fact(
     }
     matches!(
         binary.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
     ) && [binary.left, binary.right].iter().all(|operand| {
         term(*operand).is_some_and(|term| term_has_complete_substitution(program, &term))
     })

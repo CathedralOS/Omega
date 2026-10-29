@@ -62,6 +62,16 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
   Growth splits recovered old IDs from new IDs running now. New does not mean
   first-recording success, and source changes mean recovery is not a causal
   measurement of compiler improvement. An unavailable baseline stays unknown.
+- **Performance:** the committed benchmark JSON and its Git history supply
+  compile milliseconds per project KLOC, a LOC/time scatter, exit-verified
+  whole-process runtimes, absolute timings, peak memory, executable size, ranges,
+  and sample counts. Select a recorded host/producer context. Project size uses
+  the recorded source revision, not today's checkout; dependencies outside the
+  subject directory are excluded. Full compiled-source throughput is unavailable.
+  Old producer settings and unknown values remain qualified. Runtime ratios
+  require matched recorded inputs and provenance; missing baselines stay unpaired.
+  See the [benchmark recorder](../benchmark/README.md) to add measurements. Commit
+  its normal record updates; the next dashboard export discovers their history.
 - **Native history chart:** the last recorded golden per UTC day across the
   30 days before the inspected HEAD, at its real commit timestamp. The blue area counts valid programs
   with recorded exits. All available hosts share count and date axes by default;
@@ -103,6 +113,7 @@ dashboard does not close a fact or a capability.
 ```text
 python -m unittest discover -s tools/tests -p test_compiler_dashboard.py
 node tools/tests/test_dashboard_charts.cjs
+python -m unittest discover -s tools/tests -p test_dashboard_performance.py
 ```
 
 The renderer checks use a Node-compatible JavaScript runtime without packages;

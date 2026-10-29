@@ -76,12 +76,7 @@ dependencies = [
 name = "advection-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -766,14 +761,7 @@ dependencies = [
 name = "hmm-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compilation-products",
- "compiler",
- "omega-build",
- "package-manager",
- "sha2",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -900,13 +888,8 @@ dependencies = [
 name = "ind11-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
  "effects",
- "omega-build",
- "package-manager",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -981,6 +964,7 @@ dependencies = [
  "diagnostics",
  "encoded-scalar-plan",
  "function-identity",
+ "isa-conformance",
  "layout-plans",
  "legalized-operations",
  "normalized-foreign-call-plan",
@@ -998,6 +982,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "isa-conformance"
+version = "0.1.0"
+dependencies = [
+ "register-model",
+ "selected-instructions",
+]
+
+[[package]]
 name = "isa-x86_64"
 version = "0.1.0"
 dependencies = [
@@ -1005,6 +997,7 @@ dependencies = [
  "diagnostics",
  "encoded-scalar-plan",
  "function-identity",
+ "isa-conformance",
  "layout-plans",
  "legalized-operations",
  "normalized-foreign-call-plan",

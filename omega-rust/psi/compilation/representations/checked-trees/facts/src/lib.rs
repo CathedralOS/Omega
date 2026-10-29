@@ -13,12 +13,12 @@ pub mod predicates;
 
 pub use predicates::{
     BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole, CheckedBooleanExpression,
-    CheckedByteSequenceOperand, CheckedEntryIndexBound, CheckedIeeeFloatComparisonKind,
-    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
-    CheckedIntegerMathTerm, CheckedRuntimeIndex, CheckedScalarExpression,
-    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot,
-    CheckedStructuralCaseRoot, CheckedStructuralCaseSubject, CheckedStructuralParameterField,
-    CheckedStructuralPredicatePathSegment, u64_integer_literal,
+    CheckedByteSequenceOperand, CheckedEntryIndexBound, CheckedEntryIndexSelector,
+    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedRuntimeIndex,
+    CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment, u64_integer_literal,
 };
 
 pub use fact_plan::contexts::view::FactContextView;

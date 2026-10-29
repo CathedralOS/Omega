@@ -35,3 +35,7 @@ Facts, Work and the evidence-method dialog remain accessible separately.
 Facts and Work use the same charcoal cards and concise labels. Keep fact result
 counts, the nine-place grid, per-row source coverage, claim owners, full notes,
 scope and lease expiry visible. Exact identifiers and provenance remain inspectable.
+Performance adds historical compiler cost per authored project KLOC, compilation
+scaling, exit-verified process runtime, raw times, memory and code size. Keep
+host/settings contexts distinct. Imported-source LOC is not currently recorded;
+project-size context must be labeled. Missing matched baselines never imply a win.

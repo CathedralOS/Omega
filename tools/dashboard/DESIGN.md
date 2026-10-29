@@ -84,6 +84,11 @@ The workspace caps at 1280px with 32px desktop gutters. Plain tabs show one view
 at a time. Overview leads with full-width history, then the fixed-cohort and
 growth charts side by side. All three remain visible without a chart selector.
 Facts places a full-width horizontal result chart above the full-width grid.
+Performance leads with historical normalized compile observations, then a
+LOC/time scatter and directly labeled runtime bars. Absolute times and resource
+measurements remain in a visible table. Host selection filters recorded settings,
+not unrelated machines merged into one trend. Dates and missing producer settings
+are visible above the charts; measurement details retain raw samples and provenance.
 Work uses a two-column card list, with active and unresolved lease counts above.
 Cards stack on narrow screens; the fact names stay fixed during horizontal
 grid scrolling. Evidence
@@ -121,6 +126,9 @@ Avoid extra decorative badges or artwork around the data.
   names and original identifiers both work in search.
 - Work cards directly expose owner, full note, scope and expiry. Only exact
   identifiers live under Details. Expired leases remain unresolved, never complete.
+- Performance uses logarithmic axes for orders-of-magnitude differences. Project
+  KLOC is distinct from the full compiler input closure. Unpaired runtime data
+  displays process milliseconds and ranges, never a manufactured speedup.
 
 ## Do's and Don'ts
 

@@ -1,4 +1,5 @@
 use super::*;
+use isa_conformance::float_result_policy as policy;
 use selected_instructions::IeeeFloatFormat;
 
 fn key(form: FloatResultPolicyForm) -> MachineAlternativeKey {
@@ -17,51 +18,17 @@ fn encoded(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<u8> {
     bytes
 }
 
-#[test]
-fn float_result_policy_trapping_bytes_bind_width_registers_and_branches() {
-    let form = FloatResultPolicyForm {
-        format: IeeeFloatFormat::Binary64,
-        policy: FloatResultPolicyKind::Trapping,
-    };
-    // movq xmm3, rcx; movq r8, xmm3; shl r8, 1; shr r8, 53;
-    // cmp r8, 2047; jne +2; ud2; movq r8, xmm3.
-    assert_eq!(
-        encoded(form, &[1, 8]),
-        [
-            0x66, 0x48, 0x0f, 0x6e, 0xd9, 0x66, 0x49, 0x0f, 0x7e, 0xd8, 0x49, 0xc1, 0xe0, 1, 0x49,
-            0xc1, 0xe8, 53, 0x49, 0x81, 0xf8, 0xff, 7, 0, 0, 0x0f, 0x85, 2, 0, 0, 0, 0x0f, 0x0b,
-            0x66, 0x49, 0x0f, 0x7e, 0xd8,
-        ]
-    );
-    for form in FloatResultPolicyForm::ALL {
-        let registers = if form.can_trap() {
-            vec![1, 8]
-        } else {
-            vec![1, 8, 10, 15]
-        };
-        let bytes = encoded(form, &registers);
-        for position in 0..bytes.len() {
-            for bit in 0..8 {
-                let mut corrupted = bytes.clone();
-                corrupted[position] ^= 1 << bit;
-                assert!(
-                    validate_program(form, &registers, &corrupted).is_err(),
-                    "{form:?} byte {position} bit {bit}"
-                );
-            }
-        }
-        assert!(validate_program(form, &registers, &bytes[..bytes.len() - 1]).is_err());
-        let mut appended = bytes.clone();
-        appended.push(0x90);
-        assert!(validate_program(form, &registers, &appended).is_err());
-        for other in FloatResultPolicyForm::ALL {
-            if other != form && other.operand_count() == form.operand_count() {
-                assert!(validate_program(other, &registers, &bytes).is_err());
-            }
-        }
-        let mut other_registers = registers.clone();
-        other_registers.swap(0, registers.len() - 1);
-        assert!(validate_program(form, &other_registers, &bytes).is_err());
+fn validated(form: FloatResultPolicyForm, registers: &[u8], bytes: &[u8]) -> bool {
+    // The request check refuses a wrong-arity roster before reading its plan.
+    registers.len() == form.operand_count() + 1 && validate_program(form, registers, bytes).is_ok()
+}
+
+fn roster(form: FloatResultPolicyForm) -> Vec<u8> {
+    if form.can_trap() {
+        vec![1, 8]
+    } else {
+        // Two inputs and the result; the old fourth slot was never read.
+        vec![1, 8, 10]
     }
 }
 
@@ -143,87 +110,33 @@ fn replay(bytes: &[u8], registers: &[u8], payloads: &[u64]) -> Option<u64> {
 }
 
 #[test]
+fn float_result_policy_trapping_bytes_bind_width_registers_and_branches() {
+    let form = FloatResultPolicyForm {
+        format: IeeeFloatFormat::Binary64,
+        policy: FloatResultPolicyKind::Trapping,
+    };
+    // movq xmm3, rcx; movq r8, xmm3; shl r8, 1; shr r8, 53;
+    // cmp r8, 2047; jne +2; ud2; movq r8, xmm3.
+    policy::exact_stream(
+        form,
+        &[1, 8],
+        &[
+            0x66, 0x48, 0x0f, 0x6e, 0xd9, 0x66, 0x49, 0x0f, 0x7e, 0xd8, 0x49, 0xc1, 0xe0, 1, 0x49,
+            0xc1, 0xe8, 53, 0x49, 0x81, 0xf8, 0xff, 7, 0, 0, 0x0f, 0x85, 2, 0, 0, 0, 0x0f, 0x0b,
+            0x66, 0x49, 0x0f, 0x7e, 0xd8,
+        ],
+        encoded,
+        validated,
+    );
+    policy::rejects_corrupted_and_substituted_streams(roster, encoded, validated);
+}
+
+#[test]
 fn float_result_policy_decoded_semantics_preserve_payloads_and_aliases() {
     for form in FloatResultPolicyForm::ALL {
-        let wide = !form.is_binary32();
-        let bits = |number: f64| {
-            if wide {
-                number.to_bits()
-            } else {
-                u64::from((number as f32).to_bits())
-            }
-        };
-        let number = |payload| {
-            if wide {
-                f64::from_bits(payload)
-            } else {
-                f64::from(f32::from_bits(payload as u32))
-            }
-        };
-        let maximum = if wide {
-            f64::MAX.to_bits()
-        } else {
-            u64::from(f32::MAX.to_bits())
-        };
-        let nan_payloads = if wide {
-            [0x7ff0_0000_0000_0001, 0xfff8_1234_5678_0000]
-        } else {
-            [0x7f80_0001, 0xffc1_2345]
-        };
-        let mut cases = vec![
-            [maximum, maximum, bits(f64::INFINITY)],
-            [bits(-1.0), maximum, bits(f64::NEG_INFINITY)],
-            [bits(f64::INFINITY), bits(1.0), bits(f64::INFINITY)],
-            [bits(1.0), bits(f64::NEG_INFINITY), bits(f64::NEG_INFINITY)],
-            [bits(1.0), bits(0.0), bits(f64::INFINITY)],
-            [bits(1.0), bits(-0.0), bits(f64::NEG_INFINITY)],
-            [bits(1.0), 1, bits(f64::INFINITY)],
-            [nan_payloads[0], bits(1.0), bits(f64::INFINITY)],
-            [bits(1.0), nan_payloads[1], bits(f64::NEG_INFINITY)],
-        ];
-        for raw in [
-            bits(0.0),
-            bits(-0.0),
-            1,
-            maximum,
-            bits(1.0),
-            nan_payloads[0],
-            nan_payloads[1],
-        ] {
-            cases.push([bits(1.0), bits(2.0), raw]);
-        }
-        for [left, right, raw] in cases {
-            let expected = if form.can_trap() {
-                number(raw).is_finite().then_some(raw)
-            } else {
-                let overflow = number(left).is_finite()
-                    && number(right).is_finite()
-                    && number(raw).is_infinite();
-                Some(if overflow {
-                    maximum | (raw & if wide { 1 << 63 } else { 1 << 31 })
-                } else {
-                    raw
-                })
-            };
-            let mut inputs = if form.can_trap() {
-                vec![raw]
-            } else {
-                vec![
-                    u64::from(number(left).is_finite() && number(right).is_finite()),
-                    raw,
-                ]
-            };
-            // Boolean custody defines its low byte independently of raw format.
-            // Both true and false must ignore every unrelated upper bit.
-            if !form.can_trap() {
-                inputs[0] |= 0xa5a5_5a5a_dead_be00;
-            }
-            // A binary32 payload's unrelated upper half must not affect any predicate.
-            if !wide {
-                for input in &mut inputs {
-                    *input |= 0xa5a5_5a5a_0000_0000;
-                }
-            }
+        for case in policy::cases(!form.is_binary32()) {
+            let expected = policy::expected(form, case);
+            let inputs = policy::inputs(form, case);
             for first in [0, 8] {
                 for output in first..=first + inputs.len() as u8 {
                     let mut registers = (first..first + inputs.len() as u8).collect::<Vec<_>>();
@@ -259,6 +172,7 @@ fn float_result_policy_public_route_binds_constraints_and_effects() {
             result.bytes(),
         )
         .unwrap();
+        let footprint = result.footprint();
         let constraint_key = if form.can_trap() {
             crate::X86_64_FLOAT_RESULT_TRAPPING
         } else {
@@ -272,7 +186,7 @@ fn float_result_policy_public_route_binds_constraints_and_effects() {
         let declaration = declaration(form, constraint_key);
         assert_eq!(constraint.operands.len(), form.operand_count() + 1);
         assert!(constraint.implicit_uses.is_empty());
-        assert!(result.footprint().encoded.implicit_unit_uses.is_empty());
+        assert!(footprint.encoded.implicit_unit_uses.is_empty());
         let scratch: &[&str] = if form.can_trap() {
             &["xmm3", "rflags"]
         } else {
@@ -293,31 +207,25 @@ fn float_result_policy_public_route_binds_constraints_and_effects() {
         expected_clobbers.sort_unstable();
         expected_clobbers.dedup();
         assert_eq!(constraint.clobbers, expected_clobbers);
-        assert_eq!(
-            result.footprint().encoded.implicit_unit_clobbers,
-            expected_clobbers
-        );
+        assert_eq!(footprint.encoded.implicit_unit_clobbers, expected_clobbers);
         assert_eq!(
             constraint.clobbers,
-            result.footprint().encoded.implicit_unit_clobbers
+            footprint.encoded.implicit_unit_clobbers
         );
-        assert_eq!(
-            declaration.alternatives[0].encoded,
-            result.footprint().encoded
-        );
+        assert_eq!(declaration.alternatives[0].encoded, footprint.encoded);
         assert_eq!(
             declaration.alternatives[0].size,
             MachineSizeKnowledge::ExactBytes(result.bytes().len() as u16)
         );
         assert_eq!(
-            result.footprint().encoded.control,
+            footprint.encoded.control,
             if form.can_trap() {
                 MachineEncodedControlEffect::FallThroughOrTrapV1
             } else {
                 MachineEncodedControlEffect::FallThroughV1
             }
         );
-        assert!(result.footprint().writes_rflags);
+        assert!(footprint.writes_rflags);
         assert!(
             crate::encode_x86_64_selected_form(
                 &physical,
