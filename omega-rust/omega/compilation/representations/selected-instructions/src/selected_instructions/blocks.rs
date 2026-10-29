@@ -232,11 +232,7 @@ impl BlockEntry {
                         }
                     }
                 }
-                for &unit in instruction
-                    .implicit_defs
-                    .iter()
-                    .chain(&instruction.clobbers)
-                {
+                for &unit in instruction.implicit_defs.iter().chain(&instruction.clobbers) {
                     if (unit.0 as usize) < 64 {
                         unit_kills_mask |= 1u64 << unit.0;
                     } else if !unit_kills.contains(&unit) {
@@ -394,7 +390,10 @@ impl BlockEntry {
                 }
                 for binding in &successor.structural_bindings {
                     match binding.transport {
-                        super::SelectedStructuralTransport::WholeValue { argument, .. } => {
+                        super::SelectedStructuralTransport::WholeValue {
+                            argument,
+                            ..
+                        } => {
                             set_register_bit(&mut referenced_register_bits, argument);
                         }
                         super::SelectedStructuralTransport::ScalarReference {
@@ -519,10 +518,9 @@ impl BlockEntry {
                                 .events
                                 .push(BlockSlotEvent::Invalidate { slot: target });
                         } else {
-                            slot_summary.events.push(BlockSlotEvent::Store {
-                                slot: target,
-                                index,
-                            });
+                            slot_summary
+                                .events
+                                .push(BlockSlotEvent::Store { slot: target, index });
                         }
                         for operand in &instruction.operands {
                             set_register_bit(
@@ -663,7 +661,9 @@ impl BlockEntry {
                             ..
                         }
                         | super::SelectedStructuralTransport::Address {
-                            base, destination, ..
+                            base,
+                            destination,
+                            ..
                         } => {
                             slot_summary
                                 .events
@@ -695,7 +695,10 @@ impl BlockEntry {
                         if let super::SelectedCasePayloadTransport::Registers { argument, .. } =
                             payload.transport
                         {
-                            set_register_bit(&mut slot_summary.non_load_register_bits, argument);
+                            set_register_bit(
+                                &mut slot_summary.non_load_register_bits,
+                                argument,
+                            );
                         }
                     }
                 }
@@ -730,94 +733,7 @@ fn detach(entry: &mut Arc<BlockEntry>) -> &mut SelectedBlock {
 fn block_of(entry: &Arc<BlockEntry>) -> &SelectedBlock {
     &entry.block
 }
-/// Referenced backing-vector capacity of already initialized mechanical memos.
-/// Excludes headers, allocator overhead, encodings and semantic block data.
-/// Summing references across plans does not establish unique heap use or RSS.
-#[derive(Debug, Default)]
-pub struct InitializedBlockCacheStorage {
-    pub lookups: usize,
-    pub slot_summaries: usize,
-    pub lookup_vector_capacity_bytes: usize,
-    pub slot_vector_capacity_bytes: usize,
-    pub span_len: usize,
-    pub span_capacity: usize,
-    pub span_used: usize,
-}
-
-impl InitializedBlockCacheStorage {
-    pub fn accumulate(&mut self, other: Self) {
-        self.lookups = self.lookups.saturating_add(other.lookups);
-        self.slot_summaries = self.slot_summaries.saturating_add(other.slot_summaries);
-        self.lookup_vector_capacity_bytes = self
-            .lookup_vector_capacity_bytes
-            .saturating_add(other.lookup_vector_capacity_bytes);
-        self.slot_vector_capacity_bytes = self
-            .slot_vector_capacity_bytes
-            .saturating_add(other.slot_vector_capacity_bytes);
-        self.span_len = self.span_len.saturating_add(other.span_len);
-        self.span_capacity = self.span_capacity.saturating_add(other.span_capacity);
-        self.span_used = self.span_used.saturating_add(other.span_used);
-    }
-}
-
 impl SelectedBlocks {
-    /// Profiling observation only: `get` never initializes either memo. The
-    /// occupancy pass is linear in existing span slots and allocates nothing.
-    pub fn initialized_cache_storage(&self) -> InitializedBlockCacheStorage {
-        let mut out = InitializedBlockCacheStorage::default();
-        for entry in &self.0 {
-            if let Some(lookup) = entry.lookup.get() {
-                out.lookups = out.lookups.saturating_add(1);
-                // Each vector's element width comes from its type, even empty.
-                fn bytes<T>(value: &Vec<T>) -> usize {
-                    value.capacity().saturating_mul(std::mem::size_of::<T>())
-                }
-                out.lookup_vector_capacity_bytes = out
-                    .lookup_vector_capacity_bytes
-                    .saturating_add(bytes(&lookup.fixed_definition_bits))
-                    .saturating_add(bytes(&lookup.materialize_definition_bits))
-                    .saturating_add(bytes(&lookup.implicit_use_units))
-                    .saturating_add(bytes(&lookup.upward_unit_uses))
-                    .saturating_add(bytes(&lookup.unit_kills))
-                    .saturating_add(bytes(&lookup.unit_writer_indices))
-                    .saturating_add(bytes(&lookup.fixed_views))
-                    .saturating_add(bytes(&lookup.instruction_bits))
-                    .saturating_add(bytes(&lookup.instruction_ids))
-                    .saturating_add(bytes(&lookup.referenced_register_bits))
-                    .saturating_add(bytes(&lookup.upward_virtual_uses_bits))
-                    .saturating_add(bytes(&lookup.virtual_kills_bits))
-                    .saturating_add(bytes(&lookup.register_instruction_spans))
-                    .saturating_add(bytes(&lookup.copy_affinities));
-                out.span_len = out
-                    .span_len
-                    .saturating_add(lookup.register_instruction_spans.len());
-                out.span_capacity = out
-                    .span_capacity
-                    .saturating_add(lookup.register_instruction_spans.capacity());
-                out.span_used = out.span_used.saturating_add(
-                    lookup
-                        .register_instruction_spans
-                        .iter()
-                        .filter(|row| row.0 != u32::MAX)
-                        .count(),
-                );
-            }
-            if let Some(summary) = entry.slot_summary.get() {
-                fn bytes<T>(value: &Vec<T>) -> usize {
-                    value.capacity().saturating_mul(std::mem::size_of::<T>())
-                }
-                out.slot_summaries = out.slot_summaries.saturating_add(1);
-                out.slot_vector_capacity_bytes = out
-                    .slot_vector_capacity_bytes
-                    .saturating_add(bytes(&summary.events))
-                    .saturating_add(bytes(&summary.loads))
-                    .saturating_add(bytes(&summary.non_load_register_bits))
-                    .saturating_add(bytes(&summary.loads_register_bits));
-            }
-        }
-        out
-    }
-
     /// A mechanical negative filter for split admission. Positive candidates
     /// still undergo the complete source/constraint/use audit at its owner.
     pub fn has_fixed_definition(&self, register: VirtualRegisterId) -> bool {
@@ -995,10 +911,7 @@ impl SelectedBlocks {
     pub fn block_implicit_units_and_fixed_views(
         &self,
         block_index: usize,
-    ) -> Option<(
-        &[register_model::RegisterUnitId],
-        &[register_model::RegisterViewId],
-    )> {
+    ) -> Option<(&[register_model::RegisterUnitId], &[register_model::RegisterViewId])> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.implicit_use_units, &lookup.fixed_views))
     }
@@ -1025,10 +938,7 @@ impl SelectedBlocks {
     pub fn block_unit_transfer(
         &self,
         block_index: usize,
-    ) -> Option<(
-        &[register_model::RegisterUnitId],
-        &[register_model::RegisterUnitId],
-    )> {
+    ) -> Option<(&[register_model::RegisterUnitId], &[register_model::RegisterUnitId])> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.upward_unit_uses, &lookup.unit_kills))
     }
@@ -1052,11 +962,7 @@ impl SelectedBlocks {
         Some(self.0.get(block_index)?.slot_summary())
     }
     /// Whether `block_index` references `register` in any instruction, terminator, or edge transport.
-    pub fn block_references_register(
-        &self,
-        block_index: usize,
-        register: VirtualRegisterId,
-    ) -> bool {
+    pub fn block_references_register(&self, block_index: usize, register: VirtualRegisterId) -> bool {
         self.0.get(block_index).is_some_and(|entry| {
             let bits = &entry.lookup().referenced_register_bits;
             let word = (register.0 as usize) >> 6;

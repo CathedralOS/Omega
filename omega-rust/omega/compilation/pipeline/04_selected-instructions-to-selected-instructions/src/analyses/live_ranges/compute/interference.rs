@@ -25,7 +25,6 @@ fn prepare(intervals: &mut [Interval]) -> u32 {
 }
 
 fn append_overlaps(
-    census_function: Option<usize>,
     intervals: &[Interval],
     fragment: &LiveRangeFragment,
     lower_row: usize,
@@ -41,15 +40,7 @@ fn append_overlaps(
     if node.max_end <= fragment.start.0 {
         return;
     }
-    append_overlaps(
-        census_function,
-        &intervals[..middle],
-        fragment,
-        lower_row,
-        rows,
-        seen,
-        pairs,
-    );
+    append_overlaps(&intervals[..middle], fragment, lower_row, rows, seen, pairs);
     // Starts are ordered, so this node and its right subtree cannot overlap.
     if node.start >= fragment.end.0 {
         return;
@@ -57,41 +48,12 @@ fn append_overlaps(
     let higher_row = node.row as usize;
     if lower_row < higher_row && fragment.start.0 < node.end && seen[higher_row] != lower_row {
         seen[higher_row] = lower_row;
-        let previous_capacity = pairs.capacity();
-        if let Some(function) = census_function
-            && pairs.len() == previous_capacity
-            && previous_capacity.saturating_mul(std::mem::size_of::<VirtualInterference>())
-                >= 1024 * 1024
-        {
-            eprintln!(
-                "storage-census interference-before-growth function={function} lower_row={lower_row} pairs_len={} pairs_capacity={previous_capacity}",
-                pairs.len()
-            );
-        }
         pairs.push(VirtualInterference {
             lower: rows[lower_row].virtual_register,
             higher: rows[higher_row].virtual_register,
         });
-        if let Some(function) = census_function
-            && previous_capacity != pairs.capacity()
-            && pairs
-                .capacity()
-                .saturating_mul(std::mem::size_of::<VirtualInterference>())
-                >= 1024 * 1024
-        {
-            eprintln!(
-                "storage-census interference-growth function={function} lower_row={lower_row} rows={} pairs_len={} pairs_capacity={} pair_capacity_bytes={}",
-                rows.len(),
-                pairs.len(),
-                pairs.capacity(),
-                pairs
-                    .capacity()
-                    .saturating_mul(std::mem::size_of::<VirtualInterference>())
-            );
-        }
     }
     append_overlaps(
-        census_function,
         &intervals[middle + 1..],
         fragment,
         lower_row,
@@ -103,8 +65,7 @@ fn append_overlaps(
 
 /// Every distinct row pair with overlapping nonempty half-open fragments in
 /// one block. Repeated fragments and overlaps in other blocks add no storage.
-pub(super) fn interference(function: usize, rows: &[VirtualLiveRange]) -> Vec<VirtualInterference> {
-    let census_function = phase_profile::enabled().then_some(function);
+pub(super) fn interference(rows: &[VirtualLiveRange]) -> Vec<VirtualInterference> {
     let mut blocks = BTreeMap::<SelectedBlockId, Vec<Interval>>::new();
     for (row, range) in rows.iter().enumerate() {
         for fragment in &range.fragments {
@@ -125,31 +86,11 @@ pub(super) fn interference(function: usize, rows: &[VirtualLiveRange]) -> Vec<Vi
 
     let mut pairs = Vec::new();
     let mut seen = vec![usize::MAX; rows.len()];
-    if census_function.is_some() {
-        let fragments = blocks
-            .values()
-            .fold(0usize, |sum, block| sum.saturating_add(block.len()));
-        let index_bytes = blocks.values().fold(0usize, |sum, block| {
-            sum.saturating_add(
-                block
-                    .capacity()
-                    .saturating_mul(std::mem::size_of::<Interval>()),
-            )
-        });
-        if index_bytes >= 1024 * 1024 {
-            eprintln!(
-                "storage-census interference-before function={function} rows={} fragments={fragments} index_capacity_bytes={index_bytes} seen_capacity_bytes={} pairs_len=0 pairs_capacity=0",
-                rows.len(),
-                seen.capacity().saturating_mul(std::mem::size_of::<usize>())
-            );
-        }
-    }
     for (row, range) in rows.iter().enumerate() {
         let first_pair = pairs.len();
         for fragment in &range.fragments {
             if fragment.start < fragment.end {
                 append_overlaps(
-                    census_function,
                     &blocks[&fragment.block],
                     fragment,
                     row,
@@ -169,22 +110,6 @@ pub(super) fn interference(function: usize, rows: &[VirtualLiveRange]) -> Vec<Vi
     {
         pairs.sort_unstable();
         pairs.dedup();
-    }
-    if census_function.is_some()
-        && pairs
-            .capacity()
-            .saturating_mul(std::mem::size_of::<VirtualInterference>())
-            >= 1024 * 1024
-    {
-        eprintln!(
-            "storage-census interference-after function={function} rows={} pairs_len={} pairs_capacity={} pair_capacity_bytes={}",
-            rows.len(),
-            pairs.len(),
-            pairs.capacity(),
-            pairs
-                .capacity()
-                .saturating_mul(std::mem::size_of::<VirtualInterference>())
-        );
     }
     pairs
 }
@@ -257,16 +182,16 @@ mod tests {
                     range(row * 100_003, fragments)
                 })
                 .collect::<Vec<_>>();
-            assert_eq!(interference(0, &rows), expected(&rows));
+            assert_eq!(interference(&rows), expected(&rows));
             let mut dense_blocks = rows.clone();
             for row in &mut dense_blocks {
                 for fragment in &mut row.fragments {
                     fragment.block.0 %= 3;
                 }
             }
-            assert_eq!(interference(0, &dense_blocks), expected(&dense_blocks));
+            assert_eq!(interference(&dense_blocks), expected(&dense_blocks));
             let reversed = rows.into_iter().rev().collect::<Vec<_>>();
-            assert_eq!(interference(0, &reversed), expected(&reversed));
+            assert_eq!(interference(&reversed), expected(&reversed));
         }
         let fragments = vec![
             LiveRangeFragment {
@@ -282,7 +207,7 @@ mod tests {
             range(u32::MAX, fragments),
             range(9, Vec::new()),
         ];
-        assert_eq!(interference(0, &rows), expected(&rows));
-        assert!(interference(0, &[]).is_empty());
+        assert_eq!(interference(&rows), expected(&rows));
+        assert!(interference(&[]).is_empty());
     }
 }
