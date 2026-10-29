@@ -484,6 +484,7 @@ impl Execution<'_, '_, '_> {
         receiver: &FlowOperandFact,
         constraints: HandleSpan<checked_trees::FlowConstraintRef>,
         case_access: &mut arena::Handle<checked_trees::FlowCaseAccessFact>,
+        possible_storage: &mut Option<HandleSpan<FlowOperandReferent>>,
     ) -> HandleSpan<FlowOperandReferent> {
         let is_view = expression != self.reference_slot_target
             && self
@@ -502,6 +503,20 @@ impl Execution<'_, '_, '_> {
             path.push(PlaceSegment::Case { variant });
         }
         path.push(PlaceSegment::Field { symbol });
+        let carrier = validation::reference_shell(self.program, receiver.type_reference)
+            .map_or(receiver.type_reference, |shell| shell.referee);
+        if !is_view
+            && validation::owned_projection_type_reference(self.program, carrier, &path).is_some()
+            && let Some(backing) = self.completed_backing_places(receiver)
+            && !backing.is_empty()
+            && let Some(projected) = backing
+                .into_iter()
+                .map(|place| crate::flow::project_captured_view_place(place, &path))
+                .collect::<Option<Vec<_>>>()
+        {
+            *possible_storage = Some(self.append_referent_places(&projected));
+        }
+
         let places = self
             .captured_reference_places(receiver.referents)
             .into_iter()

@@ -1652,7 +1652,7 @@ fail/borrows/region_store_live_sibling_reference rejected 2429ms expected @a92f1
 	statement 9 mutates `parent` while local borrow `holders` is still active (borrowed at statement 5; it is reassigned at statement 11)
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1649ms expected @a92f16431042
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
-fail/borrows/replaced_descriptor_stale_pointee_fact rejected 1964ms expected @a92f16431042
+fail/borrows/replaced_descriptor_stale_pointee_fact rejected 747ms expected @a130a16c2522
 	cannot prove requires contract for call demand_old from exercise: message.body.value == 19 (needs fact `target.value == 19` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/returned_case_reference_live_source_write rejected 564ms expected @ba4c5b471bb8
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
@@ -3034,7 +3034,7 @@ fail/contracts/opaque_call_retires_mutable_argument rejected 2139ms expected @a9
 	cannot prove requires contract for call exact_seven from after_call: output.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/opaque_call_retires_reference_contents rejected 2099ms expected @a92f16431042
 	cannot prove requires contract for call exact_seven from after_call: view.value.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/contracts/projected_result_guarantee_after_overwrite rejected 517ms expected @4ef0dddd5128
+fail/contracts/projected_result_guarantee_after_overwrite rejected 577ms expected @a130a16c2522
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1796ms expected @a92f16431042
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
@@ -5432,7 +5432,7 @@ fail/facts/borrowed_result_field_domains_field rejected 708ms expected @90c334a2
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
-fail/facts/borrowed_result_field_domains_local rejected 710ms expected @90c334a2c095
+fail/facts/borrowed_result_field_domains_local rejected 730ms expected @a130a16c2522
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
@@ -5452,6 +5452,43 @@ fail/facts/borrowed_result_field_domains_parameter rejected 724ms expected @90c3
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_call_result_rejected rejected 767ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_const_name_rejected rejected 820ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_field_rejected rejected 732ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 4: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_local_rejected rejected 759ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_match_join_rejected rejected 818ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from observe::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_other_machine_rejected rejected 792ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from onward::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_other_state_rejected rejected 733ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from onward::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from onward at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_parameter_rejected rejected 822ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from consume::entry: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from consume at statement 2: selected.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 0: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from observe at statement 0: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_sibling_write_target_body_rejected rejected 767ms expected @a130a16c2522
+	cannot prove default-domain field requirement for call inspect from Selected::get::get: parameter cell.storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from Selected::get at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from Selected::get at statement 3: table.cells[1].storage requires [u8; N]::Ascii
 fail/facts/borrowed_result_field_domains_target_body rejected 727ms expected @90c334a2c095
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
@@ -7646,7 +7683,7 @@ fail/facts/data_where_standing_mutable_recast_through_const_name_rejected reject
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
 fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 432ms expected @a1f4e9300309
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 441ms expected @a1f4e9300309
+fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 367ms expected @a130a16c2522
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
 fail/facts/data_where_standing_mutable_recast_through_match_join_rejected rejected 435ms expected @a1f4e9300309
 	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
@@ -11824,7 +11861,7 @@ fail/facts/nested_machine_borrowed_result_other_machine_rejected rejected 655ms 
 	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
 fail/facts/nested_machine_borrowed_result_other_state_rejected rejected 661ms expected @77ba59fc2830
 	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
-fail/facts/nested_machine_borrowed_result_overwritten_contents_rejected rejected 703ms expected @77ba59fc2830
+fail/facts/nested_machine_borrowed_result_overwritten_contents_rejected rejected 722ms expected @a130a16c2522
 	cannot prove requires contract for call finish from stale: bytes in [u8]::Utf8 in state `entry`
 fail/facts/nested_machine_borrowed_result_parameter_rejected rejected 698ms expected @77ba59fc2830
 	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
@@ -14160,7 +14197,7 @@ fail/facts/reference_recast_backing_footprint_through_const_name_live_backing_wr
 	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/facts/reference_recast_backing_footprint_through_field_live_backing_write rejected 2337ms expected @5722ff9ddde2
 	statement 4 mutates `bytes[2]` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
-fail/facts/reference_recast_backing_footprint_through_local_live_backing_write rejected 1772ms expected @5722ff9ddde2
+fail/facts/reference_recast_backing_footprint_through_local_live_backing_write rejected 710ms expected @a130a16c2522
 	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/facts/reference_recast_backing_footprint_through_match_join_live_backing_write rejected 1799ms expected @5722ff9ddde2
 	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -24584,7 +24621,7 @@ pass/borrows/runtime_owned_subject_descriptor_replacement_exit checked 3015ms ch
 pass/borrows/runtime_owned_writeonly_carrier_field_exit checked 3681ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_partial_reference_partition_exit checked 2061ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_private_copied_descriptor_replacement_exit checked 2371ms check-target:macos_arm64 @a92f16431042
-pass/borrows/runtime_projected_call_loan_custody_exit checked 2304ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_projected_call_loan_custody_exit checked 1079ms check-target:macos_arm64 @a130a16c2522
 pass/borrows/runtime_projected_fixed_byte_array_local_exit rejected 1622ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 pass/borrows/runtime_projected_reference_call_return_exit checked 2123ms check-target:macos_arm64 @a92f16431042
@@ -26526,11 +26563,20 @@ pass/facts/borrowed_restoration_window_through_target_body_exit checked 3172ms c
 pass/facts/borrowed_result_field_domains_call_result checked 1042ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_const_name checked 995ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_field checked 982ms check-target:macos_arm64 @90c334a2c095
-pass/facts/borrowed_result_field_domains_local checked 958ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_local checked 1082ms check-target:macos_arm64 @a130a16c2522
 pass/facts/borrowed_result_field_domains_match_join checked 977ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_other_machine checked 970ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_other_state checked 1013ms check-target:macos_arm64 @90c334a2c095
 pass/facts/borrowed_result_field_domains_parameter checked 950ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_sibling_write_call_result_exit checked 1035ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_const_name_exit checked 1092ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_field_exit checked 1055ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_local_exit checked 995ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_match_join_exit checked 1112ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_other_machine_exit checked 1165ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_other_state_exit checked 993ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_parameter_exit checked 1057ms check-target:macos_arm64 @a130a16c2522
+pass/facts/borrowed_result_field_domains_sibling_write_target_body_exit checked 1001ms check-target:macos_arm64 @a130a16c2522
 pass/facts/borrowed_result_field_domains_target_body checked 1003ms check-target:macos_arm64 @90c334a2c095
 pass/facts/bound_through_call_result_exit checked 2855ms check-target:macos_arm64 @a92f16431042
 pass/facts/bound_through_const_name_exit checked 2852ms check-target:macos_arm64 @a92f16431042
@@ -27211,7 +27257,7 @@ pass/facts/data_where_standing_mutable_recast_direct_exit checked 3074ms check-t
 pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 3027ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 11120ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_field_exit checked 2937ms check-target:macos_arm64 @a1f4e9300309
-pass/facts/data_where_standing_mutable_recast_through_local_exit checked 3007ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_local_exit checked 1001ms check-target:macos_arm64 @a130a16c2522
 pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 2975ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 3031ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 2993ms check-target:macos_arm64 @a1f4e9300309
@@ -27293,7 +27339,7 @@ pass/facts/descriptor_replacement_order_through_target_body_exit checked 2668ms 
 pass/facts/disjoint_field_borrow_windows_through_call_result_exit checked 2671ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_const_name_exit checked 2573ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_field_exit checked 2543ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_local_exit checked 3104ms check-target:macos_arm64 @a92f16431042
+pass/facts/disjoint_field_borrow_windows_through_local_exit checked 972ms check-target:macos_arm64 @a130a16c2522
 pass/facts/disjoint_field_borrow_windows_through_match_join_exit checked 2932ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_other_machine_exit checked 2877ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_field_borrow_windows_through_other_state_exit checked 2571ms check-target:macos_arm64 @a92f16431042
@@ -29869,7 +29915,7 @@ pass/facts/reference_arrival_handoff_through_target_body_exit checked 3322ms che
 pass/facts/reference_recast_backing_footprint_through_call_result_exit checked 3203ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_const_name_exit checked 3805ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_field_exit checked 3842ms check-target:macos_arm64 @5722ff9ddde2
-pass/facts/reference_recast_backing_footprint_through_local_exit checked 3267ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_local_exit checked 974ms check-target:macos_arm64 @a130a16c2522
 pass/facts/reference_recast_backing_footprint_through_match_join_exit checked 3174ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_other_machine_exit checked 3358ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/reference_recast_backing_footprint_through_other_state_exit checked 3225ms check-target:macos_arm64 @5722ff9ddde2
