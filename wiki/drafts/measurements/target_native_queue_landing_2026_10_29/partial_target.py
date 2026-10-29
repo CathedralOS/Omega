@@ -3,7 +3,7 @@ import importlib.util,json,os,re,uuid
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[4]
 BASE=ROOT/'build/native-queue-landing'
-DATA=BASE/'partial-target-control'; DATA.mkdir()
+DATA=BASE/'capture-2/partial-target-control'; DATA.mkdir()
 spec=importlib.util.spec_from_file_location('first',ROOT/'wiki/drafts/measurements/compiler_parallelism_2026_10_28/sweep.py')
 first=importlib.util.module_from_spec(spec); spec.loader.exec_module(first)
 first.EVIDENCE=DATA/'logs'; first.EVIDENCE.mkdir()

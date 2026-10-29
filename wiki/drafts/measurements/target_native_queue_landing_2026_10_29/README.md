@@ -60,3 +60,13 @@ lacked the expected phrase `exact arithmetic may overflow under target` on the
 unmodified baseline. Preserve that failed preparation; do not count that oracle
 as passed or change the fixture. This is separate from the nine existing
 authored reject controls and the passing native scalar-condition control.
+
+The first full capture passed every functional control, then failed during its
+timing comparison: the exact baseline stack32 image timed out after180 seconds
+on one Windows execution, after its compiler had exited successfully. Its process
+used0.09375s CPU and waited in `UserRequest`; no cause is established. Preserve
+the nonaccepted qualification receipt and incomplete cohort.32 bounded replays
+of the same bytes, with/without memory-accounting jobs and at the timeout/seed
+paths, all exited0. A new `capture-2` namespace retains a complete fresh
+qualification without overwriting or pooling the failed cohort. Compiler
+source, frozen producer bytes, input programs, timeout and acceptance stay fixed.

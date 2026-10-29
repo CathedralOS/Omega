@@ -3,7 +3,7 @@ import hashlib, importlib.util, json, os
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[4]
 BASE=ROOT/'build/native-queue-landing'
-DATA=BASE/'qualification'
+DATA=BASE/'capture-2/qualification'
 DATA.mkdir()
 import sys
 sys.path.insert(0,str(ROOT/'tools'))

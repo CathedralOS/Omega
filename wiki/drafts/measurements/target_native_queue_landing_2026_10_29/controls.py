@@ -6,14 +6,14 @@ from pathlib import Path
 import shutil
 
 ROOT = Path(__file__).resolve().parents[4]
-DATA = ROOT / 'build/native-queue-landing/lookup-controls'
+DATA = ROOT / 'build/native-queue-landing/capture-2/lookup-controls'
 DATA.mkdir()
 spec = importlib.util.spec_from_file_location('first', ROOT / 'wiki/drafts/measurements/compiler_parallelism_2026_10_28/sweep.py')
 first = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(first)
 first.EVIDENCE = DATA / 'logs'
 first.EVIDENCE.mkdir()
-producer = json.loads((DATA.parent / 'candidate/producer.json').read_text(encoding='utf-8'))['producer']
+producer = json.loads((ROOT / 'build/native-queue-landing/candidate/producer.json').read_text(encoding='utf-8'))['producer']
 assert first.require_optimized(producer['binary'])['sha256'] == producer['sha256']
 results = {'producer': producer, 'observations': [], 'controls': []}
 length = ROOT / first.SUBJECTS['length']
