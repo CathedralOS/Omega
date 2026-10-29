@@ -47,6 +47,7 @@ mod exact_conditions;
 mod read_subjects;
 pub(super) use exact_conditions::exact_conjunction;
 mod record_observations;
+mod storage;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Value {
@@ -103,6 +104,7 @@ struct Path {
     comparisons: Vec<Comparison>,
     clauses: Vec<Clause>,
     observations: Vec<Observation>,
+    storage: Vec<storage::Home>,
 }
 
 #[derive(Clone)]
@@ -110,6 +112,7 @@ struct Frame {
     machine: usize,
     state: usize,
     bindings: Vec<(SymbolHandle, Value)>,
+    storage: Vec<storage::Binding>,
 }
 
 struct Lemma {
@@ -148,6 +151,7 @@ struct Implication<'program> {
     lemmas: Vec<Lemma>,
     updates: Vec<CollectionUpdate>,
     records: Vec<record_observations::Observation>,
+    record_updates: Vec<record_observations::Update>,
     antecedents: Vec<Boolean>,
 }
 
@@ -174,6 +178,7 @@ pub(super) fn proves(
         lemmas: Vec::new(),
         updates: Vec::new(),
         records: Vec::new(),
+        record_updates: Vec::new(),
         antecedents: Vec::new(),
     };
     let started = std::time::Instant::now();
@@ -245,6 +250,7 @@ fn ordering_relations(
         lemmas: Vec::new(),
         updates: Vec::new(),
         records: Vec::new(),
+        record_updates: Vec::new(),
         antecedents: Vec::new(),
     };
     let mut path = Path::default();
@@ -278,6 +284,7 @@ fn ordering_relations(
     let frame = Frame {
         machine: application.machine,
         state: 0,
+        storage: Vec::new(),
         bindings: parameters
             .iter()
             .zip(&arguments)
@@ -392,11 +399,18 @@ impl Implication<'_> {
             };
             bindings.push((parameter.symbol, value));
         }
-        let frame = Frame {
+        let mut frame = Frame {
             machine: machine_position,
             state: 0,
             bindings,
+            storage: Vec::new(),
         };
+        if self
+            .seed_body_storage(&mut frame, &mut path, program.state_parameters(entry))
+            .is_none()
+        {
+            return false;
+        }
         let mut candidates = vec![(path, Vec::<Boolean>::new())];
         for premise in program.contract_expressions(
             program.machine_contracts(machine).iter(),
@@ -538,11 +552,7 @@ impl Implication<'_> {
                     if local.ordinary_value_initializer().is_some()
                         && local.relevance == language_core::BindingRelevance::Relevant =>
                 {
-                    for (path, value) in self.expression(&frame, path, local.initial_value, 0)? {
-                        let mut frame = frame.clone();
-                        frame
-                            .bindings
-                            .push((local.symbol, self.body_value(value, local.type_reference)?));
+                    for (frame, path) in self.body_local(&frame, path, local)? {
                         pending.push((position + 1, frame, path, visited.clone()));
                     }
                 }
@@ -733,8 +743,8 @@ impl Implication<'_> {
         // These are already captured runtime actuals, including readable
         // exclusive references (marked is_mutable in the typed signature). Predicate induction's fresh-formal admission
         // deliberately accepts shared references only; it is not this binder.
-        // declared_value below checks each supported readable carrier without
-        // inventing a new collection identity or granting write authority.
+        // Binding retains exact reference backing or creates an independent
+        // owned home; ordinary source admission still owns access and custody.
         if parameters.len() != arguments.len()
             || parameters
                 .iter()
@@ -742,119 +752,18 @@ impl Implication<'_> {
         {
             return None;
         }
-        self.arguments(frame, path, arguments, 0)?
+        self.body_arguments(frame, path, arguments, parameters)?
             .into_iter()
-            .map(|(path, arguments)| {
+            .map(|(mut path, arguments)| {
                 let mut frame = frame.clone();
                 frame.machine = destination.0;
                 frame.state = destination.1;
-                for (parameter, value) in parameters.iter().zip(arguments) {
-                    frame.bindings.push((
-                        parameter.symbol,
-                        self.body_value(value, parameter.type_reference)?,
-                    ));
+                for (parameter, argument) in parameters.iter().zip(arguments) {
+                    self.bind_body_storage(&mut frame, &mut path, parameter.symbol, argument)?;
                 }
                 Some((frame, path))
             })
             .collect()
-    }
-
-    /// Mutation tracks existing borrowed storage, not a new owned array home.
-    /// Local and by-value argument bindings both need a fresh storage version
-    /// for an owned collection. Reusing its captured contents identity as an
-    /// alias would let a callee-local repair establish a caller postcondition.
-    /// Readonly predicate activation retains its separate immutable-value rule.
-    fn body_value(&self, value: Value, reference: TypeReferenceHandle) -> Option<Value> {
-        let value = declared_value(self.program, value, reference)?;
-        if matches!(value, Value::Collection { .. })
-            && crate::reference_shell(self.program, reference).is_none()
-        {
-            return None;
-        }
-        Some(value)
-    }
-
-    fn assignment(
-        &mut self,
-        frame: &Frame,
-        path: Path,
-        target: ExpressionHandle,
-        source: ExpressionHandle,
-    ) -> Option<Vec<(Frame, Path)>> {
-        let machine = &self.program.machines()[frame.machine];
-        let state = &self.program.machine_states(machine)[frame.state];
-        let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(target)
-        else {
-            return None;
-        };
-        if !crate::value_custody::places::place_has_builtin_coordinates(
-            self.program,
-            machine,
-            Some(state),
-            target,
-        ) {
-            return None;
-        }
-        let mut result = Vec::new();
-        for (path, collection) in self.expression(frame, path, indexed.collection, 0)? {
-            let Value::Collection {
-                identity: previous,
-                length,
-                element,
-            } = collection
-            else {
-                return None;
-            };
-            // Record projections are immutable captured values. Updating a
-            // collection binding cannot reseat the enclosing record's cached
-            // field observation, including when a callee receives that field
-            // through an ordinary slice argument. Until this fragment carries
-            // functional record versions, an overlapping store proves nothing;
-            // the old record snapshot must not become a current postcondition.
-            if self.record_observes_collection(previous) {
-                return None;
-            }
-            for (path, selector) in self.expression(frame, path, indexed.index, 0)? {
-                let Value::Integer {
-                    value: selector, ..
-                } = selector
-                else {
-                    return None;
-                };
-                if !self.implies(
-                    &path,
-                    &compare(BinaryOperator::GreaterOrEqual, selector.clone(), number(0)),
-                ) || !self.implies(
-                    &path,
-                    &compare(BinaryOperator::Less, selector.clone(), length.clone()),
-                ) {
-                    return None;
-                }
-                for (path, value) in self.expression(frame, path, source, 0)? {
-                    let value = declared_value(self.program, value, element)?;
-                    let identity = self.next_identity;
-                    self.next_identity += 1;
-                    self.updates.push(CollectionUpdate {
-                        identity,
-                        previous,
-                        selector: selector.clone(),
-                        value,
-                    });
-                    let mut frame = frame.clone();
-                    for (_, value) in &mut frame.bindings {
-                        if let Value::Collection {
-                            identity: current, ..
-                        } = value
-                            && *current == previous
-                        {
-                            *current = identity;
-                        }
-                    }
-                    result.push((frame, path));
-                }
-            }
-        }
-        Some(result)
     }
 
     fn spend(&mut self) -> Option<()> {
@@ -1195,6 +1104,14 @@ impl Implication<'_> {
                     || name.symbol != name.head_symbol
                 {
                     return None;
+                }
+                if let Some(binding) = frame
+                    .storage
+                    .iter()
+                    .rev()
+                    .find(|binding| binding.symbol == name.symbol)
+                {
+                    return self.storage_value(path, &binding.place);
                 }
                 let value = frame
                     .bindings
@@ -1815,6 +1732,7 @@ impl Implication<'_> {
         let frame = Frame {
             machine,
             state,
+            storage: Vec::new(),
             bindings: parameters
                 .iter()
                 .zip(&arguments)
