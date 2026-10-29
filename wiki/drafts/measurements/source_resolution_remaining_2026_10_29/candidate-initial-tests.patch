@@ -1,0 +1,167 @@
+diff --git a/omega-rust/omega/packages/source-acquisition/src/custody/platform.rs b/omega-rust/omega/packages/source-acquisition/src/custody/platform.rs
+index c9c1c9d070e..e902b5dfc8f 100644
+--- a/omega-rust/omega/packages/source-acquisition/src/custody/platform.rs
++++ b/omega-rust/omega/packages/source-acquisition/src/custody/platform.rs
+@@ -142,8 +142,22 @@ pub(super) fn verify_windows_open_cache_ancestry_identity(
+     kind: CacheCustodyKind,
+     path: &Path,
+     classified: &std::fs::Metadata,
+-) -> Result<(), SourceResolveError> {
+-    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
++    parent: Option<&CapabilityDirectory>,
++) -> Result<CapabilityDirectory, SourceResolveError> {
++    use cap_fs_ext::DirExt;
++
++    // Keep the validated parent instead of reopening every prefix from the drive.
++    let directory = match parent {
++        None => open_absolute_directory_nofollow(path),
++        Some(parent) => match path.file_name() {
++            Some(name) => parent.open_dir_nofollow(name),
++            None => Err(std::io::Error::new(
++                std::io::ErrorKind::InvalidInput,
++                "cache ancestry component has no name",
++            )),
++        },
++    }
++    .map_err(|error| {
+         cache_custody_invalid(
+             kind,
+             path,
+@@ -160,7 +174,7 @@ pub(super) fn verify_windows_open_cache_ancestry_identity(
+             "cache ancestry changed between classification and no-follow open",
+         ));
+     }
+-    Ok(())
++    Ok(directory)
+ }
+ 
+ #[cfg(not(windows))]
+diff --git a/omega-rust/omega/packages/source-acquisition/src/custody/tests/mod.rs b/omega-rust/omega/packages/source-acquisition/src/custody/tests/mod.rs
+index 7ab4baaf7bf..b326214bda6 100644
+--- a/omega-rust/omega/packages/source-acquisition/src/custody/tests/mod.rs
++++ b/omega-rust/omega/packages/source-acquisition/src/custody/tests/mod.rs
+@@ -30,5 +30,7 @@ mod macos_acl;
+ mod publication;
+ mod repository_integrity;
+ mod snapshots;
++#[cfg(windows)]
++mod windows_ancestry;
+ #[cfg(unix)]
+ mod traversal;
+diff --git a/omega-rust/omega/packages/source-acquisition/src/custody/tests/windows_ancestry.rs b/omega-rust/omega/packages/source-acquisition/src/custody/tests/windows_ancestry.rs
+new file mode 100644
+index 00000000000..4360b7d88bb
+--- /dev/null
++++ b/omega-rust/omega/packages/source-acquisition/src/custody/tests/windows_ancestry.rs
+@@ -0,0 +1,82 @@
++use super::*;
++use crate::custody::platform::verify_windows_open_cache_ancestry_identity;
++
++#[test]
++fn windows_ancestry_rejects_replacement_after_classification() {
++    let root = temp_root("ancestry-replacement");
++    let ancestor = root.join("ancestor");
++    std::fs::create_dir_all(&ancestor).unwrap();
++    let root = root.canonicalize().unwrap();
++    let ancestor = ancestor.canonicalize().unwrap();
++    verify_cache_custody_root(&ancestor, CacheCustodyKind::Git).unwrap();
++    let classified = std::fs::symlink_metadata(&ancestor).unwrap();
++    let parent = open_absolute_directory_nofollow(&root).unwrap();
++    std::fs::rename(&ancestor, root.join("original")).unwrap();
++    std::fs::create_dir(&ancestor).unwrap();
++    let error = verify_windows_open_cache_ancestry_identity(
++        CacheCustodyKind::Git,
++        &ancestor,
++        &classified,
++        Some(&parent),
++    )
++    .expect_err("replacement must not inherit the classified directory identity");
++    assert!(
++        matches!(error, SourceResolveError::GitCacheInvalid { message, .. }
++        if message.contains("changed between classification"))
++    );
++    drop(parent);
++    std::fs::remove_dir_all(&root).unwrap();
++}
++
++#[test]
++fn windows_ancestry_rejects_child_from_a_replaced_parent() {
++    let root = temp_root("ancestry-parent-replacement");
++    let parent_path = root.join("parent");
++    let child_path = parent_path.join("child");
++    std::fs::create_dir_all(&child_path).unwrap();
++    let root = root.canonicalize().unwrap();
++    let parent_path = parent_path.canonicalize().unwrap();
++    let child_path = child_path.canonicalize().unwrap();
++    let parent = open_absolute_directory_nofollow(&parent_path).unwrap();
++    std::fs::rename(&parent_path, root.join("original-parent")).unwrap();
++    std::fs::create_dir_all(&child_path).unwrap();
++    let classified = std::fs::symlink_metadata(&child_path).unwrap();
++    let error = verify_windows_open_cache_ancestry_identity(
++        CacheCustodyKind::Git,
++        &child_path,
++        &classified,
++        Some(&parent),
++    )
++    .expect_err("old parent handle must not validate the new parent's child");
++    assert!(
++        matches!(error, SourceResolveError::GitCacheInvalid { message, .. }
++        if message.contains("changed between classification"))
++    );
++    drop(parent);
++    std::fs::remove_dir_all(&root).unwrap();
++}
++
++#[test]
++fn windows_ancestry_rejects_junction_parent() {
++    let root = temp_root("ancestry-junction");
++    let target = root.join("target");
++    std::fs::create_dir_all(target.join("cache")).unwrap();
++    let junction = root.join("junction");
++    let created = std::process::Command::new("cmd")
++        .args(["/C", "mklink", "/J"])
++        .arg(&junction)
++        .arg(&target)
++        .output()
++        .unwrap();
++    assert!(
++        created.status.success(),
++        "{}",
++        String::from_utf8_lossy(&created.stderr)
++    );
++    let error = verify_cache_custody_root(&junction.join("cache"), CacheCustodyKind::Git)
++        .expect_err("an ancestor junction must not redirect cache custody");
++    assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
++    std::fs::remove_dir(&junction).unwrap();
++    assert!(target.join("cache").is_dir());
++    std::fs::remove_dir_all(&root).unwrap();
++}
+diff --git a/omega-rust/omega/packages/source-acquisition/src/custody/tree.rs b/omega-rust/omega/packages/source-acquisition/src/custody/tree.rs
+index 7591c3ec141..0e32e5a43e0 100644
+--- a/omega-rust/omega/packages/source-acquisition/src/custody/tree.rs
++++ b/omega-rust/omega/packages/source-acquisition/src/custody/tree.rs
+@@ -238,7 +238,9 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
+ 
+ #[cfg(windows)]
+ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
+-    for ancestor in root.ancestors() {
++    let ancestors: Vec<&Path> = root.ancestors().collect();
++    let mut verified_parent = None;
++    for ancestor in ancestors.into_iter().rev() {
+         let metadata =
+             std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
+         if metadata.file_type().is_symlink() || !metadata.is_dir() {
+@@ -248,7 +250,12 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
+                 "cache custody ancestry contains a non-directory or reparse point",
+             ));
+         }
+-        verify_windows_open_cache_ancestry_identity(kind, ancestor, &metadata)?;
++        verified_parent = Some(verify_windows_open_cache_ancestry_identity(
++            kind,
++            ancestor,
++            &metadata,
++            verified_parent.as_ref(),
++        )?);
+     }
+     Ok(())
+ }

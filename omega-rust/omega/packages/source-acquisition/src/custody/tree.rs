@@ -238,7 +238,9 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
 
 #[cfg(windows)]
 fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
-    for ancestor in root.ancestors() {
+    let ancestors: Vec<&Path> = root.ancestors().collect();
+    let mut verified_parent = None;
+    for ancestor in ancestors.into_iter().rev() {
         let metadata =
             std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -248,7 +250,12 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry contains a non-directory or reparse point",
             ));
         }
-        verify_windows_open_cache_ancestry_identity(kind, ancestor, &metadata)?;
+        verified_parent = Some(verify_windows_open_cache_ancestry_identity(
+            kind,
+            ancestor,
+            &metadata,
+            verified_parent.as_ref(),
+        )?);
     }
     Ok(())
 }

@@ -1,5 +1,19 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Windows cache ancestry traversal - 2026-10-29
+
+Retained locally on `4fba237cd10`: walk each ancestor from its freshly validated
+parent handle instead of reopening every prefix from the drive. Keep no-follow,
+classification/opened-identity checks and before/after validation. With shallower
+isolated caches, warm compile medians improve 13.1%/19.7%/15.5% on stack32/length/
+dispatch, with non-overlapping ranges; first compile improves 7.4% on stack32
+and remains inconclusive on length/dispatch. All 94 compile/native pairs, two
+native replays, two static rejects and ten focused custody tests pass. One
+initial diagnostic native timeout and one fixture-setup failure remain recorded.
+[Full evidence, scope and next question](source_resolution_remaining_2026_10_29/README.md).
+
+## Earlier experiments
+
 Host: Windows `x86_64` (`windows_x86_64`), release profile (`target/release/omega.exe`, `target/release/deps/corpus_runner-*.exe`).
 Base commit: `e44ed43aefa9` (`HEAD`).
 

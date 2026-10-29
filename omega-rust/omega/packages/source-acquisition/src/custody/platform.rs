@@ -142,8 +142,22 @@ pub(super) fn verify_windows_open_cache_ancestry_identity(
     kind: CacheCustodyKind,
     path: &Path,
     classified: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+    parent: Option<&CapabilityDirectory>,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    use cap_fs_ext::DirExt;
+
+    // Keep the validated parent instead of reopening every prefix from the drive.
+    let directory = match parent {
+        None => open_absolute_directory_nofollow(path),
+        Some(parent) => match path.file_name() {
+            Some(name) => parent.open_dir_nofollow(name),
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "cache ancestry component has no name",
+            )),
+        },
+    }
+    .map_err(|error| {
         cache_custody_invalid(
             kind,
             path,
@@ -160,7 +174,7 @@ pub(super) fn verify_windows_open_cache_ancestry_identity(
             "cache ancestry changed between classification and no-follow open",
         ));
     }
-    Ok(())
+    Ok(directory)
 }
 
 #[cfg(not(windows))]
