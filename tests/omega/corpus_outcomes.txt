@@ -4361,7 +4361,7 @@ fail/domains/routed_qualification_invalidated_field rejected 1361ms expected @a9
 	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/routed_qualification_predicate_cannot_authorize rejected 1361ms expected @a92f16431042
 	`as ... in Ticket::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-fail/domains/routed_qualification_reference_recast rejected 481ms expected @a92f16431042
+fail/domains/routed_qualification_reference_recast rejected 565ms expected @5722ff9ddde2
 	machine `forge` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 fail/domains/routed_record_capture_after_sibling_mutation rejected 1361ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from capture, state entry, at statement 1: Pair.ticket requires Ticket::Issued
@@ -13693,6 +13693,25 @@ fail/facts/reference_arrival_handoff_through_parameter_rejected rejected 2400ms 
 	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/reference_arrival_handoff_through_target_body_rejected rejected 2514ms expected @a92f16431042
 	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/reference_recast_backing_footprint_through_call_result_live_backing_write rejected 2865ms expected @5722ff9ddde2
+	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_const_name_live_backing_write rejected 2693ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_field_live_backing_write rejected 2337ms expected @5722ff9ddde2
+	statement 4 mutates `bytes[2]` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_local_live_backing_write rejected 1772ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_match_join_live_backing_write rejected 1799ms expected @5722ff9ddde2
+	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_other_machine_live_backing_write rejected 1773ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_other_state_live_backing_write rejected 1860ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_parameter_live_backing_write rejected 1675ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_target_body_live_backing_write rejected 1714ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/facts/register_stack_arg_calling_plan_through_call_result_rejected rejected 1012ms expected @a92f16431042
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/register_stack_arg_calling_plan_through_const_name_rejected rejected 1013ms expected @a92f16431042
@@ -14118,6 +14137,31 @@ fail/facts/saved_symbolic_observation_wrong_primitive_delivery_rejected rejected
 	machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`
 fail/facts/saved_symbolic_observation_wrong_reference_delivery_rejected rejected 446ms expected @b800c26bd214
 	machine `invalid` state `entry` terminal expression expects `&mut u64`, got `match expression`
+fail/facts/scalar_array_row_construction_through_call_result_rejected rejected 1306ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_const_name_rejected rejected 1903ms expected @5722ff9ddde2+wt
+	constant array destination conflicts with its declared dimensions or element carrier
+	literal `3` is suffixed `u32` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+	literal `5` is suffixed `u32` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+	array literal element has type `u32`, expected `u64`; use an explicit conversion
+	array literal element has type `u32`, expected `u64`; use an explicit conversion
+fail/facts/scalar_array_row_construction_through_field_rejected rejected 1617ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_local_rejected rejected 1198ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_match_join_rejected rejected 939ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_other_machine_rejected rejected 1259ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	argument `second` for state `entry` expects `[u32; 2]`, got `named value`
+fail/facts/scalar_array_row_construction_through_other_state_rejected rejected 929ms expected @5722ff9ddde2+wt
+	machine `combine` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_parameter_rejected rejected 880ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_target_body_rejected rejected 816ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
 fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 780ms expected @a92f16431042
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
@@ -22253,7 +22297,7 @@ fail/recast/shared_recast_cannot_restore_mutable_access rejected 755ms expected 
 	machine `inspect` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/recast/shared_record_to_atomic rejected 643ms expected @a92f16431042
 	machine `view` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Atomic` are not representation-compatible
-fail/recast/shared_reference_recast_cannot_lend_mutable rejected 524ms expected @a92f16431042
+fail/recast/shared_reference_recast_cannot_lend_mutable rejected 466ms expected @5722ff9ddde2
 	machine `inspect` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/recast/slice_view_non_tiling_rejected rejected 1579ms expected @a92f16431042
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
@@ -29023,6 +29067,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit checked 6580ms c
 pass/facts/reference_arrival_handoff_through_other_state_exit checked 5264ms check-target:macos_arm64 @a92f16431042
 pass/facts/reference_arrival_handoff_through_parameter_exit checked 5146ms check-target:macos_arm64 @a92f16431042
 pass/facts/reference_arrival_handoff_through_target_body_exit checked 3322ms check-target:macos_arm64 @a92f16431042
+pass/facts/reference_recast_backing_footprint_through_call_result_exit checked 3203ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_const_name_exit checked 3805ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_field_exit checked 3842ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_local_exit checked 3267ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_match_join_exit checked 3174ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_other_machine_exit checked 3358ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_other_state_exit checked 3225ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_parameter_exit checked 3414ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_target_body_exit checked 3854ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/register_stack_arg_calling_plan_through_call_result_exit checked 3325ms check-target:macos_arm64 @a92f16431042
 pass/facts/register_stack_arg_calling_plan_through_const_name_exit checked 3752ms check-target:macos_arm64 @a92f16431042
 pass/facts/register_stack_arg_calling_plan_through_field_exit checked 3076ms check-target:macos_arm64 @a92f16431042
@@ -29191,6 +29244,15 @@ pass/facts/saved_symbolic_observation_through_other_machine_exit checked 2036ms 
 pass/facts/saved_symbolic_observation_through_other_state_exit checked 2049ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_through_parameter_exit checked 2003ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_through_target_body_exit checked 2198ms check-target:macos_arm64 @b800c26bd214
+pass/facts/scalar_array_row_construction_through_call_result_exit checked 3634ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_const_name_exit checked 3550ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_field_exit checked 3463ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_local_exit checked 3482ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_match_join_exit checked 3140ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_machine_exit checked 3627ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_state_exit checked 3311ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_parameter_exit checked 3473ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_target_body_exit checked 3334ms check-target:macos_arm64 @5722ff9ddde2+wt
 pass/facts/scalar_boundary_parameter_through_call_result_exit checked 5953ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_const_name_exit checked 5620ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_field_exit checked 3873ms check-target:macos_arm64 @a92f16431042
