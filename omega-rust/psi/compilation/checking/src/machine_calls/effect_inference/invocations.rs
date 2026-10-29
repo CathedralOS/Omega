@@ -743,6 +743,16 @@ fn extend_realized(
     for target in source {
         if !targets.contains(target) {
             targets.push(*target);
+            // Fixed-point equality must ignore discovery order around call cycles.
+            targets.sort_by_key(|target| match target {
+                RealizedInvocationTarget::Requirement(symbol) => (0u8, symbol.arena_index()),
+                RealizedInvocationTarget::Abstract(InvocationTarget::Parameter(index)) => {
+                    (1, *index)
+                }
+                RealizedInvocationTarget::Abstract(InvocationTarget::Service(symbol)) => {
+                    (2, symbol.arena_index())
+                }
+            });
         }
     }
 }
