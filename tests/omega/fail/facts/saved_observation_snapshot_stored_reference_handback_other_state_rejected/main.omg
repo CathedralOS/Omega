@@ -3,15 +3,20 @@
 
 data Holder { before: u64; items: &mut [u64; 2]; after: u64; }
 machine kept(values: &[u64; 2]) -> bool { values[0] == 7 }
-machine preserve(holder: &mut Holder)
+machine preserve(holder: &mut Holder) crashes Trap
 requires kept(&holder.items) == true
 ensures kept(&holder.items) == true
 {
     transition { _ -> store_original(holder.items) }
-    machine store_original(original: &mut [u64; 2]) {
+    machine store_original(original: &mut [u64; 2]) crashes Trap {
         let mut copied: [u64; 2] = original;
         copied[0] = 4;
         original[0] = copied[0];
+        transition copied[1] == 1 {
+            true -> {}
+            false -> copy_failed()
+        }
+        machine copy_failed() { crash Trap; }
     }
 }
 machine agree(observed: u64, current: u64) -> u64
