@@ -29,6 +29,10 @@
 
 use target::NativeTarget;
 
+/// The conventional closed-sum discriminant used by the supported native ABIs.
+pub const CASE_TAG_BYTE_SIZE: u64 = 4;
+pub const CASE_TAG_BYTE_ALIGNMENT: u64 = 4;
+
 /// Byte size and alignment of the two-word descriptor shape
 /// `{ first word @ 0, second word @ pointer_size }`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +61,8 @@ pub const fn target_carrier_layout(
         pointer_byte_alignment: target.pointer_alignment as u64,
         descriptor_byte_size: descriptor.byte_size as u64,
         descriptor_byte_alignment: descriptor.alignment as u64,
+        case_tag_byte_size: CASE_TAG_BYTE_SIZE,
+        case_tag_byte_alignment: CASE_TAG_BYTE_ALIGNMENT,
     }
 }
 

@@ -36,7 +36,10 @@ pub use integer_division::{HostIntegerDivision, host_integer_division};
 pub use integer_parsing::parse_host_long;
 pub use network_address::HostInternetAddress;
 pub use processor_flags::capture_host_x86_flags;
-pub use runtime_abi::{FatDescriptorLayout, fat_descriptor_layout, target_carrier_layout};
+pub use runtime_abi::{
+    CASE_TAG_BYTE_ALIGNMENT, CASE_TAG_BYTE_SIZE, FatDescriptorLayout, fat_descriptor_layout,
+    target_carrier_layout,
+};
 pub use scalar_reference::{ScalarReferenceLayout, ScalarStorageCodec};
 pub use windows_provider::{
     WINDOWS_INTERNET_PROVIDER_LIBRARY, image_imports_windows_internet_provider,

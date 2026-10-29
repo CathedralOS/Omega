@@ -84,6 +84,7 @@ pub enum StorageGeometryError {
     Overflow,
     MissingCarrierLayout,
     InvalidCarrierLayout,
+    AggregateLayout(layout_plans::AggregateGeometryError),
 }
 
 impl std::fmt::Display for StorageGeometryError {
@@ -255,10 +256,71 @@ fn geometry<'types>(
                 .ok_or(StorageGeometryError::Overflow)?;
             Ok(Some((size, alignment)))
         }
+        StructuralTypeShape::Sum { cases } => {
+            sum_geometry(types, &[], cases, active, carriers, extents)
+        }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            sum_geometry(types, fields, cases, active, carriers, extents)
+        }
         _ => Err(StorageGeometryError::UnsupportedType(root)),
     })();
     active.pop();
     result
+}
+
+fn sum_geometry<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    common_fields: &[StructuralFieldDeclaration],
+    cases: &[terminal_psi::StructuralCaseDeclaration],
+    active: &mut Vec<StructuralTypeId>,
+    carriers: Option<TargetCarrierLayout>,
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+    let mut fields = |fields: &[StructuralFieldDeclaration]| {
+        fields
+            .iter()
+            .filter(|field| !field.relevance.is_erased())
+            .map(|field| field_geometry(types.clone(), field, active, carriers, extents))
+            .collect::<Result<Vec<_>, _>>()
+    };
+    let common = fields(common_fields)?;
+    let payloads = cases
+        .iter()
+        .map(|case| fields(&case.fields))
+        .collect::<Result<Vec<_>, _>>()?;
+    // Discover all dependencies before an unknown extent can defer geometry.
+    // Short-circuiting while visiting the fields would hide later case inputs.
+    let Some(common) = common.into_iter().collect::<Option<Vec<_>>>() else {
+        return Ok(None);
+    };
+    let Some(payloads) = payloads
+        .into_iter()
+        .map(|fields| fields.into_iter().collect::<Option<Vec<_>>>())
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Ok(None);
+    };
+    let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+    let tag = carrier_geometry(
+        carriers.case_tag_byte_size,
+        carriers.case_tag_byte_alignment,
+    )?;
+    let shape = |(byte_size, byte_alignment)| layout_plans::StorageGeometry {
+        byte_size,
+        byte_alignment,
+    };
+    let geometry = layout_plans::conventional_sum_geometry(
+        shape(tag),
+        common.into_iter().map(shape),
+        payloads
+            .into_iter()
+            .map(|fields| fields.into_iter().map(shape)),
+    )
+    .map_err(StorageGeometryError::AggregateLayout)?;
+    Ok(Some((
+        geometry.storage.byte_size,
+        geometry.storage.byte_alignment,
+    )))
 }
 
 fn carrier_geometry(size: u64, alignment: u64) -> Result<(u64, u64), StorageGeometryError> {

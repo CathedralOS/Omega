@@ -275,6 +275,7 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "layout-plans",
  "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
@@ -2541,6 +2542,7 @@ dependencies = [
  "access-plans",
  "extents",
  "language-semantics",
+ "layout-plans",
  "numerics",
  "optimization",
  "proof-admission",
