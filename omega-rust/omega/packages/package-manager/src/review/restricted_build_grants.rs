@@ -18,7 +18,6 @@ use diagnostics::Diagnostic;
 use package_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
-use crate::declarations::DependencyPurpose;
 use crate::lock::{PackageCheckedContext, PackageLockTarget};
 use crate::resolution::graph::DependencyRequestPath;
 
@@ -63,31 +62,10 @@ impl UngrantedRestrictedBuildRequest {
         })
     }
 
-    /// The complete checked context — purpose, selected target, and build
-    /// execution profile — whose request lacks retained accepted meaning.
-    /// Sibling occurrences of one package grant independently, so the
-    /// context is the attribution, not an optional refinement.
-    pub const fn context(&self) -> PackageCheckedContext {
-        self.context
-    }
-
-    /// The authorized context — product or build — the request belongs to.
-    pub const fn purpose(&self) -> DependencyPurpose {
-        self.context.purpose()
-    }
-
     /// The complete normalized request meaning the accepted policy did not
     /// grant, in the same canonical row form the decision document renders.
     pub(crate) fn request_meaning(&self) -> &str {
         &self.request_meaning
-    }
-
-    /// The shortest root-to-package request path by which source resolution
-    /// reached the requesting occurrence, in the same root/alias/target form
-    /// the decision document's `path` lines render. `None` only when the
-    /// reviewed key holds no custody in the joining closure.
-    pub fn request_path(&self) -> Option<&DependencyRequestPath> {
-        self.request_path.as_ref()
     }
 }
 

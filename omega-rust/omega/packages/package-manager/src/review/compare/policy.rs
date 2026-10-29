@@ -201,9 +201,6 @@ pub(crate) struct PackagePolicyDependencyPathStep {
     target: PackageKeyIdentity,
 }
 impl PackagePolicyDependencyPathStep {
-    pub const fn purpose(&self) -> DependencyPurpose {
-        self.purpose
-    }
     pub const fn dependency_index(&self) -> usize {
         self.dependency_index
     }
@@ -319,9 +316,6 @@ impl PackagePolicyChangeSet {
     }
     pub const fn fingerprint(&self) -> PackagePolicyChangeFingerprint {
         self.fingerprint
-    }
-    pub const fn source_subject_changed(&self) -> bool {
-        self.source_subject_changed
     }
     pub const fn root_role_change(&self) -> Option<&ReviewOnlyRootRoleChange> {
         self.root_role_change.as_ref()
