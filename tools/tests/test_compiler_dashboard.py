@@ -117,6 +117,33 @@ class DashboardTests(unittest.TestCase):
         with patch.object(dashboard, "git", return_value=str(self.root / ".git")):
             self.assertEqual(dashboard.shared_evidence_root(self.root / "worktree"), self.root)
 
+    def test_history_uses_real_commit_dates_and_executed_valid_rows(self):
+        responses = ["2026-10-29T10:00:00Z", "new 2026-10-29T10:00:00Z\nold 2026-10-21T09:00:00Z",
+                     "pass/g/a built 1ms exit:0 @old\nfail/g/b rejected 1ms expected @old\n",
+                     "pass/g/a built 1ms exit:0 @new\nrun/g/c checked 1ms @new\n"]
+        with patch.object(dashboard, "git", side_effect=responses):
+            history = dashboard.native_history(self.root, "tests/omega/golden.txt")
+        self.assertEqual([point["revision"] for point in history], ["old", "new"])
+        self.assertEqual(history[0]["date"], "2026-10-21T09:00:00Z")
+        self.assertEqual([point["executed"] for point in history], [1, 1])
+        self.assertEqual([point["fixtures"] for point in history], [1, 2])
+
+    def test_history_keeps_last_golden_each_utc_day_without_inventing_gap_days(self):
+        responses = ["2026-10-29T18:00:00Z", "new 2026-10-29T18:00:00Z\nearly 2026-10-29T10:00:00Z\nold 2026-10-21T09:00:00Z",
+                     "pass/g/a built 1ms exit:0 @old\n", "pass/g/a built 1ms exit:0 @new\n"]
+        with patch.object(dashboard, "git", side_effect=responses):
+            history = dashboard.native_history(self.root, "golden.txt")
+        self.assertEqual([point["revision"] for point in history], ["old", "new"])
+
+    def test_unreadable_historical_golden_does_not_hide_later_real_observations(self):
+        responses = ["2026-10-29T18:00:00Z", "new 2026-10-29T18:00:00Z\nold 2026-10-21T09:00:00Z",
+                     "\torphan diagnostic\n", "pass/g/a built 1ms exit:0 @new\n"]
+        warnings = []
+        with patch.object(dashboard, "git", side_effect=responses):
+            history = dashboard.native_history(self.root, "golden.txt", warnings)
+        self.assertEqual([point["revision"] for point in history], ["new"])
+        self.assertIn("old", warnings[0])
+
 
 if __name__ == "__main__":
     unittest.main()

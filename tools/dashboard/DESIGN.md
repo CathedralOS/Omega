@@ -133,6 +133,11 @@ is circular. Dividers separate rows without boxing every datum.
 
 - **Summary cards:** muted labels, small tinted icons, dark values and explicit
   denominators or evidence limits.
+- **Primary charts:** a blue native-history line/area chart with a quiet dashed
+  cohort line, plus pale categorical fact-outcome bars with one orange gradient
+  selection. Both have zero-based count axes and keyboard-selectable marks.
+  Point/bar selection updates the card's prominent number and dated readout.
+  The chart pair precedes summary cards; on narrow screens the charts stack.
 - **Fact grid:** nine transport columns, symbol-bearing cells, selected-row orange
   edge and a revealed provenance region. Opening details focuses and reveals the
   region; closing returns focus to the originating cell.

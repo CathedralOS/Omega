@@ -50,6 +50,16 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
 ## Meaning of the views
 
+- **Native history chart:** the last recorded golden per UTC day across the
+  30 days before the inspected HEAD, at its real commit timestamp. The blue area counts valid programs
+  with recorded exits; the dashed line counts valid golden rows. Cohorts may
+  grow or shrink, so this is not a fixed-cohort success rate. Point selection
+  exposes the exact count, timestamp and golden revision. No daily points are
+  invented between records.
+- **Fact observation chart:** categorical bars aggregate the grid's selected
+  target into recorded pass, historical/qualified pass, recorded failure and
+  unmeasured places. Selecting a bar exposes its count and denominator; this
+  does not convert historical observations into current acceptance.
 - **Fact grid:** exact standard place paths in `samples/cli/facts/<fact>/`;
   positives require `main.omg`, rejects require `invalid/main.omg` or an existing
   `controls/<name>/main.omg`. The source count is structural coverage only.

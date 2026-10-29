@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -136,6 +136,32 @@ def collect_native(repository, warnings):
     return hosts
 
 
+def native_history(repository, relative, warnings=None):
+    """Last committed golden per recorded day; never invent observations in gaps."""
+    history = []
+    anchor = instant(git(repository, "show", "-s", "--format=%cI", "HEAD"))
+    since = (anchor - timedelta(days=30)).isoformat()
+    commits = git(repository, "log", f"--since={since}", "--format=%H %cI", "--", relative)
+    days = {}
+    for line in commits.splitlines():
+        revision, committed = line.split(" ", 1)
+        day = instant(committed).astimezone(timezone.utc).date()
+        if day not in days or instant(committed) > instant(days[day][1]):
+            days[day] = (revision, committed)
+    for revision, committed in sorted(days.values(), key=lambda entry: instant(entry[1])):
+        try:
+            records = corpus_records.parse(git(repository, "show", f"{revision}:{relative}"))
+        except (OSError, ValueError) as error:
+            if warnings is not None:
+                warnings.append(f"Skipped historical golden {relative} at {revision[:11]}: {error}")
+            continue
+        valid = [row for row in records if row["tier"] in ("pass", "run")]
+        counts = native_scoreboard(valid)
+        history.append({"revision": revision, "date": committed,
+                        "executed": counts["executed"], "fixtures": counts["fixtures"]})
+    return history
+
+
 def collect_claims(repository):
     try:
         command = [sys.executable, str(repository / "tools/claims.py"),
@@ -169,6 +195,13 @@ def collect(repository, evidence_root):
             "facts": collect_facts(repository, records),
             "native": collect_native(repository, warnings),
             "claims": collect_claims(repository), "warnings": warnings}
+    for host in data["native"]:
+        host["history"] = []
+        if host["available"]:
+            try:
+                host["history"] = native_history(repository, host["path"], warnings)
+            except (OSError, ValueError) as error:
+                warnings.append(f"Cannot read native history {host['target']}: {error}")
     if git(repository, "rev-parse", "HEAD") != revision:
         raise ValueError("Checkout revision changed during collection; refresh again.")
     return data
@@ -218,8 +251,8 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     repository = args.repository.resolve()
-    evidence_root = (args.evidence_root or shared_evidence_root(repository)).resolve()
     try:
+        evidence_root = (args.evidence_root or shared_evidence_root(repository)).resolve()
         if args.serve:
             serve(repository, evidence_root, args.port)
         else:
