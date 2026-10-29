@@ -24,7 +24,7 @@ use super::{
 
 use super::super::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
-    X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
+    X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
     identity::{RevisionRoots, artifact_identity, revision_identity},
     validation::ensure_x86_target,
@@ -496,8 +496,7 @@ fn non_x86_target_is_rejected_before_any_relaxation_work() {
     );
 }
 
-#[test]
-fn corrupted_action_changes_the_artifact_identity() {
+fn recorded_artifact() -> RecordedArtifact {
     let roots = RevisionRoots {
         source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
         selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
@@ -507,9 +506,69 @@ fn corrupted_action_changes_the_artifact_identity() {
     };
     let functions = vec![function(1)];
     let input = revision_identity(roots, &functions);
+    RecordedArtifact {
+        roots,
+        functions,
+        attempts: vec![X86BranchRelaxationAttempt {
+            iteration: 1,
+            input,
+            instruction: SelectedInstructionId(0),
+            offset: 0,
+            byte_displacement: 1,
+            encoded_bytes: 6,
+            outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
+        }],
+        input,
+        budget: OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap(),
+        usage: OptimizationWorkUsage {
+            rule_evaluations: 1,
+            candidates: 1,
+            validation_steps: 1,
+            commits: 1,
+            iterations: 2,
+        },
+        output: ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]),
+        output_revision: X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]),
+    }
+}
+
+struct RecordedArtifact {
+    roots: RevisionRoots,
+    functions: Vec<ResolvedSelectedFunctionLayout>,
+    input: X86BranchRelaxationRevisionIdentity,
+    attempts: Vec<X86BranchRelaxationAttempt>,
+    budget: OptimizationWorkBudget,
+    usage: OptimizationWorkUsage,
+    output: ResolvedSelectedFormLayoutIdentity,
+    output_revision: X86BranchRelaxationRevisionIdentity,
+}
+
+impl RecordedArtifact {
+    fn identity(
+        &self,
+        attempts: &[X86BranchRelaxationAttempt],
+        actions: &[X86BranchRelaxationAction],
+    ) -> X86BranchRelaxationIdentity {
+        artifact_identity(
+            self.roots,
+            X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
+            self.budget,
+            self.usage,
+            self.output,
+            self.output_revision,
+            attempts,
+            actions,
+            &self.functions,
+        )
+    }
+}
+
+#[test]
+fn corrupted_action_changes_the_artifact_identity() {
+    let recorded = recorded_artifact();
     let action = X86BranchRelaxationAction {
         iteration: 1,
-        input,
+        input: recorded.input,
         output: X86BranchRelaxationRevisionIdentity::from_bytes([5; 32]),
         instruction: SelectedInstructionId(0),
         old_offset: 0,
@@ -519,49 +578,11 @@ fn corrupted_action_changes_the_artifact_identity() {
         old_bytes: vec![0x0f, 0x85, 1, 0, 0, 0],
         new_bytes: vec![0x75, 1],
     };
-    let attempts = vec![X86BranchRelaxationAttempt {
-        iteration: 1,
-        input,
-        instruction: SelectedInstructionId(0),
-        offset: 0,
-        byte_displacement: 1,
-        encoded_bytes: 6,
-        outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-    }];
-    let budget = OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap();
-    let usage = OptimizationWorkUsage {
-        rule_evaluations: 1,
-        candidates: 1,
-        validation_steps: 1,
-        commits: 1,
-        iterations: 2,
-    };
-    let output = ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]);
-    let output_revision = X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]);
-    let identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        std::slice::from_ref(&action),
-        &functions,
-    );
+    let identity = recorded.identity(&recorded.attempts, std::slice::from_ref(&action));
     let mut corrupted = action.clone();
     corrupted.new_bytes = vec![0x74, 1];
-    let corrupted_identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        std::slice::from_ref(&corrupted),
-        &functions,
-    );
+    let corrupted_identity =
+        recorded.identity(&recorded.attempts, std::slice::from_ref(&corrupted));
     assert_ne!(identity, corrupted_identity);
 }
 
@@ -696,60 +717,13 @@ fn drifted_recorded_branch_effects_are_rejected() {
 
 #[test]
 fn corrupted_attempt_outcome_changes_the_artifact_identity() {
-    let roots = RevisionRoots {
-        source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
-        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
-        target: NativeTarget::linux_x64(),
-    };
-    let functions = vec![function(1)];
-    let input = revision_identity(roots, &functions);
-    let attempts = vec![X86BranchRelaxationAttempt {
-        iteration: 1,
-        input,
-        instruction: SelectedInstructionId(0),
-        offset: 0,
-        byte_displacement: 1,
-        encoded_bytes: 6,
-        outcome: X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-    }];
-    let budget = OptimizationWorkBudget::new(8, 8, 8, 8, 8).unwrap();
-    let usage = OptimizationWorkUsage {
-        rule_evaluations: 1,
-        candidates: 1,
-        validation_steps: 1,
-        commits: 1,
-        iterations: 2,
-    };
-    let output = ResolvedSelectedFormLayoutIdentity::from_bytes([6; 32]);
-    let output_revision = X86BranchRelaxationRevisionIdentity::from_bytes([7; 32]);
-    let identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &attempts,
-        &[],
-        &functions,
-    );
+    let recorded = recorded_artifact();
+    let identity = recorded.identity(&recorded.attempts, &[]);
     // An attempt roster that reports the terminal decline instead of the
     // recorded selection rehashes differently.
-    let mut corrupted_attempts = attempts.clone();
+    let mut corrupted_attempts = recorded.attempts.clone();
     corrupted_attempts[0].outcome = X86BranchRelaxationAttemptOutcome::AlreadyShort;
-    let corrupted_identity = artifact_identity(
-        roots,
-        X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
-        budget,
-        usage,
-        output,
-        output_revision,
-        &corrupted_attempts,
-        &[],
-        &functions,
-    );
+    let corrupted_identity = recorded.identity(&corrupted_attempts, &[]);
     assert_ne!(identity, corrupted_identity);
 }
 
