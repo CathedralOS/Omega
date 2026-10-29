@@ -49,8 +49,12 @@ impl CurrentScalarValues<'_> {
                 // equal scalar representation supplies no ordinary field read.
                 if self
                     .program
-                    .placed_view_field_plan_for_type_reference(declared)
+                    .placed_view_plan_for_type_reference(declared)
                     .is_some()
+                    || self
+                        .program
+                        .placed_view_field_plan_for_type_reference(declared)
+                        .is_some()
                     || matches!(self.program.type_reference_table.type_reference(declared),
                         typed_trees::types::TypeReferenceNode::Named { symbol, .. }
                             if self.program.symbols.builtin_type_atom(*symbol)
