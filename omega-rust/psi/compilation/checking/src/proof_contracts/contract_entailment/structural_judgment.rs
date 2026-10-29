@@ -2470,6 +2470,17 @@ impl<'program> StructuralJudge<'program> {
             return Some(value);
         }
         let program = self.program;
+        macro_rules! child_term {
+            ($expression:expr) => {
+                self.callee_term(
+                    $expression,
+                    environment,
+                    static_observations,
+                    scope,
+                    depth + 1,
+                )
+            };
+        }
         // A selected collection measure observes the completed descriptor, not
         // its retired referent. Resolve the receiver through the ordinary value
         // owner first: only an exact completed value or a separately proved
@@ -2484,13 +2495,7 @@ impl<'program> StructuralJudge<'program> {
                 crate::expression_result_type_reference(program, machine, state, member.receiver)
             && let Some(measure) =
                 super::structural_terms::collection_measure_term(program, member, reference, || {
-                    self.callee_term(
-                        member.receiver,
-                        environment,
-                        static_observations,
-                        scope,
-                        depth + 1,
-                    )
+                    child_term!(member.receiver)
                 })
         {
             return Some(measure);
@@ -2523,7 +2528,7 @@ impl<'program> StructuralJudge<'program> {
                 program,
                 expression,
                 reference,
-                self.callee_term(argument, environment, static_observations, scope, depth + 1)?,
+                child_term!(argument)?,
             );
         }
         if program
@@ -2536,9 +2541,7 @@ impl<'program> StructuralJudge<'program> {
             return super::structural_terms::mathematical_application_term(
                 program,
                 expression,
-                |capture| {
-                    self.callee_term(capture, environment, static_observations, scope, depth + 1)
-                },
+                |capture| child_term!(capture),
             );
         }
         match program.expression_table.expression(expression) {
@@ -2656,15 +2659,7 @@ impl<'program> StructuralJudge<'program> {
                         .expression_table
                         .expression_handles(call.arguments)
                         .iter()
-                        .map(|argument| {
-                            self.callee_term(
-                                *argument,
-                                environment,
-                                static_observations,
-                                scope,
-                                depth + 1,
-                            )
-                        })
+                        .map(|argument| child_term!(*argument))
                         .collect::<Option<Vec<_>>>()?;
                     let Some(state) =
                         crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
@@ -2702,13 +2697,7 @@ impl<'program> StructuralJudge<'program> {
                         arguments,
                     });
                 }
-                let receiver_term = self.callee_term(
-                    member.receiver,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?;
+                let receiver_term = child_term!(member.receiver)?;
                 self.observed_field_term(receiver_term, member.member.as_str(), depth)
             }
             ExpressionNode::StructLiteral(literal) => {
@@ -2718,13 +2707,7 @@ impl<'program> StructuralJudge<'program> {
                     literal,
                     |_, field| {
                         let field = field?;
-                        self.callee_term(
-                            field.value,
-                            environment,
-                            static_observations,
-                            scope,
-                            depth + 1,
-                        )
+                        child_term!(field.value)
                     },
                 )
             }
@@ -2733,13 +2716,7 @@ impl<'program> StructuralJudge<'program> {
                 scope,
                 None,
                 expression,
-                self.callee_term(
-                    unary.operand,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
+                child_term!(unary.operand)?,
             ),
             ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
             ExpressionNode::Cast(cast) => {
@@ -2747,15 +2724,7 @@ impl<'program> StructuralJudge<'program> {
                 let source =
                     crate::expression_result_type_reference(program, machine, state, cast.value)?;
                 super::structural_terms::denotation_preserving_conversion(program, cast, source)
-                    .then(|| {
-                        self.callee_term(
-                            cast.value,
-                            environment,
-                            static_observations,
-                            scope,
-                            depth + 1,
-                        )
-                    })
+                    .then(|| child_term!(cast.value))
                     .flatten()
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
@@ -2820,13 +2789,7 @@ impl<'program> StructuralJudge<'program> {
                 }
                 let mut arguments = Vec::new();
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    arguments.push(self.callee_term(
-                        *argument,
-                        environment,
-                        static_observations,
-                        scope,
-                        depth + 1,
-                    )?);
+                    arguments.push(child_term!(*argument)?);
                 }
                 // Substitution changes the selected callable telescope as well
                 // as its symbol. Retain its own result declaration rather than
@@ -2894,13 +2857,7 @@ impl<'program> StructuralJudge<'program> {
             }
             // A checked borrow selects its referent; it does not create a new
             // case-bearing value. Preserve aliases to the same saved subject.
-            ExpressionNode::Borrow(borrow) => self.callee_term(
-                borrow.target,
-                environment,
-                static_observations,
-                scope,
-                depth + 1,
-            ),
+            ExpressionNode::Borrow(borrow) => child_term!(borrow.target),
             ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
                 data: "bool".to_owned(),
                 case: value.to_string(),
@@ -2911,40 +2868,16 @@ impl<'program> StructuralJudge<'program> {
                 scope,
                 None,
                 expression,
-                self.callee_term(
-                    indexed.collection,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
-                self.callee_term(
-                    indexed.index,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
+                child_term!(indexed.collection)?,
+                child_term!(indexed.index)?,
             ),
             ExpressionNode::Binary(binary) => super::structural_terms::binary_term_in_scope(
                 program,
                 scope,
                 None,
                 expression,
-                self.callee_term(
-                    binary.left,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
-                self.callee_term(
-                    binary.right,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
+                child_term!(binary.left)?,
+                child_term!(binary.right)?,
             ),
             _ => None,
         }
