@@ -1,8 +1,8 @@
 //! Rejoin executed root-binding requests to the admitted build source.
 
-use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
+use typed_trees::TypedTrees;
 
 use super::RootBinding;
 

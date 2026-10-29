@@ -2,6 +2,49 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn source_entry_admission_never_calls_omega_with_typed_trees() {
+    let query = include_str!("checked/checking/product_queries.rs");
+    assert!(query.contains("&target::ProgramEntrySlots"));
+    assert!(!query.contains("provider_planning::"));
+    let completion = include_str!("checked/checking/build_continuation.rs");
+    assert!(completion.contains("prepared.admit_root_bindings("));
+    assert!(!completion.contains("provider_planning::program_entry::collect_root_bindings("));
+    let operand = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/typed_trees/declarations/product_operand.rs"
+    );
+    assert!(!operand.contains("trait ProductEntryCompatibility"));
+    let admission = include_str!("../../../../psi/compilation/checking/src/product_entries.rs");
+    assert!(admission.contains("pub fn validate_source_compatibility("));
+    assert!(admission.contains("ProductEntryDeclaration::from_declared_owner("));
+    assert!(!admission.contains("target::"));
+    let realization = include_str!("../../realization/provider-planning/src/program_entry.rs");
+    assert!(realization.contains("validate_source_compatibility("));
+    assert!(realization.contains("selected.slot.source_contract()"));
+    for retired in [
+        "ProductEntryQueryCompatibility",
+        "fn core_arrival_requirement_contract(",
+        "fn arrival_requirement_contract(",
+    ] {
+        assert!(
+            !realization.contains(retired),
+            "Omega owns source judgment {retired}"
+        );
+    }
+    let catalog = include_str!("../../backend/target/src/target_profile.rs");
+    assert!(catalog.contains("ProgramEntrySourceCatalog for ProgramEntrySlots"));
+    for source_type in [
+        "TypedTrees",
+        "ProductEntryDeclaration",
+        "NormalizedTypeIdentity",
+    ] {
+        assert!(
+            !catalog.contains(source_type),
+            "target catalog receives {source_type}"
+        );
+    }
+}
+
+#[test]
 fn product_provider_request_admission_belongs_to_psi() {
     let coordinator = include_str!("checked/checking/product_selections.rs");
     assert!(coordinator.contains("source.admit_product_provider_requests("));

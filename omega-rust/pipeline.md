@@ -305,6 +305,18 @@ admission completes before opaque-representation admission, so an invalid
 provider request may report first when both independent request kinds are
 invalid; both still reject when reached.
 
+ProgramEntry descriptions and final source compatibility are Psi judgments.
+The target catalog supplies only source-visible slot requirements; it never
+receives typed trees through a compatibility callback. Psi retains lexical
+lookup, exact declared-owner recovery and executed root-binding rejoin, including
+the original description's slot identity. Final entry settlement repeats the
+source check against the completed declaration before Omega derives physical
+layout and calling plans. Semantic arrival resolves inside the exact core
+Product owner; physical arrival resolves inside its selected schema. Shared
+source-signature extraction preserves normalized identities without combining
+those distinct authority paths. Hosted source checks are not evidence of
+physical arrival execution.
+
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
 Keep suspended activation storage alive while separately compiling helpers.

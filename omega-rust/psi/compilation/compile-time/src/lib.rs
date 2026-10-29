@@ -108,5 +108,6 @@ pub use machine_execution::selected_target_bodies::{
 
 // Source formation is shared by native Build and retained foreign producers.
 pub use validation::native_locators;
+pub use validation::product_entries;
 
 pub mod native_bindings;
