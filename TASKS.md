@@ -192,10 +192,8 @@ retired-syntax deletions to completion.
     and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
     on Linux/Windows without rebuilding `proven_predicates_grant_domain`
     (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
-  - Qualify the checked IEEE conversion fact at
-    `samples/cli/facts/ieee_guard_i32_from_f64`
-    and the applicable migrated filesystem customers' native/Terminal oracles
-    with **FILESYSTEM-PLATFORM-SERVICES**.
+  - Qualify the applicable migrated filesystem customers' native/Terminal
+    oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
   the corpus, `bootstrap/5_omega/parser.epsilon` and
   `tests/bootstrap/omega-parser` are migrated and each customer's native/Terminal

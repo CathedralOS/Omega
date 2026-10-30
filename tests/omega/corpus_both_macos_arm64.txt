@@ -51,6 +51,15 @@ pass/facts/borrowed_result_field_domains_sibling_write_other_state_exit built 10
 pass/facts/borrowed_result_field_domains_sibling_write_parameter_exit built 1021ms exit:0 interpreter-exit:0 interpreter:agrees @a130a16c2522
 pass/facts/borrowed_result_field_domains_sibling_write_target_body_exit built 1016ms exit:0 interpreter-exit:0 interpreter:agrees @a130a16c2522
 pass/facts/disjoint_field_borrow_windows_through_local_exit built 1244ms exit:0 interpreter-exit:0 interpreter:agrees @cdaaea7fffc3
+pass/facts/ieee_guard_i32_from_f64_call_result built 2281ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_const_name built 2284ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_field built 1997ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_local built 1997ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_match_join built 2018ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_other_machine built 2010ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_other_state built 2009ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_parameter built 2003ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
+pass/facts/ieee_guard_i32_from_f64_target_body built 1843ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
 pass/facts/live_across_five_calls_preservation_bound_through_target_body_exit built 1706ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @87b0a11b81a2
 pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit built 2049ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @87b0a11b81a2
 pass/facts/narrow_to_wide_unsigned_16to32_extension_through_target_body_exit built 1731ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8b0503ce7d48
