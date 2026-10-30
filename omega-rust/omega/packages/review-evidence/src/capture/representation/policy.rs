@@ -8,9 +8,7 @@ pub(crate) use selections::rederive_selections;
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::project_checked_calling_policy;
 use crate::capture::refusal;
-use crate::capture::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns,
-};
+use crate::capture::semantics::declarations::owned_identity;
 use crate::record::{PackagePolicyRepresentation, PackagePolicyRepresentationDemand};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -39,13 +37,10 @@ pub(crate) fn project_checked_representation_policy<'a>(
     for definition in compilation.data_definitions().iter().filter(|definition| {
         definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
     }) {
-        if !is_product_scope_instance(compilation, definition.symbol)? {
+        let Some(identity) = owned_identity(compilation, package, definition.symbol)? else {
             continue;
-        }
-        let identity = nominal_identity(compilation, definition.symbol)?;
-        if reviewed_package_owns(&identity, package)? {
-            declarations.push(identity);
-        }
+        };
+        declarations.push(identity);
     }
     declarations.sort();
     if declarations.windows(2).any(|pair| pair[0] == pair[1]) {

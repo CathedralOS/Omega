@@ -7,7 +7,7 @@ use super::super::contracts::facts::{
 };
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns, trait_requirement_identity,
+    nominal_identity, owned_identity, trait_requirement_identity,
 };
 use super::super::semantics::signatures::parameters::{
     project_signature_parameters, project_type_parameters, project_type_parameters_after,
@@ -32,13 +32,9 @@ pub(crate) fn project_public_traits<'a>(
 {
     let mut rows = Vec::new();
     for definition in compilation.traits().iter().filter(|row| row.is_public) {
-        if !is_product_scope_instance(compilation, definition.symbol)? {
+        let Some(identity) = owned_identity(compilation, package, definition.symbol)? else {
             continue;
-        }
-        let identity = nominal_identity(compilation, definition.symbol)?;
-        if !reviewed_package_owns(&identity, package)? {
-            continue;
-        }
+        };
         let parameters = compilation.trait_type_parameters(definition);
         let (mut trait_binders, type_parameters) = project_type_parameters(
             compilation,
