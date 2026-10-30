@@ -765,6 +765,7 @@ fn rejects_retired_target_prefixed_machine_declarations() {
         "linux_x86_64 machine answer() -> u64 { 7u64 }",
         "public macos_arm64 machine answer() -> u64 { 7u64 }",
         "windows_x86_64 boundary machine native(value: i32) -> i32;",
+        "linux_x86_64 /* target */ boundary /* supply */ machine native();",
         "linux_arm64 machine answer() -> u64;",
         "uefi_x86_64 boundary machine stop();",
     ] {

@@ -148,11 +148,10 @@ fn starts_retired_target_machine(input: Input<'_, '_>) -> bool {
     if input.at_identifier_then_contextual("machine") {
         return true;
     }
-    if !input.at_identifier_then_contextual("boundary") {
-        return false;
-    }
-    let after = input.restarted(input.tokens.get(2..).unwrap_or_default());
-    after.at_keyword(KeywordKind::Machine)
+    input.at_identifier_then_contextual("boundary")
+        && input
+            .peek(2)
+            .is_some_and(|token| token.keyword() == Some(KeywordKind::Machine))
 }
 
 /// The same machine introducers are legal at module and lexical scope. This
