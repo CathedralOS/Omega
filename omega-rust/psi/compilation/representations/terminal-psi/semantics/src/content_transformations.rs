@@ -47,8 +47,8 @@
 //! native metering.
 
 use semantic_vocabulary::{
-    ContentPlaceSegment, ContentPlaceVersion, ContentTerm, PlaceId, StructuralDomainId,
-    StructuralTypeId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentTerm, PlaceId,
+    StructuralDomainId, StructuralTypeId,
 };
 use terminal_psi::{
     ContentClaimProjection, ContentTransformationDerivation, StructuralArgument,
@@ -246,6 +246,26 @@ pub fn validate_shape(
     Ok(())
 }
 
+/// The declared qualification owner of one derivation projection. Carrier
+/// identity, projection identity and algebra stay independent obligations; this
+/// lookup only selects the row that names all three.
+fn projection_owner<'domains>(
+    domains: &'domains [StructuralDomainDeclaration],
+    carrier: StructuralTypeId,
+    projection: &ContentProjectionIdentity,
+    derived: &ContentTransformationDerivation,
+) -> Option<&'domains StructuralDomainDeclaration> {
+    let algebra = derived.conservation.algebra();
+    domains.iter().find(|domain| {
+        let Some(declared) = &domain.content_projection else {
+            return false;
+        };
+        domain.carrier == carrier
+            && declared.identity == *projection
+            && declared.algebra == *algebra
+    })
+}
+
 /// Every content-bearing membership of a consumed parent participates in the
 /// transaction, and each named input is an actual current membership. Ordinary
 /// predicates are not content accounts; geometry alone cannot supply either.
@@ -291,18 +311,7 @@ pub fn validate_parent_memberships(
             };
             let carrier = crate::runtime_structural_path_tip(types.iter(), root_type, &path)
                 .ok_or("content parent membership carrier is absent")?;
-            let domain = domains
-                .iter()
-                .find(|domain| {
-                    domain.carrier == carrier.id
-                        && domain
-                            .content_projection
-                            .as_ref()
-                            .is_some_and(|projection| {
-                                projection.identity == input.projection
-                                    && projection.algebra == *derived.conservation.algebra()
-                            })
-                })
+            let domain = projection_owner(domains, carrier.id, &input.projection, derived)
                 .ok_or("content parent membership has no exact qualification owner")?;
             expected.push(StructuralPathQualification {
                 path: relative.to_vec(),
@@ -411,18 +420,7 @@ pub fn validate_contract(
                 .ok_or("content claim projection has no exact typed path")?;
                 let carrier = crate::runtime_structural_path_tip(types.iter(), root_type, &path)
                     .ok_or("content claim projection carrier is absent")?;
-                let domain = domains
-                    .iter()
-                    .find(|domain| {
-                        domain.carrier == carrier.id
-                            && domain
-                                .content_projection
-                                .as_ref()
-                                .is_some_and(|projection| {
-                                    projection.identity == binding.projection
-                                        && projection.algebra == *derived.conservation.algebra()
-                                })
-                    })
+                let domain = projection_owner(domains, carrier.id, &binding.projection, derived)
                     .ok_or("content projection differs from its qualification owner")?;
                 // Equal algebras describe compatible arithmetic, not permission
                 // to exchange one owner's qualification for another owner's.
@@ -508,18 +506,7 @@ pub fn validate_memberships(
             let carrier =
                 crate::runtime_structural_path_tip(types.iter(), result.structural_type, &path)
                     .ok_or("content output membership carrier is absent")?;
-            let domain = domains
-                .iter()
-                .find(|domain| {
-                    domain.carrier == carrier.id
-                        && domain
-                            .content_projection
-                            .as_ref()
-                            .is_some_and(|projection| {
-                                projection.identity == output.projection
-                                    && projection.algebra == *derived.conservation.algebra()
-                            })
-                })
+            let domain = projection_owner(domains, carrier.id, &output.projection, derived)
                 .ok_or("content output membership has no qualification owner")?;
             if path.is_empty() {
                 if whole.contains(&domain.id) {
