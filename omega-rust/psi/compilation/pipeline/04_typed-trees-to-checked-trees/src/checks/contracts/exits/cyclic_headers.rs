@@ -285,8 +285,8 @@ impl<'program, 'facts> Header<'program, 'facts> {
     ) -> Vec<ScopedArithmeticHypothesis> {
         self.requires
             .iter()
-            .filter(|expression| self.hypothesis_is_admitted(**expression))
-            .map(|expression| self.hypothesis(*expression, bindings.clone(), true))
+            .flat_map(|expression| self.hypothesis_parts(*expression, true))
+            .map(|(expression, holds)| self.hypothesis(expression, bindings.clone(), holds))
             .collect()
     }
 
@@ -419,7 +419,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                             .semantic
                             .context_view(self.facts.semantic.contexts.get(context))
                             .facts()
-                            .filter_map(|fact| self.arm_fact(fact))
+                            .flat_map(|fact| self.arm_facts(fact))
                             .collect::<Vec<_>>()
                     })
                     .collect();
@@ -438,12 +438,12 @@ impl<'program, 'facts> Header<'program, 'facts> {
     /// own requirements and this iteration's guard values. Imported call
     /// contracts are not this machine's facts, and a prefix fact from an
     /// earlier iteration never survives the state's arrival contract.
-    fn arm_fact(&self, fact: &facts::Fact) -> Option<(ExpressionHandle, bool)> {
+    fn arm_facts(&self, fact: &facts::Fact) -> Vec<(ExpressionHandle, bool)> {
         if matches!(
             fact.origin,
             FactOrigin::CallRequires | FactOrigin::CallEnsures
         ) {
-            return None;
+            return Vec::new();
         }
         let (expression, holds) = match fact.payload {
             FactPayload::ContractBooleanExpression {
@@ -453,11 +453,36 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 ..
             } if !instantiated.is_valid() => (expression, true),
             FactPayload::BooleanValue { expression, value } => (expression, value),
-            _ => return None,
+            _ => return Vec::new(),
         };
+        self.hypothesis_parts(expression, holds)
+    }
+
+    /// A true builtin conjunction supplies each conjunct independently. The
+    /// arithmetic fragment may retain a scalar conjunct even when a sibling
+    /// describes a record or another unsupported term. This projects premises,
+    /// never goals: a false conjunction supplies neither false conjunct, and
+    /// an unsupported disjunction supplies neither alternative.
+    fn hypothesis_parts(
+        &self,
+        expression: ExpressionHandle,
+        holds: bool,
+    ) -> Vec<(ExpressionHandle, bool)> {
         let (expression, holds) = self.folded_polarity(expression, holds);
-        self.hypothesis_is_admitted(expression)
-            .then_some((expression, holds))
+        if holds
+            && let Some(binary) = self.program.expression_table.binary_node(expression)
+            && binary.operator == BinaryOperator::And
+            && has_builtin_operators(self.program, &self.facts.operators, expression)
+        {
+            let mut parts = self.hypothesis_parts(binary.left, true);
+            parts.extend(self.hypothesis_parts(binary.right, true));
+            return parts;
+        }
+        if self.hypothesis_is_admitted(expression) {
+            vec![(expression, holds)]
+        } else {
+            Vec::new()
+        }
     }
 
     /// A guard retained as `comparison == true` / `== false` is the

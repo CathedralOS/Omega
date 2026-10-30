@@ -15,7 +15,7 @@ use super::{
     AdmittedGuarantee, Header, exit_return_expression, fixed_integer, is_result_reference,
 };
 use arena::Handle;
-use checked_trees::{CheckFacts, FlowExitFact};
+use checked_trees::{CheckFacts, CheckedScalarExpression, FlowExitFact};
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -207,16 +207,10 @@ fn proves_value(
         return false;
     };
     let returned = exit_return_expression(program, exit);
-    // This arithmetic reading uses immutable scalar binders, not mutable
-    // storage or call syntax replayed after its effects. Residue arithmetic
-    // cannot silently become an integer-order proof.
-    if header
-        .term_reference(returned)
-        .is_none_or(|term| term.domain != ArithmeticDomain::Exact)
-    {
-        return false;
-    }
     let bindings = header.caller_atoms(state);
+    let Some(value) = return_value(&header, state, exit, returned, &bindings) else {
+        return false;
+    };
     let mut hypotheses = header.requirements(header.formal_roster());
     if state.symbol == header.entry.symbol {
         hypotheses.extend(header.requirements(bindings.clone()));
@@ -232,7 +226,7 @@ fn proves_value(
             .context_view(facts.semantic.contexts.get(context.context))
             .facts()
         {
-            if let Some((expression, holds)) = header.arm_fact(fact) {
+            for (expression, holds) in header.arm_facts(fact) {
                 hypotheses.push(header.hypothesis(expression, bindings.clone(), holds));
             }
         }
@@ -242,12 +236,72 @@ fn proves_value(
         expression: guarantee,
         bindings: vec![ScopedArithmeticBinding {
             binder: ScopedArithmeticBinder::Result,
-            value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-                owner: machine.symbol,
-                expression: returned,
-                bindings,
-            }),
+            value,
         }],
     };
     header.proves(&hypotheses, &goal)
+}
+
+/// Exact terms retain their symbolic relationships. Other selected arithmetic
+/// contributes only independently established bounds, never an integer rewrite
+/// of residue operations. Both routes read immutable scalar parameters only:
+/// no replayed local initializer, borrowed storage or imported call guarantee
+/// can justify a cyclic completion.
+fn return_value(
+    header: &Header<'_, '_>,
+    state: &State,
+    exit: &FlowExitFact,
+    returned: ExpressionHandle,
+    bindings: &[ScopedArithmeticBinding],
+) -> Option<ScopedArithmeticValue> {
+    if header
+        .term_reference(returned)
+        .is_some_and(|term| term.domain == ArithmeticDomain::Exact)
+    {
+        return Some(ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+            owner: header.machine.symbol,
+            expression: returned,
+            bindings: bindings.to_vec(),
+        }));
+    }
+    let (primitive, _) = fixed_integer(header.program, state.return_type)?;
+    let selected = crate::values::lower_unit_scalar_argument_for_places(
+        header.program,
+        &header.facts.operators,
+        state,
+        exit.statement_index,
+        returned,
+        primitive,
+        |place, primitive_type| {
+            let facts::PlaceRoot::Symbol(symbol) = place.root else {
+                return None;
+            };
+            (place.segments.is_empty()
+                && header
+                    .roster
+                    .iter()
+                    .any(|parameter| parameter.symbol == symbol))
+            .then_some(CheckedScalarExpression::StorageRead {
+                symbol,
+                primitive_type,
+            })
+        },
+    )?;
+    let mut values = crate::values::LivePlaceIntervals {
+        program: header.program,
+        semantic: &header.facts.semantic,
+        contexts: &[],
+        parameters: header.program.state_parameters(state),
+        symbols: &[],
+        state: state.symbol,
+    };
+    let bounds = validation::selected_scalar_interval(&selected, &mut values)?;
+    Some(ScopedArithmeticValue::BoundedInteger {
+        value: Box::new(ScopedArithmeticValue::Atom {
+            identity: format!("completion:{:?}:{returned:?}", state.symbol),
+            unsigned: super::unsigned(primitive),
+        }),
+        minimum: Some(bounds.minimum),
+        maximum: Some(bounds.maximum),
+    })
 }
