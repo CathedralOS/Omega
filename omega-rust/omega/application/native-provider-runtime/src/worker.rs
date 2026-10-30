@@ -36,6 +36,11 @@ pub(crate) struct Worker {
     adapters: Vec<Adapter>,
     pub(crate) homes: BTreeMap<u64, SharedBacking>,
     directory: PathBuf,
+    // Guest state is restored to Darwin's authentic TLS slot across protocol
+    // and loader work. __error still returns that slot, never this saved value's
+    // address, including when native code retains the pointer in this incarnation.
+    #[cfg(target_os = "macos")]
+    guest_errno: libc::c_int,
 }
 
 /// Internal executable entry used by an embedding sponsor's actual bounded
@@ -81,6 +86,8 @@ pub fn run_worker_if_requested() {
             adapters: Vec::new(),
             homes: BTreeMap::new(),
             directory: directory.into(),
+            #[cfg(target_os = "macos")]
+            guest_errno: 0,
         });
         loop {
             let packet = wire::receive(&mut stream)?;
@@ -242,16 +249,30 @@ impl Worker {
             .iter()
             .map(|value| value.pointer().cast_const())
             .collect::<Vec<_>>();
+        let result_pointer = output
+            .as_ref()
+            .map_or(std::ptr::null_mut(), NativeValue::pointer);
+        #[cfg(target_os = "macos")]
+        // Resolve TLS before restoring guest state. No allocation, loader or
+        // protocol work may intervene between restoration, entry and capture.
+        let errno_pointer = unsafe { libc::__error() };
         // Complete argument extents and pointer/home ranges have been joined
         // above. The selected provider's behavior remains the admitted trusted
         // premise; actual native traps kill only this worker incarnation.
         unsafe {
-            adapter.entry.call(
-                &pointers,
-                output
-                    .as_ref()
-                    .map_or(std::ptr::null_mut(), NativeValue::pointer),
-            );
+            #[cfg(target_os = "macos")]
+            {
+                // __error returns this calling thread's live, aligned c_int
+                // slot. The serialized worker executes the adapter here too.
+                *errno_pointer = self.guest_errno;
+            }
+            adapter.entry.call(&pointers, result_pointer);
+            #[cfg(target_os = "macos")]
+            {
+                // Capture on every normal return: success does not imply an
+                // errno reset, nor does it guarantee errno was unchanged.
+                self.guest_errno = *errno_pointer;
+            }
         }
         Ok(output.as_ref().map_or_else(Vec::new, NativeValue::bytes))
     }
