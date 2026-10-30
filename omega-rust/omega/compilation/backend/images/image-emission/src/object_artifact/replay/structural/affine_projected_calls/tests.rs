@@ -4,6 +4,7 @@ use super::{
     TerminalAffineCleanupAction, UnitAffineCleanupRecord, UnitParameterHomeRecord,
     exact_owned_projection, exact_projected_affine_parameter,
 };
+use crate::object_artifact::test_support::structural_declaration;
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{
     EdgeId, MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,
@@ -34,17 +35,11 @@ fn field(identity: &str) -> StructuralPathSegment {
 }
 
 fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
-    StructuralTypeDeclaration {
-        quotient_carrier: None,
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        id: type_id(value),
-        identity: terminal_psi::TerminalIdentityIndex(50 + value as u32),
+    structural_declaration(
+        type_id(value),
+        terminal_psi::TerminalIdentityIndex(50 + value as u32),
         shape,
-    }
+    )
 }
 
 fn structural_field(value: u64, identity: &str, child: u64) -> StructuralFieldDeclaration {

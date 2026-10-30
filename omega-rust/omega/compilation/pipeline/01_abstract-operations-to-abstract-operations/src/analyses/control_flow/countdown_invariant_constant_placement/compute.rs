@@ -63,45 +63,33 @@ fn destination(
     counted: &UnsignedCountdownLoopSummary,
 ) -> Result<CountdownInvariantConstantDestination, CountdownInvariantConstantPlacementAnalysisError>
 {
+    // Every refusal below names the same certificate coordinate pair.
+    let rejected = || unsupported(function.machine, counted.certificate.guard.zero_operation);
     if component.members.contains(&counted.preheader_edge.source) {
-        return Err(unsupported(
-            function.machine,
-            counted.certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     }
     let block = function
         .block(counted.preheader_edge.source)
-        .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
-    let node = block
-        .nodes
-        .last()
-        .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
+        .ok_or_else(rejected)?;
+    let node = block.nodes.last().ok_or_else(rejected)?;
     let O::Jump {
         psi_edge, target, ..
     } = node.operation
     else {
-        return Err(unsupported(
-            function.machine,
-            counted.certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     };
     if psi_edge != counted.preheader_edge.edge
         || target != counted.certificate.header
         || counted.preheader_edge.target != counted.certificate.header
         || component.entries.as_slice() != [counted.preheader_edge]
     {
-        return Err(unsupported(
-            function.machine,
-            counted.certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     }
     Ok(CountdownInvariantConstantDestination {
         before: NodeLocation {
             machine: function.machine,
             block: block.id,
-            node: u32::try_from(block.nodes.len() - 1).map_err(|_| {
-                unsupported(function.machine, counted.certificate.guard.zero_operation)
-            })?,
+            node: u32::try_from(block.nodes.len() - 1).map_err(|_| rejected())?,
         },
         entry_edge: counted.preheader_edge,
     })

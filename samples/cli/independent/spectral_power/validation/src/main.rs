@@ -6,7 +6,9 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "spectral-power-validation",
     review: false,
+    caps: None,
     evidence: Evidence::Adjacent,
+    frozen: None,
 };
 
 fn main() {

@@ -8,6 +8,7 @@
 
 mod declarations;
 mod independent_components;
+mod installation_reach;
 mod provider_selection;
 mod publication;
 mod selection;
@@ -22,5 +23,6 @@ pub use declarations::{
     ProviderFamilyCoordinate, ProviderIdentity, ProviderSubject, SelectedProvider,
     SelectionProvenance,
 };
+pub use installation_reach::{InstallationReachRow, resolve_installation_reach};
 pub use language_semantics::declaration_selection::CompositionMode;
 pub use provider_selection::{admit, choose};

@@ -2,6 +2,35 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn final_representation_admission_belongs_to_psi_checking() {
+    let coordinator = include_str!("checked/checking/source_checking.rs");
+    assert!(coordinator.contains("psi_compiler::ProductRepresentationInput"));
+    for forbidden in [
+        "rederive_opaque_representation_selections(",
+        "OpaqueDataPropertyReceipt::copy(",
+        "CheckedSemanticCopy",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
+    assert!(!checking.contains("pub opaque_properties:"));
+    assert!(!checking.contains("pub opaque_representations:"));
+    assert!(checking.contains("rederive_opaque_representation_selections("));
+    assert!(checking.contains("OpaqueDataPropertyReceipt::copy("));
+    let admission = checking
+        .find("self.admission.representations.admit(&program)")
+        .unwrap();
+    let completion = checking
+        .find("validation::source_completion::prepare_source_completion(")
+        .unwrap();
+    let reuse = checking.find("prior.judges_preparation_input(").unwrap();
+    assert!(admission < completion && completion < reuse);
+}
+
+#[test]
 fn product_policy_admission_has_one_source_owner() {
     let coordinator = include_str!("checked/checking/product_selections.rs");
     for forbidden in [
@@ -563,6 +592,40 @@ fn terminal_cohorts_retain_admitted_products() {
 }
 
 #[test]
+fn installation_reach_settlement_consumes_prepared_rows() {
+    let projection = include_str!(
+        "../../realization/provider-planning/src/provider_planning/installation_reach.rs"
+    );
+    assert!(projection.contains("provider.row_requirements"));
+    assert!(projection.contains("provider.row_realizations"));
+    assert!(projection.contains("provider_selection::resolve_installation_reach(rows)"));
+    for forbidden in [
+        "typed.machines()",
+        "typed.traits()",
+        "attached_data_path",
+        "named_provider_row",
+        "substitute_nested_installation_reaches",
+    ] {
+        assert!(
+            !projection.contains(forbidden),
+            "reach projection reconstructs {forbidden}"
+        );
+    }
+    let settlement = include_str!("../../realization/provider-selection/src/installation_reach.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !settlement.contains(forbidden),
+            "reach settlement reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation/terminal.rs");
     assert!(projection.contains(".native_provider_sources"));
@@ -1105,4 +1168,25 @@ fn packages_do_not_manage_frontend_or_judgment_reuse() {
             );
         }
     }
+}
+#[test]
+fn executable_callback_placement_is_owned_by_terminal_settlement() {
+    let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
+    let source = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    let request = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs"
+    );
+    let persisted = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec.rs"
+    );
+    assert!(selection.contains("callback_roots"));
+    assert!(source.contains("select_nominal_callback_roots"));
+    for source in [selection, source, persisted] {
+        assert!(!source.contains("NativeCallbackPlacement"));
+        assert!(!source.contains("SelectedCallbackPlacement"));
+    }
+    assert!(!request.contains("pub callback_placements:"));
+    assert!(request.contains("callback_settlement::place_callbacks"));
 }

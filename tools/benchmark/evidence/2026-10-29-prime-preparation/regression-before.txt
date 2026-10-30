@@ -1,0 +1,30 @@
+   Compiling validation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\omega-rust\psi\compilation\checking)
+    Finished `release` profile [optimized] target(s) in 50.63s
+────────────
+ Nextest run ID 5171a8fb-381b-44cd-bcc5-9feb0f9687f5 with nextest profile: default
+    Starting 1 test across 1 binary (29 tests skipped)
+        FAIL [   0.185s] (1/1) validation machine_calls::effect_inference::invocations::tests::realized_invocation_cycle_converges_without_losing_targets
+  stdout ───
+
+    running 1 test
+    test machine_calls::effect_inference::invocations::tests::realized_invocation_cycle_converges_without_losing_targets ... FAILED
+
+    failures:
+
+    failures:
+        machine_calls::effect_inference::invocations::tests::realized_invocation_cycle_converges_without_losing_targets
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'machine_calls::effect_inference::invocations::tests::realized_invocation_cycle_converges_without_losing_targets' (1036932) panicked at omega-rust\psi\compilation\checking\src\machine_calls\effect_inference\invocations.rs:778:9:
+    stable target sets must not oscillate in discovery order
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.195s] 1 test run: 0 passed, 1 failed, 29 skipped
+        FAIL [   0.185s] (1/1) validation machine_calls::effect_inference::invocations::tests::realized_invocation_cycle_converges_without_losing_targets
+error: test run failed
+mbx[cache]: 0 hits, 0 misses, 1 not looked up; 0 B downloaded, 0 B uploaded, 11.6 MiB stored locally
+mbx[savings]: 59892 compilations served from cache to date

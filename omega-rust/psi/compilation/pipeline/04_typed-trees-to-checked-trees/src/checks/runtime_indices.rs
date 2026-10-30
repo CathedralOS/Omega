@@ -29,6 +29,22 @@ struct Application<'program> {
     position: Option<usize>,
 }
 
+impl Application<'_> {
+    /// A bare applied reference: an exact type at its formation statement,
+    /// carrying no substitutions, arguments, call site or parameter position
+    /// until a caller installs them.
+    fn bare(reference: TypeReferenceHandle, formation: usize) -> Self {
+        Self {
+            reference,
+            formation,
+            substitutions: Vec::new(),
+            arguments: Vec::new(),
+            call: None,
+            position: None,
+        }
+    }
+}
+
 struct Scope<'a> {
     program: &'a dyn validation::CheckingInput,
     machine: &'a Machine,
@@ -368,14 +384,7 @@ impl Scope<'_> {
                     .state_local_declaration(self.state, path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
-                Some(Application {
-                    reference,
-                    formation,
-                    substitutions: Vec::new(),
-                    arguments: Vec::new(),
-                    call: None,
-                    position: None,
-                })
+                Some(Application::bare(reference, formation))
             }
             ExpressionNode::Call(call) => {
                 let parameters =
@@ -780,14 +789,7 @@ impl Scope<'_> {
                     .state_local_declaration(self.state, path.head_symbol)
                     .map(|(position, _)| position)
                     .unwrap_or(0);
-                let mut receiver = Application {
-                    reference,
-                    formation,
-                    substitutions: Vec::new(),
-                    arguments: Vec::new(),
-                    call: None,
-                    position: None,
-                };
+                let mut receiver = Application::bare(reference, formation);
                 for symbol in prefix.iter().skip(1) {
                     let reference = self
                         .program
@@ -1508,14 +1510,7 @@ impl Scope<'_> {
             ExpressionNode::Cast(cast) => {
                 self.check(
                     cast.value,
-                    Application {
-                        reference: cast.target_type,
-                        formation: self.statement,
-                        substitutions: Vec::new(),
-                        arguments: Vec::new(),
-                        call: None,
-                        position: None,
-                    },
+                    Application::bare(cast.target_type, self.statement),
                     diagnostics,
                 );
                 self.check(cast.value, required, diagnostics);
@@ -1689,14 +1684,7 @@ pub(super) fn check(
             match node {
                 StatementNode::LocalData(local) => scope.check_binding(
                     local.initial_value,
-                    Application {
-                        reference: local.type_reference,
-                        formation: statement,
-                        substitutions: Vec::new(),
-                        arguments: Vec::new(),
-                        call: None,
-                        position: None,
-                    },
+                    Application::bare(local.type_reference, statement),
                     local.relevance.is_erased(),
                     typed_trees::type_identity::applied_type_identity(
                         program,
@@ -1709,14 +1697,7 @@ pub(super) fn check(
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope
                     .check(
                         *expression,
-                        Application {
-                            reference: state.return_type,
-                            formation: 0,
-                            substitutions: Vec::new(),
-                            arguments: Vec::new(),
-                            call: None,
-                            position: None,
-                        },
+                        Application::bare(state.return_type, 0),
                         diagnostics,
                     ),
                 StatementNode::Assignment(assignment) => {
@@ -1736,14 +1717,7 @@ pub(super) fn check(
                             let scope = Scope { target, ..scope };
                             scope.check(
                                 *value,
-                                Application {
-                                    reference: state.return_type,
-                                    formation: 0,
-                                    substitutions: Vec::new(),
-                                    arguments: Vec::new(),
-                                    call: None,
-                                    position: None,
-                                },
+                                Application::bare(state.return_type, 0),
                                 diagnostics,
                             );
                         }

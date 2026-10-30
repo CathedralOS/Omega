@@ -98,6 +98,7 @@ def duration(metric):
 def flatten(record, identity, path, revision, project):
     metrics, host = record['metrics'], record['host']
     compile_time, runtime = duration(metrics['compile_time_ms']), duration(metrics['runtime_ms'])
+    preparation = duration(metrics.get('package_preparation_ms', {'status': 'unavailable'}))
     runtime_leg = metrics['runtime_ms']
     expected, exits = runtime_leg.get('exit_code_expected'), runtime_leg.get('exit_codes', [])
     oracle = (runtime is not None and type(expected) is int
@@ -117,6 +118,7 @@ def flatten(record, identity, path, revision, project):
             'selection': record['key']['selection'], 'host': host, 'context': context,
             'context_id': context_id, 'project': project,
             'compile': compile_time, 'runtime': runtime, 'runtime_oracle': oracle,
+            'preparation': preparation,
             'expected_exit': expected, 'applicability': record.get('applicability'),
             'compile_reason': metrics['compile_time_ms'].get('reason'),
             'runtime_status': runtime_leg['status'], 'runtime_reason': runtime_leg.get('reason'),

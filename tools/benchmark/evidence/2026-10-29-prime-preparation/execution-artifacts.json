@@ -1,0 +1,18 @@
+{
+  "source_revision": "f8f4b83177c969d3bdc95256f8ab28be98bdefad",
+  "producer_sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf",
+  "native_exit": 8,
+  "terminal_exit": 8,
+  "artifacts": {
+    "omega-program.exe": {
+      "sha256": "6cbcee843debabdf0b79d4eb3d8ef6003cbe25960d3109e5f6f54a5c269dd3f5",
+      "bytes": 9728,
+      "retained_path": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-1058152-0\\omega-program.exe"
+    },
+    "program.oterm": {
+      "sha256": "658d142657d7a840fa89f23efaf6b361cf99d139eb90fb8241914e4949a60fbe",
+      "bytes": 110142,
+      "retained_path": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-1058152-0\\program.oterm"
+    }
+  }
+}

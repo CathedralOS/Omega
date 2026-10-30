@@ -28,8 +28,8 @@ mod source_compilation;
 mod source_parsing;
 
 pub use source_checking::{
-    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission,
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductRepresentationInput,
+    ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,

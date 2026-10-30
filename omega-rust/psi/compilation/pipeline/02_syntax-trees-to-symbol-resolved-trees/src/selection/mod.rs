@@ -9,6 +9,7 @@
 
 pub(crate) mod authored_selections;
 pub(crate) mod body_calls;
+pub(crate) mod call_identity;
 pub(crate) mod conformance_blocks;
 pub(crate) mod domain_establishment;
 pub(crate) mod domain_operator_homes;

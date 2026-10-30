@@ -2283,6 +2283,8 @@ fail/calls/ambiguous_returned_loan_drops_count rejected 4227ms expected @a92f164
 	cannot prove requires contract for call push from Main::main: loan(main, false).count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `stored`
 fail/calls/authored_numeric_name_requires rejected 3515ms expected @a92f16431042
 	cannot prove requires contract for call abs from main: 100 >= -3 && 100 <= 3 (needs fact `value >= -3 && value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/calls/borrowed_record_old_pointee_after_write_rejected rejected 466ms expected @1e127a84987a
+	exact arithmetic in machine `observe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/calls/boundary_computed_selector_out_of_bounds rejected 2228ms expected @a92f16431042
 	cannot prove index `choose()` is within length 4 in main::entry
 fail/calls/boundary_nested_argument_conflicting_loan rejected 4984ms expected @a92f16431042
@@ -2436,6 +2438,11 @@ fail/calls/nested_machine_runtime_capture rejected 610ms expected @b011da5f273a0
 	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/calls/nested_range_call_out_of_bounds rejected 2130ms expected @a92f16431042
 	cannot prove subslice range end bound `..4` is within slice length 3
+fail/calls/nested_static_implementation_wrong_carrier rejected 1090ms expected @02eca83b1303
+	argument `value` for state `read` expects `&Value`, got `named value`
+	argument `value` for conformance requirement `Reader::read` does not match the binder's trait arguments
+	argument `value` for state `read` expects `&Item`, got `named value`
+	argument `value` for state `Selected::read::read` expects the `Item` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/calls/non_unit_compound_expression_requires_use rejected 509ms expected @a92f16431042
 	machine `invalid` state `entry` expression statement discards its non-Unit value; consume the value or discard a call explicitly with `_ = call(...);`
 fail/calls/nontail_value_self_call_rejected rejected 2404ms expected @a92f16431042
@@ -2520,6 +2527,8 @@ fail/calls/retired_core_binding_local rejected 1352ms expected @a92f16431042
 	machine `invalid` state `entry` local data `slot` references unknown generic type `Binding`
 fail/calls/retired_core_binding_parameter rejected 1240ms expected @a92f16431042
 	machine `invalid` state `entry` parameter `slot` references unknown generic type `Binding`
+fail/calls/returned_nested_record_written_field_rejected rejected 438ms expected @1e127a84987a
+	exact arithmetic in machine `observe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/calls/returned_record_fields_require_every_normal_path rejected 792ms expected @f12ecf5d5aa1+wt
 	cannot prove requires contract for call read_field from main: match choose() { true => shared chosen, false => shared spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
 fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected rejected 6407ms expected @f091b8a4bc456552f8dfeb90392365fdb21f29b9
@@ -7895,27 +7904,25 @@ fail/facts/descriptor_replacement_order_through_parameter_rejected rejected 1906
 	cannot use `bundle.entries[0].first` in machine `main` state `entry` (statement 5) after `bundle` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first
 fail/facts/descriptor_replacement_order_through_target_body_rejected rejected 1874ms expected @a92f16431042
 	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
-fail/facts/disjoint_field_borrow_windows_through_call_result_rejected rejected 761ms expected @a92f16431042
+fail/facts/disjoint_field_borrow_windows_through_call_result_rejected rejected 393ms expected @1e127a84987a
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_const_name_rejected rejected 899ms expected @a92f16431042
+fail/facts/disjoint_field_borrow_windows_through_const_name_rejected rejected 394ms expected @1e127a84987a
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_field_rejected rejected 2014ms expected @a92f16431042
+fail/facts/disjoint_field_borrow_windows_through_field_rejected rejected 463ms expected @1e127a84987a
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_local_rejected rejected 887ms expected @a92f16431042
+fail/facts/disjoint_field_borrow_windows_through_local_rejected rejected 404ms expected @1e127a84987a
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_match_join_rejected rejected 772ms expected @a92f16431042
+fail/facts/disjoint_field_borrow_windows_through_match_join_rejected rejected 464ms expected @1e127a84987a
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_other_machine_rejected rejected 2169ms expected @a92f16431042
+fail/facts/disjoint_field_borrow_windows_through_other_machine_rejected rejected 409ms expected @1e127a84987a
 	exact arithmetic in machine `Relay::forward` state `forward` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_other_state_rejected rejected 839ms expected @a92f16431042
-	exact arithmetic in machine `exercise` state `step` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_parameter_rejected rejected 838ms expected @a92f16431042
+fail/facts/disjoint_field_borrow_windows_through_other_state_rejected rejected 439ms expected @1e127a84987a
+	exact arithmetic in machine `step` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/disjoint_field_borrow_windows_through_parameter_rejected rejected 394ms expected @1e127a84987a
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/disjoint_field_borrow_windows_through_target_body_rejected rejected 836ms expected @a92f16431042
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/disjoint_field_borrow_windows_through_target_body_rejected rejected 368ms expected @1e127a84987a
+	exact arithmetic in machine `X86Probe::exercise` state `exercise` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `ArmProbe::exercise` state `exercise` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/disjoint_windows_through_call_result_overlap rejected 2318ms expected @a92f16431042
 	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 	statement 2 borrows `items[split..4]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
@@ -25050,6 +25057,8 @@ pass/calls/requires_operand_flip_discharge checked 6418ms check-target:macos_arm
 pass/calls/result_overload_terminal_arm_exit checked 2104ms check-target:macos_arm64 @a92f16431042
 pass/calls/resultless_native_callback_compile checked 9684ms check-target:linux_x86_64 @a92f16431042
 pass/calls/retained_receiver_argument_order_exit checked 7237ms check-target:macos_arm64 @a92f16431042
+pass/calls/returned_nested_record_disjoint_field_move_exit checked 1391ms check-target:macos_arm64 @1e127a84987a
+pass/calls/returned_nested_record_newer_child_exit checked 1389ms check-target:macos_arm64 @1e127a84987a
 pass/calls/runtime_affine_record_call_results_reused_exit checked 3076ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 7789ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_anonymous_result_local_namespace_exit checked 6215ms check-target:macos_arm64 @a92f16431042
@@ -27384,15 +27393,15 @@ pass/facts/descriptor_replacement_order_through_other_machine_exit checked 2864m
 pass/facts/descriptor_replacement_order_through_other_state_exit checked 2669ms check-target:macos_arm64 @a92f16431042
 pass/facts/descriptor_replacement_order_through_parameter_exit checked 2464ms check-target:macos_arm64 @a92f16431042
 pass/facts/descriptor_replacement_order_through_target_body_exit checked 2668ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_call_result_exit checked 2671ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_const_name_exit checked 2573ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_field_exit checked 2543ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_local_exit checked 1004ms check-target:macos_arm64 @cdaaea7fffc3
-pass/facts/disjoint_field_borrow_windows_through_match_join_exit checked 2932ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_other_machine_exit checked 2877ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_other_state_exit checked 2571ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_parameter_exit checked 3174ms check-target:macos_arm64 @a92f16431042
-pass/facts/disjoint_field_borrow_windows_through_target_body_exit checked 3111ms check-target:macos_arm64 @a92f16431042
+pass/facts/disjoint_field_borrow_windows_through_call_result_exit checked 1080ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_const_name_exit checked 1079ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_field_exit checked 1090ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_local_exit checked 1089ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_match_join_exit checked 1109ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_other_machine_exit checked 1109ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_other_state_exit checked 1136ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_parameter_exit checked 1136ms check-target:macos_arm64 @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_target_body_exit checked 1533ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1e127a84987a
 pass/facts/disjoint_windows_through_call_result_exit checked 2649ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_windows_through_const_name_exit checked 2724ms check-target:macos_arm64 @a92f16431042
 pass/facts/disjoint_windows_through_field_exit checked 3221ms check-target:macos_arm64 @a92f16431042
@@ -34677,6 +34686,8 @@ run/calls/nested_case_terminal_process_exit checked 4351ms check-target:macos_ar
 run/calls/nested_range_call_operands rejected 2385ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	machine `start` cites `mark`, but the callee's requires fact `digit <= 2` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `end` cites `mark`, but the callee's requires fact `digit <= 2` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
+run/calls/nested_static_implementation_shadow checked 3219ms check-target:macos_arm64 @02eca83b1303
 run/calls/ordered_literal_call_operands checked 2741ms check-target:macos_arm64 @a92f16431042
 run/calls/outcome_specific_selected_guarantee_exit checked 6245ms check-target:macos_arm64 @a92f16431042
 run/calls/outcome_specific_selected_guarantee_input_exit checked 5985ms check-target:macos_arm64 @a92f16431042
@@ -34692,6 +34703,7 @@ run/calls/qualified_atomic_operation_names checked 1802ms check-target:macos_arm
 run/calls/qualified_literal_return_exit checked 934ms check-target:macos_arm64 @90c334a2c095
 run/calls/recursive_machine_transition_scalar_arguments_exit checked 3577ms check-target:macos_arm64 @a92f16431042
 run/calls/resultless_scalar_parameters checked 6466ms check-target:macos_arm64 @a92f16431042
+run/calls/retained_implicit_entry_selection checked 1850ms check-target:macos_arm64 @44449d36ba89
 run/calls/returned_reference_case_write_then_view_exit checked 937ms check-target:macos_arm64 @90c334a2c095
 run/calls/runtime_float_distinct_operand_calls_exit checked 12568ms check-target:macos_arm64 @a92f16431042
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11908ms check-target:macos_arm64 @a92f16431042
