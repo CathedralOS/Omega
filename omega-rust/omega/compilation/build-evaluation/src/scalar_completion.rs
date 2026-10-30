@@ -43,6 +43,7 @@ pub fn complete(
                     }
                 });
             Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    layout_target: profile.layout_target_facts().ok_or("scalar evaluation target has no immutable layout catalogue")?,
                 targets: terminal_installation::admit_target_machine_selections(
                     artifact.view(),
                     scope,

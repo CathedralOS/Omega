@@ -26,6 +26,8 @@ pub struct ScalarScopeEvaluation {
     pub providers: terminal_installation::AdmittedProviderSelections,
     pub address_model: Result<Option<terminal_installation::ScalarAddressModel>, String>,
     pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
+    /// Immutable target-catalogue data; never inferred from the executing host.
+    pub layout_target: terminal_installation::LayoutTargetFacts,
 }
 
 /// Complete all authored proof scopes without changing the shared artifact.
@@ -73,6 +75,7 @@ fn complete_scopes(
             artifact.view(),
             &selected.targets,
             &selected.providers,
+            &selected.layout_target,
         )?
         .with_target_carriers(selected.carrier_layout);
         let demand = if scope == primary { requested } else { &[] };

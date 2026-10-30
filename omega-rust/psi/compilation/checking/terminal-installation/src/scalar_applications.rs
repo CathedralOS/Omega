@@ -91,6 +91,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         artifact: TerminalArtifactView<'artifact>,
         targets: &'artifact AdmittedTargetMachineSelections,
         providers: &'artifact AdmittedProviderSelections,
+        target_layout: &crate::LayoutTargetFacts,
     ) -> Result<Self, String> {
         if artifact.identity() != targets.terminal_psi()
             || artifact.identity() != providers.terminal_psi()
@@ -105,7 +106,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             );
         }
         let layouts =
-            crate::admit_target_layouts(artifact, targets).map_err(|error| error.to_string())?;
+            crate::admit_target_layouts(artifact, targets, target_layout).map_err(|error| error.to_string())?;
         let mut applications = Arena::new();
         applications.insert_many(
             artifact

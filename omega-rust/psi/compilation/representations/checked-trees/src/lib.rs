@@ -5,9 +5,7 @@
 
 pub mod applications;
 pub mod checked_trees;
-pub use checked_trees::facts::{
-    ConstantPredicateArgument, ConstantPredicateObligation, ConstantPredicateSource,
-};
+pub use checked_trees::facts::ConstantPredicateObligation;
 pub use checked_trees::facts::{IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe};
 pub use checked_trees::*;
 pub(crate) use optimization::digest_encoder;
