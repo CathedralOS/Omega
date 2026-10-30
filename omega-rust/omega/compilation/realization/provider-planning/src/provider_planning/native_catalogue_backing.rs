@@ -18,7 +18,7 @@ pub(crate) fn resolve<'a>(
     typed: &TypedTrees,
     machine: &Machine,
     target: Option<&str>,
-    candidates: &'a [DerivedProviderPlan],
+    candidates: &'a [&'a DerivedProviderPlan],
 ) -> Result<Option<NativeCatalogueBacking<'a>>, String> {
     let Some(catalogue) = typed.hosted_intrinsic_declaration(machine.symbol) else {
         return Ok(None);

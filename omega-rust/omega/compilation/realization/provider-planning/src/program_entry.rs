@@ -334,7 +334,7 @@ impl SelectedCompilerProgramEntry {
                 let machine = typed
                     .machines()
                     .iter()
-                    .find(|machine| Some(machine.symbol) == implementation.machine())
+                    .find(|machine| Some(machine.symbol) == implementation.authored())
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
                             "selected physical entry adapter is absent",
@@ -351,7 +351,7 @@ impl SelectedCompilerProgramEntry {
                     )]);
                 }
                 if selected
-                    .replace(implementation.machine().ok_or_else(|| {
+                    .replace(implementation.authored().ok_or_else(|| {
                         vec![Diagnostic::error(
                             "physical arrival requires an authored checked adapter",
                         )]

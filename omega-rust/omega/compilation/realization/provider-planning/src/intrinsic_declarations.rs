@@ -5,6 +5,10 @@
 //! deferred shape failures are demanded only after the original ownership gate.
 
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::typed_trees::declarations::core_entry_intrinsics::CoreEntryIntrinsic;
+use checked_trees::typed_trees::typed_trees::declarations::hosted_intrinsics::{
+    CATALOGUE_PATH, CATALOGUE_SOURCE, HostedIntrinsicRole,
+};
 use checked_trees::typed_trees::types::TypeReferenceNode;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
@@ -182,14 +186,15 @@ impl IntrinsicDeclaration {
             return IntrinsicDeclarationKind::Unsupported;
         };
         if plan.target == "uefi_x86_64" {
-            for (file, bytes, name, method, implementation, shape, execution) in [
+            for (file, bytes, name, method, implementation, shape, catalogue, execution) in [
                 (
                     "extent.omg",
                     BUNDLED_EXTENT,
                     "ProgramStorageEntry",
                     "enter",
-                    "ProgramStorageEntryNativeProvider::enter",
+                    "program_storage_enter",
                     BoundaryIntrinsicShape::ProgramStorageToUnit,
+                    CoreEntryIntrinsic::ProgramStorageEnter,
                     CompilerIntrinsicExecutionIdentity::ProgramStorageEntry,
                 ),
                 (
@@ -197,18 +202,20 @@ impl IntrinsicDeclaration {
                     BUNDLED_PROGRAM_IMAGE,
                     "ProgramImage",
                     "retained_suffix_start",
-                    "ProgramImageNativeProvider::retained_suffix_start",
+                    "program_image_retained_suffix_start",
                     BoundaryIntrinsicShape::UnitToAddress,
+                    CoreEntryIntrinsic::ProgramImageRetainedSuffixStart,
                     CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart,
                 ),
             ] {
-                if [service, requirement, realization]
-                    .into_iter()
-                    .all(|symbol| {
-                        typed.symbols.symbol_source_origin(symbol)
-                            == Some(source::SourceOrigin::Toolchain)
-                            && exact_bundled_standalone_source(typed, symbol, file, bytes)
-                    })
+                if typed.sealed_core_entry_realization(realization, requirement) == Some(catalogue)
+                    && [service, requirement, realization]
+                        .into_iter()
+                        .all(|symbol| {
+                            typed.symbols.symbol_source_origin(symbol)
+                                == Some(source::SourceOrigin::Toolchain)
+                                && exact_bundled_standalone_source(typed, symbol, file, bytes)
+                        })
                 {
                     return IntrinsicDeclarationKind::Fixed(
                         boundary_row_shape(
@@ -244,19 +251,43 @@ impl IntrinsicDeclaration {
                     bundle,
                 ),
                 // Keep the error until the same ownership gate actually demands this shape.
-                shape: boundary_row_shape(
-                    typed,
-                    plan,
-                    row,
-                    service,
-                    requirement,
-                    realization,
-                    hosted.service.trait_name(),
-                    hosted.shape == BoundaryIntrinsicShape::I32ToUnit,
-                    hosted.requirement,
-                    hosted.realization,
-                    hosted.shape,
-                ),
+                shape: if typed
+                    .hosted_intrinsic_declaration(realization)
+                    .is_some_and(|catalogue| {
+                        catalogue.service.symbol == service
+                            && catalogue.requirement.symbol == requirement
+                            && match (hosted.service, hosted.requirement) {
+                                (HostedService::Console, "read_byte") => {
+                                    catalogue.role == HostedIntrinsicRole::ReadByte
+                                }
+                                (HostedService::Console, "write_byte") => {
+                                    catalogue.role == HostedIntrinsicRole::WriteByte
+                                }
+                                (HostedService::Console, "exit_process") => {
+                                    catalogue.role == HostedIntrinsicRole::ConsoleExit
+                                }
+                                (HostedService::ProcessExit, "exit_process") => {
+                                    catalogue.role == HostedIntrinsicRole::ProcessExit
+                                }
+                                _ => false,
+                            }
+                    }) {
+                    boundary_row_shape(
+                        typed,
+                        plan,
+                        row,
+                        service,
+                        requirement,
+                        realization,
+                        hosted.service.trait_name(),
+                        hosted.shape == BoundaryIntrinsicShape::I32ToUnit,
+                        hosted.requirement,
+                        hosted.realization,
+                        hosted.shape,
+                    )
+                } else {
+                    Ok(false)
+                },
                 execution: hosted.identity,
             })
             .collect();
@@ -367,13 +398,13 @@ impl HostedService {
             Self::Console => (
                 "console.omg",
                 BUNDLED_CONSOLE,
-                bundle.console_source(),
+                CATALOGUE_PATH,
                 bundled_console_source(bundle),
             ),
             Self::ProcessExit => (
                 "process_exit.omg",
                 BUNDLED_PROCESS_EXIT,
-                bundle.process_exit_source(),
+                CATALOGUE_PATH,
                 bundled_process_exit_source(bundle),
             ),
         };
@@ -419,28 +450,28 @@ const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "exit_process",
-        realization: "ConsoleNativeProvider::exit_process",
+        realization: "console_exit_process",
         shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
     },
     HostedIntrinsicRow {
         service: HostedService::ProcessExit,
         requirement: "exit_process",
-        realization: "ProcessExitNativeProvider::exit_process",
+        realization: "hosted_process_exit",
         shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "write_byte",
-        realization: "ConsoleNativeProvider::write_byte",
+        realization: "console_write_byte",
         shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "read_byte",
-        realization: "ConsoleNativeProvider::read_byte",
+        realization: "console_read_byte",
         shape: BoundaryIntrinsicShape::UnitToByteRead,
         identity: CompilerIntrinsicExecutionIdentity::HostedReadByte,
     },
@@ -466,45 +497,12 @@ const BUNDLED_PROCESS_EXIT: &[u8] = include_bytes!(concat!(
     "/../../../../../source/library/core/process_exit.omg"
 ));
 
-macro_rules! bundled_intrinsic_source {
-    ($name:ident, $($variant:ident => $file:literal),+ $(,)?) => {
-        fn $name(bundle: HostedIntrinsicBundle) -> &'static [u8] {
-            match bundle {
-                $(
-                    HostedIntrinsicBundle::$variant => {
-                        const BYTES: &[u8] = include_bytes!(concat!(
-                            env!("CARGO_MANIFEST_DIR"),
-                            "/../../../../../source/library/std/targets/",
-                            $file
-                        ));
-                        BYTES
-                    }
-                )+
-            }
-        }
-    };
+fn bundled_console_source(_: HostedIntrinsicBundle) -> &'static [u8] {
+    CATALOGUE_SOURCE
 }
-
-// Compile-time copy of one admitted bundle's console provider closure. The
-// path each constant reads is the bundle's `console_source()`; the test
-// module holds the two in agreement with the checked-in file.
-bundled_intrinsic_source!(
-    bundled_console_source,
-    LinuxArm64 => "linux_arm64/console_impl.omg",
-    LinuxX64 => "linux_x86_64/console_impl.omg",
-    MacosArm64 => "macos_arm64/console_impl.omg",
-    MacosX64 => "macos_x86_64/console_impl.omg",
-);
-
-// Compile-time copy of one admitted bundle's process-exit provider closure,
-// paired with `process_exit_source()` the same way as the console copy.
-bundled_intrinsic_source!(
-    bundled_process_exit_source,
-    LinuxArm64 => "linux_arm64/process_exit_impl.omg",
-    LinuxX64 => "linux_x86_64/process_exit_impl.omg",
-    MacosArm64 => "macos_arm64/process_exit_impl.omg",
-    MacosX64 => "macos_x86_64/process_exit_impl.omg",
-);
+fn bundled_process_exit_source(_: HostedIntrinsicBundle) -> &'static [u8] {
+    CATALOGUE_SOURCE
+}
 
 fn exact_bundled_standalone_source(
     typed: &checked_trees::typed_trees::TypedTrees,

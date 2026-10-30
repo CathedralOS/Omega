@@ -158,5 +158,3 @@ pub fn select_derived_provider_plans(
         })
         .collect())
 }
-
-pub use provenance_replay::ProviderRowRealization;

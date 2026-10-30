@@ -98,9 +98,9 @@ pub fn reject_reached_inert_sibling_calls(
                 .row_requirements
                 .iter()
                 .copied()
-                .zip(selected.provider.row_realizations.iter().copied())
+                .zip(selected.provider.row_realizations.iter())
                 .filter_map(|(requirement, origin)| {
-                    origin.machine().map(|machine| (requirement, machine))
+                    origin.authored().map(|machine| (requirement, machine))
                 })
         })
         .collect();

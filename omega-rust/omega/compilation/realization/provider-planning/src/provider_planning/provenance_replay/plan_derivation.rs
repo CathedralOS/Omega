@@ -587,7 +587,7 @@ fn derive_placed_accessor_plans(
                 };
                 let schema = crate::service_schema::from_sealed_placed_accessor(context, &accessor)
                     .map_err(|error| vec![error])?;
-                let machine = typed.machine(accessor.authored()).ok_or_else(|| {
+                let machine = typed.machine(accessor.machine()).ok_or_else(|| {
                     vec![diagnostics::Diagnostic::error(
                         "placed catalog lost its generated machine",
                     )]
@@ -612,7 +612,7 @@ fn derive_placed_accessor_plans(
                         .symbol_package_identity(field.accessor_data_symbol),
                     target.to_owned(),
                     schema,
-                    ProviderSchemaDeclaration::SealedPlacedAccessor(accessor.authored()),
+                    ProviderSchemaDeclaration::SealedPlacedAccessor(accessor.machine()),
                     Some(field.accessor_data_symbol),
                     typed.symbols.symbol_package_identity(machine.symbol),
                 );

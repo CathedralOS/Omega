@@ -193,7 +193,9 @@ pub(super) fn derive(
                         implementation,
                         row.declaring_trait,
                     )?;
-                let (binding, lifetime_partition, origin) = if machine.supply_mode.is_checked_body()
+                let (binding, lifetime_partition, origin, same_stack_bytes) = if machine
+                    .supply_mode
+                    .is_checked_body()
                     && machine.body_is_present
                 {
                     (
@@ -209,6 +211,7 @@ pub(super) fn derive(
                             lifetime_arguments,
                         ),
                         None,
+                        0,
                     )
                 } else {
                     // Foreign candidates belong to the selected target member,
@@ -259,6 +262,7 @@ pub(super) fn derive(
                         bound,
                         binding.requirement_lifetime_partition.clone(),
                         origin,
+                        binding.admitted_same_stack_bytes,
                     )
                 };
                 let requirement_identity = plan.identities.intern(&identity);
@@ -266,7 +270,7 @@ pub(super) fn derive(
                     method: row.requirement_name.as_str().to_owned(),
                     requirement_identity,
                     requirement_lifetime_partition: lifetime_partition,
-                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                    admitted_same_stack_bytes: same_stack_bytes,
                     binding,
                 });
                 provenance.row_requirements.push(row.requirement);

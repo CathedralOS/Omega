@@ -29,7 +29,11 @@ pub(super) fn retain_completions(
             .zip(&provider.provider.row_realizations)
         {
             let Some(realization) = realization.authored() else {
-                rows.push(Vec::new());
+                rows.push(if realization.native().is_some() {
+                    vec![requirement]
+                } else {
+                    Vec::new()
+                });
                 continue;
             };
             let completion =
@@ -159,6 +163,26 @@ impl CompletionReview<'_> {
         let machine = crate::target_machines::realized_row_machine(context, symbol, self.target)
             .ok_or_else(|| "completion call has no exact target realization".to_owned())?;
         if !machine.body_is_present {
+            if let Some(backing) = crate::provider_planning::native_catalogue_backing::resolve(
+                &self.checked.typed,
+                machine,
+                self.target,
+                self.candidates,
+            )? && backing.candidate.provenance.row_requirements[backing.row] == self.requirement
+            {
+                if arguments != [Some(0)] {
+                    return Err(
+                        "external-completion provider does not preserve its exact status argument"
+                            .into(),
+                    );
+                }
+                return Ok(Outcome {
+                    returns: false,
+                    result: None,
+                    leaves: vec![machine.symbol],
+                });
+            }
+
             let requirement = self.requirement;
             let leaves: Vec<_> = self.candidates.iter().flat_map(|candidate| {
                 candidate.plan.rows.iter().enumerate().filter_map(move |(position, row)| {

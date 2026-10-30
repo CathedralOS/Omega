@@ -197,7 +197,7 @@ impl DirectBoundaryInput {
         plan.schema.methods.retain(|method| {
             original.schema.identity_text(method.requirement_identity) == requirement
         });
-        let satisfied_schema = plan.schema.clone();
+        let semantic_plan = plan.clone();
         plan.schema.receiver_applications.clear();
         plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
         plan.provider_type = self.realization_owner.clone();
@@ -219,9 +219,8 @@ impl DirectBoundaryInput {
         Ok(backend_plan::DirectBoundaryLeaf {
             declaration_identity: self.declaration_identity.clone(),
             callable_identity: self.callable_identity.clone(),
-            satisfied_schema,
+            semantic_plan,
             plan,
-            satisfied_requirement_identity: requirement.to_owned(),
             execution,
         })
     }
@@ -244,13 +243,35 @@ pub(crate) fn prepare(
         ) {
             continue;
         }
-        let Some(machine) = source
+        let origin = source
             .provenance
             .row_realizations
             .get(row_index)
-            .and_then(crate::ProviderRowRealization::authored)
-            .and_then(|symbol| typed.machine_by_symbol(symbol))
-        else {
+            .ok_or_else(|| vec![Diagnostic::error("provider row lost its supplying origin")])?;
+        let machine = if let Some(symbol) = origin.authored() {
+            typed.machine_by_symbol(symbol)
+        } else if let Some(native) = origin.native() {
+            // An immutable catalogue leaf can call its public requirement's
+            // native supply. Keep the original source row and receipt; do not
+            // synthesize a forwarding declaration or another candidate.
+            let mut matching = typed.machines().iter().filter(|machine| {
+                typed.symbols.symbol_package_identity(machine.symbol)
+                    == Some(native.selection.supplier_package)
+                    && typed
+                        .hosted_intrinsic_declaration(machine.symbol)
+                        .is_some_and(|catalogue| catalogue.requirement.symbol == native.requirement)
+            });
+            let selected = matching.next();
+            if matching.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "native row has ambiguous immutable catalogue backing",
+                )]);
+            }
+            selected
+        } else {
+            None
+        };
+        let Some(machine) = machine else {
             continue;
         };
         if machine.body_is_present {

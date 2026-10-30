@@ -478,7 +478,6 @@ pub fn settle_checked_providers(
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             context,
             &boundary_calling_plan_realizations,
-            &native_binding_identities,
             planning_target,
             settled_target_machines,
         )?);
