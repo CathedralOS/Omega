@@ -10,21 +10,25 @@ requires machine Callback() -> bool;
 linux_arm64 machine choose<machine Routine>() -> bool
 requires machine Routine<machine Inner>() -> bool
 requires machine Inner satisfies Handler<u64>::call;
+;
 { Routine<yes>() }
 
 linux_x86_64 machine choose<machine Operation>() -> bool
 requires machine Operation<machine Nested>() -> bool
 requires machine Nested satisfies Handler<bool>::call;
+;
 { Operation<yes>() }
 
 macos_arm64 machine choose<machine Schema>() -> bool
 requires machine Schema<machine Chosen>() -> bool
 requires machine Chosen satisfies Handler<bool>::call;
+;
 { Schema<yes>() }
 
 windows_x86_64 machine choose<machine Action>() -> bool
 requires machine Action<machine Selected>() -> bool
 requires machine Selected satisfies Handler<u64>::call;
+;
 { Action<yes>() }
 
 machine main() crashes Trap {

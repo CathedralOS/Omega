@@ -5,6 +5,7 @@ machine copy_probe<Kind [copy]>(value: &Kind) -> bool { true }
 machine consumer<machine Routine>(value: &Heavy) -> bool
 requires machine Routine<Context, machine Callback>(value: &Context) -> bool
 requires machine Callback(value: &Context) -> bool;
+;
 { Routine<Heavy, copy_probe>(value) }
 
 machine main() {}

@@ -14,6 +14,7 @@ requires machine Chosen(index: Index) -> bool;
 machine forward_schema<machine Schema, machine Selected>(value: Index) -> Index
 requires machine Schema<machine Inner>(value: Index) -> Index
 requires machine Inner(index: Index) -> Index;
+;
 requires machine Selected(index: Index) -> Index;
 {
     Schema<Selected>(value)

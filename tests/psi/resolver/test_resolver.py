@@ -1092,7 +1092,7 @@ def main() -> None:
     accepted(
         program,
         "machine-contract-binds",
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8 requires value > 0;\n{ F(x) }",
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8 requires value > 0;\n{ F(x) }",
         (builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8")),
         (parameter(1), NOT_A_NAME, NOT_A_NAME, binder_name(0), parameter(0), NOT_A_NAME),
     )
@@ -1100,8 +1100,8 @@ def main() -> None:
         program,
         "static-machine-arguments",
         b"machine double(x: u8) -> u8 { x }\n"
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
-        b"machine again<machine G>(x: u8) -> u8\nwhere machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine again<machine G>(x: u8) -> u8\nrequires machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
         b"machine g() -> u8 { apply<double>(3) }",
         (builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"),
          builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"), generic(1), builtin("u8"), machine_argument(0)),

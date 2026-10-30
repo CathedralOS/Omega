@@ -7,11 +7,13 @@ requires machine Nested satisfies Handler<bool>::call;
 linux_arm64 machine choose<machine Selected>() -> bool
 requires machine Selected<machine Inner>() -> bool
 requires machine Inner satisfies Handler<u64>::call;
+;
 { true }
 
 macos_arm64 machine choose<machine Callback>() -> bool
 requires machine Callback<machine Other>() -> bool
 requires machine Other satisfies Handler<bool>::call;
+;
 { true }
 
 // Even an unused generic operand must admit the complete argument tuple.

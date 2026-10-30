@@ -23,6 +23,7 @@ requires machine Chosen(index: Index) -> Index;
 machine forward_schema<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
 requires machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
 requires machine Inner(index: Index) -> Index;
+;
 requires machine Selected(index: Index) -> Index;
 {
     Schema<Selected>(value)

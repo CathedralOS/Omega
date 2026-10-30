@@ -6,18 +6,23 @@ trait Handler { machine call() -> bool; }
 machine incompatible<machine Middle>() -> bool
 requires machine Middle<machine Leaf>() -> bool
 requires machine Leaf() -> bool;
+;
 { true }
 
 linux_arm64 machine choose<machine Selected>() -> bool
 requires machine Selected<machine Intermediate>() -> bool
 requires machine Intermediate<machine Inner>() -> bool
 requires machine Inner satisfies Handler::call;
+;
+;
 { true }
 
 macos_arm64 machine choose<machine Callback>() -> bool
 requires machine Callback<machine Other>() -> bool
 requires machine Other<machine Nested>() -> bool
 requires machine Nested satisfies Handler::call;
+;
+;
 { true }
 
 machine main() { let answer: bool = choose<incompatible>(); }

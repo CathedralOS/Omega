@@ -1460,6 +1460,11 @@ def machine_form_cases(program: str) -> None:
     )
     assert actual.machines[0][30:35] == (1, 1, *span(source, b"+")), actual.machines
 
+    retired = b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }"
+    rejected(program, "retired-where-machine", retired, 201,
+             span(retired, b"where")[1:], generic_parameter_count=1,
+             parameter_count=1, type_reference_count=2)
+
     # `requires machine` contracts precede a machine's other clauses: one flat
     # list of signatures, each named for a binder, possibly of an earlier
     # contract's own generic parameters.
@@ -1490,7 +1495,7 @@ def machine_form_cases(program: str) -> None:
         program, "nested-binder-contracts", source,
         contracts=(
             (1, *span(source, b"Schema", 2), 2, 1, 1, 1, 1, 3, 0, 0,
-             1, source.index(b"requires machine Schema"), source.index(b"\nwhere machine Inner")),
+             1, source.index(b"requires machine Schema"), source.index(b"\nrequires machine Inner")),
             (1, *span(source, b"Inner", 2), 3, 0, 2, 1, 1, 5, 0, 0,
              *span(source, b"requires machine Inner(index: u8) -> u8;")),
             (1, *span(source, b"Selected", 2), 3, 0, 3, 1, 1, 7, 0, 0,

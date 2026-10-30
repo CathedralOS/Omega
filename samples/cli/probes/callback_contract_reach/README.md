@@ -11,7 +11,7 @@ dependency.
 - `machine quiet satisfies StepContract::step terminates` — an
   implementation may reach a SUBSET of the declared effects (quiet
   reaches nothing and still satisfies the `reaches Sink` requirement).
-- `machine traverse<machine Step> where machine Step satisfies
+- `machine traverse<machine Step> requires machine Step satisfies
   StepContract::step` — machine param constrained by a named
   requirement; `Step(value)` calls the parameter.
 - `data Buffer { bytes: [u8; length()] }` — const-eval runs the whole

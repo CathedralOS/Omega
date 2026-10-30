@@ -293,8 +293,12 @@ fn take_invokes_signature_clause<'tokens, 'source>(
     allow_following_contract_clauses: bool,
 ) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
     let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if (allow_following_contract_clauses
-        && after_semicolon.at_punctuation(PunctuationKind::LeftBrace))
+    // An explicit second semicolon belongs to the enclosing callable
+    // contract. Consume this operational clause's separator and leave that
+    // distinct terminator to its owner.
+    if after_semicolon.at_punctuation(PunctuationKind::Semicolon)
+        || (allow_following_contract_clauses
+            && after_semicolon.at_punctuation(PunctuationKind::LeftBrace))
         || after_semicolon.at_contextual("reaches")
         || after_semicolon.at_contextual("effects")
         || after_semicolon.at_contextual("invokes")

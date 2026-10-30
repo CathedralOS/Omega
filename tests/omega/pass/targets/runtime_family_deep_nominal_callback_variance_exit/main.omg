@@ -8,6 +8,7 @@ requires machine Leaf() -> bool;
 machine invoke_middle<machine Middle>() -> bool
 requires machine Middle<machine Leaf>() -> bool
 requires machine Leaf satisfies Handler::call;
+;
 { Middle<yes>() }
 
 // The caller supplies an intermediate body that accepts arbitrary structural
@@ -18,24 +19,32 @@ linux_arm64 machine choose<machine Routine>() -> bool
 requires machine Routine<machine Intermediate>() -> bool
 requires machine Intermediate<machine Inner>() -> bool
 requires machine Inner() -> bool;
+;
+;
 { Routine<invoke_leaf>() }
 
 linux_x86_64 machine choose<machine Operation>() -> bool
 requires machine Operation<machine Nested>() -> bool
 requires machine Nested<machine Leaf>() -> bool
 requires machine Leaf() -> bool;
+;
+;
 { Operation<invoke_leaf>() }
 
 macos_arm64 machine choose<machine Schema>() -> bool
 requires machine Schema<machine Chosen>() -> bool
 requires machine Chosen<machine Callback>() -> bool
 requires machine Callback() -> bool;
+;
+;
 { Schema<invoke_leaf>() }
 
 windows_x86_64 machine choose<machine Action>() -> bool
 requires machine Action<machine Selected>() -> bool
 requires machine Selected<machine Element>() -> bool
 requires machine Element() -> bool;
+;
+;
 { Action<invoke_leaf>() }
 
 machine main() crashes Trap {

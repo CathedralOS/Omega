@@ -1,6 +1,7 @@
 machine unused<machine Outer>()
 requires machine Outer<Context, machine Inner>()
 requires machine Inner<'call>(context: Context, item: &'call u64) -> &'call mut u64;
+;
 {}
 
 machine main() {}
