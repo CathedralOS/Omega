@@ -239,6 +239,20 @@ fn produced_effects(
     }
 }
 
+/// The stack-pointer view the ABI matrix names for this target.
+fn stack_pointer_view<'m>(
+    model: &'m PhysicalRegisterModel,
+    case: ScalarAbiCase,
+) -> &'m RegisterView {
+    named_view(
+        model,
+        case.target,
+        "rsp",
+        "sp",
+        "the ABI matrix names a stack-pointer view",
+    )
+}
+
 /// The condition-codes view the ABI matrix names for this target.
 fn flags_view<'m>(model: &'m PhysicalRegisterModel, case: ScalarAbiCase) -> &'m RegisterView {
     named_view(

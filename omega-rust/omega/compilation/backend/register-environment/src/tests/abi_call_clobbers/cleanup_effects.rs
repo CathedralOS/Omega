@@ -13,7 +13,7 @@
 use super::{
     Architecture, EffectRejection, RegisterConstraintKey, assert_faulting_trap,
     baseline_target_register_environment, encoded_mut, named_view, produced_effects,
-    scalar_abi_cases, validate_effects, validated_effects,
+    scalar_abi_cases, stack_pointer_view, validate_effects, validated_effects,
 };
 use selected_instructions::{
     MachineCleanupEffect, MachineEffectCatalogValidationError, MachineEncodedControlEffect,
@@ -66,13 +66,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = validated_effects(case, environment.constraints());
-        let stack_pointer = named_view(
-            model,
-            case.target,
-            "rsp",
-            "sp",
-            "the ABI matrix names a stack-pointer view",
-        );
+        let stack_pointer = stack_pointer_view(model, case);
 
         for declaration in &catalog.catalog().declarations {
             let key = declaration.constraint;
@@ -234,8 +228,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let stack_pointer = stack_pointer_view(model, case);
         let foreign_pointer =
             named_view(model, case.target, "rax", "x0", "target names no such view");
         let rules = catalog
@@ -357,8 +350,7 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let stack_pointer = stack_pointer_view(model, case);
         let foreign_pointer =
             named_view(model, case.target, "rax", "x0", "target names no such view");
         let rules = catalog

@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     baseline_target_register_environment, binds_catalog_provenance, declaration_mut, encoded_mut,
-    flags_view, named_view, produced_effects, scalar_abi_cases, validate_effects,
+    flags_view, produced_effects, scalar_abi_cases, stack_pointer_view, validate_effects,
     validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
@@ -465,13 +465,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
         binds_catalog_provenance(&catalog, case, &environment, keys);
 
-        let stack_pointer = named_view(
-            model,
-            case.target,
-            "rsp",
-            "sp",
-            "memory matrix names a stack-pointer view",
-        );
+        let stack_pointer = stack_pointer_view(model, case);
         let flags = flags_view(model, case);
         // Every memory operand travels in the class the ABI declares for its
         // integer arguments, and frame custody reads the ABI-fixed stack
@@ -627,8 +621,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view").id;
+        let stack_pointer = stack_pointer_view(model, case).id;
         let foreign_unit = flags_view(model, case).units[0];
         for (key, semantic) in selected_memory_rules(&environment) {
             let contract = memory_contract(semantic);

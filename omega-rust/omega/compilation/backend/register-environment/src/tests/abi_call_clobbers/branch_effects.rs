@@ -2,7 +2,7 @@ use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
     binds_catalog_provenance, declaration_mut, encoded_mut, flags_view, named_view,
-    produced_effects, scalar_abi_cases, validate_effects,
+    produced_effects, scalar_abi_cases, stack_pointer_view, validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -273,8 +273,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let stack_pointer = stack_pointer_view(model, case);
         let flags = flags_view(model, case);
         let program_counter =
             named_view(model, case.target, "rip", "pc", "target names no such view");

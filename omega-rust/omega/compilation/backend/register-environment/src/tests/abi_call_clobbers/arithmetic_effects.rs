@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_storage_free, baseline_target_register_environment, binds_catalog_provenance,
-    declaration_mut, encoded_mut, flags_view, named_view, produced_effects, scalar_abi_cases,
-    units_for_names, validate_effects,
+    declaration_mut, encoded_mut, flags_view, produced_effects, scalar_abi_cases,
+    stack_pointer_view, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
@@ -871,8 +871,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let stack_pointer = stack_pointer_view(model, case);
         let flags = flags_view(model, case);
         for (key, semantic) in selected_arithmetic_rules(&environment) {
             let contract = arithmetic_contract(semantic, case.target.architecture);
