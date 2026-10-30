@@ -187,24 +187,25 @@ impl PartialEq for StructuralTerm {
                 callable,
                 occurrence,
                 result_type,
-                ..
+                integer_range,
             } => {
                 let Self::CapturedValue {
                     expression: other_expression,
                     callable: other_callable,
                     occurrence: other_occurrence,
                     result_type: other_result_type,
-                    ..
+                    integer_range: other_range,
                 } = other
                 else {
                     return false;
                 };
-                (expression, callable, occurrence, result_type)
+                (expression, callable, occurrence, result_type, integer_range)
                     == (
                         other_expression,
                         other_callable,
                         other_occurrence,
                         other_result_type,
+                        other_range,
                     )
             }
             Self::BoundProjection { subject, path } => {
@@ -407,13 +408,14 @@ impl std::fmt::Debug for StructuralTerm {
                 callable,
                 occurrence,
                 result_type,
-                ..
+                integer_range,
             } => formatter
                 .debug_struct("CapturedValue")
                 .field("expression", expression)
                 .field("callable", callable)
                 .field("occurrence", occurrence)
                 .field("result_type", result_type)
+                .field("integer_range", integer_range)
                 .finish(),
             Self::BoundProjection { subject, path } => formatter
                 .debug_struct("BoundProjection")

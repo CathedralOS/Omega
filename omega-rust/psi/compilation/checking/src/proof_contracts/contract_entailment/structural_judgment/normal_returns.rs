@@ -1836,14 +1836,9 @@ impl<'program> StructuralJudge<'program> {
                     callable,
                     occurrence: rejoined.capture_sequence,
                     result_type,
-                    integer_range:
-                        crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
-                            program,
-                            scope.0.symbol,
-                            expression,
-                            program.primitive_type_reference(result_type),
-                        )
-                        .map(std::sync::Arc::new),
+                    integer_range: StructuralTerm::joined_integer_ranges(
+                        outcomes.iter().map(|path| Some(&path.value)),
+                    ),
                 };
                 return Some(vec![
                     NormalReturnPath::observed(captured, rejoined)
@@ -2222,6 +2217,63 @@ impl<'program> StructuralJudge<'program> {
         Some(())
     }
 
+    /// The ordinary return-range owner consumes the immutable scalar actuals
+    /// already captured by this call. It owns complete return-path joins and
+    /// effects; no caller initializer or post-call storage is reconstructed.
+    fn completed_call_integer_range(
+        &self,
+        owner: &SelectedCallContract<'program>,
+        call: &typed_trees::expression::TableCallExpression,
+        parameters: &[typed_trees::signature::StateParameter],
+        actuals: &[StructuralTerm],
+        result_type: TypeReferenceHandle,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        let SelectedCallContract::Concrete(machine, entry) = owner else {
+            return None;
+        };
+        if !call.selects_only_nominal_route()
+            || !call.machine_arguments.is_empty()
+            || !self.program.machine_type_parameters(machine).is_empty()
+        {
+            return None;
+        }
+        let primitive = self.program.primitive_type_reference(result_type)?;
+        primitive.integer_bounds()?;
+        let actuals = parameters
+            .iter()
+            .zip(actuals)
+            .filter_map(|(parameter, value)| {
+                if parameter.is_mutable || parameter.is_const {
+                    return None;
+                }
+                let primitive = self
+                    .program
+                    .primitive_type_reference(parameter.type_reference)?;
+                let (low, high) = primitive.integer_bounds()?;
+                let value = StructuralTerm::IntegerEmbedding {
+                    reference: parameter.type_reference,
+                    value: Box::new(value.clone()),
+                };
+                Some((
+                    parameter.symbol,
+                    crate::proof_contracts::arithmetic_domains::Interval {
+                        low: i64::try_from(low).ok(),
+                        high: i64::try_from(high).ok(),
+                    },
+                    self.completed_integer_range_recipe(&value),
+                ))
+            })
+            .collect::<Vec<_>>();
+        crate::proof_contracts::arithmetic_domains::infer_return_interval(
+            self.program,
+            machine,
+            entry,
+            Some(primitive),
+            &actuals,
+        )
+        .and_then(|(_, recipe)| recipe)
+    }
+
     fn capture_normal_call(
         &mut self,
         expression: ExpressionHandle,
@@ -2531,6 +2583,15 @@ impl<'program> StructuralJudge<'program> {
                         expression,
                         program.primitive_type_reference(presentation.type_reference),
                     )
+                    .or_else(|| {
+                        self.completed_call_integer_range(
+                            &owner,
+                            call,
+                            parameters,
+                            actuals,
+                            presentation.type_reference,
+                        )
+                    })
                     .map(std::sync::Arc::new),
             }
         });

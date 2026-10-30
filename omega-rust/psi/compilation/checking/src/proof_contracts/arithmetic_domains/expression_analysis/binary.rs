@@ -141,18 +141,20 @@ pub(super) fn analyze(
         .map(|primitive| integer_policy_bridge(primitive, effective_domain));
     let mut result_representable = false;
     let recipe = if effective_domain == ArithmeticDomain::Exact {
-        completed.recipe.or_else(|| {
-            operation
-                .left
-                .range_recipe(walk.program, walk.lexical_owner, binary.left)
-                .zip(
-                    operation
-                        .right
-                        .range_recipe(walk.program, walk.lexical_owner, binary.right),
-                )
-                .and_then(|(left, right)| left.binary(operator, &right))
-                .filter(checked_trees::IntegerRangeRecipe::is_target_dependent)
-        })
+        let flow = operation
+            .left
+            .range_recipe(walk.program, walk.lexical_owner, binary.left)
+            .zip(
+                operation
+                    .right
+                    .range_recipe(walk.program, walk.lexical_owner, binary.right),
+            )
+            .and_then(|(left, right)| left.binary(operator, &right))
+            .filter(checked_trees::IntegerRangeRecipe::is_target_dependent);
+        match (flow, completed.recipe) {
+            (Some(flow), Some(completed)) => Some(flow.intersect(&completed)),
+            (flow, completed) => flow.or(completed),
+        }
     } else {
         None
     };
