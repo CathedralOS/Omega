@@ -200,6 +200,12 @@ impl BuildOutputIdentity<'_> {
             self.product_target(Some(selection.target));
             self.occurrence(selection.selecting_machine)?;
             self.native_intent(&selection.intent);
+            if let Some(environment) = &selection.static_environment {
+                self.digest.byte(1);
+                self.digest.bytes(&environment.identity);
+            } else {
+                self.digest.byte(0);
+            }
         }
         self.digest.len(behavior_exclusion_requests.len());
         for request in behavior_exclusion_requests {
