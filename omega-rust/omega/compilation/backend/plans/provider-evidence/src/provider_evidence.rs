@@ -227,10 +227,7 @@ impl SelectedProviderPlanFacts {
                     plan.name
                 ));
             }
-            let slot = (
-                plan.schema.trait_package_identity,
-                plan.schema.identity_text(plan.schema.trait_name),
-            );
+            let slot = plan.schema.selection_slot_identity();
             if !boundary_slots.insert(slot) {
                 return Err(format!(
                     "boundary slot `{}` has more than one selected provider plan",
@@ -311,9 +308,7 @@ impl SelectedProviderPlanFacts {
             ));
         }
         if self.plans.iter().any(|existing| {
-            existing.schema.trait_package_identity == plan.schema.trait_package_identity
-                && existing.schema.identity_text(existing.schema.trait_name)
-                    == plan.schema.identity_text(plan.schema.trait_name)
+            existing.schema.selection_slot_identity() == plan.schema.selection_slot_identity()
         }) {
             return Err(format!(
                 "boundary slot `{}` has more than one selected provider plan",
@@ -450,9 +445,10 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.required);
             encoder.string(&row.supplied);
         }
-        // This owner has no isolated-scope/opaque-executable admission route.
-        // Preserve the existing digest vocabulary for the actual closure.
-        encoder.byte(0); // CallerAddressSpace
+        // This owner has no isolated-scope/opaque-executable admission route;
+        // the closure's own declared scope is what the encoder frames here, so
+        // the digest grammar's scope byte keeps its single definition.
+        encoder.execution_scope(self.execution_scope());
         encoder.len(0); // no opaque executable admissions
 
         encoder.len(self.installation_reach_resolutions.len());

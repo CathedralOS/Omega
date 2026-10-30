@@ -168,9 +168,12 @@ fn lower_store(
         let Some(StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-        }) = resolve_structural_path(structural_types, carrier_type, &path[..crossing])
-            .and_then(|descriptor| find_structural_type(structural_types, descriptor))
-            .map(|declaration| &declaration.shape)
+        }) = terminal_semantics::runtime_structural_path_tip(
+            structural_types.iter(),
+            carrier_type,
+            &path[..crossing],
+        )
+        .map(|declaration| &declaration.shape)
         else {
             return Err(invalid(
                 "referent crossing has no exclusive reference carrier",
@@ -405,54 +408,6 @@ pub(super) fn exact_parameter(
         StructuralPlaceKind::Parameter { position } if position == parameter.position
     )
     .then(|| parameter.clone())
-}
-
-fn resolve_structural_path(
-    structural_types: &[StructuralTypeDeclaration],
-    mut structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralTypeId> {
-    for segment in path {
-        let declaration = exact_structural_type(structural_types, structural_type)?;
-        structural_type = match (segment, &declaration.shape) {
-            (
-                StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields, .. },
-            ) => {
-                let mut matching = fields.iter().filter(|field| {
-                    field.identity == *identity && field.relevance == BindingRelevance::Relevant
-                });
-                let field = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
-                let next = field.field_type.as_structural()?;
-                next
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            // The element's bound is the store's own verified obligation.
-            (
-                StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::FixedArray { element, .. },
-            ) => *element,
-            // A view's extent is its stored runtime length — the same
-            // verified obligation, just carried by the loan rather than
-            // the type's literal.
-            (
-                StructuralPathSegment::FixedIndex(_),
-                StructuralTypeShape::ElementView { element, .. },
-            ) => *element,
-            (
-                StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element, .. },
-            ) => *element,
-            _ => return None,
-        };
-    }
-    Some(structural_type)
 }
 
 /// The scalar one field observation reads beneath a `root` of that type: a

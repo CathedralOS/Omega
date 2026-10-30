@@ -10,6 +10,17 @@ pub(super) fn produce(
     profile: target::TargetProfile,
 ) -> Result<(), String> {
     let providers = checked.execution().selected_provider_plan_facts.clone();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let source_demands =
+        psi_compiler::lower_task_activation_demands(&checked.execution().program, &mut identities)
+            .map_err(|errors| format!("source task projection: {errors:?}"))?;
+    let source_plans = task_plans::realize_task_activations(
+        &source_demands,
+        &identities.build(),
+        &providers,
+        profile,
+    )
+    .map_err(|errors| format!("source task admission: {errors:?}"))?;
     let artifact = psi_compiler::TerminalProductionRequest::new(
         &checked.execution().program,
         psi_compiler::TerminalMachineSelection::Name(machine),
@@ -21,6 +32,17 @@ pub(super) fn produce(
     .map_err(|error| error.to_string())?;
     let loaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .map_err(|error| format!("task artifact transport: {error:?}"))?;
+    let module = artifact.semantic_module();
+    let published_plans = task_plans::realize_task_activations(
+        &module.task_activation_demands,
+        &module.identities,
+        &providers,
+        profile,
+    )
+    .map_err(|errors| format!("published task admission: {errors:?}"))?;
+    if source_plans != published_plans {
+        return Err("published task obligations differ from source-only checking".to_owned());
+    }
     inspect(&artifact, &loaded, &providers, profile)
 }
 

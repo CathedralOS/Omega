@@ -18,6 +18,7 @@ pub(crate) struct AdmittedBuildProgram {
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
+    pub(crate) execution_profile: Option<target::TargetProfile>,
     /// The validated `Build::artifact_only(builder)` application modifier. An
     /// artifact-only activation publishes retained outputs only: it may not
     /// bind executable roots or select boundary providers, and it must
@@ -78,6 +79,7 @@ pub(crate) fn admit_build_program(
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
+    execution_profile: Option<target::TargetProfile>,
     artifact_only: bool,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let typed = prepared.typed();
@@ -95,6 +97,7 @@ pub(crate) fn admit_build_program(
         machine,
         filesystem_scope: filesystem_scope.clone(),
         evaluation_sponsor: evaluation_sponsor.cloned(),
+        execution_profile,
         artifact_only,
     })
 }

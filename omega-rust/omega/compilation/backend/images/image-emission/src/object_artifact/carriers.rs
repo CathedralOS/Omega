@@ -87,9 +87,6 @@ impl ObjectArtifact {
     pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
         self.hosted_receiver.as_ref()
     }
-    #[cfg(any(test, feature = "test-support"))]
-    #[cfg(any(test, feature = "test-support"))]
-    #[cfg(any(test, feature = "test-support"))]
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
@@ -128,9 +125,9 @@ impl ObjectArtifact {
             entry
         } else {
             match module.entry {
-                terminal_psi::TargetMachineCallable::Machine(machine) => machine,
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
-                    return Err("native family entry requires retained deployment selection");
+                Some(terminal_psi::TargetMachineCallable::Machine(machine)) => machine,
+                Some(terminal_psi::TargetMachineCallable::Boundary(_)) | None => {
+                    return Err("native entry requires retained deployment selection");
                 }
             }
         };

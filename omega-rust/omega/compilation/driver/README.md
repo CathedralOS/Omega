@@ -36,8 +36,12 @@ The crate-internal `produce_products` operation starts from checked source and
 selected target inputs, producing Terminal when required and then the requested
 outputs. It is not a second public entrypoint for compiling an existing Terminal
 artifact. That source-free operation is
-[`native_production::compile`](../native-production/src/compiler.rs),
-which takes a retained Terminal artifact and explicit realization inputs.
+[`native_production::prepare`](../native-production/src/preparation.rs), followed
+by canonical scalar completion and
+[`native_production::compile`](../native-production/src/compiler.rs). Preparation
+retains the Terminal artifact and explicit realization inputs; compilation consumes
+that same prepared work after its scalar demands have been completed. The native
+compiler does not call an interpreter or reopen source.
 `cargo run -p compiler --example terminal_sharing` exercises two native targets
 through this route and checks actual production counts and shared backing
 storage. It does not execute a foreign-host image.
@@ -46,6 +50,20 @@ failure isolation, use `--reject linux_arm64
 tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg
 windows_x86_64 linux_arm64 macos_arm64`: the missing entry rejects without
 discarding either successful sibling.
+
+Product constants and declaration conditions now travel in the shared Terminal
+artifact rather than closing a checked-tree copy for each target. Scalar completion
+retains exact provider/target inputs and evaluation charges. `--check` publishes
+rootless declarations when scalar obligations require completion, and otherwise
+stops before Terminal production. `--compare-single-targets --run` additionally
+compares shared-product bytes with independent compilation and executes the host
+image and reloaded Terminal artifact. Build-helper production in
+[package compilation](src/checked/package_compilation.rs) publishes the same
+checked source without private constant replay. The waiting Build activation
+owns exact slot admission, canonical scalar completion and component installation
+in [provider installation](../build-evaluation/src/terminal_execution/provider_installation.rs).
+Its live account pays the evaluation, and installed components retain completed
+scalar inputs for the rest of that invocation.
 
 The coordinator retains an ordered roster of completed outputs, errors and
 pending Terminal work. It borrows only the pending work for shared production,
@@ -171,11 +189,17 @@ permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
 production submit the same `CompilationProduct` through `omega_build::produce_source`;
-source checking returns selected provider custody internally. Standalone and
+named inspection joins shared Terminal production and completes declaration
+conditions against that artifact, rather than producing a disposable check
+artifact first. Same-name requests share code and exact Build companions;
+different inspected roots retain distinct products. Source checking returns
+selected provider custody internally. Standalone and
 package products both complete source-side provider preparation before Terminal,
 then admit receiving permissions and complete artifact proposals. There is no
 late source installation phase or alternate checked-to-product continuation. Check-only and artifact-only
-requests stop without Terminal production. Review descriptions borrow the same
+requests stop at their requested boundary; scalar-bearing Check still produces
+its rootless declaration artifact, and artifact-only requests do not emit native
+images. Review descriptions borrow the same
 Terminal production inputs without making the producer branch on review history.
 
 Checked-only consumers supply `CheckedCompileRequest` to `omega_build::check_source`.
@@ -583,12 +607,17 @@ ABI homes, complete call/relocation replay, and a genuinely reachable authored
 entry. Use rooted provider and callback controls retaining complete argument,
 result, and resource custody; metadata-only receipt tests do not close the route.
 
-Native callback arguments separately enter the realization request. Their
-[backend placement](../backend/plans/backend-plan/src/callback_placements.rs)
-owns destination application selection and consistency: a direct callback
-parameter or a record-field root, with its exact native ordinal and placement.
-Proposal production, retained-product replay and native admission consume that
-same checked projection; ABI/context replay and occurrence joins remain separate.
+Canonical callback applications and target calling applications enter the
+realization request separately. Stage 00's
+[callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs)
+joins their exact requirement and static binder ordinal, then produces the
+[backend placement](../backend/plans/backend-plan/src/callback_placements.rs):
+a direct callback parameter or record-field root with its native ordinal and
+placement. Persisted inputs retain those canonical applications, not derived
+placements. Fresh and recovered products use the same placement operation.
+Source preparation retains only declaration checks and callback roots needed
+for pre-optimization behavior admission, including dormant registrar uses.
+ABI/context replay and occurrence joins remain separate.
 The
 [target-side carrier](../pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
 binds a Terminal operation, placement index, private function, native parameter

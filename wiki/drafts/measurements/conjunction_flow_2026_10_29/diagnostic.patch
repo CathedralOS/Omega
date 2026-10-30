@@ -1,0 +1,26 @@
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+@@ -24,6 +24,7 @@
+     declared: Interval,
+     actuals: &ArgumentBounds,
+ ) -> Interval {
++    let _profile = phase_profile::guard("05.conjunction.return_interval");
+     if !callee
+         .contracts
+         .iter()
+@@ -105,6 +106,7 @@
+     expression: ExpressionHandle,
+     formal: Option<&typed_trees::signature::StateParameter>,
+ ) -> Option<Interval> {
++    let _profile = phase_profile::guard("05.conjunction.project_node");
+     if let Some(value) = program.static_boolean_value(expression) {
+         return value.then_some(Interval::UNBOUNDED);
+     }
+@@ -311,6 +313,7 @@
+     environment: &ValueEnvironment,
+     condition: ExpressionHandle,
+ ) -> ValueEnvironment {
++    let _profile = phase_profile::guard("05.conjunction.condition_environment");
+     let Some(machine) = program.machine_by_symbol(callee.callable) else {
+         return environment.clone();
+     };

@@ -103,7 +103,32 @@ pub(super) fn instantiate_sources(
         return None;
     }
     let source = &mut returned[0];
-    if source.source.origin.source != observed.source.origin.source
+    // Equal may-origin windows establish overlap, never that two independent
+    // descriptor observations captured the same value. Rejoining distinct
+    // carriers requires exact selectors through every retained interpretation.
+    let exact = |place: &super::super::FrameSourcePlace| {
+        place
+            .segments
+            .iter()
+            .all(crate::storage_path_relations::place_segment_has_static_identity)
+            && place.representation.as_ref().is_none_or(|(_, path)| {
+                path.iter()
+                    .all(crate::storage_path_relations::place_segment_has_static_identity)
+            })
+            && place.recasts.iter().all(|recast| {
+                recast
+                    .segments
+                    .iter()
+                    .all(crate::storage_path_relations::place_segment_has_static_identity)
+                    && recast.representation.as_ref().is_none_or(|(_, path)| {
+                        path.iter()
+                            .all(crate::storage_path_relations::place_segment_has_static_identity)
+                    })
+            })
+    };
+    if !exact(&source.source.origin.source)
+        || !exact(&observed.source.origin.source)
+        || source.source.origin.source != observed.source.origin.source
         || source.source.origin.precision != observed.source.origin.precision
     {
         return None;

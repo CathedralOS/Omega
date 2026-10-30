@@ -54,18 +54,22 @@ pub(crate) struct ElfDynamicFileFragmentPlacement {
 }
 
 impl ElfDynamicFileFragmentPlacement {
+    #[cfg(test)]
     pub const fn ordinal(&self) -> u32 {
         self.ordinal
     }
 
+    #[cfg(test)]
     pub const fn kind(&self) -> ElfDynamicFileFragmentKind {
         self.kind
     }
 
+    #[cfg(test)]
     pub const fn file_offset(&self) -> u64 {
         self.file_offset
     }
 
+    #[cfg(test)]
     pub const fn byte_count(&self) -> u64 {
         self.byte_count
     }
@@ -89,6 +93,7 @@ impl ValidatedElfAssembledDynamicFile {
         &self.contents.bytes
     }
 
+    #[cfg(test)]
     pub(crate) fn fragment_placements(&self) -> &[ElfDynamicFileFragmentPlacement] {
         &self.contents.fragment_placements
     }

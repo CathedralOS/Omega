@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::SourceResolveError;
+#[cfg(test)]
 use crate::SourceResolver;
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::local_snapshot_invalid;
@@ -172,6 +173,11 @@ pub fn resolve_local_source_snapshot_in_lane(
     }
 }
 
+/// Resolve and publish a local source through a caller-supplied resolver.
+///
+/// Test fixture entry: production callers publish into an explicit lane via
+/// [`resolve_local_source_snapshot_in_lane`].
+#[cfg(test)]
 pub(crate) fn resolve_local_source_snapshot(
     root: impl AsRef<Path>,
     resolver: &SourceResolver,

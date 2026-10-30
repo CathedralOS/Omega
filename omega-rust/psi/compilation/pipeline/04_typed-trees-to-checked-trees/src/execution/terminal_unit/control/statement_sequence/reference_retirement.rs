@@ -236,6 +236,10 @@ pub(super) fn transferred_paths(
     )
 }
 
+/// One statement's retirement view. Every query over the same statement
+/// shares these fields; a `Copy` value lets a caller rebind only the prefix,
+/// pending set, exit flag and returned holder it distinguishes.
+#[derive(Clone, Copy)]
 pub(super) struct Retirement<'a> {
     pub(super) program: &'a dyn ::validation::CheckingInput,
     pub(super) facts: &'a CheckFacts,

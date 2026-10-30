@@ -1,0 +1,1236 @@
+[
+  {
+    "case": "local",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\local\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "fe949205424b421bc814a03d7210a40f71c32508f8893211794f419269c238d5",
+    "build_sha256": "6fffcb2c3c468ffd0791b0fcd0432e567647ac02e625e3c036382dbe9cdfc653"
+  },
+  {
+    "case": "local",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\local\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "fe949205424b421bc814a03d7210a40f71c32508f8893211794f419269c238d5",
+    "build_sha256": "6fffcb2c3c468ffd0791b0fcd0432e567647ac02e625e3c036382dbe9cdfc653"
+  },
+  {
+    "case": "local-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\local\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_local_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_local_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\local\\invalid\\main.omg:92:31\n",
+    "source_sha256": "1ff92f64963f2d645449058a2650839392b8d51564c41aec7123b860b854d91b",
+    "build_sha256": "d7995010120329e984691b6df27130053974c0c7272da9473606ff3062b81192"
+  },
+  {
+    "case": "local-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\local\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_local_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_local_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\local\\invalid\\main.omg:92:31\n",
+    "source_sha256": "1ff92f64963f2d645449058a2650839392b8d51564c41aec7123b860b854d91b",
+    "build_sha256": "d7995010120329e984691b6df27130053974c0c7272da9473606ff3062b81192"
+  },
+  {
+    "case": "field",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\field\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "75a3489d931c829f3d3e66e59436e17b829dc09a587346e7e460899cf6e3f4f4",
+    "build_sha256": "b05cb67ee3ce90e3caf35e55880f22f4e1a52e1c091b273abb05638b521810ac"
+  },
+  {
+    "case": "field",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\field\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "75a3489d931c829f3d3e66e59436e17b829dc09a587346e7e460899cf6e3f4f4",
+    "build_sha256": "b05cb67ee3ce90e3caf35e55880f22f4e1a52e1c091b273abb05638b521810ac"
+  },
+  {
+    "case": "field-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\field\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_field_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_field_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\field\\invalid\\main.omg:64:31\n",
+    "source_sha256": "d31292838cfe5c1acb97f1436855a8233e9022bd69414c1ab1eeca915e4a6905",
+    "build_sha256": "c8fdcfa9ec627b3ce1fda12d1380cd56a1a98577c46d676834e60fc4e575f7a9"
+  },
+  {
+    "case": "field-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\field\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_field_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_field_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\field\\invalid\\main.omg:64:31\n",
+    "source_sha256": "d31292838cfe5c1acb97f1436855a8233e9022bd69414c1ab1eeca915e4a6905",
+    "build_sha256": "c8fdcfa9ec627b3ce1fda12d1380cd56a1a98577c46d676834e60fc4e575f7a9"
+  },
+  {
+    "case": "parameter",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\parameter\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "66d24cf40ba8c371b66022767baed0903c48a5645ff4c94dd4db1d055d39df5f",
+    "build_sha256": "cc54ffc2b0f6e59935227ffce69361187394e8a3a723f4ebb2e1a04fa674042d"
+  },
+  {
+    "case": "parameter",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\parameter\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "66d24cf40ba8c371b66022767baed0903c48a5645ff4c94dd4db1d055d39df5f",
+    "build_sha256": "cc54ffc2b0f6e59935227ffce69361187394e8a3a723f4ebb2e1a04fa674042d"
+  },
+  {
+    "case": "parameter-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\parameter\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `check_call` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_parameter_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `check_call` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_parameter_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\parameter\\invalid\\main.omg:104:31\n",
+    "source_sha256": "b9f06649dacdec5d5ea46bfece378031139de455348129c17f92ced8399c4a71",
+    "build_sha256": "7cab89249c9f702ef5248877e01d7d8e6d55c5ac8fa13164086cc7332d4cf626"
+  },
+  {
+    "case": "parameter-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\parameter\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `check_call` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_parameter_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `check_call` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_parameter_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\parameter\\invalid\\main.omg:104:31\n",
+    "source_sha256": "b9f06649dacdec5d5ea46bfece378031139de455348129c17f92ced8399c4a71",
+    "build_sha256": "7cab89249c9f702ef5248877e01d7d8e6d55c5ac8fa13164086cc7332d4cf626"
+  },
+  {
+    "case": "call_result",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\call_result\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "cea617985673005d54b12da68a4533a661a065fb52d3bdb89676a30bda65c136",
+    "build_sha256": "2cecbb19a440a6e22f4eca990bc801796c1bd781ded8f118ac9ce418573d81e5"
+  },
+  {
+    "case": "call_result",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\call_result\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "cea617985673005d54b12da68a4533a661a065fb52d3bdb89676a30bda65c136",
+    "build_sha256": "2cecbb19a440a6e22f4eca990bc801796c1bd781ded8f118ac9ce418573d81e5"
+  },
+  {
+    "case": "call_result-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\call_result\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_call_result_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_call_result_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\call_result\\invalid\\main.omg:68:31\n",
+    "source_sha256": "89fe5e1b72fd29fd30e4f96913a45668bd09e14e8af301fb6d7de9bc4193a4bd",
+    "build_sha256": "0bc25fc24b8c9fd9698d6d5a42fe3c74539e265a239808738ee8fdd9a93dbd04"
+  },
+  {
+    "case": "call_result-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\call_result\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_call_result_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_call_result_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\call_result\\invalid\\main.omg:68:31\n",
+    "source_sha256": "89fe5e1b72fd29fd30e4f96913a45668bd09e14e8af301fb6d7de9bc4193a4bd",
+    "build_sha256": "0bc25fc24b8c9fd9698d6d5a42fe3c74539e265a239808738ee8fdd9a93dbd04"
+  },
+  {
+    "case": "match_join",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\match_join\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "89f78a0531aac38de8c2eee34ada4fb097aea6f81ab380825ae2840476edbd5a",
+    "build_sha256": "4ac8ff5198d34af9b3ecbf56a480946bdad5dfeab672be37cdea939913c85e04"
+  },
+  {
+    "case": "match_join",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\match_join\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "89f78a0531aac38de8c2eee34ada4fb097aea6f81ab380825ae2840476edbd5a",
+    "build_sha256": "4ac8ff5198d34af9b3ecbf56a480946bdad5dfeab672be37cdea939913c85e04"
+  },
+  {
+    "case": "match_join-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\match_join\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_match_join_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_match_join_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\match_join\\invalid\\main.omg:63:31\n",
+    "source_sha256": "85ebfd50361aa92a8868cf659d18d8fbf70b4d24d66abb260b5d9fb3138e55b9",
+    "build_sha256": "2d5af64f737f6712dacc959d68ba23b1928a59c1f8bcc2eb9c402e02d0da8f5a"
+  },
+  {
+    "case": "match_join-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\match_join\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_match_join_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_match_join_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\match_join\\invalid\\main.omg:63:31\n",
+    "source_sha256": "85ebfd50361aa92a8868cf659d18d8fbf70b4d24d66abb260b5d9fb3138e55b9",
+    "build_sha256": "2d5af64f737f6712dacc959d68ba23b1928a59c1f8bcc2eb9c402e02d0da8f5a"
+  },
+  {
+    "case": "const_name",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\const_name\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "2f6d908106743d1c7f9ef0c85bc60219b0d5da793024becb5ac75d2713752597",
+    "build_sha256": "ae5bf21ab5a1d4c7ef2b4420ff7941baef6f45a15290f0f17868479e5dfdde2c"
+  },
+  {
+    "case": "const_name",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\const_name\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "2f6d908106743d1c7f9ef0c85bc60219b0d5da793024becb5ac75d2713752597",
+    "build_sha256": "ae5bf21ab5a1d4c7ef2b4420ff7941baef6f45a15290f0f17868479e5dfdde2c"
+  },
+  {
+    "case": "const_name-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\const_name\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_const_name_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_const_name_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\const_name\\invalid\\main.omg:93:31\n",
+    "source_sha256": "81d2e986c03b512762a4d9d4fac967c5931d871785df6043f2e8297a9a176233",
+    "build_sha256": "985bf875cea1d34ebb3d48509abc1c8ed23ecf6ec2874f9837fddb4c3d6d46e3"
+  },
+  {
+    "case": "const_name-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\const_name\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_const_name_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_const_name_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\const_name\\invalid\\main.omg:93:31\n",
+    "source_sha256": "81d2e986c03b512762a4d9d4fac967c5931d871785df6043f2e8297a9a176233",
+    "build_sha256": "985bf875cea1d34ebb3d48509abc1c8ed23ecf6ec2874f9837fddb4c3d6d46e3"
+  },
+  {
+    "case": "other_state",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_state\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "c5bb74caab3704e939c2bb59c8e9fcffb0d1c17664f891d58e0b5e49cb2d7bc8",
+    "build_sha256": "1fd36cae3f7fceedb3457fbf77e8144110af3e19b5f53ba25aaf1bfacbd71edf"
+  },
+  {
+    "case": "other_state",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_state\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "c5bb74caab3704e939c2bb59c8e9fcffb0d1c17664f891d58e0b5e49cb2d7bc8",
+    "build_sha256": "1fd36cae3f7fceedb3457fbf77e8144110af3e19b5f53ba25aaf1bfacbd71edf"
+  },
+  {
+    "case": "other_state-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_state\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `step` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_other_state_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `step` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_other_state_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_state\\invalid\\main.omg:66:35\n",
+    "source_sha256": "fc5adbefa2218193e2d6f4d6595b924861299efe5d86862db44b333754a6eb52",
+    "build_sha256": "ed82789e2d3d3fd71d984cd81cfeb0261d2acc2404a9a715f999fc1610855c14"
+  },
+  {
+    "case": "other_state-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_state\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `step` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_other_state_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `step` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_other_state_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_state\\invalid\\main.omg:66:35\n",
+    "source_sha256": "fc5adbefa2218193e2d6f4d6595b924861299efe5d86862db44b333754a6eb52",
+    "build_sha256": "ed82789e2d3d3fd71d984cd81cfeb0261d2acc2404a9a715f999fc1610855c14"
+  },
+  {
+    "case": "other_machine",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005"
+  },
+  {
+    "case": "other_machine",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005"
+  },
+  {
+    "case": "other_machine-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `forward32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_other_machine_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `forward32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_other_machine_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\invalid\\main.omg:104:31\n",
+    "source_sha256": "b0e93e27b63d06271a07b49f9dd0a8af1f05fe53a11e65ecfa9d3b159b5a2b2e",
+    "build_sha256": "749d81aee15447c9e8f35edb1fac50825a3c53169eaa1b612e81494eec66b348"
+  },
+  {
+    "case": "other_machine-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `forward32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_other_machine_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `forward32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_other_machine_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\invalid\\main.omg:104:31\n",
+    "source_sha256": "b0e93e27b63d06271a07b49f9dd0a8af1f05fe53a11e65ecfa9d3b159b5a2b2e",
+    "build_sha256": "749d81aee15447c9e8f35edb1fac50825a3c53169eaa1b612e81494eec66b348"
+  },
+  {
+    "case": "target_body",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "abebc8d6c69a93a7a2311915f3a56417fc0e8ff71fb2619e117b7762f5886271",
+    "build_sha256": "08193cb9542fc6550077dfa5533e25d68949c2e185e79a2956fb1c275acd9e14"
+  },
+  {
+    "case": "target_body",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "abebc8d6c69a93a7a2311915f3a56417fc0e8ff71fb2619e117b7762f5886271",
+    "build_sha256": "08193cb9542fc6550077dfa5533e25d68949c2e185e79a2956fb1c275acd9e14"
+  },
+  {
+    "case": "target_body-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_target_body_invalid` with 4 diagnostic(s)\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:60:31\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:79:31\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:98:31\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:117:31\n",
+    "source_sha256": "1c939d036d98a7f350ea1c691a0e6030f4509bc85879dbc4bb6605ea66d55eb1",
+    "build_sha256": "63301b6045bdbdf97cabe2317b4a1a09b5d7be9ffeceede38cf25145753ae84b"
+  },
+  {
+    "case": "target_body-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+      "error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_target_body_invalid` with 4 diagnostic(s)\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:60:31\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:79:31\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:98:31\n  error: exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `thirtytwo_arg_stack_calling_plan_target_body_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\target_body\\invalid\\main.omg:117:31\n",
+    "source_sha256": "1c939d036d98a7f350ea1c691a0e6030f4509bc85879dbc4bb6605ea66d55eb1",
+    "build_sha256": "63301b6045bdbdf97cabe2317b4a1a09b5d7be9ffeceede38cf25145753ae84b"
+  },
+  {
+    "case": "pass-arithmetic-checked_flag_proof_wrapping_cast_fits",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_wrapping_cast_fits\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_wrapping_cast_fits\\main.omg; wrote_output=false\n",
+    "source_sha256": "ffb1af756f54018754c94f3c513190e8c3a49c020f268047d0bbd3da7f429324",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "pass-arithmetic-checked_flag_proof_wrapping_cast_fits",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_wrapping_cast_fits\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_wrapping_cast_fits\\main.omg; wrote_output=false\n",
+    "source_sha256": "ffb1af756f54018754c94f3c513190e8c3a49c020f268047d0bbd3da7f429324",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "pass-arithmetic-checked_flag_proof_saturating_cast_fits",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_saturating_cast_fits\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_saturating_cast_fits\\main.omg; wrote_output=false\n",
+    "source_sha256": "9c8e8f9d627f9ced68cc9a79673c3071774dc395cba1d7fbe3084ab37ba6a9aa",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "pass-arithmetic-checked_flag_proof_saturating_cast_fits",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_saturating_cast_fits\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\checked_flag_proof_saturating_cast_fits\\main.omg; wrote_output=false\n",
+    "source_sha256": "9c8e8f9d627f9ced68cc9a79673c3071774dc395cba1d7fbe3084ab37ba6a9aa",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "pass-arithmetic-runtime_short_circuit_cast_decisions_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_short_circuit_cast_decisions_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 28 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_short_circuit_cast_decisions_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "990f1c36efef382ee10f277f5cd9a92bb9124a809c63abd437789ca8fe9593ee",
+    "build_sha256": "8eb5105d28956562fce693e47e0707fac9e2a050e492bc7050a4506a2933ed40"
+  },
+  {
+    "case": "pass-arithmetic-runtime_short_circuit_cast_decisions_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_short_circuit_cast_decisions_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 28 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_short_circuit_cast_decisions_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "990f1c36efef382ee10f277f5cd9a92bb9124a809c63abd437789ca8fe9593ee",
+    "build_sha256": "8eb5105d28956562fce693e47e0707fac9e2a050e492bc7050a4506a2933ed40"
+  },
+  {
+    "case": "pass-machines-private_trapping_proven_safe_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_trapping_proven_safe_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_trapping_proven_safe_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "b8da32c7c096aa4579ad5706e9a089922648cb12e7ab2c6d0e687b7f0b555c8d",
+    "build_sha256": "bc8e74ce55f4d98406d44f11f46ecd480cd9129a96673fb23444e4acaac53bf3"
+  },
+  {
+    "case": "pass-machines-private_trapping_proven_safe_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_trapping_proven_safe_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_trapping_proven_safe_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "b8da32c7c096aa4579ad5706e9a089922648cb12e7ab2c6d0e687b7f0b555c8d",
+    "build_sha256": "bc8e74ce55f4d98406d44f11f46ecd480cd9129a96673fb23444e4acaac53bf3"
+  },
+  {
+    "case": "pass-machines-private_division_wrapping_pair_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_wrapping_pair_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_wrapping_pair_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "e188ff9510da65eda6a461c8fce5241086b077df1fe2a1bbcd985d5d924fb866",
+    "build_sha256": "bc8e74ce55f4d98406d44f11f46ecd480cd9129a96673fb23444e4acaac53bf3"
+  },
+  {
+    "case": "pass-machines-private_division_wrapping_pair_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_wrapping_pair_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_wrapping_pair_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "e188ff9510da65eda6a461c8fce5241086b077df1fe2a1bbcd985d5d924fb866",
+    "build_sha256": "bc8e74ce55f4d98406d44f11f46ecd480cd9129a96673fb23444e4acaac53bf3"
+  },
+  {
+    "case": "pass-machines-private_division_saturating_pair_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_saturating_pair_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_saturating_pair_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "dfe819b314fa9b49ea42c1760925538adb01c85ac6d7de810cb07373773e2bfe",
+    "build_sha256": "bc8e74ce55f4d98406d44f11f46ecd480cd9129a96673fb23444e4acaac53bf3"
+  },
+  {
+    "case": "pass-machines-private_division_saturating_pair_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_saturating_pair_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\machines\\private_division_saturating_pair_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "dfe819b314fa9b49ea42c1760925538adb01c85ac6d7de810cb07373773e2bfe",
+    "build_sha256": "bc8e74ce55f4d98406d44f11f46ecd480cd9129a96673fb23444e4acaac53bf3"
+  },
+  {
+    "case": "fail-arithmetic-checked_flag_proof_wrapping_cast_overflow",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_wrapping_cast_overflow\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended",
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `checked_asm_flag_snapshot` with 2 diagnostic(s)\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_wrapping_cast_overflow\\main.omg:2:29\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_wrapping_cast_overflow\\main.omg:2:29\n",
+    "source_sha256": "2928129602490d56b7c45ed0ac1fa3eb218ac2acaab206ab11767bd12497fe8f",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "fail-arithmetic-checked_flag_proof_wrapping_cast_overflow",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_wrapping_cast_overflow\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended",
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `checked_asm_flag_snapshot` with 2 diagnostic(s)\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_wrapping_cast_overflow\\main.omg:2:29\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_wrapping_cast_overflow\\main.omg:2:29\n",
+    "source_sha256": "2928129602490d56b7c45ed0ac1fa3eb218ac2acaab206ab11767bd12497fe8f",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "fail-arithmetic-checked_flag_proof_saturating_cast_overflow",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_saturating_cast_overflow\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended",
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `checked_asm_flag_snapshot` with 2 diagnostic(s)\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_saturating_cast_overflow\\main.omg:2:31\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_saturating_cast_overflow\\main.omg:2:31\n",
+    "source_sha256": "7eb35106565a72486c35de66da676f3d2d2a37091acc2d569c63a5003f711582",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "fail-arithmetic-checked_flag_proof_saturating_cast_overflow",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_saturating_cast_overflow\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended",
+      "error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `checked_asm_flag_snapshot` with 2 diagnostic(s)\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_saturating_cast_overflow\\main.omg:2:31\n  error: anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended\n    in package `checked_asm_flag_snapshot`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\checked_flag_proof_saturating_cast_overflow\\main.omg:2:31\n",
+    "source_sha256": "7eb35106565a72486c35de66da676f3d2d2a37091acc2d569c63a5003f711582",
+    "build_sha256": "4dfda5020999c53fa02930b5f29a48983a45cee5a7d76f424942c0b2e99535c5"
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_wrong_path",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_wrong_path\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "86b2a8d70e4da4e2d182e5e4e689f352ff1d653e232ab137ddfd6f90c94e5e8d",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_wrong_path",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_wrong_path\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "86b2a8d70e4da4e2d182e5e4e689f352ff1d653e232ab137ddfd6f90c94e5e8d",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_mutated_subject",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_mutated_subject\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "f44e12e2209f146ce0666adddee5f848f792146eafedc45f746a71fb447cf512",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_mutated_subject",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_mutated_subject\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "f44e12e2209f146ce0666adddee5f848f792146eafedc45f746a71fb447cf512",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-wrapping_guard_does_not_bound_original",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\wrapping_guard_does_not_bound_original\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: machine `bounded` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+    ],
+    "output": "error: machine `bounded` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling\n",
+    "source_sha256": "d4b6944793a0caa4098b3e96138c539f7a51639e8806ec365ae434f2656705cc",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-wrapping_guard_does_not_bound_original",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\wrapping_guard_does_not_bound_original\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: machine `bounded` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+    ],
+    "output": "error: machine `bounded` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling\n",
+    "source_sha256": "d4b6944793a0caa4098b3e96138c539f7a51639e8806ec365ae434f2656705cc",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-implicit_integer_policy_erasure_rejected",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\implicit_integer_policy_erasure_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: store in construction of `Values` field `number` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `erase` state `entry` terminal expression implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `main` state `entry` local `plain` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `main` state `entry` argument `value` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in array literal element of type `u32` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `main` state `entry` assignment implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)"
+    ],
+    "output": "error: store in construction of `Values` field `number` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `erase` state `entry` terminal expression implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `main` state `entry` local `plain` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `main` state `entry` argument `value` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in array literal element of type `u32` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `main` state `entry` assignment implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\n",
+    "source_sha256": "252f58fb250f4eda008b692f13465696f84bf3ee7025933c5a9ddf9210926592",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-implicit_integer_policy_erasure_rejected",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\implicit_integer_policy_erasure_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: store in construction of `Values` field `number` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `erase` state `entry` terminal expression implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `main` state `entry` local `plain` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `main` state `entry` argument `value` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in array literal element of type `u32` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)",
+      "error: store in machine `main` state `entry` assignment implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)"
+    ],
+    "output": "error: store in construction of `Values` field `number` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `erase` state `entry` terminal expression implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `main` state `entry` local `plain` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `main` state `entry` argument `value` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in array literal element of type `u32` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\nerror: store in machine `main` state `entry` assignment implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)\n",
+    "source_sha256": "252f58fb250f4eda008b692f13465696f84bf3ee7025933c5a9ddf9210926592",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-arithmetic-runtime_captured_call_result_subtracts_itself_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_captured_call_result_subtracts_itself_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_captured_call_result_subtracts_itself_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "bd6e87a248cd06f6448b796a04d6815ea2524a7de58cb664e6ff3a12ae66ec32",
+    "build_sha256": "d3cd01f16f400814b80673ba13bd926bfcca7f076b1f02df48ace248d5b67ffb"
+  },
+  {
+    "case": "pass-arithmetic-runtime_captured_call_result_subtracts_itself_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_captured_call_result_subtracts_itself_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_captured_call_result_subtracts_itself_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "bd6e87a248cd06f6448b796a04d6815ea2524a7de58cb664e6ff3a12ae66ec32",
+    "build_sha256": "d3cd01f16f400814b80673ba13bd926bfcca7f076b1f02df48ace248d5b67ffb"
+  },
+  {
+    "case": "pass-facts-unsigned_exact_subtraction_interval_through_match_join_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\facts\\unsigned_exact_subtraction_interval_through_match_join_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\facts\\unsigned_exact_subtraction_interval_through_match_join_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "7bf9d9b5cddf0e4f98c6dc8fae95a16f3f1764f59cd8ca1baf38b9d518cf6e7a",
+    "build_sha256": "eb35852a8071f297780ec1c501ffd8344796231d198fd028e2173eceee4353c3"
+  },
+  {
+    "case": "pass-facts-unsigned_exact_subtraction_interval_through_match_join_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\facts\\unsigned_exact_subtraction_interval_through_match_join_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\facts\\unsigned_exact_subtraction_interval_through_match_join_exit\\main.omg; wrote_output=false\n",
+    "source_sha256": "7bf9d9b5cddf0e4f98c6dc8fae95a16f3f1764f59cd8ca1baf38b9d518cf6e7a",
+    "build_sha256": "eb35852a8071f297780ec1c501ffd8344796231d198fd028e2173eceee4353c3"
+  },
+  {
+    "case": "fail-facts-unsigned_exact_subtraction_interval_through_match_join_rejected",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\facts\\unsigned_exact_subtraction_interval_through_match_join_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `subtract_match_join` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `unsigned_exact_subtraction_interval_match_join_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `subtract_match_join` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `unsigned_exact_subtraction_interval_match_join_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\facts\\unsigned_exact_subtraction_interval_through_match_join_rejected\\main.omg:12:29\n",
+    "source_sha256": "2b956705e833e57511f516cfd10c0ea8d72a5d36fd92d153af039796ef09a3c8",
+    "build_sha256": "afe18d5cb8a6ff2aeb6d13c3aa4de47a8b1f17f0425f7c2ec23c6d639cccbbdf",
+    "oracle_sha256": "5355c03e0b9b949b46dec09c4ad418d3e14e722e014cc28e203c33ee02a7d0d9",
+    "oracle": "may overflow `u64`\n"
+  },
+  {
+    "case": "fail-facts-unsigned_exact_subtraction_interval_through_match_join_rejected",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\facts\\unsigned_exact_subtraction_interval_through_match_join_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `subtract_match_join` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `unsigned_exact_subtraction_interval_match_join_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `subtract_match_join` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `unsigned_exact_subtraction_interval_match_join_invalid`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\facts\\unsigned_exact_subtraction_interval_through_match_join_rejected\\main.omg:12:29\n",
+    "source_sha256": "2b956705e833e57511f516cfd10c0ea8d72a5d36fd92d153af039796ef09a3c8",
+    "build_sha256": "afe18d5cb8a6ff2aeb6d13c3aa4de47a8b1f17f0425f7c2ec23c6d639cccbbdf",
+    "oracle_sha256": "5355c03e0b9b949b46dec09c4ad418d3e14e722e014cc28e203c33ee02a7d0d9",
+    "oracle": "may overflow `u64`\n"
+  },
+  {
+    "case": "fail-domains-scalar_entry_membership_invalidated_before_subtraction",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\spill-loop\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\domains\\scalar_entry_membership_invalidated_before_subtraction\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `Actual::subtract` state `subtract` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `scalar_entry_membership_invalidated_before_subtraction` with 1 diagnostic(s)\n  error: exact arithmetic in machine `Actual::subtract` state `subtract` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `scalar_entry_membership_invalidated_before_subtraction`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\domains\\scalar_entry_membership_invalidated_before_subtraction\\main.omg:6:94\n",
+    "source_sha256": "4e18cdc4523e904210d3e4ba9ce20b1ba12870307eaedba8c39613a1008d74a4",
+    "build_sha256": "125b9a9d9dbf9430811ca7352296fce7008ac8b5b1edcbdf6b34a8e19c30dacd",
+    "oracle_sha256": "a8524213476484d298baf9bab17db21694e7688802e4b803dd896f711b3219fc",
+    "oracle": "exact arithmetic in machine `Actual::subtract`\noperands are not provably in range\n"
+  },
+  {
+    "case": "fail-domains-scalar_entry_membership_invalidated_before_subtraction",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\statement-loop\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\domains\\scalar_entry_membership_invalidated_before_subtraction\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `Actual::subtract` state `subtract` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `scalar_entry_membership_invalidated_before_subtraction` with 1 diagnostic(s)\n  error: exact arithmetic in machine `Actual::subtract` state `subtract` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `scalar_entry_membership_invalidated_before_subtraction`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\domains\\scalar_entry_membership_invalidated_before_subtraction\\main.omg:6:94\n",
+    "source_sha256": "4e18cdc4523e904210d3e4ba9ce20b1ba12870307eaedba8c39613a1008d74a4",
+    "build_sha256": "125b9a9d9dbf9430811ca7352296fce7008ac8b5b1edcbdf6b34a8e19c30dacd",
+    "oracle_sha256": "a8524213476484d298baf9bab17db21694e7688802e4b803dd896f711b3219fc",
+    "oracle": "exact arithmetic in machine `Actual::subtract`\noperands are not provably in range\n"
+  }
+]

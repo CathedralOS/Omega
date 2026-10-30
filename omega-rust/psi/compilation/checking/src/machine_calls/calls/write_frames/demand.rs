@@ -9,7 +9,7 @@ mod normal_subjects;
 mod result_transport;
 mod transfer_operands;
 
-pub(crate) use normal_subjects::{InvocationEntrySubject, InvocationReferenceSubject};
+pub(crate) use normal_subjects::InvocationEntrySubject;
 
 use super::boundary_calls::receiver_requires_boundary_frame;
 use super::caller_aliases::{
@@ -744,6 +744,36 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Complete exact storage sources for an already selected coordinate.
+    /// Matched frozen loads authenticate each supported reference boundary;
+    /// declaration geometry alone cannot. Consumers compare typed namespaces
+    /// for identity and use presentation paths only for invalidation. This
+    /// grants no loan or access beyond the independently admitted operation.
+    pub fn coordinate_sources_before_statement(
+        &self,
+        machine: &Machine,
+        state: &State,
+        index: usize,
+        root: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+        let source = super::FrameSourcePlace {
+            root,
+            segments: path.to_vec(),
+            builtin_coordinates: true,
+            ..super::FrameSourcePlace::default()
+        };
+        super::reference_subjects::coordinate_sources_before_statement(
+            self.program,
+            machine,
+            state,
+            &self.tables.symbols,
+            index,
+            &source,
+            &self.caches.state_write_shared_collections,
+        )
+    }
+
     /// Complete conservative backing reads for invalidation. Unlike exact
     /// origins, these may name a whole collection for a window. Callers may
     /// compare overlap only, never derive predicate or storage identity.
@@ -973,6 +1003,7 @@ impl<'program> CallFrameResolver<'program> {
             statement,
             writes.as_deref(),
             None,
+            |root, path| self.assignment_binding_preserved(machine, statement, root, path),
         )
         .is_some()
     }
@@ -997,8 +1028,30 @@ impl<'program> CallFrameResolver<'program> {
             statement,
             writes.as_deref(),
             Some(destination),
+            |root, path| self.assignment_binding_preserved(machine, statement, root, path),
         )
         .is_some()
+    }
+
+    fn assignment_binding_preserved(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        root: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> bool {
+        let Some((_, _, mut prefix, transfers)) =
+            self.statement_reference_transfer(machine, statement)
+        else {
+            return false;
+        };
+        let transfer = transfers.all_routes();
+        if !transfer.is_complete() {
+            return false;
+        }
+        let before = prefix.stored.clone();
+        super::stored_calls::apply(self.program, &mut prefix.stored, &transfer.effects);
+        super::assignment_addresses::binding_preserved(&before, &prefix.stored, root, path)
     }
 
     /// Performed destinations and reference origins share the captured store

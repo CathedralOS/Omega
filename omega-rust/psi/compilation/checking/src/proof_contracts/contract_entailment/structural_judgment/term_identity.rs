@@ -11,6 +11,56 @@
 use super::StructuralTerm;
 
 impl StructuralTerm {
+    /// Recurrence compares the complete retained resolver input. Semantic
+    /// equality alone erases observation authority and float landing metadata;
+    /// those payloads must not collapse two different pending questions.
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        if std::mem::discriminant(self) != std::mem::discriminant(other) || self != other {
+            return false;
+        }
+        let metadata_matches = match (self, other) {
+            (
+                Self::ObservedValue { observed_type, .. },
+                Self::ObservedValue {
+                    observed_type: other_type,
+                    ..
+                },
+            ) => observed_type == other_type,
+            (
+                Self::ScalarBinary { references, .. },
+                Self::ScalarBinary {
+                    references: other_references,
+                    ..
+                },
+            ) => references == other_references,
+            (
+                Self::IndexedValue { element_type, .. },
+                Self::IndexedValue {
+                    element_type: other_type,
+                    ..
+                },
+            ) => element_type == other_type,
+            (Self::Float(value), Self::Float(other_value)) => {
+                value.landing() == other_value.landing()
+            }
+            _ => true,
+        };
+        if !metadata_matches {
+            return false;
+        }
+        let mut children = Vec::new();
+        self.for_each_child(|child| children.push(child));
+        let mut index = 0;
+        let mut same = true;
+        other.for_each_child(|child| {
+            same &= children
+                .get(index)
+                .is_some_and(|value| value.same_resolution_payload(child));
+            index += 1;
+        });
+        same && index == children.len()
+    }
+
     /// Visit every immediate child subterm of `self` once, in declaration
     /// order: a constructor's fields, an application's arguments, and the one
     /// or two operand terms the observation variants carry. A shell's observed
@@ -75,7 +125,8 @@ impl StructuralTerm {
                     ..
                 }
                 | Self::Projection { subject, .. }
-                | Self::IntegerEmbedding { value: subject, .. } => visit(subject),
+                | Self::IntegerEmbedding { value: subject, .. }
+                | Self::ScalarRepresentation { value: subject, .. } => visit(subject),
                 Self::ScalarBinary { left, right, .. }
                 | Self::MathematicalBinary { left, right, .. } => visit(left) || visit(right),
                 _ => false,
@@ -169,6 +220,14 @@ impl PartialEq for StructuralTerm {
                     return false;
                 };
                 value == other_value
+            }
+            Self::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => {
+                matches!(other, Self::ScalarRepresentation { source: other_source, target: other_target, value: other_value }
+                    if source == other_source && target == other_target && value == other_value)
             }
             Self::IntegerEmbedding { reference, value } => {
                 matches!(other, Self::IntegerEmbedding { reference: other_reference, value: other_value }
@@ -359,6 +418,16 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("path", path)
                 .finish(),
             Self::Integer(value) => formatter.debug_tuple("Integer").field(value).finish(),
+            Self::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => formatter
+                .debug_struct("ScalarRepresentation")
+                .field("source", source)
+                .field("target", target)
+                .field("value", value)
+                .finish(),
             Self::IntegerEmbedding { reference, value } => formatter
                 .debug_struct("IntegerEmbedding")
                 .field("reference", reference)

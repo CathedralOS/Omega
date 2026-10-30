@@ -141,7 +141,7 @@ pub(super) fn encode_demand(
     encode_application(writer, demand.application())
 }
 
-fn encode_requirement(
+pub(super) fn encode_requirement(
     writer: &mut Writer,
     requirement: &BoundaryOperatorRequirement,
 ) -> Result<(), CodecError> {
@@ -199,7 +199,9 @@ pub(super) fn decode_demand(
     ))
 }
 
-fn decode_requirement(reader: &mut Reader<'_>) -> Result<BoundaryOperatorRequirement, CodecError> {
+pub(super) fn decode_requirement(
+    reader: &mut Reader<'_>,
+) -> Result<BoundaryOperatorRequirement, CodecError> {
     let declaration = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     BoundaryOperatorRequirement::new(
         declaration,

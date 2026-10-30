@@ -1,6 +1,6 @@
 // Fact: an entry f32 that is NaN makes value == value false, so maybe_ordered's Trap guard drops without a caller crash ceiling, because the guard reads recorded IEEE equality and NaN is unordered.
 // Expected exit: 0
-public const NAN_BITS: i32 = 2143289344;
+public const NAN_BITS: i32 = 0x7FC0_0000i32;
 machine maybe_ordered(value: f32) -> f32
 crashes Trap value == value
 {

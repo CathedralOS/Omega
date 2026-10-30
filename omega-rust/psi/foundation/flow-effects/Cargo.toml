@@ -13,3 +13,4 @@ compiler-storage = { path = "../compiler-storage" }
 arena = { path = "../arena" }
 language-semantics = { path = "../language-semantics" }
 symbols = { path = "../symbols" }
+semantic-vocabulary = { path = "../semantic-vocabulary" }

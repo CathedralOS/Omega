@@ -13,7 +13,6 @@
 //! of such a plan hashes changed metadata, edited blocks and digest rosters.
 
 use optimization_unit::{FuelSettlement, PsiProvenance};
-use register_model::RegisterOperandAccess;
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
 use crate::{

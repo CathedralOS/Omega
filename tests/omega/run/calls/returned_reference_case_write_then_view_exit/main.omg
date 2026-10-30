@@ -1,0 +1,27 @@
+// Expected exit: 0
+public domain [u8]::Ascii requires ascii_only(self);
+data Choice [copy] { case Gate; case Branch; }
+data Cell [copy] { choice: Choice; }
+machine pick(cell: &mut Cell) -> &mut Cell { cell }
+machine label(choice: Choice) -> &[u8] in Ascii {
+    transition { choice == Choice::Gate -> "Gate" _ -> "Branch Room" }
+}
+machine fill(cell: &mut Cell) crashes Trap {
+    let selected: &mut Cell = pick(cell);
+    selected.choice = Choice::Branch;
+    let name: &[u8] in Ascii = label(Choice::Branch);
+    transition name == "Branch Room" {
+        true -> {}
+        false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut cell: Cell;
+    fill(&mut cell);
+    transition cell.choice == Choice::Branch {
+        true -> {}
+        false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

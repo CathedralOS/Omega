@@ -235,5 +235,6 @@ fn insert_coordinate(
     plan.coordinates.insert(CheckedRankCoordinate {
         parameter: coordinate.parameter,
         path,
+        entry_indexes: Default::default(),
     })
 }

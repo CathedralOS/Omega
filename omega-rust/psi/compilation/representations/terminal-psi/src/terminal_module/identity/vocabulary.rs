@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Activation establishments retain closed backing bounds and conditional grants.
-        130
+        // Scalar applications remain explicit until exact target admission.
+        131
     }
 }

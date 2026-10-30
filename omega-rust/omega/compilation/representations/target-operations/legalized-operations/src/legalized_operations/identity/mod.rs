@@ -25,7 +25,7 @@ pub use normalized_foreign::{
 pub use read_byte::encode_hosted_read_byte_identity;
 pub use scalar::{encode_integer, encode_register, encode_scalar_type};
 pub use structural::encode_provider_execution;
-pub use structural_types::encode_structural_place;
+pub use structural_types::{encode_authored_field_storage, encode_structural_place};
 
 mod placed_bindings;
 pub use placed_bindings::encode_placed_call_bindings;

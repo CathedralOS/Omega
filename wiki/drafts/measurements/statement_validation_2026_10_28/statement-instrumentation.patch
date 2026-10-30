@@ -1,0 +1,36 @@
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements.rs
+@@ -106,0 +107 @@
++        let _profile = phase_profile::guard("05.statement.placed");
+@@ -128,0 +130,8 @@
++    let _profile = phase_profile::guard(match statement {
++        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => "05.statement.kind.assembly",
++        StatementNode::Assignment(_) => "05.statement.kind.assignment",
++        StatementNode::Call(_) => "05.statement.kind.call",
++        StatementNode::Expression(_) => "05.statement.kind.expression",
++        StatementNode::LocalData(_) => "05.statement.kind.local",
++        StatementNode::Transition(_) => "05.statement.kind.transition",
++    });
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements/expression_statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements/expression_statements.rs
+@@ -109,0 +110 @@
++    let profile = phase_profile::guard("05.statement.expression.shape");
+@@ -208,0 +210,2 @@
++    drop(profile);
++    let profile = phase_profile::guard("05.statement.expression.range");
+@@ -231,0 +235,2 @@
++    drop(profile);
++    let _profile = phase_profile::guard("05.statement.expression.finish");
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
+@@ -67,0 +68 @@
++    let profile = phase_profile::guard("05.statement.local.setup");
+@@ -236,0 +238,2 @@
++    drop(profile);
++    let profile = phase_profile::guard("05.statement.local.types");
+@@ -335,0 +339,2 @@
++    drop(profile);
++    let profile = phase_profile::guard("05.statement.local.range");
+@@ -360,0 +366,2 @@
++    drop(profile);
++    let _profile = phase_profile::guard("05.statement.local.finish");

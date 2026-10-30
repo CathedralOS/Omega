@@ -19,7 +19,13 @@ pub(super) fn retain(
         .nominal_machine_uses
         .uses
         .iter()
-        .filter(|usage| usage.callback_entry.is_some())
+        .filter(|usage| {
+            usage.callback_entry.is_some()
+                || checked
+                    .typed
+                    .trait_definition_by_symbol(usage.satisfaction_trait)
+                    .is_some_and(|definition| definition.is_boundary)
+        })
         .map(|usage| {
             (
                 source_key(usage.site, usage.registration_operation),
@@ -32,6 +38,18 @@ pub(super) fn retain(
         lowered.semantic_module.callback_applications.clear();
         return Ok(());
     }
+    let mut boundary_operations = lowered
+        .semantic_module
+        .operations()
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BoundaryCall { .. }
+            )
+        })
+        .map(|operation| operation.id)
+        .collect::<Vec<_>>();
+    boundary_operations.sort_unstable();
     requested.sort_unstable_by_key(|(key, _, _)| *key);
     for occurrence in &lowered.source_call_occurrences {
         let (Some(site), Some(operation)) =
@@ -39,6 +57,11 @@ pub(super) fn retain(
         else {
             continue;
         };
+        // Ordinary checked calls pass nominal machines without introducing a
+        // foreign registrar. Only boundary occurrences owe native placement.
+        if boundary_operations.binary_search(&operation).is_err() {
+            continue;
+        }
         // Emission retains the checked call's complete closed target, while
         // nominal registration belongs to its authored declaration. Project
         // only this lookup address through the canonical instance owner; the
@@ -75,6 +98,7 @@ pub(super) fn retain(
                 .published_requirement_envelope
                 .contract_commitment
                 .as_bytes(),
+            entry_admitted: usage.callback_entry.is_some(),
             body: super::declarations::identity(
                 identities,
                 checked,

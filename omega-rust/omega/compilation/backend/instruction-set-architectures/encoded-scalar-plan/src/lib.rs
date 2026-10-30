@@ -81,6 +81,10 @@ pub fn plan(load: bool, registers: [u8; 6], finish: Step) -> Vec<Step> {
     }
 }
 
+/// The two sweeps both instruction sets' encoded-scalar tests run.
+#[cfg(feature = "test-support")]
+pub mod harness;
+
 /// Replay of a decoded codec stream: the ISA crates' encoder tests run the
 /// program a stream decodes to, and check the bytes it touches.
 #[cfg(feature = "test-support")]

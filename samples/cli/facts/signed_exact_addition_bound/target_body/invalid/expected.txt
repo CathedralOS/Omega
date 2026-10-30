@@ -1,1 +1,1 @@
-cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40
+cannot prove requires contract for call consume_margin from X86Probe::target_probe: margin >= 0 && margin <= 40

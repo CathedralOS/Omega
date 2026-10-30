@@ -2,8 +2,9 @@ use package_source::SourceLineage;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
+/// One package's authored name, validated as an Omega project name.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct PackageName(String);
+pub struct PackageName(String);
 
 impl PackageName {
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
@@ -53,7 +54,7 @@ impl AliasName {
 
 /// Stable nominal identity: authored name plus canonical source lineage.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct PackageKey {
+pub struct PackageKey {
     name: PackageName,
     source_lineage: SourceLineage,
 }

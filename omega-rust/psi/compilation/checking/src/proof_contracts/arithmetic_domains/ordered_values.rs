@@ -29,7 +29,7 @@ use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
 mod congruence;
-pub(super) use congruence::{ValueComparison, same_value};
+pub(super) use congruence::ValueComparison;
 mod match_joins;
 mod requirements;
 mod storage;
@@ -62,6 +62,10 @@ pub(crate) enum Operand {
     },
     /// One completed runtime event, not a denotation reconstructed from its
     /// operands. Its inputs need not themselves be arithmetic observations.
+    ///
+    /// The difference-graph tests are the only constructors: the variant is
+    /// present in the configuration that names it and absent from the lib.
+    #[cfg(test)]
     CompletedCall {
         target: SymbolHandle,
         occurrence: ExpressionHandle,
@@ -201,6 +205,7 @@ impl Operand {
             Self::Call { arguments, .. } => arguments
                 .iter()
                 .all(|value| value.is_immutable_snapshot(program, state)),
+            #[cfg(test)]
             Self::CompletedCall { .. } => false,
             Self::Binary { operands, .. } => operands
                 .iter()
@@ -252,6 +257,7 @@ impl Operand {
             Self::Call { arguments, .. } => {
                 arguments.iter().all(|value| value.survives_paths(written))
             }
+            #[cfg(test)]
             Self::CompletedCall { .. } => written.is_empty(),
             Self::CollectionLength(collection) => collection.survives(written),
             Self::Indexed {
@@ -316,6 +322,7 @@ impl Operand {
             // A raw runtime event is local to this evaluation. Only an exact
             // direct binding above can carry its completed value across a state
             // edge; argument rebinding cannot recreate another invocation.
+            #[cfg(test)]
             Self::CompletedCall { .. } => Vec::new(),
             Self::Call {
                 target, arguments, ..
@@ -371,32 +378,6 @@ impl Operand {
 }
 
 impl Relation {
-    /// A constant comparison on the exact observed operand. Display paths are
-    /// invalidation metadata, never enough to match a relation to a read.
-    fn literal_comparisons(
-        &self,
-        subject: &Operand,
-        comparison: &mut ValueComparison<'_>,
-    ) -> [Option<(i64, RelationConstraint, bool)>; 2] {
-        [
-            (&self.left, &self.right, true),
-            (&self.right, &self.left, false),
-        ]
-        .map(|(candidate, opposite, subject_on_left)| {
-            let Operand::Integer(literal, _) = opposite else {
-                return None;
-            };
-            let constant = literal.value_i64()?;
-            // Only a representable literal can contribute a bound here. Do
-            // not build an equality graph for a relation this query cannot use.
-            comparison.same_value(subject, candidate).then_some((
-                constant,
-                self.constraint,
-                subject_on_left,
-            ))
-        })
-    }
-
     pub(super) fn minimum_difference(&self) -> Option<i64> {
         match self.constraint {
             RelationConstraint::MinimumDifference(floor) => Some(floor),
@@ -1153,13 +1134,17 @@ pub(super) fn subtract_floor_limited(
     let (Some(left_operand), Some(right_operand)) = (left_named, right_named) else {
         return None;
     };
-    let mut comparison = ValueComparison::new(&environment.ordered_values);
+    // Each operand owns its closure over this unchanged relation scan.
+    let mut left_comparison =
+        congruence::EqualityQuery::new(&environment.ordered_values, &left_operand, &left_operand);
+    let mut right_comparison =
+        congruence::EqualityQuery::new(&environment.ordered_values, &right_operand, &right_operand);
     environment
         .ordered_values
         .iter()
         .filter(|relation| {
-            comparison.same_value(&left_operand, &relation.left)
-                && comparison.same_value(&right_operand, &relation.right)
+            left_comparison.same_value(&left_operand, &relation.left)
+                && right_comparison.same_value(&right_operand, &relation.right)
         })
         .filter_map(Relation::minimum_difference)
         .max()
@@ -1233,7 +1218,8 @@ pub(super) fn refine_place_interval(
     else {
         return interval;
     };
-    let mut comparison: Option<ValueComparison<'_>> = None;
+    // Every candidate is a relation endpoint, already in this subject's closure.
+    let mut comparison: Option<congruence::EqualityQuery<'_>> = None;
     for exact_only in [true, false] {
         for relation in &environment.ordered_values {
             let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
@@ -1273,7 +1259,11 @@ pub(super) fn refine_place_interval(
                     &subject != candidate
                         && comparison
                             .get_or_insert_with(|| {
-                                ValueComparison::new(&environment.ordered_values)
+                                congruence::EqualityQuery::new(
+                                    &environment.ordered_values,
+                                    &subject,
+                                    &subject,
+                                )
                             })
                             .same_value(&subject, candidate)
                 };
@@ -1360,7 +1350,9 @@ fn operand_carrier_bound(
         Operand::Indexed { primitive, .. } | Operand::Field { primitive, .. } => {
             primitive.and_then(primitive_range).map(|range| range.high)
         }
-        Operand::Call { .. } | Operand::CompletedCall { .. } => None,
+        Operand::Call { .. } => None,
+        #[cfg(test)]
+        Operand::CompletedCall { .. } => None,
     }
 }
 

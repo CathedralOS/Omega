@@ -14,12 +14,12 @@ pub use candidate::CompileResolvedPackageReviewsError;
 pub use candidate::PackageReviewCacheWrite;
 pub(crate) use candidate::{
     CandidateReview, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
-    PackageSourceBindings, PackageSourceVerificationPhase, review_resolved_packages,
+    PackageSourceBindings, review_resolved_packages,
 };
 pub use candidate::{
     PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,
     PackageReviewOccurrence, PackageReviewPass, PackageReviewRound, PackageReviewWork,
-    RetainedPackageReviews,
+    PackageSourceVerificationPhase, RetainedPackageReviews,
 };
 pub(crate) use compare::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
@@ -32,3 +32,4 @@ pub(crate) use decision::{
     ReviewOnlyRootPolicyDisposition, recover_package_policy_review, render_package_policy_review,
 };
 pub(crate) use restricted_build_grants::RestrictedBuildCheckpoint;
+pub use restricted_build_grants::UngrantedRestrictedBuildRequest;

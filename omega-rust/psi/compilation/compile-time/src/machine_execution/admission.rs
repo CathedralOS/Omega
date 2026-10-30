@@ -416,8 +416,8 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<Self, String> {
-        crate::validate_selected_operators(program, operators)?;
-        self.selected_operators = operators.to_vec();
+        self.selected_operators =
+            super::selected_operators::retain_specialized_operators(program, operators)?;
         self.checked_closures.borrow_mut().clear();
         Ok(self)
     }
@@ -567,6 +567,11 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine_symbol: SymbolHandle,
     ) -> Result<std::rc::Rc<(CheckedTrees, Self)>, String> {
+        // Demand projection removes unrelated executable owners, not evidence
+        // validation. Authenticate every supplied row on its producing graph
+        // before selecting the portion that the checked closure consumes.
+        crate::validate_selected_operators(program, &self.selected_operators)?;
+        crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
         let program_key = (
             std::ptr::from_ref(program) as usize,
             program.machines().len(),
@@ -596,13 +601,13 @@ impl BuildTimeAdmissionPlan {
             &roots,
             &[],
         );
-        if let Some(cached) = self
-            .checked_closures
-            .borrow()
-            .iter()
-            .find_map(|(key, cached_domain, result)| {
-                (*key == program_key && *cached_domain == domain).then(|| result.clone())
-            })
+        if let Some(cached) =
+            self.checked_closures
+                .borrow()
+                .iter()
+                .find_map(|(key, cached_domain, result)| {
+                    (*key == program_key && *cached_domain == domain).then(|| result.clone())
+                })
         {
             let pair = cached?;
             concrete_invocation::require_complete_invocation_conditions(&pair.0, machine_symbol)?;
@@ -611,9 +616,31 @@ impl BuildTimeAdmissionPlan {
         let computed = (|| {
             let checked = concrete_invocation::checked_demanded_closure(&domain, program)?;
             let execution = checked.typed.as_ref();
+            let references = typed_trees::references::collect_program_references(execution);
+            let operators = self
+                .selected_operators
+                .iter()
+                .filter(|row| {
+                    row.origin
+                        .machine_symbol()
+                        .is_some_and(|owner| execution.machine(owner).is_some())
+                        && references.expressions.contains(&row.expression)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            // Keep a surviving family or body edge so a partial projection
+            // refuses below instead of silently dropping its selected meaning.
+            let machine_bodies = self
+                .selected_machine_bodies
+                .iter()
+                .filter(|row| {
+                    execution.machine(row.family).is_some() || execution.machine(row.body).is_some()
+                })
+                .copied()
+                .collect::<Vec<_>>();
             let admission = Self::infer(execution, self.selection_authority.clone())
-                .with_selected_operators(execution, &self.selected_operators)?
-                .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
+                .with_selected_operators(execution, &operators)?
+                .with_selected_machine_bodies(execution, &machine_bodies)?;
             Ok(std::rc::Rc::new((checked, admission)))
         })();
         self.checked_closures
@@ -929,7 +956,10 @@ impl BuildTimeAdmissionPlan {
                 self.require_common_floor_for_invocation(program, machine, custody)?;
             }
             BuildTimeProgram::Checked(checked) => {
-                concrete_invocation::require_complete_invocation_conditions(checked, machine.symbol)?;
+                concrete_invocation::require_complete_invocation_conditions(
+                    checked,
+                    machine.symbol,
+                )?;
                 self.require_floor(input, machine, Some(custody), false)?;
             }
         }
@@ -1007,7 +1037,6 @@ impl BuildTimeAdmissionPlan {
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
                 BuildMachineEvaluationRequest {
-                    product_entry_compatibility: None,
                     operators: &self.selected_operators,
                     machine_bodies: &self.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
@@ -1102,14 +1131,13 @@ impl BuildTimeAdmissionPlan {
         custody: BuildTimeInvocationCustody,
     ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
         match input {
-            BuildTimeProgram::Typed(program) => self
-                .evaluate_const_evaluable_invocation_measured(
-                    program,
-                    machine_symbol,
-                    arguments,
-                    custody,
-                    false,
-                ),
+            BuildTimeProgram::Typed(program) => self.evaluate_const_evaluable_invocation_measured(
+                program,
+                machine_symbol,
+                arguments,
+                custody,
+                false,
+            ),
             BuildTimeProgram::Checked(checked) => {
                 let program = checked.typed.as_ref();
                 let matching: Vec<_> = program
@@ -1126,7 +1154,10 @@ impl BuildTimeAdmissionPlan {
                     &arguments,
                     Some(custody),
                 );
-                concrete_invocation::require_complete_invocation_conditions(checked, machine_symbol)?;
+                concrete_invocation::require_complete_invocation_conditions(
+                    checked,
+                    machine_symbol,
+                )?;
                 self.require_floor(
                     BuildTimeProgram::Checked(checked),
                     machine,
@@ -1138,7 +1169,6 @@ impl BuildTimeAdmissionPlan {
                     .evaluate(
                         checked_interpreter::BuildMachineProgram::Checked(checked),
                         BuildMachineEvaluationRequest {
-                            product_entry_compatibility: None,
                             operators: &self.selected_operators,
                             machine_bodies: &self.selected_machine_bodies,
                             ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
@@ -1186,9 +1216,8 @@ impl BuildTimeAdmissionPlan {
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Checked(checked),
                 BuildMachineEvaluationRequest {
-                    product_entry_compatibility: None,
-                    operators: &self.selected_operators,
-                    machine_bodies: &self.selected_machine_bodies,
+                    operators: &admission.selected_operators,
+                    machine_bodies: &admission.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
                 },
             )

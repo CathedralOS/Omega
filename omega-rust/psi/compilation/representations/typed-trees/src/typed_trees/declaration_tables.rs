@@ -650,6 +650,28 @@ impl TypedTrees {
             .find(|declaration| declaration.symbol == symbol)
     }
 
+    /// The constant whose complete initializer is evaluated by this entry.
+    /// Generated spelling and source-span equality do not establish ownership.
+    /// Preparation may replace the machine row while retaining its symbol, so
+    /// the detached declaration handle identifies the entry, not its latest body.
+    pub fn const_declaration_for_evaluation_entry(
+        &self,
+        entry: symbols::SymbolHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        if !entry.is_valid() {
+            return None;
+        }
+        self.const_declarations().iter().find(|declaration| {
+            self.tables.machines.is_valid(declaration.evaluation_entry)
+                && self
+                    .tables
+                    .machines
+                    .get(declaration.evaluation_entry)
+                    .symbol
+                    == entry
+        })
+    }
+
     /// The declaration selected by this substituted value occurrence. An alias
     /// retains transitive initializer selections, but only the current authored
     /// use supplies its complete declared type and proved qualification.

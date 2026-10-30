@@ -225,27 +225,27 @@ pub struct ProductDeclarationOperand {
 }
 
 impl ProductDeclarationRequest {
-    pub fn validate_shape(&self) -> Result<(), &'static str> {
+    pub fn validate_shape(&self) -> Result<(), String> {
         if !self
             .operation
             .product_operand_count_valid(self.operands.len())
         {
-            return Err("Build product request has the wrong declaration operand count");
+            return Err("Build product request has the wrong declaration operand count".into());
         }
         if self.source_span.span.start >= self.source_span.span.end {
-            return Err("Build product request has no authored occurrence");
+            return Err("Build product request has no authored occurrence".into());
         }
         for (position, operand) in self.operands.iter().enumerate() {
             if operand.path.is_empty()
                 || operand.source_span.span.start >= operand.source_span.span.end
             {
-                return Err("Build product operand has no authored declaration locator");
+                return Err("Build product operand has no authored declaration locator".into());
             }
             if self.operation.product_operand_role(position)
                 == Some(ProductOperandRole::WireCompatibilityFact)
             {
                 let fact = crate::wire::WireCompatibilityFact::from_name(&operand.path)
-                    .ok_or("Build wire demand names an unknown compatibility fact")?;
+                    .ok_or_else(|| format!("unknown wire compatibility fact `{}`", operand.path))?;
                 if self.operands[..position]
                     .iter()
                     .enumerate()
@@ -256,7 +256,10 @@ impl ProductDeclarationRequest {
                                 == Some(fact)
                     })
                 {
-                    return Err("Build wire demand repeats a compatibility fact");
+                    return Err(format!(
+                        "wire compatibility fact `{}` is requested twice",
+                        operand.path
+                    ));
                 }
             }
         }
@@ -468,6 +471,7 @@ mod native_formation_tests {
                 source_span: Default::default(),
                 operation: BuildOperation::NativeBinding,
                 operands: vec![ProductDeclarationOperand {
+                    application: None,
                     path: "Raw::read".into(),
                     source_span: Default::default(),
                 }]

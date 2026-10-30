@@ -9,4 +9,8 @@ name = "encoded_scalar_plan"
 path = "src/lib.rs"
 
 [features]
-test-support = []
+test-support = ["dep:register-model", "dep:selected-instructions"]
+
+[dependencies]
+register-model = { path = "../../register-model", optional = true }
+selected-instructions = { path = "../../../representations/selected-instructions", optional = true }

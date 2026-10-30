@@ -20,6 +20,9 @@ use crate::unit::lower_unit_plan_machine;
 /// closed.
 #[derive(Debug, Clone, Copy)]
 pub enum TerminalMachineSelection<'a> {
+    /// Retain declarations and their evaluation work without choosing a default
+    /// executable. Explicit roots still retain real bodies.
+    Declarations,
     Name(&'a str),
     Symbol(symbols::SymbolHandle),
 }
@@ -31,6 +34,9 @@ pub fn select_terminal_machine<'checked>(
 ) -> Result<&'checked CheckedTerminalMachineSelection, LoweringError> {
     let mut machines = checked.facts.flow.terminal_machines.machines.iter();
     match machine {
+        TerminalMachineSelection::Declarations => Err(LoweringError::Unsupported(
+            "declaration production has no selected entry",
+        )),
         TerminalMachineSelection::Name(machine_name) => {
             let mut matches = machines.filter(|machine| machine.name == machine_name);
             let selection = matches

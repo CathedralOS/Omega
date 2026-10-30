@@ -14,7 +14,7 @@ use typed_trees::name::Identifier;
 /// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
 /// data value. Comparing an enum value against a case constant compares ONLY
 /// this prefix (tag-only equality); payload bytes never participate.
-pub(crate) const ENUM_TAG_BYTES: usize = 4;
+pub(crate) const ENUM_TAG_BYTES: usize = runtime_abi::CASE_TAG_BYTE_SIZE as usize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {

@@ -7,9 +7,8 @@ valid, but prior migrations remain unaudited because many generated nominal
 domains where a contextual proposition was intended.
 
 The removed spelling is `T [min..=max]` / `T [min..max]` on scalar type
-positions. One proposition surface replaces it: data/common fields use data
-`where`, case payloads use case `where`, machine/state parameters use
-`requires`, results use `ensures`, and locals retain facts established by their
+positions. One proposition surface replaces it: data/common fields and guarded case-payload relationships use data
+`requires`, machine parameters use `requires`, results use `ensures`, and locals retain facts established by their
 initializer, guards, and calls. `T in Domain` is not generic range sugar; use it
 only when that exact named domain identity is independently part of the API.
 
@@ -22,11 +21,11 @@ the canonical clauses, and the parser/representation path is removed.
 |---|---|---|
 | `-> T [lo..=hi]` | `-> T` + `ensures result >= lo && result <= hi` | Result bounds are published postconditions. Use `-> T in D` only when the exact named domain is independently required. |
 | returned conversion `value as T [lo..=hi]` | bare Exact cast plus the owning result's `ensures` | Preserve the demanded output predicate separately from the cast's independent representability and denotation obligations. |
-| parameter/state parameter `x: T [lo..=hi]` | `x: T` + `requires x >= lo && x <= hi` | Callers prove callable preconditions; ranges are not parameter type identity. |
-| common field `f: T [lo..=hi]` | `f: T` plus data `where f >= lo && f <= hi` | The relation is part of the containing value's default domain. |
-| case payload `case X(v: T [lo..=hi])` | `case X(v: T) where v >= lo && v <= hi` | The relation exists only for the active case. |
+| machine parameter `x: T [lo..=hi]` | `x: T` + `requires x >= lo && x <= hi` | Callers prove callable preconditions; ranges are not parameter type identity. |
+| common field `f: T [lo..=hi]` | `f: T` plus data `requires f >= lo && f <= hi` | The relation is part of the containing value's default domain. |
+| case payload `case X(v: T [lo..=hi])` | `case X(v: T)` plus a guarded data `requires` predicate | The relation exists only for the active case. |
 | local `let v: T [lo..=hi] = source` | `let v: T = source` | The initializer must already establish the facts. Preserve a needed bound through the producer's contract or a checked guard; the annotation cannot assert it. |
-| `T [lo..hi]` (exclusive) | `value >= lo && value < hi` | Use the owning `where`/`requires`/`ensures` clause. |
+| `T [lo..hi]` (exclusive) | `value >= lo && value < hi` | Use the owning `requires`/`ensures` clause. |
 | parameter `x: T [0..=self.n]` | `x: T` + `requires x <= self.n` | Runtime-dependent endpoints are ordinary call propositions. |
 | generic range shell used to infer `N` | explicit binder/equation, or intentional indexed domain | Anonymous interval propositions are not structural type identity. Supply `N` explicitly when no exact declaration structure determines it. |
 
@@ -68,22 +67,107 @@ Do not use later reduced occurrence counts as completion evidence: they include
 unaudited rewrites. Completion requires the history-derived inventory to record
 each original declaration and its canonical replacement.
 
-The live surface at `abda3e427bc` is four `.omg` uses, and every one of them is
-retained for a measured reason rather than an unaudited rewrite:
+The four-use census at `abda3e427bc` is historical, not the current frontier.
+The provider-dependent contract endpoints now use ordinary `requires`; their
+constant-recipe work roots and publication route are covered by
+[`provider_contract_endpoint`](../../../samples/cli/facts/provider_contract_endpoint/README.md).
+Do not rebuild that repair or replace those clauses with nominal domains.
+The mathematical constrained-formal negative still keeps its suffix until
+parser deletion can turn it into a parse-refusal pin.
 
-| Live use | Why it cannot migrate yet |
-|---|---|
-| `pass/providers/provider_const_endpoint:26`, `pass/comptime/provider_boundary_range_endpoint_exit:33`, `fail/comptime/recipe_endpoint_membership_refused_at_closure:26` | `requires <param> <= limit()` needs the clause endpoint closed for the caller, and a contract clause has no recipe position: the three retained positions are discovered as type-reference work roots. Compiler gap, not a language decision — the decision table already calls a runtime-dependent endpoint an ordinary call proposition. |
-| `fail/proofs/mathematical_constrained_scalar_formal:2` | The negative pin for a range-constrained mathematical formal. Its canonical domain-constraint replacement is *accepted*, so retargeting erases the pinned refusal instead of migrating it. It becomes a parse-refusal pin when the parser deletion lands. |
+At `cf0881cf9aa0e7a1c98e6d7eabe41f1010223ca6`, a primitive-scalar census found
+566 suffix occurrences in 159 files. This is a discovery count, not a full
+historical audit or evidence that named/generic suffixes are absent. The
+runtime-index cohort below accounts for 536 occurrences: 268 in authored
+samples and 268 in their exact corpus pins. Other source migrations, the
+historical audit and the shared range parser/representation deletion remain
+open under the parent task.
 
-The parser path, `TypeConstraintNode::Range` and the range-shell inference stay
-while those four spell the suffix. The constraint node carries no position
-information, so no sub-position can be removed ahead of them, and no diagnostic
-recommends the revoked spelling. Closing the provider-dependent position needs a
-contract-expression work-root class in the constant-recipe machinery plus a
-fold-publication site in the contract fact, feeding the existing
-`evaluate_pending` continuation and the existing `constant_recipe_obligations.rs`
-discharge; the obligation row itself (`AtLeast`/`AtMost`) already exists.
+Historical audit sections below record the clauses used by their original
+landings, including then-current `where` syntax. They do not authorize that
+retired spelling for new source. The canonical replacement is data `requires`;
+`REQUIRES-UNIFICATION` owns the remaining source and grammar retirement.
+
+## Audited runtime-index application productions
+
+Migration base: `cf0881cf9aa0e7a1c98e6d7eabe41f1010223ca6`. Paths below are
+under [`samples/cli/facts/runtime_index_application`](../../../samples/cli/facts/runtime_index_application/README.md).
+Each listed declaration occurs in both `<place>/main.omg` and its
+`<place>/invalid/main.omg` twin. Corpus pins are byte-identical under
+`tests/omega/{pass,fail}/facts/runtime_index_application_<production>_through_<place>_{exit,rejected}`.
+The twin changes only constructed payload 8 to 10; it retains every bound,
+producer operation and mutable flag observation.
+
+Machine inputs keep their scalar carriers and move their complete intervals to
+`requires`. Result bounds move to `ensures result`; receiving locals rely on
+the initializer's checked facts. `Bounds.total` moves to data `requires`.
+Named `Minimum`/`Maximum` endpoints remain named in `const_name`. Existing
+postconditions such as `result == total + 1` remain alongside the migrated
+interval. The intentional `AtMost<Max>` indexed domain in `qualified_computed`
+is retained: its exact domain identity and explicit weakening are independent
+of the anonymous interval removed here.
+
+The inventory names every old declaration below. `probe` in `target_body`
+denotes each of its four original hosted bodies; the replacement is one
+boundary requirement plus four explicit named implementations selected by
+Build. These pure implementations introduce no runtime service or authority.
+Counts include positives and reject twins, and exclude matching corpus copies.
+
+### `computed_result`
+
+| Place | Historical declarations and suffixes | Positions, including twin |
+| --- | --- | --- |
+| `local` | `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]`; `total: let total:u32[8..=9]` | 8 |
+| `field` | `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]`; `Bounds.total: data Bounds [copy] {total:u32[8..=9];}` | 8 |
+| `parameter` | `probe.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]` | 6 |
+| `call_result` | `probe.input: input:u32[8..=9]`; `retain.input: input:u32[8..=9]`; `retain.result: ->u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]` | 10 |
+| `match_join` | `probe.first: first:u32[8..=9]`; `probe.second: second:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]`; `total: let total:u32[8..=9]` | 10 |
+| `const_name` | `probe.total: total:u32[Minimum..=Maximum]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]` | 6 |
+| `other_state` | `next.total: total:u32[8..=9]`; `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]` | 8 |
+| `other_machine` | `probe.input: input:u32[8..=9]`; `forward.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]` | 8 |
+| `target_body` | `probe.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `produce.total: total:u32[8..=9]` | 12 |
+
+### `mutating_operator`
+
+| Place | Historical declarations and suffixes | Positions, including twin |
+| --- | --- | --- |
+| `local` | `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `total: let total:u32[8..=9]` | 6 |
+| `field` | `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `Bounds.total: data Bounds [copy] {total:u32[8..=9];}` | 6 |
+| `parameter` | `probe.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]` | 4 |
+| `call_result` | `probe.input: input:u32[8..=9]`; `retain.input: input:u32[8..=9]`; `retain.result: ->u32[8..=9]`; `construct.total: total:u32[8..=9]` | 8 |
+| `match_join` | `probe.first: first:u32[8..=9]`; `probe.second: second:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `total: let total:u32[8..=9]` | 8 |
+| `const_name` | `probe.total: total:u32[Minimum..=Maximum]`; `construct.total: total:u32[8..=9]` | 4 |
+| `other_state` | `next.total: total:u32[8..=9]`; `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]` | 6 |
+| `other_machine` | `probe.input: input:u32[8..=9]`; `forward.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]` | 6 |
+| `target_body` | `probe.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]` | 10 |
+
+### `ordinary_call`
+
+| Place | Historical declarations and suffixes | Positions, including twin |
+| --- | --- | --- |
+| `local` | `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]`; `total: let total:u32[8..=9]` | 8 |
+| `field` | `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]`; `Bounds.total: data Bounds [copy] {total:u32[8..=9];}` | 8 |
+| `parameter` | `probe.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]` | 6 |
+| `call_result` | `probe.input: input:u32[8..=9]`; `retain.input: input:u32[8..=9]`; `retain.result: ->u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]` | 10 |
+| `match_join` | `probe.first: first:u32[8..=9]`; `probe.second: second:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]`; `total: let total:u32[8..=9]` | 10 |
+| `const_name` | `probe.total: total:u32[Minimum..=Maximum]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]` | 6 |
+| `other_state` | `next.total: total:u32[8..=9]`; `probe.input: input:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]` | 8 |
+| `other_machine` | `probe.input: input:u32[8..=9]`; `forward.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]` | 8 |
+| `target_body` | `probe.total: total:u32[8..=9]`; `construct.total: total:u32[8..=9]`; `count.total: total:u32[8..=9]` | 12 |
+
+### `qualified_computed`
+
+| Place | Historical declarations and suffixes | Positions, including twin |
+| --- | --- | --- |
+| `local` | `probe.input: input:u64[8..=9]`; `construct.total: total:u64[8..=9]`; `total: let total:u64[8..=9]` | 6 |
+| `field` | `probe.input: input:u64[8..=9]`; `construct.total: total:u64[8..=9]`; `Bounds.total: data Bounds [copy] {total:u64[8..=9];}` | 6 |
+| `parameter` | `probe.total: total:u64[8..=9]`; `construct.total: total:u64[8..=9]` | 4 |
+| `call_result` | `probe.input: input:u64[8..=9]`; `retain.input: input:u64[8..=9]`; `retain.result: ->u64[8..=9]`; `construct.total: total:u64[8..=9]` | 8 |
+| `match_join` | `probe.first: first:u64[8..=9]`; `probe.second: second:u64[8..=9]`; `construct.total: total:u64[8..=9]`; `total: let total:u64[8..=9]` | 8 |
+| `const_name` | `probe.total: total:u64[Minimum..=Maximum]`; `construct.total: total:u64[8..=9]` | 4 |
+| `other_state` | `next.total: total:u64[8..=9]`; `probe.input: input:u64[8..=9]`; `construct.total: total:u64[8..=9]` | 6 |
+| `other_machine` | `probe.input: input:u64[8..=9]`; `forward.total: total:u64[8..=9]`; `construct.total: total:u64[8..=9]` | 6 |
+| `target_body` | `probe.total: total:u64[8..=9]`; `construct.total: total:u64[8..=9]` | 10 |
 
 ## Audited whole-slice customer
 
@@ -255,6 +339,35 @@ still retains an extra or overwriting decision for policy rejection, rather
 than silently ignoring it. `layouts/access_plan_inaccessible_seed` and
 `layouts/placed_view_source_access_compile` exercise the public construction
 route and repeated replacement; they do not claim a hosted runtime entry.
+
+## Audited filesystem parameter history
+
+The original 16 positions at `7a9a7b8287` are four `name_len` parameters in
+each `std/targets/{linux_arm64,linux_x86_64,macos_arm64,macos_x86_64}/filesystem_impl.omg`.
+Commit `b3bc01f500a7` replaces every `u64[0..=255]` with bare `u64` and
+`requires name_len <= 255`; the unsigned carrier retains the zero lower bound.
+Provider consolidation (`6d0b8da07bdd`, `323fbc4788cd`) moves their operations
+to the shared [POSIX adapter](../../../source/library/std/posix_filesystem_adapter.omg).
+
+| Original declaration in each of four targets | Current shared declaration | Preserved requirement |
+| --- | --- | --- |
+| `rds_rm_child_go.name_len` | `posix_filesystem_rda_step::rds_rm_child_go.name_len` | `name_len <= 255` |
+| `rds_kind.name_len` | `posix_filesystem_rda_step::rds_kind.name_len` | `name_len <= 255` |
+| `rds_unlink.name_len` | `posix_filesystem_rda_step::rds_unlink.name_len` | `name_len <= 255` |
+| `rds_descend.name_len` | `posix_filesystem_rda_step::rds_descend.name_len` | `name_len <= 255` |
+
+Commit `e95da6c81fa8` canonicalizes a later, different 16-position filesystem
+cohort: ten shared-adapter parameters (five name-length and five release-stack
+parameters), plus six directory-offset results across Linux ARM64, Linux x86-64
+and macOS ARM64. Those results retain `18 <= result <= 20` or
+`19 <= result <= 21` as `ensures`. Its count is not the original 16-parameter
+inventory; its additional callback parameter is outside both filesystem counts.
+
+This reconciles source positions, not complete filesystem execution acceptance.
+Matching-host native/Terminal service and occurrence-bound release obligations
+remain under **FILESYSTEM-PLATFORM-SERVICES**. Historical compile/native records
+do not establish all of them or authorize parser retirement; the parent still
+requires the remaining customer audit and applicable runtime evidence.
 
 ## Audited IEEE conversion contracts
 
@@ -520,3 +633,51 @@ case. The regression also separates resolved field identities from same-named
 module constants and carries an applied generic command through parameters,
 results and ordinary local storage. Mathematical contract arithmetic never
 saturates to fit the checker's finite interval endpoints.
+
+## Remaining scalar customers after the runtime-index cohort
+
+Audit base: `82512cd792cbdab6abd3da32ba6987362e0b1f50`. Its primitive-scalar
+census found 30 positions in 15 files. This batch accounts for 29 positions;
+`fail/proofs/mathematical_constrained_scalar_formal` remains a suffix customer
+until parser retirement. The count is not the history-derived audit or parent
+acceptance.
+
+| Customer and original declaration | Canonical replacement |
+| --- | --- |
+| `static_callback_reach/field` positive/twin and their exact corpus pins: `Carrier.value: u64[0..=37]` (4 positions) | Bare field; data `requires value >= 0 && value <= 37`. The selected callback must establish the construction bound. Extra reach remains the twin's only difference. |
+| `pass/build/native_component_case_cycle/producer`: `Decision::Ready.index`, `observe.index`, `poll.index`, `step.index`, `waited.index` (5) | Guarded complete-data `requires` for Ready; identical 1..16 machine requirements. |
+| `pass/build/native_component_case_loan_cycle/producer`: `Decision::Ready.index`, `observe.index`, `poll.index`, `forwarded.index/result`, `step.index`, `advance.index`, `waited.index` (8) | Same guarded data and input requirements; `forwarded` publishes 1..16 with `ensures`. Independent component verification, payload loan, pause and 16-iteration oracles remain. |
+| `fail/borrows/returned_reference_exposed_integer_local`: `install_one.value`, `choose.position`, `selected_position` (3) | Bare carriers, `install_one` requires value <= 1, existing `choose` position < 2, and initializer facts. The returned loan must still reject the conflicting write. |
+| `pass/generics/runtime_computed_direct_result_exit`: `create.total`, `probe.total` (2) | Ordinary 0..100 input requirements; retain `Index<(total+1)>` and observed result 4. |
+| `pass/generics/runtime_value_recipe_bounded_declaration`: `Contract::unused.total` (1) | Bare input and complete 0..100 requirement; retain computed result declaration. |
+| `fail/generics/runtime_value_recipe_range_after_write`: `invalid.input` (1) | 0..100 input requirement. Overwriting with the same maximum, now `0xffff_ffff`, must still make exact +1 reject. |
+| `target_layout_derived_constant/controls/qualified` and `fail/constants/target_layout_derived_qualified_reject`: `BAD: u64[0..=3]` (2) | Bare constant through `bounded_layout(value)` requiring value <= 3. The selected geometry still produces 5 or 9 and rejects that actual false bound. A bound of 9 supplies the valid counterpart; no nominal interval domain is introduced. |
+| `fail/generics/runtime_value_recipe_refined_carrier`: `Index.Count` (1) | Retired test. Mentioning unused, unconstructed `Index<0>` has no canonical carrier-mismatch obligation. Keep actual wrong-carrier and establishment controls. |
+| `fail/generics/runtime_value_recipe_range_self_cast`: local and cast target (2) | Retired range-shell test. Keep the intentional named-domain `qualified_unproved`, exact `unused_overflow`, and stale `range_after_write` controls. |
+
+The two retired obligations exist only in the removed scalar suffix surface
+([declaration and membership](../../spec/language/domains.md#declaration-and-membership)).
+Their fixture files and any recorded outcome blocks are removed together;
+existing independent controls retain the surviving obligations. Neither an
+unsupported qualified constant nor an arbitrary nominal interval replaces them.
+
+The canonical component customers expose the same general fact transports:
+formed conjunctions retain their independently justified case guard; closed
+callbacks read their retained invocation contract scope; completed shared
+bindings retain the exact current observation after an earlier write. Later
+writes still retire observations. These are repairs of existing owners, not
+new range-specific inference routes. The existing nine-place
+`case_where_equality/data_predicate` row also carries an equivalent `u64`
+`lo >= 0` conjunct before its equality call, retaining the same equality and
+`hi - lo` operation without creating another row.
+
+Qualification producer: `ba4c5b471bb80e396b6084495a267aa4e6194951`, macOS
+ARM64, optimized development profile. All nine callback places and nine
+case-equality places, both component customers, both generic customers, and
+four existing contract/snapshot controls execute with native/Terminal agreement
+(26 programs; the snapshot retains exit 70, the others exit 0). The focused
+corpus records those 26 runtime oracles and 38 intended rejection diagnostics.
+The unrelated closed-local-types callback control still refuses its static
+binder on the pre-repair producer too; it is retained as nonaccepted baseline
+evidence, not a passing control. This does not close the parent migration or
+claim execution on another host.

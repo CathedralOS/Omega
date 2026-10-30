@@ -38,18 +38,19 @@ pub(crate) fn is_named_operator_namespace(
         // A settled result overload already owns its declaration. Authenticating
         // its namespace must not reselect the overloaded family by spelling and
         // mistake ordinary result dispatch for a data receiver.
-        program.operator_parameters(operator).len() == argument_count
-            && program
-                .operator_path_members(operator.name)
-                .split_last()
-                .is_some_and(|(member, prefix)| {
-                    member.as_str() == target
-                        && prefix.len() == namespace.len()
-                        && prefix
-                            .iter()
-                            .zip(namespace)
-                            .all(|(expected, actual)| expected.as_str() == *actual)
-                })
+        // Arity belongs to ordinary argument validation: a bad operand count
+        // cannot turn an exactly selected declaration namespace into storage.
+        program
+            .operator_path_members(operator.name)
+            .split_last()
+            .is_some_and(|(member, prefix)| {
+                member.as_str() == target
+                    && prefix.len() == namespace.len()
+                    && prefix
+                        .iter()
+                        .zip(namespace)
+                        .all(|(expected, actual)| expected.as_str() == *actual)
+            })
     })
 }
 

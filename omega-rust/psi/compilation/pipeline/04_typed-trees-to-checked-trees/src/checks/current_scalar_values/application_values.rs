@@ -11,96 +11,6 @@ use validation::{
 };
 
 impl CurrentScalarValues<'_> {
-    /// By-value records arrive with their own scalar and descriptor words.
-    /// Seed independent observations for inline fields; never walk through a
-    /// borrowed record into storage whose contents another owner may change.
-    pub(super) fn seed_parameter_fields(&mut self) {
-        for parameter in self.program.state_parameters(self.state) {
-            let mut pending = vec![(parameter.type_reference, Vec::new(), 0usize)];
-            while let Some((reference, path, depth)) = pending.pop() {
-                if depth >= 64 {
-                    continue;
-                }
-                let identity = format!(
-                    "state:{:?}:parameter:{:?}:field:{path:?}",
-                    self.state.symbol, parameter.symbol
-                );
-                if let Some(value) =
-                    super::fixed_length(self.program, reference, || format!("{identity}:length"))
-                {
-                    if !path.is_empty() {
-                        self.lengths.push(super::Length {
-                            subject: super::LengthSubject::Field {
-                                owner: parameter.symbol,
-                                path,
-                            },
-                            name: String::new(),
-                            stable: false,
-                            type_reference: reference,
-                            value: Some(value),
-                        });
-                    }
-                    continue;
-                }
-                if let Some(carrier) = super::integer_carrier(self.program, reference) {
-                    if !path.is_empty() {
-                        self.fields
-                            .push(super::scalar_fields::ScalarField::for_owner(
-                                self.program,
-                                parameter.symbol,
-                                super::scalar_fields::CapturedScalarField {
-                                    path,
-                                    carrier,
-                                    value: ScopedArithmeticValue::Atom {
-                                        identity,
-                                        unsigned: super::unsigned(carrier),
-                                    },
-                                },
-                            ));
-                    }
-                    continue;
-                }
-                let reference = self
-                    .program
-                    .type_reference_table
-                    .unconstrained_type_reference(reference);
-                if matches!(
-                    self.program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::Reference { .. }
-                ) {
-                    continue;
-                }
-                let Some(data) =
-                    self.program
-                        .data_application_definition(reference)
-                        .or_else(|| {
-                            self.program
-                                .type_reference_table
-                                .type_head_symbol(reference)
-                                .and_then(|symbol| self.program.data_definition_by_symbol(symbol))
-                        })
-                else {
-                    continue;
-                };
-                for member in self.program.data_members(data) {
-                    if let typed_trees::data::DataMember::Field(field) = member {
-                        let mut child = path.clone();
-                        child.push(field.symbol);
-                        pending.push((field.type_reference, child, depth + 1));
-                    }
-                }
-            }
-        }
-    }
-
-    pub(crate) fn application_value(
-        &self,
-        expression: ExpressionHandle,
-        arguments: &[(SymbolHandle, Option<ExpressionHandle>)],
-    ) -> Option<ScopedArithmeticExpression> {
-        self.application_value_with_captured(expression, arguments, &[])
-    }
-
     pub(crate) fn application_value_with_captured(
         &self,
         expression: ExpressionHandle,
@@ -178,7 +88,13 @@ impl CurrentScalarValues<'_> {
                     } else {
                         self.captured_scalar_fields(actual, 0)
                             .into_iter()
-                            .find(|field| field.path == path)?
+                            .find(|field| {
+                                field.path
+                                    == path
+                                        .iter()
+                                        .map(|symbol| super::ScalarProjection::Field(*symbol))
+                                        .collect::<Vec<_>>()
+                            })?
                             .value
                     };
                     bindings.push(ScopedArithmeticBinding {

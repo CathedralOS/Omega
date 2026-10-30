@@ -171,12 +171,14 @@ pub(crate) fn evaluate(
         for (argument, expression, _, _) in &pending {
             if lexical_arguments.contains(argument) {
                 let origins = if lexical_selection::needs_resolution(&syntax, *expression) {
-                    lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
-                        vec![
-                            Diagnostic::error(format!("const argument expression: {reason}"))
-                                .with_source_span(syntax.expressions.source_span(*expression)),
-                        ]
-                    })?
+                    lexical_selection::retain(&syntax, &resolved, *expression).map_err(
+                        |reason| {
+                            vec![
+                                Diagnostic::error(format!("const argument expression: {reason}"))
+                                    .with_source_span(syntax.expressions.source_span(*expression)),
+                            ]
+                        },
+                    )?
                 } else {
                     Vec::new()
                 };
@@ -825,15 +827,64 @@ impl AuthoredProbeCustody {
     }
 }
 
-/// Check the original source point before any checked realization changes its
-/// helper closure. The resulting execution receipt belongs to a later boundary.
-pub(super) fn validate_authored_probe_custody(
+/// Ordinary typed selection observed before source dependency reconstruction.
+/// This is not invocation permission or validated source custody.
+pub(super) struct AuthoredProbeObservation {
+    reference: SourceSpan,
+    owner: symbols::SymbolHandle,
+    custody: call_custody::Custody,
+}
+
+impl AuthoredProbeObservation {
+    pub(super) fn calls(&self) -> &[(SourceSpan, SourceSpan)] {
+        &self.custody.calls
+    }
+
+    pub(super) fn validate(
+        self,
+        expected_origins: &[ConstArgumentOrigin],
+        expected_calls: &[(SourceSpan, SourceSpan)],
+    ) -> Result<AuthoredProbeCustody, String> {
+        if !self.custody.pending_constants.is_empty() {
+            return Err("authored probe constants are not ready for invocation custody".into());
+        }
+        if self.custody.calls.len() != expected_calls.len()
+            || self
+                .custody
+                .calls
+                .iter()
+                .any(|call| !expected_calls.contains(call))
+        {
+            return Err(format!(
+                "authored probe changed the original call declaration selection: expected {expected_calls:?}, observed {:?}",
+                self.custody.calls,
+            ));
+        }
+        if self.custody.origins.len() != expected_origins.len()
+            || self
+                .custody
+                .origins
+                .iter()
+                .any(|origin| !expected_origins.contains(origin))
+        {
+            return Err(
+                "authored probe changed the original constant declaration selection".into(),
+            );
+        }
+        Ok(AuthoredProbeCustody {
+            reference: self.reference,
+            owner: self.owner,
+        })
+    }
+}
+
+/// Read exact ordinary typed choices; the source owner must independently
+/// rejoin each choice to its scoped family before validating this observation.
+pub(super) fn observe_authored_probe(
     program: &typed_trees::TypedTrees,
     reference: SourceSpan,
-    expected_origins: &[ConstArgumentOrigin],
-    expected_calls: &[(SourceSpan, SourceSpan)],
     syntax: &SyntaxTrees,
-) -> Result<AuthoredProbeCustody, String> {
+) -> Result<AuthoredProbeObservation, String> {
     let mut machines = program
         .machines()
         .iter()
@@ -853,28 +904,10 @@ pub(super) fn validate_authored_probe_custody(
     }
     let custody =
         call_custody::collect_authored_roots(program, machine, state, &body.roots, syntax)?;
-    if custody.calls.len() != expected_calls.len()
-        || custody
-            .calls
-            .iter()
-            .any(|call| !expected_calls.contains(call))
-    {
-        return Err(format!(
-            "authored probe changed the original call declaration selection: expected {expected_calls:?}, observed {:?}",
-            custody.calls,
-        ));
-    }
-    if custody.origins.len() != expected_origins.len()
-        || custody
-            .origins
-            .iter()
-            .any(|origin| !expected_origins.contains(origin))
-    {
-        return Err("authored probe changed the original constant declaration selection".into());
-    }
-    Ok(AuthoredProbeCustody {
+    Ok(AuthoredProbeObservation {
         reference,
         owner: machine.symbol,
+        custody,
     })
 }
 

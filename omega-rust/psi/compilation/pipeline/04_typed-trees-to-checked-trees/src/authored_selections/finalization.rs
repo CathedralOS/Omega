@@ -319,6 +319,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 };
                 if let Some(target) = target {
                     push_consistent_resolution(
+                        program,
                         &mut resolutions,
                         AuthoredSelectionResolution {
                             occurrence,

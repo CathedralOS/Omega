@@ -89,17 +89,17 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
         .expect("native proposal");
     let selections = optimization_core::OptimizationRollback::default()
         .settle(&checked.build().config.settings.optimizations);
-    let mut request = checked
+    let request = checked
         .terminal_native_proposal_request(selections.effective(), &[])
         .expect("source-owned derivation inputs");
-    // Simulate the source owner releasing its checked instance projection.
-    // Native preparation and persistence must use only canonical associations.
+    // Ordinary selection never reconstructs checked instance rows. Native
+    // preparation and persistence must consume canonical associations directly.
     let selection = request
         .boundaries
         .selected_provider_plans
         .clone()
         .without_checked_specializations();
-    request.boundaries.selected_provider_plans = &selection;
+    assert_eq!(request.boundaries.selected_provider_plans, &selection);
     let permissions = provider_admission::terminal_authority_permission_policy_with_rows(
         proposal.package_terminal_authority_permissions().to_vec(),
         proposal
@@ -132,8 +132,13 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
     proposal
         .prepare_native_callable_execution(
             recovered.artifact(),
-            recovered.artifact().semantic_module().entry,
+            recovered
+                .artifact()
+                .semantic_module()
+                .entry
+                .expect("fixture default entry"),
         )
+        .and_then(|work| work.lower(None))
         .expect("reloaded numeric providers settle executable demand");
     recovered
 }

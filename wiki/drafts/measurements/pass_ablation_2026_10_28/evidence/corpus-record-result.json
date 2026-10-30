@@ -1,0 +1,52 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "c3e8a3559d5e718716eb62824df23bf759fecbe5",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19714
+  },
+  "subset": true,
+  "filter": "fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 1,
+    "by_status": {
+      "rejected": 1
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 806,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "c3e8a3559d5e+wt"
+    }
+  ],
+  "fixtures": []
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "name": "mbx.exe",
+    "pid": 1370148,
+    "command": "\"C:\\Users\\User\\.cargo\\bin\\mbx.exe\" nextest run --lib --features gpui-editor-headless -j 4 -E \"test(editor_gpui::tests::knob_gestures) | test(editor_gpui::tests::menus) | test(editor_gpui::tests::paint_order) | test(editor_gpui::tests::power_listen) |"
+  },
+  {
+    "name": "cargo.exe",
+    "pid": 1371332,
+    "command": "\"cargo\" nextest run --lib --features gpui-editor-headless -j 4 -E \"test(editor_gpui::tests::knob_gestures) | test(editor_gpui::tests::menus) | test(editor_gpui::tests::paint_order) | test(editor_gpui::tests::power_listen) | test(editor_gpui::tests::p"
+  },
+  {
+    "name": "cargo.exe",
+    "pid": 1372336,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\bin\\cargo.exe\" nextest run --lib --features gpui-editor-headless -j 4 -E \"test(editor_gpui::tests::knob_gestures) | test(editor_gpui::tests::menus) | test(editor_gpui::tests::paint_order"
+  },
+  {
+    "name": "mbx.exe",
+    "pid": 1419332,
+    "command": "\"C:\\Users\\User\\.cargo\\bin\\mbx.exe\" build -p omega --locked --target-dir build/pass-producer"
+  },
+  {
+    "name": "cargo.exe",
+    "pid": 1419880,
+    "command": "\"cargo\" build -p omega --locked --target-dir build/pass-producer"
+  },
+  {
+    "name": "cargo.exe",
+    "pid": 1420132,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\cargo.exe\" build -p omega --locked --target-dir build/pass-producer"
+  },
+  {
+    "name": "rustc.exe",
+    "pid": 1419892,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name compiler --edition=2024 omega-rust\\omega\\compilation\\driver\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incomp"
+  }
+]

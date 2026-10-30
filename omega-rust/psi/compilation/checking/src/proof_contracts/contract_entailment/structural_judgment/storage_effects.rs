@@ -320,14 +320,6 @@ impl StructuralJudge<'_> {
         Some(())
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
-        &mut self,
-        state: &State,
-        written: &[String],
-    ) -> Option<()> {
-        self.observe_storage_effects(state, Some(written))
-    }
-
     /// Unknown effects retire every live storage observation, not immutable
     /// model premises or detached values captured before the call. Absence of
     /// a complete frame is never an empty frame or evidence of non-interference.
@@ -828,10 +820,18 @@ impl StructuralJudge<'_> {
         if !self.requires_value_preservation() || !symbol.is_valid() {
             return;
         }
-        // A completed owned binding retains its inline cells. The same typed
-        // observation as an owned argument masks contained pointee contents;
-        // a local reference alias is not an owned storage namespace.
-        let Some(value) = self.owned_argument_observation(reference, &value) else {
+        // Owned bindings retain inline cells while masking contained pointees.
+        // A completed shared borrow already carries a checked inline view of
+        // its exact referent. Retain that typed observation at initialization;
+        // arbitrary reference values still supply no referent observation.
+        let observed =
+            super::super::structural_terms::shared_inline_observation_type(self.program, &value)
+                .filter(|observed| {
+                    crate::declared_carriers_match(self.program, reference, *observed)
+                })
+                .map(|_| value.clone())
+                .or_else(|| self.owned_argument_observation(reference, &value));
+        let Some(value) = observed else {
             return;
         };
         self.retain_storage_value(

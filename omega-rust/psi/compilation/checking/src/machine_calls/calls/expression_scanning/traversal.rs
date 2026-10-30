@@ -639,6 +639,21 @@ impl ScanContext<'_> {
                     self.formation_obligations,
                 );
                 self.scan(binary.left, value_environment, executes);
+                // A checked case classifier reads its subject, while the
+                // right operand selects a declaration. Reuse the complete
+                // subject/carrier/case judgment; treating a qualified case as
+                // a value would incorrectly demand runtime storage for its
+                // module. Malformed membership and ordinary equality still
+                // scan both operands and retain their usual diagnostics.
+                if crate::has_exact_case_membership_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                    binary,
+                ) {
+                    return;
+                }
                 let right_environment =
                     crate::proof_contracts::arithmetic_domains::short_circuit_operand_environment(
                         program,

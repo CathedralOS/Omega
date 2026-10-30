@@ -70,8 +70,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Check sum == 50 directly on the local.
     transition sum_result == 50 {
-        true -> check_count(main)
-        _ -> bad_sum(main)
+        true -> block check_count(main)
+        _ -> block bad_sum(main)
     }
 
     machine bad_sum(main: &mut Main) {
@@ -88,8 +88,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
         // Check element count == 4.
         transition cnt == 4 {
-            true -> good(main)
-            _ -> bad_count(main)
+            true -> block good(main)
+            _ -> block bad_count(main)
         }
     }
 

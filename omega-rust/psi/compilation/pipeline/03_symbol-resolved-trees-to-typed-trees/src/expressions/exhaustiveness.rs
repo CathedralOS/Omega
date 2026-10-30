@@ -41,12 +41,6 @@ use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use resolved::statement::{StatementNode, TransitionGuardNode};
 use symbol_resolved_trees as resolved;
 
-pub(crate) fn validate_case_dispatch_exhaustiveness(
-    program: &SymbolResolvedTrees,
-) -> Result<(), Diagnostic> {
-    validate_case_dispatch_exhaustiveness_in(program, &crate::lowerer::TypingCohort::default())
-}
-
 pub(crate) fn validate_case_dispatch_exhaustiveness_in(
     program: &SymbolResolvedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,

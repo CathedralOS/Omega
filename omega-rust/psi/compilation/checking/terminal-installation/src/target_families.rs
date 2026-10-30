@@ -11,6 +11,47 @@
 use terminal_codec::TerminalArtifactView;
 use terminal_psi::{TargetMachineCallable, TargetMachineSupply, TerminalPsiIdentity};
 
+/// Shared invocation-bound family join for canonical and lowered consumers.
+pub fn admitted_boundary_member(
+    module: &terminal_psi::TerminalModule,
+    selections: Option<&AdmittedTargetMachineSelections>,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
+    let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
+    let families = &module.target_machine_families;
+    let Ok(position) = families.binary_search_by_key(&head, |family| family.canonical) else {
+        return Ok(None);
+    };
+    if families[position]
+        .members
+        .iter()
+        .any(|member| member.callable == head)
+    {
+        return Ok(None);
+    }
+    let selections = selections.ok_or_else(|| {
+        format!("target-family head {boundary:?} has no invocation deployment selection")
+    })?;
+    let member = selections.member(head).map_err(|error| error.to_string())?;
+    match (member.callable(), member.supply()) {
+        (
+            terminal_psi::TargetMachineCallable::Machine(machine),
+            terminal_psi::TargetMachineSupply::CheckedBody
+            | terminal_psi::TargetMachineSupply::Boundary,
+        ) => Ok(Some(terminal_psi::TargetMachineCallable::Machine(machine))),
+        (terminal_psi::TargetMachineCallable::Boundary(member), supply)
+            if supply != terminal_psi::TargetMachineSupply::CheckedBody =>
+        {
+            Ok(Some(terminal_psi::TargetMachineCallable::Boundary(member)))
+        }
+        _ => Err(format!(
+            "target-family head {boundary:?} selected incompatible callable {:?} for `{}`",
+            member.callable(),
+            selections.target(),
+        )),
+    }
+}
+
 /// One exact catalog member selected for a family head.
 /// Private fields preserve the catalog association; observing it establishes
 /// neither refinement nor permission to execute the callable.

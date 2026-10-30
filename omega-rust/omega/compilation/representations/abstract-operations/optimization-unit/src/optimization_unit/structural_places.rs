@@ -295,7 +295,10 @@ pub(crate) fn canonicalize_ordinary_path(
                 current = next;
             }
             StructuralPathSegment::FixedIndex(index) => match shape(unit, current)? {
-                StructuralTypeShape::FixedArray { element, length } if index < length => {
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } if index < length => {
                     canonical.push(CanonicalStructuralPathSegment::FixedIndex(*index));
                     current = *element;
                 }

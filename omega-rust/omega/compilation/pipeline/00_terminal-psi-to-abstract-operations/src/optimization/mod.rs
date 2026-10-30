@@ -165,6 +165,7 @@ fn source_checked_obligation_facts(
 /// optimizer-only input cannot grant native admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
+    pub(crate) scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
     pub(crate) selected_program_entry_call: Option<crate::SelectedProgramEntryCall>,
     pub(crate) plan: AbstractOperationPlan,
     pub(crate) context: VerifiedPsiOptimizationContext,
@@ -183,6 +184,13 @@ pub struct VerifiedPsiOptimizationInput {
 }
 
 impl VerifiedPsiOptimizationInput {
+    /// Completed target-bound scalar judgment used to produce this plan.
+    pub fn scalar_applications(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+        self.scalar_applications.as_ref()
+    }
+
     pub fn selected_program_entry_call(&self) -> Option<&crate::SelectedProgramEntryCall> {
         self.selected_program_entry_call.as_ref()
     }
@@ -248,41 +256,15 @@ impl VerifiedPsiOptimizationInput {
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
     ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
-        let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
-        let families = &self.context.module.target_machine_families;
-        let Ok(position) = families.binary_search_by_key(&head, |family| family.canonical) else {
-            return Ok(None);
-        };
-        if families[position]
-            .members
-            .iter()
-            .any(|member| member.callable == head)
-        {
-            return Ok(None);
-        }
-        let selections = self.target_machine_selections().ok_or_else(|| {
-            format!("target-family head {boundary:?} has no invocation deployment selection")
-        })?;
-        let member = selections.member(head).map_err(|error| error.to_string())?;
-        match (member.callable(), member.supply()) {
-            (
-                terminal_psi::TargetMachineCallable::Machine(machine),
-                terminal_psi::TargetMachineSupply::CheckedBody
-                | terminal_psi::TargetMachineSupply::Boundary,
-            ) => Ok(Some(terminal_psi::TargetMachineCallable::Machine(machine))),
-            (terminal_psi::TargetMachineCallable::Boundary(member), supply)
-                if supply != terminal_psi::TargetMachineSupply::CheckedBody =>
-            {
-                Ok(Some(terminal_psi::TargetMachineCallable::Boundary(member)))
-            }
-            _ => Err(format!(
-                "target-family head {boundary:?} selected incompatible callable {:?} for `{}`",
-                member.callable(),
-                selections.target(),
-            )),
-        }
+        target_family_member(
+            self.context.module(),
+            self.target_machine_selections(),
+            boundary,
+        )
     }
 }
+
+pub(crate) use terminal_installation::admitted_boundary_member as target_family_member;
 
 /// Verifier-owned proof context retained beside the reconstructible Omega plan.
 /// The complete immutable Terminal module remains for proof-question and cycle

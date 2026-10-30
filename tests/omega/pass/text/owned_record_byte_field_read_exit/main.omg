@@ -73,7 +73,7 @@ requires start <= 8; bytes.len <= 8 - start {
             _ -> done()
         }
     }
-    state writing(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
+    machine writing(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
     requires start <= 8; index < 8; index < bytes.len; start + index < 8 {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
@@ -131,7 +131,7 @@ requires start <= 16; bytes.len <= 16 - start {
             _ -> done()
         }
     }
-    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    machine writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
     requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }

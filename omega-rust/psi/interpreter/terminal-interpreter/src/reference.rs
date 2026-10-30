@@ -557,8 +557,9 @@ impl TerminalExecution<'_> {
             Some(loan)
         } else {
             if storage.is_none() && byte_owner_loan.is_none() && collection_loan.is_none() {
-                let (backing, tip) =
-                    self.resolve_live_view_projection(source.place, &source.path, source.access)?;
+                let (backing, tip) = self
+                    .resolve_live_view_projection(source.place, &source.path, source.access)
+                    .map_err(|error| error.in_reference_formation("resolve source view"))?;
                 if let Some(AggregateViewTip::Aggregate {
                     view,
                     backing: actual,
@@ -733,7 +734,9 @@ impl TerminalExecution<'_> {
             }
             None if region_referent.is_some() => region_referent.ok_or_else(malformed)?,
             None => {
-                let (view, captured) = self.resolve_live_placed_projection(source)?;
+                let (view, captured) = self
+                    .resolve_live_placed_projection(source)
+                    .map_err(|error| error.in_reference_formation("resolve source storage"))?;
                 placed = captured;
                 view
             }
@@ -896,7 +899,13 @@ impl TerminalExecution<'_> {
                     reference_type,
                 ))
         {
-            return Err(malformed());
+            return Err(TerminalInterpretError::ReferenceFormation {
+                stage: "validate captured reference contract",
+                detail: format!(
+                    "source={source:?}, referent={:?}, reference={reference_type:?}, required={required_projected:?}, observed={projected:?}",
+                    referent.structural_type
+                ),
+            });
         }
         let collection_loan =
             collection_loan.map(|(_, loan)| loan.with_descriptor_home(referent.clone()));
@@ -930,13 +939,15 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let prepared = self.capture_reference(
-            source,
-            result.structural_type,
-            &result.projected_qualifications,
-            storage,
-            &mut identity_cursor,
-        )?;
+        let prepared = self
+            .capture_reference(
+                source,
+                result.structural_type,
+                &result.projected_qualifications,
+                storage,
+                &mut identity_cursor,
+            )
+            .map_err(|error| error.in_reference_formation("establish reference"))?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         let mut carrier = TerminalStructuralValue::minted(

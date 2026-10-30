@@ -14,8 +14,11 @@ impl TypedTrees {
         applied: &signature::StateSignature,
         parameter: symbols::SymbolHandle,
     ) -> Option<symbols::SymbolHandle> {
-        let declared_types = self.state_signature_type_parameters(declared);
-        let applied_types = self.state_signature_type_parameters(applied);
+        // Closing removes executable generic arity, not the already prepared
+        // admission telescope. Binder correspondence reads that same retained
+        // contract for both open and closed calls.
+        let declared_types = self.requirement_invocation_contract_parameters(declared);
+        let applied_types = self.requirement_invocation_contract_parameters(applied);
         if declared_types.len() == applied_types.len()
             && let Some(position) = declared_types
                 .iter()

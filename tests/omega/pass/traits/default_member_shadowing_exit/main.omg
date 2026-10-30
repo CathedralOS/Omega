@@ -1,0 +1,15 @@
+// Expected exit: 0
+// A default member's local binder shadows, rather than substitutes, its trait binder.
+trait Values<T> {
+    machine identity<T>(value: T) -> T { value }
+}
+Selected satisfies Values<u64> {}
+machine main() crashes Trap {
+    let value: bool = Selected::identity<bool>(true);
+    transition value {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

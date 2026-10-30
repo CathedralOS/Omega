@@ -146,7 +146,7 @@ pub(crate) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bo
                         root.id == first.root_structural_type
                             && matches!(
                                 root.shape,
-                                terminal_psi::StructuralTypeShape::FixedArray { element, length }
+                                terminal_psi::StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) }
                                     if element == *element_type
                                         && length == expected_root_length
                             )

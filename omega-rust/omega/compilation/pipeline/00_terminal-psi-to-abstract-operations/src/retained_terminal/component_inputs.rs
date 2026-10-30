@@ -9,6 +9,7 @@ use super::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
 use effects::provider_plan::ProviderPlan;
+use std::sync::Arc;
 use terminal_psi::ProviderCandidateConformance;
 
 /// One exported requirement with both sides' complete agreed ABI application.
@@ -153,13 +154,57 @@ impl<'input> ComponentNativeInputs<'input> {
             })
             .collect()
     }
+}
 
+/// Invocation-owned result of the producing artifact/plan/ABI join. The private
+/// positions belong to the immutable owners retained here, never to a caller's
+/// replacement catalog. Borrowing this result does not repeat that join.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedComponentNativeInputs {
+    component: Arc<VerifiedComponent>,
+    retained: Arc<RetainedTerminalArtifact>,
+    exports: Vec<(usize, usize)>,
+    plan_digest: effects::provider_plan::ProviderPlanDigest,
+}
+
+impl RetainedComponentNativeInputs {
+    pub fn borrow(&self) -> Result<ComponentNativeInputs<'_>, String> {
+        let proposal = self
+            .retained
+            .native_realization_proposal()
+            .ok_or("retained component lost its native proposal")?;
+        let exports = self
+            .exports
+            .iter()
+            .map(|&(candidate_position, application_position)| {
+                Ok(ComponentExportInput {
+                    candidate: self
+                        .component
+                        .module()
+                        .provider_candidates
+                        .get(candidate_position)
+                        .ok_or("retained component lost its selected export")?,
+                    calling_application: proposal
+                        .boundary_applications()
+                        .calling
+                        .get(application_position)
+                        .ok_or("retained component lost its selected calling application")?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(ComponentNativeInputs {
+            component: &self.component,
+            proposal,
+            exports,
+            plan_digest: self.plan_digest,
+        })
+    }
     /// Require the exact retained artifact, target and complete ABI/opaque
     /// applications selected by the receiver. Equal geometry or compact report
     /// coordinates cannot substitute another declaration or representation.
     pub fn join(
-        component: &'input VerifiedComponent,
-        retained: &'input RetainedTerminalArtifact,
+        component: Arc<VerifiedComponent>,
+        retained: Arc<RetainedTerminalArtifact>,
         plan: &ProviderPlan,
         receiving_applications: &[BoundaryCallingApplication],
     ) -> Result<Self, String> {
@@ -175,21 +220,22 @@ impl<'input> ComponentNativeInputs<'input> {
             return Err("component native target differs from the selected provider plan".into());
         }
         let candidates = component
-            .selected_plan_exports(plan)
+            .selected_plan_export_positions(plan)
             .map_err(|error| error.to_string())?;
         let mut exports = Vec::with_capacity(candidates.len());
-        for candidate in candidates {
+        for candidate_position in candidates {
+            let candidate = &component.module().provider_candidates[candidate_position];
             let requirement = component
                 .module()
                 .identities
                 .text(candidate.requirement_identity)
                 .ok_or("component export has no canonical requirement identity")?;
-            let producer = one_application(
+            let (producer_position, producer) = one_application(
                 &proposal.boundary_applications().calling,
                 requirement,
                 "component export",
             )?;
-            let receiver =
+            let (_, receiver) =
                 one_application(receiving_applications, requirement, "component import")?;
             for application in [producer, receiver] {
                 if application.recomputed_commitment()? != application.commitment {
@@ -203,14 +249,11 @@ impl<'input> ComponentNativeInputs<'input> {
                     "component import/export calling applications differ for `{requirement}`"
                 ));
             }
-            exports.push(ComponentExportInput {
-                candidate,
-                calling_application: producer,
-            });
+            exports.push((candidate_position, producer_position));
         }
         Ok(Self {
             component,
-            proposal,
+            retained,
             exports,
             plan_digest: plan.identity_digest(),
         })
@@ -221,10 +264,11 @@ fn one_application<'input>(
     applications: &'input [BoundaryCallingApplication],
     requirement: &str,
     role: &str,
-) -> Result<&'input BoundaryCallingApplication, String> {
+) -> Result<(usize, &'input BoundaryCallingApplication), String> {
     let mut matching = applications
         .iter()
-        .filter(|row| row.requirement_identity == requirement);
+        .enumerate()
+        .filter(|(_, row)| row.requirement_identity == requirement);
     let application = matching
         .next()
         .ok_or_else(|| format!("{role} `{requirement}` has no complete calling application",))?;

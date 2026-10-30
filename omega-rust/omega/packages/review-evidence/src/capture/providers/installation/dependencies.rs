@@ -5,9 +5,9 @@ use diagnostics::Diagnostic;
 
 pub(in crate::capture::providers) fn validate_installation_dependency_order(
     compilation: &PackageReviewInput<'_>,
+    selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let execution = compilation.custody.execution();
-    let selected = &execution.selected_provider_plan_facts;
     let mut rows = Vec::new();
     for resolution in selected.installation_reach_resolutions() {
         let requirement = selected

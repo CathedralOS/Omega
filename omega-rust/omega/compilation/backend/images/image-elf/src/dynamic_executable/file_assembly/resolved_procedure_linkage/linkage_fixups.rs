@@ -70,6 +70,7 @@ pub(crate) struct ElfAppliedProcedureLinkageFixup {
 }
 
 impl ElfAppliedProcedureLinkageFixup {
+    #[cfg(test)]
     pub const fn ordinal(&self) -> u32 {
         self.ordinal
     }
@@ -78,6 +79,7 @@ impl ElfAppliedProcedureLinkageFixup {
         self.storage
     }
 
+    #[cfg(test)]
     pub const fn byte_offset(&self) -> usize {
         self.byte_offset
     }
@@ -86,6 +88,7 @@ impl ElfAppliedProcedureLinkageFixup {
         self.byte_width
     }
 
+    #[cfg(test)]
     pub const fn kind(&self) -> ElfAppliedProcedureLinkageKind {
         self.kind
     }
@@ -98,6 +101,7 @@ impl ElfAppliedProcedureLinkageFixup {
         self.target_address
     }
 
+    #[cfg(test)]
     pub const fn encoded_field(&self) -> u64 {
         self.encoded_field
     }

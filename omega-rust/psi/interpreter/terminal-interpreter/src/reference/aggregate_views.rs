@@ -161,7 +161,10 @@ fn find_scalar_path(
                 path.pop();
             }
         }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if *length != 0 => {
             path.push(StructuralPathSegment::FixedIndex(0));
             let first = terminal_semantics::reference_storage_region(types.values(), root, path)?;
             let element_index = if *length == 1 {

@@ -1645,7 +1645,7 @@ impl TerminalExecution<'_> {
                 return Ok(OperationFlow::Advance);
             }
         }
-        let (leaf, source, endpoint_field, copy_path) = match &operation.kind {
+        let (leaf, source, _, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 let (leaf, field) =
                     self.resolve_live_leaf_copy(*source, path, result.structural_type)?;

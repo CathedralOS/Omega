@@ -1,0 +1,2 @@
+cannot prove requires contract
+needs fact `float::to_bits(value) == 0xff800123`

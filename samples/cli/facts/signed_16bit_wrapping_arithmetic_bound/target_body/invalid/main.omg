@@ -9,51 +9,78 @@ machine verify_sum(value: i16) -> i16
     head + tail
 }
 
-linux_x86_64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine compute_target_body(lhs: i16, rhs: i16) -> i16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i16, rhs: i16) -> i16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let a: i16 in Wrapping = lhs as i16 in Wrapping;
+        let b: i16 in Wrapping = rhs as i16 in Wrapping;
+        let wrapped: i16 in Wrapping = a + b;
+        let sum: i16 = wrapped as i16;
+        verify_sum(sum)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i16, rhs: i16) -> i16
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let a: i16 in Wrapping = lhs as i16 in Wrapping;
+        let b: i16 in Wrapping = rhs as i16 in Wrapping;
+        let wrapped: i16 in Wrapping = a + b;
+        let sum: i16 = wrapped as i16;
+        verify_sum(sum)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine evaluate() -> i16
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
 {
-    let a: i16 in Wrapping = lhs as i16 in Wrapping;
-    let b: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wrapped: i16 in Wrapping = a + b;
-    let sum: i16 = wrapped as i16;
-    verify_sum(sum)
+    SelectedProbe::compute_target_body(400, 80)
 }
 
-linux_arm64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
 {
-    let a: i16 in Wrapping = lhs as i16 in Wrapping;
-    let b: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wrapped: i16 in Wrapping = a + b;
-    let sum: i16 = wrapped as i16;
-    verify_sum(sum)
-}
-
-macos_arm64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
-{
-    let a: i16 in Wrapping = lhs as i16 in Wrapping;
-    let b: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wrapped: i16 in Wrapping = a + b;
-    let sum: i16 = wrapped as i16;
-    verify_sum(sum)
-}
-
-windows_x86_64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
-{
-    let a: i16 in Wrapping = lhs as i16 in Wrapping;
-    let b: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wrapped: i16 in Wrapping = a + b;
-    let sum: i16 = wrapped as i16;
-    verify_sum(sum)
-}
-
-machine evaluate() -> i16 {
-    compute_target_body(400, 80)
-}
-
-machine main() crashes Trap {
     let res: i16 = evaluate();
     transition res == 250 {
         true -> done()
@@ -61,4 +88,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

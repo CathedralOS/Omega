@@ -753,7 +753,10 @@ fn prepare_argument_projection<'a>(
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 tip = match shape {
-                    Some(StructuralTypeShape::FixedArray { element, length }) => {
+                    Some(StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    }) => {
                         if index >= length {
                             return Err(LoweringError::Unsupported(
                                 "argument index exceeds its array",
@@ -814,17 +817,19 @@ fn prepare_argument_projection<'a>(
             }
             CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
                 let capacity = match shape {
-                    Some(StructuralTypeShape::FixedArray { element, length })
-                        if declaration(*element)?.shape
-                            == StructuralTypeShape::PrimitiveScalar(
-                                semantic_vocabulary::ScalarType::Integer(
-                                    semantic_vocabulary::IntegerType::new(
-                                        semantic_vocabulary::IntegerSign::Unsigned,
-                                        8,
-                                    )
-                                    .expect("u8 is a supported integer carrier"),
-                                ),
-                            ) =>
+                    Some(StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    }) if declaration(*element)?.shape
+                        == StructuralTypeShape::PrimitiveScalar(
+                            semantic_vocabulary::ScalarType::Integer(
+                                semantic_vocabulary::IntegerType::new(
+                                    semantic_vocabulary::IntegerSign::Unsigned,
+                                    8,
+                                )
+                                .expect("u8 is a supported integer carrier"),
+                            ),
+                        ) =>
                     {
                         Some(*length)
                     }

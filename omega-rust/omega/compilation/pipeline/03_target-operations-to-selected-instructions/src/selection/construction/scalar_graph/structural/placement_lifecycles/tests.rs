@@ -2,11 +2,14 @@
 //! These are lowering checks, not a lifecycle settlement or native boot receipt.
 
 use super::*;
+use legalized_operations::LegalizedOperationPlan;
+use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionProvenance, SelectedSelectionConstraints,
 };
-use semantic_vocabulary::{IntegerValue, OperationId};
+use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, OperationId};
 use target::NativeTarget;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 pub(super) fn with_builder(
     target: NativeTarget,
@@ -20,7 +23,25 @@ pub(super) fn with_builder(
     let catalog = environment.constraints();
     let materialize =
         crate::selection::constraints::row(catalog, constraints.keys.materialize_i64).unwrap();
+    // Placement lowering never queries foreign scalar backing. An empty closed
+    // program gives the builder the same backings handle production carries
+    // without inventing an ingress roster.
+    let program = LegalizedOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0; 32]),
+        },
+        optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(
+            b"placement-lifecycle test",
+        ),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        target,
+        entry: MachineId::new(1).unwrap(),
+        scalar_functions: vec![],
+    };
+    let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(&program);
     let mut builder = Builder {
+        backings: &backings,
         environment: &environment,
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: Default::default(),
@@ -50,6 +71,22 @@ pub(super) fn with_builder(
         ownership: vec![],
     };
     test(&mut builder, &row);
+}
+
+/// A structural type declaration whose only varying coordinates are its id and
+/// shape; the identity index and cleanup flags stay at their default rows.
+fn declaration(id: StructuralTypeId, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+    StructuralTypeDeclaration {
+        quotient_carrier: None,
+        id,
+        identity: terminal_psi::TerminalIdentityIndex(0),
+        owns_linear_claim: false,
+        no_code_affine_cleanup: false,
+        copyable: false,
+        descriptor_cleanup: false,
+        scalar_restriction: None,
+        shape,
+    }
 }
 
 pub(super) fn execute(
@@ -679,17 +716,6 @@ fn resident_array_transfer_keeps_source_and_destination_strides_independent() {
     use terminal_psi::{BindingRelevance, StructuralFieldType, TerminalIdentityIndex};
     let scalar = StructuralTypeId::new(1).unwrap();
     let array = StructuralTypeId::new(2).unwrap();
-    let declaration = |id, shape| StructuralTypeDeclaration {
-        quotient_carrier: None,
-        id,
-        identity: TerminalIdentityIndex(0),
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        shape,
-    };
     let types = vec![
         declaration(
             scalar,
@@ -701,7 +727,7 @@ fn resident_array_transfer_keeps_source_and_destination_strides_independent() {
             array,
             StructuralTypeShape::FixedArray {
                 element: scalar,
-                length: 2,
+                length: terminal_psi::ArrayExtent::Literal(2),
             },
         ),
     ];
@@ -801,17 +827,6 @@ fn image_fixture() -> (
         field_type,
         storage: None,
     };
-    let declaration = |id, shape| StructuralTypeDeclaration {
-        quotient_carrier: None,
-        id,
-        identity: TerminalIdentityIndex(0),
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        shape,
-    };
     let types = vec![
         declaration(
             schema,
@@ -840,7 +855,10 @@ fn image_fixture() -> (
         ),
         declaration(
             array,
-            StructuralTypeShape::FixedArray { element, length: 2 },
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            },
         ),
     ];
     let entry = |field: &str, placement| LayoutFieldEntryReport {

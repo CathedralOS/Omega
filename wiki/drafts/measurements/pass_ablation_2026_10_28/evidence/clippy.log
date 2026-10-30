@@ -1,0 +1,150 @@
+    Checking typenum v1.20.1
+    Checking cpufeatures v0.2.17
+    Checking cfg-if v1.0.4
+    Checking itoa v1.0.18
+    Checking memchr v2.8.3
+    Checking phase-profile v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\phase-profile)
+    Checking serde_core v1.0.229
+    Checking zmij v1.0.23
+    Checking arc-swap v1.9.2
+   Compiling compiler-storage-derive v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\compiler-storage\derive)
+    Checking generic-array v0.14.7
+{"$message_type":"artifact","artifact":"C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build/pass-producer\\debug\\build\\phase-profile/f6d15829eee120c4\\out\\phase_profile-f6d15829eee120c4.d","emit":"dep-info"}
+{"$message_type":"artifact","artifact":"C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build/pass-producer\\debug\\build\\phase-profile/f6d15829eee120c4\\out\\libphase_profile-f6d15829eee120c4.rmeta","emit":"metadata"}
+    Checking serde v1.0.229
+    Checking serde_json v1.0.151
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+    Checking digest v0.10.7
+    Checking sha2 v0.10.9
+    Checking optimization v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\optimization-selections)
+    Checking compiler-storage v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\compiler-storage)
+    Checking arena v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\arena)
+    Checking numerics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\numerics)
+    Checking extents v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\extents)
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\arena.rs:13:5
+   |
+13 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\handle\handle_span.rs:1:5
+  |
+1 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\paged_arena_set\mod.rs:7:5
+  |
+7 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\paged_arena_set\page.rs:10:5
+   |
+10 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\handle\mod.rs:8:5
+  |
+8 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\hierarchy_arena\mod.rs:11:5
+   |
+11 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\ordered_root_arena\mod.rs:1:5
+  |
+1 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `arena` (lib) generated 7 warnings
+    Checking semantic-vocabulary v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\semantic-vocabulary)
+    Checking language-core v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\language-core)
+    Checking build-time-values v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\build-time-values)
+    Checking source v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\source)
+    Checking layout-plans v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\layout-plans)
+    Checking symbols v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\symbols)
+    Checking diagnostics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\diagnostics)
+    Checking access-plans v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\access-plans)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:172:13
+    |
+172 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:183:13
+    |
+183 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `diagnostics` (lib) generated 2 warnings
+    Checking language-semantics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\language-semantics)
+    Checking terminal-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\representations\terminal-psi)
+    Checking flow-effects v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\foundation\flow-effects)
+    Checking typed-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\representations\typed-trees)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\representations\terminal-psi\src\terminal_module\identity\table.rs:296:13
+    |
+296 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\representations\terminal-psi\src\terminal_module\identity\table.rs:305:13
+    |
+305 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `terminal-psi` (lib) generated 2 warnings
+    Checking proof-admission v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\proof\admission)
+    Checking terminal-semantics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\representations\terminal-psi\semantics)
+    Checking facts v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\representations\checked-trees\facts)
+mbx[progress]: 15s elapsed; 17 hits, 0 misses, 0 bypassed, 20 not looked up; ~8.24s compiler work saved
+    Checking checked-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\representations\checked-trees)
+warning: unused doc comment
+   --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\facts\contract_plans.rs:231:1
+    |
+231 | / /// Domain-separated commitment to one machine's complete canonical public
+232 | | /// contract, declared through `typed_trees`'s shared digest carrier.
+    | |_--------------------------------------------------------------------^
+    |   |
+    |   rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+  --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\operators.rs:30:1
+   |
+30 | / /// Collision-resistant commitment to the exact selected ProviderPlan.
+31 | | ///
+32 | | /// Psi owns this opaque byte carrier so checked operator evidence can retain
+33 | | /// Omega's plan digest without introducing an upward dependency on
+34 | | /// `effects`. The provider-planning boundary is responsible for copying
+35 | | /// the digest from the exact selected plan.
+   | |_-------------------------------------------^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+    Checking terminal-codec v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\representations\terminal-psi\codec)
+warning: `checked-trees` (lib) generated 2 warnings
+    Checking lowered-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\representations\lowered-psi)
+    Checking lowered-psi-to-lowered-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\psi\compilation\pipeline\06_lowered-psi-to-lowered-psi)
+    Finished `dev` profile [optimized] target(s) in 21.67s
+mbx[cache]: 17 hits, 0 misses, 24 not looked up; 0 B downloaded, 0 B uploaded, 28.2 MiB stored locally
+mbx[savings]: 59371 compilations served from cache to date

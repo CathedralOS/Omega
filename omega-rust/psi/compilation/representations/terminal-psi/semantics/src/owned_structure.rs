@@ -34,7 +34,7 @@ fn child_types(declaration: &StructuralTypeDeclaration) -> Vec<StructuralTypeId>
                 fields(&case.fields);
             }
         }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+        StructuralTypeShape::FixedArray { element, length } if length.literal() != Some(0) => {
             children.push(*element)
         }
         _ => {}
@@ -117,6 +117,9 @@ pub fn validate_accounted_descendants(
                 )
             };
             if let StructuralTypeShape::FixedArray { element, length } = declaration.shape {
+                let length = length
+                    .literal()
+                    .ok_or("owned descendant accounting requires a closed array extent")?;
                 let mut child_path = path.to_vec();
                 child_path.push(StructuralPathSegment::FixedIndex(0));
                 for element_index in 0..length {
@@ -266,7 +269,10 @@ fn selected_children(
                 fields(common, path);
             }
         }
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             // Every untouched child contributes a subject; do not enumerate a
             // forged dimension beyond the supplied partition's work bound.
             if u128::from(*length) > limit as u128 {

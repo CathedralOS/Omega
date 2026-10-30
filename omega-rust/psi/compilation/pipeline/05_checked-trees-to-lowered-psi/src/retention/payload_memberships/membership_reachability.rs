@@ -131,7 +131,7 @@ mod tests {
                 2,
                 StructuralTypeShape::FixedArray {
                     element: id(1),
-                    length: 4,
+                    length: terminal_psi::ArrayExtent::Literal(4),
                 },
             ),
             declaration(3, StructuralTypeShape::BindingCarrier),
@@ -146,7 +146,7 @@ mod tests {
                 5,
                 StructuralTypeShape::FixedArray {
                     element: id(5),
-                    length: 1,
+                    length: terminal_psi::ArrayExtent::Literal(1),
                 },
             ),
             declaration(

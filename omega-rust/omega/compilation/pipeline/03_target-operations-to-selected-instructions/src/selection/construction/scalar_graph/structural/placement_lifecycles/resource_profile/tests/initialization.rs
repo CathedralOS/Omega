@@ -89,11 +89,11 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
     let value_wrapper = types.record(&[word, schema]);
     let owner_array = types.add(StructuralTypeShape::FixedArray {
         element: owner,
-        length: 2,
+        length: terminal_psi::ArrayExtent::Literal(2),
     });
     let value_array = types.add(StructuralTypeShape::FixedArray {
         element: schema,
-        length: 3,
+        length: terminal_psi::ArrayExtent::Literal(3),
     });
     let borrowed_profile = types.add(StructuralTypeShape::Reference {
         referent: profile_type,

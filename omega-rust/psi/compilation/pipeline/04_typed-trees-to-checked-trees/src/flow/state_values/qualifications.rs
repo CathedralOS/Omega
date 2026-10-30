@@ -15,7 +15,7 @@ use facts::{
 };
 use std::hash::{Hash, Hasher};
 use symbols::SymbolHandle;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::flow) struct QualifiedInput {
@@ -323,6 +323,84 @@ fn capture_place(
         }
     }
     captured
+}
+
+/// Capture live predicates below every place one completed invocation argument
+/// denotes, re-rooted at its destination parameter. The operand's own evidence
+/// epoch supplies every row — the same custody judgment the exact state-argument
+/// carrier uses, replayed through the recorded operand observation rather than
+/// a re-read of the caller's places. Each denoted alternative must carry the
+/// same claim independently: a select operand whose alternatives disagree
+/// delivers nothing.
+pub(super) fn capture_completed_argument(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    flow_context: &FlowBuildContext,
+    operand: &checked_trees::FlowOperandFact,
+    completed: &super::CompletedArgumentFacts,
+    destination: SymbolHandle,
+) -> Vec<QualifiedInput> {
+    let Some(frames) = flow_context.call_frames else {
+        return Vec::new();
+    };
+    let mut common: Option<Vec<QualifiedInput>> = None;
+    for place in &completed.places {
+        let Some(source_type) = validation::canonical_place_type_reference(
+            program,
+            operand.state_symbol,
+            operand.statement_index,
+            &place.projected,
+        ) else {
+            return Vec::new();
+        };
+        let mut found = Vec::new();
+        for context in &completed.contexts {
+            for fact in semantic
+                .context_view(semantic.contexts.get(*context))
+                .facts()
+            {
+                let Some(predicate) = CarriedPredicate::from_fact(fact) else {
+                    continue;
+                };
+                let Some(candidate) = fact.place.as_place().and_then(|place| {
+                    crate::flow::canonical_place_from_semantic_place(
+                        program,
+                        semantic,
+                        semantic.places.get(place),
+                    )
+                }) else {
+                    continue;
+                };
+                if candidate.root != place.projected.root
+                    || !candidate.segments.starts_with(&place.projected.segments)
+                {
+                    continue;
+                }
+                let segments = &candidate.segments[place.projected.segments.len()..];
+                if !owned_projection(program, frames, source_type, segments) {
+                    continue;
+                }
+                found.push(QualifiedInput {
+                    subject: facts::PlaceRoot::Symbol(destination),
+                    segments: segments.to_vec(),
+                    predicate,
+                    evidence: fact.evidence,
+                });
+            }
+        }
+        deduplicate(&mut found);
+        common = Some(match common {
+            None => found,
+            Some(previous) => previous
+                .into_iter()
+                .filter(|claim| found.iter().any(|next| claim.same_claim(next)))
+                .collect(),
+        });
+        if common.as_ref().is_some_and(Vec::is_empty) {
+            break;
+        }
+    }
+    common.unwrap_or_default()
 }
 
 /// Capture the predicates carried by one transition argument into its

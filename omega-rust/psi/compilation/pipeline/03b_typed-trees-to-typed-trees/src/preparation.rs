@@ -4,6 +4,7 @@
 //! an open typed program. Retained tables are preparation evidence, not a
 //! second program representation or permission to skip checking.
 
+mod constant_entries;
 mod data_applications;
 mod product_operands;
 pub use product_operands::{
@@ -16,6 +17,8 @@ mod opaque_property_receipts;
 mod runtime_index_fields;
 mod runtime_value_applications;
 mod selections;
+
+pub use selections::bind_pre_specialization_authored_selections;
 
 pub(crate) use data_applications::elaborate_projected_receivers;
 
@@ -266,6 +269,7 @@ pub fn prepare_typed_trees(
         for owner in result_owners {
             changed_roots.include(owner);
         }
+        materialized += constant_entries::materialize(&mut program)?;
         // Bind only complete producer outputs: newly cloned bodies and callers
         // whose calls or inferred results changed. The ordinary fixed point
         // settles targets and dependent temporaries before binding reads them;
@@ -363,8 +367,6 @@ pub fn prepare_typed_trees(
 /// preparation and private constant execution share this ordering; coordinators
 /// must not stamp the canonical program to compensate for an unprepared clone.
 fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let boolean_equalities = validation::static_type_boolean_equalities(program);
-    program.prepare_static_type_contexts(&boolean_equalities);
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts
@@ -440,6 +442,9 @@ pub fn prepare_constant_execution(
     mut program: TypedTrees,
 ) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
     validation::resolve_dynamic_call_targets(&mut program)?;
+    selections::retain_static_argument_contexts(&mut program);
+    selections::bind_pre_specialization_authored_selections(&mut program)
+        .map_err(|diagnostic| vec![diagnostic])?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program)?;

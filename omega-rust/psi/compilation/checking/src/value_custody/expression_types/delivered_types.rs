@@ -154,6 +154,7 @@ fn carrier(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -
 pub(super) fn delivered_carrier_conflict(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
+    context: ExpressionHandle,
     actual: TypeReferenceHandle,
     actual_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     required: TypeReferenceHandle,
@@ -163,6 +164,7 @@ pub(super) fn delivered_carrier_conflict(
         && carrier_conflict(
             program,
             scope,
+            context,
             actual,
             actual_substitutions,
             required,
@@ -174,6 +176,7 @@ pub(super) fn delivered_carrier_conflict(
 fn carrier_conflict(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
+    context: ExpressionHandle,
     actual: TypeReferenceHandle,
     actual_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     required: TypeReferenceHandle,
@@ -196,8 +199,12 @@ fn carrier_conflict(
     ) else {
         return false;
     };
-    let actual = unconstrained(actual);
-    let required = unconstrained(required);
+    // A type binder is rigid except where an already established static
+    // equality refines it. Read that occurrence's context after application
+    // substitution, including at every nested carrier comparison. Neither
+    // the destination nor the value being formed supplies a new assumption.
+    let actual = program.statically_refined_type_reference(context, unconstrained(actual));
+    let required = program.statically_refined_type_reference(context, unconstrained(required));
     let rigid = |carrier: Carrier| {
         matches!(carrier, Carrier::Parameter(parameter)
             if program.symbols.get(parameter).parent == scope)
@@ -219,6 +226,7 @@ fn carrier_conflict(
             return carrier_conflict(
                 program,
                 scope,
+                context,
                 *actual,
                 actual_substitutions,
                 *required,
@@ -302,6 +310,7 @@ fn carrier_conflict(
                 carrier_conflict(
                     program,
                     scope,
+                    context,
                     *actual,
                     actual_substitutions,
                     *required,
@@ -347,7 +356,15 @@ fn delivered_type_conflict(
             &[],
         )
     } else {
-        delivered_carrier_conflict(program, scope, delivered, &substitutions, destination, &[])
+        delivered_carrier_conflict(
+            program,
+            scope,
+            value,
+            delivered,
+            &substitutions,
+            destination,
+            &[],
+        )
     };
     // Name the delivered type the store saw: a field read's declared type
     // under its receiver's application.

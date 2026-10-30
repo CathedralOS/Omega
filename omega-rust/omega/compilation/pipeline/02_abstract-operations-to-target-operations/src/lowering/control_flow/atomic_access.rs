@@ -4,12 +4,11 @@
 //! Fences retain their location-free ordering event; single-attempt exchange
 //! retains its complete structural result and independently derived home.
 
-use super::{LiveDefinitions, RowSite};
+use super::RowSite;
 use crate::LoweringError;
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractAtomicEvent, AbstractFunction};
+use abstract_operations::AbstractAtomicEvent;
 use semantic_vocabulary::OperationId;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::{AtomicAccessEvent, StructuralAccess};
 
 pub(super) fn lower(

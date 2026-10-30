@@ -66,6 +66,7 @@ pub(super) fn proves(
 pub(super) fn recipe_requirements(
     program: &dyn ::validation::CheckingInput,
     owner: symbols::SymbolHandle,
+    recipe_owner: symbols::SymbolHandle,
     requirement: ExpressionHandle,
     intervals: &[validation::ExpressionInterval],
     argument_for: &impl Fn(ExpressionHandle) -> Option<ExpressionHandle>,
@@ -85,6 +86,7 @@ pub(super) fn recipe_requirements(
         let mut left = recipe_requirements(
             program,
             owner,
+            recipe_owner,
             binary.left,
             intervals,
             argument_for,
@@ -93,6 +95,7 @@ pub(super) fn recipe_requirements(
         left.extend(recipe_requirements(
             program,
             owner,
+            recipe_owner,
             binary.right,
             intervals,
             argument_for,
@@ -135,23 +138,28 @@ pub(super) fn recipe_requirements(
                     ConstantRecipeRequirement::AtLeast(BigInt::from_i64(interval.high?)),
                     program.expression_table.source_span(requirement),
                     description.to_owned(),
-                ),
+                )
+                .with_recipe_owner(recipe_owner),
                 ConstantRecipeObligation::retain(
                     owner,
                     recipe,
                     ConstantRecipeRequirement::AtMost(BigInt::from_i64(interval.low?)),
                     program.expression_table.source_span(requirement),
                     description.to_owned(),
-                ),
+                )
+                .with_recipe_owner(recipe_owner),
             ]);
         }
         _ => return None,
     };
-    Some(vec![ConstantRecipeObligation::retain(
-        owner,
-        recipe,
-        relation,
-        program.expression_table.source_span(requirement),
-        description.to_owned(),
-    )])
+    Some(vec![
+        ConstantRecipeObligation::retain(
+            owner,
+            recipe,
+            relation,
+            program.expression_table.source_span(requirement),
+            description.to_owned(),
+        )
+        .with_recipe_owner(recipe_owner),
+    ])
 }

@@ -12,6 +12,10 @@ pub struct ResolvedAuthoredCallBinding {
 }
 
 mod build_selection_origin;
+mod product_policy;
+pub use product_policy::{
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, AuthoredRootGrant,
+};
 mod product;
 pub use build_selection_origin::BuildSelectionOrigin;
 pub mod product_operands;

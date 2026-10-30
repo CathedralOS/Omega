@@ -8,7 +8,6 @@
 use crate::CanonicalPlace;
 use crate::LocalWriteSource;
 use facts::{PlaceRoot, PlaceSegment};
-use symbols::SymbolHandle;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 

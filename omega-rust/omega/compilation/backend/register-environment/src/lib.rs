@@ -28,7 +28,6 @@ mod tests;
 use register_model::validate_physical_register_model;
 use target::NativeTarget;
 
-use catalog::selected_environment_keys;
 use catalog::{
     conservative_baseline_reservation_profile, target_constraint_catalog,
     target_physical_register_model,
@@ -168,6 +167,11 @@ impl ValidatedTargetRegisterEnvironment {
     /// Target-selected scalar-call constraint. This is validated environment
     /// data only; it does not claim that the selected CFG can lower a general
     /// scalar call yet.
+    ///
+    /// Nothing but the call-clobber tests reads it while general selected call
+    /// lowering is unimplemented, so it stays a catalog witness rather than a
+    /// production accessor.
+    #[cfg(test)]
     pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
         self.constraint(self::catalog::scalar_call_constraint_key(self.target)?)
     }
@@ -177,7 +181,7 @@ impl ValidatedTargetRegisterEnvironment {
     }
 
     pub fn allocation_constraint_keys(&self) -> TargetRegisterEnvironmentConstraintKeys {
-        selected_environment_keys(self.selected_keys.clone())
+        self.selected_keys.rows.clone()
     }
 
     pub fn fixed_register_view(

@@ -262,10 +262,9 @@ pub use analyses::{
 };
 pub(crate) use analyses::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
-    AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,
-    FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementValidationReceipt,
-    LiveRangeValidationReceipt, LivenessValidationReceipt, RecoveryClassificationValidationReceipt,
-    SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
+    FixedPrecoloredIntervalValidationReceipt, FixedPrecoloredSegmentHomeValidationReceipt,
+    FixedPrecoloredSplitRequirementValidationReceipt, LiveRangeValidationReceipt,
+    LivenessValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
     StagedOptimizedLivenessCustodyReceipt,
 };
 pub(crate) use analyses::{
@@ -291,12 +290,11 @@ pub use rewrites::unexecuted;
 pub(crate) use rewrites::{
     AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
     CopyRemovalError, DeadCompareError, EquivalentCompareError, FixedViewCopyError,
-    LiteralFoldPolicy, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
-    PreAllocationPolicy, PreAllocationTransformationIdentity, RedundantCompareError,
-    RedundantExtensionError, SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule,
-    SelectedLoweringRuleCatalogError, SelectedStageRuleRows,
-    StagedOptimizedFixedPrecoloredSegmentHomes, StagedOptimizedFixedViewCopies,
-    resolve_pre_allocation_rules, resolve_selected_lowering_rules,
+    LiteralFoldPolicy, PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy,
+    PreAllocationTransformationIdentity, RedundantCompareError, RedundantExtensionError,
+    SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogError,
+    SelectedStageRuleRows, StagedOptimizedFixedPrecoloredSegmentHomes,
+    StagedOptimizedFixedViewCopies, resolve_pre_allocation_rules, resolve_selected_lowering_rules,
     run_pre_allocation_optimizations, run_selected_lowering_optimizations,
     validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
 };

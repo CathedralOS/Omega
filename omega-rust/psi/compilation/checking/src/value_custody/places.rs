@@ -514,8 +514,10 @@ mod builtin_coordinates;
 mod exact_self_field;
 mod structural_scalar_field;
 pub use structural_scalar_field::{
-    StructuralScalarField, StructuralSource, saved_dispatch_call, saved_dispatch_subject,
-    structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
+    ScalarCoordinateProjection, StructuralScalarCoordinate, StructuralScalarField,
+    StructuralSource, saved_dispatch_call, saved_dispatch_subject, structural_atomic_field,
+    structural_scalar_coordinate, structural_scalar_coordinate_in_type, structural_scalar_field,
+    structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
     structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
     structural_source,
 };
@@ -815,11 +817,12 @@ mod projection_types;
 pub use projection_types::{
     StorageObservationTypePath, StorageObservationTypePathError,
     canonical_owned_place_type_reference, canonical_place_source_type_application,
-    canonical_place_type_reference, collection_element_type_reference,
-    expression_type_reference_in_state, loan_carrier_has_owned_storage,
-    observed_storage_type_references, owned_projection_type_reference,
-    project_type_reference_from_segments, qualification_storage_path,
-    source_type_application_from_segments, unique_data_definition_by_symbol,
+    canonical_place_type_reference, canonical_qualification_path,
+    collection_element_type_reference, expression_type_reference_in_state,
+    loan_carrier_has_owned_storage, observed_storage_type_references,
+    owned_projection_type_reference, project_type_reference_from_segments,
+    qualification_storage_path, source_type_application_from_segments,
+    unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{

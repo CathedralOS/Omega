@@ -11,7 +11,6 @@ use arena::Handle;
 use checked_trees::{FlowControlFacts, FlowOperandCompletion, FlowOperandFact};
 use facts::PlaceSegment;
 use typed_trees::types::TypeReferenceHandle;
-use validation::CanonicalPlace;
 
 pub(crate) fn captured_reference_places_with_formation(
     program: &dyn validation::CheckingInput,
@@ -209,21 +208,4 @@ fn collect_leaf_places(
         crate::collections::push_unique(&mut *places, place);
     }
     Some(())
-}
-
-/// Effect and loan geometry consumes no historical case authority. This one-way
-/// projection must not be used to rebuild completed descriptor value rows.
-pub(crate) fn captured_reference_places(
-    program: &dyn validation::CheckingInput,
-    control: &FlowControlFacts,
-    capture: Handle<FlowOperandFact>,
-    reference: TypeReferenceHandle,
-    projection: &[PlaceSegment],
-) -> Option<Vec<CanonicalPlace>> {
-    Some(
-        captured_reference_places_with_formation(program, control, capture, reference, projection)?
-            .into_iter()
-            .map(|reference| reference.place)
-            .collect(),
-    )
 }

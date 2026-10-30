@@ -243,10 +243,10 @@ impl Emission<'_, '_, '_> {
     ) -> Result<PlaceId, LoweringError> {
         self.admit_fresh_operand(place, completion)?;
         // Forwarded homes retain their original birth. Only an operation
-        // result emitted by this completion receives this source coordinate;
+        // home emitted by this completion receives this source coordinate;
         // owned join arrivals register at their actual continuation owner.
         if place.get() >= completion.first_new_place
-            && self.operations.structural_result_contract(place).is_some()
+            && self.operations.structural_establishments.contains(&place)
         {
             self.operations.register_structural_materialization(
                 place,

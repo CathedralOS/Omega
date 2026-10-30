@@ -59,6 +59,11 @@ pub struct FlowReferentFormation {
 /// An invalid retention handle means that dependency was unavailable.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetention {
+    /// Complete nonempty possible contents footprint captured by the producing
+    /// operation. Unknown element selectors retain structural dimensions only.
+    /// This permits interference checks, never address equality, membership,
+    /// permission ancestry or value transfer. Empty means unavailable.
+    pub possible_storage: HandleSpan<FlowOperandReferent>,
     /// Checked pre-interpretation storage enclosing this pointer. Recasts and
     /// ordinary placed views retain the completed source capture, not its later
     /// descriptor home. This is a conservative compatibility footprint only:

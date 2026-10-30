@@ -8,39 +8,72 @@ machine verify_prod(prod: i8) -> i32
     (headroom - 28) as i32
 }
 
-linux_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i32
-    requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let prod: i8 = lhs * rhs;
+        verify_prod(prod)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let prod: i8 = lhs * rhs;
+        verify_prod(prod)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine evaluate() -> i32
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
 {
-    let prod: i8 = lhs * rhs;
-    verify_prod(prod)
+    SelectedProbe::compute_target_body(8, 9)
 }
 
-linux_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i32
-    requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
 {
-    let prod: i8 = lhs * rhs;
-    verify_prod(prod)
-}
-
-macos_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i32
-    requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11
-{
-    let prod: i8 = lhs * rhs;
-    verify_prod(prod)
-}
-
-windows_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i32
-    requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11
-{
-    let prod: i8 = lhs * rhs;
-    verify_prod(prod)
-}
-
-machine evaluate() -> i32 {
-    compute_target_body(8, 9)
-}
-
-machine main() crashes Trap {
     let res: i32 = evaluate();
     transition res == 0 {
         true -> done()
@@ -48,4 +81,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

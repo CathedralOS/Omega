@@ -97,9 +97,8 @@ impl PreparedGuarantees {
                 && domain == row.domain
                 && identity == row.identity
                 && (row.proven_at_exit
-                    || write_region.is_some_and(|region| {
-                        same_occurrence_covered(program, region, concrete)
-                    }))
+                    || write_region
+                        .is_some_and(|region| same_occurrence_covered(program, region, concrete)))
         };
         let key = facts::places::place_bucket_hash(concrete.root, &concrete.segments);
         self.exact_positions.candidates(key).any(|position| {

@@ -1,4 +1,4 @@
-//! The 14 authority classes, the mechanism identities that carry them, and the
+//! Mechanism identities carrying the shared authority classes, and the
 //! closure review over both - the one file here that encodes big-endian.
 
 use std::collections::BTreeSet;
@@ -589,62 +589,7 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
     }
 }
 
-/// Mints a closed compiler vocabulary from one table.
-///
-/// Each of these vocabularies exists in several spellings at once: the `enum`,
-/// its `ALL` roster, the authored spelling of every variant and the tag its
-/// encoded form uses. The rows in each invocation are the one place those are
-/// written; the enum, its canonical-order roster and its tags are generated
-/// from them, so a tag can no longer drift from the declaration it belongs to.
-macro_rules! tagged_vocabulary {
-    // Vocabulary whose tag callers read through its own method.
-    ($documentation:literal, $name:ident, $tag_method:ident { $($variant:ident = $tag:literal),+ $(,)? }) => {
-        #[doc = $documentation]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum $name {
-            $($variant,)+
-        }
-
-        impl $name {
-            /// Every variant, in canonical (declaration) order.
-            pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
-
-            /// This variant's canonical tag.
-            pub const fn $tag_method(self) -> u8 {
-                match self {
-                    $(Self::$variant => $tag,)+
-                }
-            }
-        }
-    };
-    // Vocabulary whose tag is published as the free function of the same table.
-    ($documentation:literal, $tag_documentation:literal, $name:ident, $tag_fn:ident { $($variant:ident => $spelling:literal = $tag:literal),+ $(,)? }) => {
-        #[doc = $documentation]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum $name {
-            $($variant,)+
-        }
-
-        impl $name {
-            /// Every variant, in canonical (declaration) order.
-            pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
-
-            /// The authored spelling of this variant.
-            pub const fn name(self) -> &'static str {
-                match self {
-                    $(Self::$variant => $spelling,)+
-                }
-            }
-        }
-
-        #[doc = $tag_documentation]
-        pub const fn $tag_fn(value: $name) -> u8 {
-            match value {
-                $($name::$variant => $tag,)+
-            }
-        }
-    };
-}
+pub use semantic_vocabulary::TerminalAuthorityClass;
 
 const fn float_format_tag(format: numerics::literals::FloatFormat) -> u8 {
     match format {
@@ -668,28 +613,6 @@ pub use language_semantics::numeric_intrinsics::{
     PrimitiveIntegerComparisonOperation as CompilerPrimitiveIntegerComparisonOperation,
     numeric_type_tag, primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
 };
-
-tagged_vocabulary!(
-    "D45's closed physical terminal-authority vocabulary. Declaration order is the canonical encoded order; additions require a target-policy migration.",
-    TerminalAuthorityClass,
-    canonical_tag
-    {
-        FilesystemContentRead = 0,
-        FilesystemContentWrite = 1,
-        FilesystemMetadataQuery = 2,
-        DirectoryEnumeration = 3,
-        FilesystemNamespaceMutation = 4,
-        FilesystemMetadataMutation = 5,
-        ProcessOutput = 6,
-        ProcessTermination = 7,
-        MachineControl = 8,
-        PortIo = 9,
-        InterruptControl = 10,
-        InterruptEntry = 11,
-        RootMemoryAccess = 12,
-        ProcessInput = 13,
-    }
-);
 
 /// Portable filesystem authority facets accepted by D45 service policy.
 ///
@@ -1404,23 +1327,5 @@ mod physical_leaf_tests {
             ),
             Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch)
         );
-    }
-}
-
-impl compiler_storage::Record for TerminalAuthorityClass {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        compiler_storage::Record::write(&self.canonical_tag(), output)
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        let tag = <u8 as compiler_storage::Record>::read(input)?;
-        Self::ALL
-            .into_iter()
-            .find(|class| class.canonical_tag() == tag)
-            .ok_or_else(|| input.error("unknown retained terminal authority class"))
     }
 }

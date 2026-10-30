@@ -190,6 +190,13 @@ pub(crate) fn lowered_direct_scalar_term(
     erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     Ok(match expression {
+        LoweredDirectExpression::ScalarApplication {
+            application,
+            scalar_type,
+        } => ScalarTerm::Application {
+            application: *application,
+            scalar_type: *scalar_type,
+        },
         LoweredDirectExpression::ErasedParameter {
             position,
             scalar_type,

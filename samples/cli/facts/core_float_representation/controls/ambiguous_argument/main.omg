@@ -1,0 +1,8 @@
+// Anonymous operands do not select one of two distinct carrier signatures.
+machine inspect(value: u32) -> bool { value == 1u32 }
+machine inspect(value: u64) -> bool { value == 1u64 }
+machine main() crashes Trap {
+    transition inspect(1) { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

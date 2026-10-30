@@ -155,7 +155,11 @@ fn byte_carrier_leaf_copy(
     let Some(declaration) = terminal_psi::find_structural_type(structural_types, parent) else {
         return false;
     };
-    let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = &declaration.shape
+    else {
         return false;
     };
     let byte_type =

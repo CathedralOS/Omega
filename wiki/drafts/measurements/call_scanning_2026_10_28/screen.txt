@@ -1,0 +1,6 @@
+0 A: 5416.7 ms, native exit 0
+1 B: 5453.8 ms, native exit 0
+2 B: 4959.7 ms, native exit 0
+3 A: 5580.7 ms, native exit 0
+4 A: 5622.1 ms, native exit 0
+5 B: 5539.3 ms, native exit 0

@@ -44,6 +44,7 @@ impl ValidatedElfIndexedSectionPayloadPlan {
     pub fn row_count(&self) -> usize {
         self.contents.rows.len()
     }
+    #[cfg(test)]
     pub(crate) fn dynamic_fixup_count(&self) -> usize {
         self.contents.dynamic_fixups.len()
     }

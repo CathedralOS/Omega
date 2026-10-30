@@ -48,7 +48,7 @@ mod machine_parameter_arguments;
 mod type_arguments;
 use machine_parameter_arguments::validate_machine_parameter_arguments;
 pub use type_arguments::call_type_arguments;
-pub(crate) use type_arguments::callable_type_arguments;
+pub(crate) use type_arguments::{callable_type_arguments, declaration_call_type_arguments};
 mod receiver_calls;
 mod receiverless_calls;
 mod recursion;
@@ -917,7 +917,6 @@ pub use receiver_topology::{
 mod argument_correspondence;
 pub(crate) use argument_correspondence::{
     call_binding_correspondence, captured_argument_position, executable_parameters,
-    immutable_runtime_parameter,
 };
 mod occurrences;
 pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};

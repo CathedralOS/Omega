@@ -146,6 +146,13 @@ pub(super) fn retain_authored_call(
         if !retained.lexical_owner.is_valid() {
             retained.lexical_owner = lexical_owner;
         }
+        // Static operands can precede typed overload selection. Once that
+        // selection supplies the authored declaration, retain it alongside
+        // the operands before executable specialization changes the call edge.
+        // A requirement already retained here never becomes its realization.
+        if !retained.registration_operation.is_valid() {
+            retained.registration_operation = target_symbol;
+        }
         application
     } else {
         let application = program.expression_table.retain_static_machine_application(

@@ -1,7 +1,7 @@
 // Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
 // Expected exit: 0
 machine same(lower: u64, upper: u64) -> bool { lower == upper }
-data Interval [copy] where (self in Interval::Empty) || ((self in Interval::Point) && same(self.lo, self.hi) == true) {
+data Interval [copy] requires (self in Interval::Empty) || ((self in Interval::Point) && self.lo >= 0 && same(self.lo, self.hi) == true) {
     case Empty;
     case Point(lo: u64, hi: u64);
 }

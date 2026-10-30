@@ -161,24 +161,7 @@ fn product_candidates(
     Some(candidates)
 }
 
-/// Source-signature compatibility for the narrowly designated product-entry
-/// query. The build owner supplies target meaning; Psi retains lexical lookup
-/// and exact-symbol selection without depending on target or native crates.
-/// This check must not execute the entry or require the build's unfinished
-/// provider, receiver-provision, or layout settlement. Final admission rechecks
-/// the selected declaration after the build completes.
-/// Every declaration handle and parameter must come from the supplied program;
-/// sharing a Rust lifetime alone does not establish arena identity.
-pub trait ProductEntryCompatibility: Sync {
-    fn validate_entry(
-        &self,
-        program: &TypedTrees,
-        declaration: ProductEntryDeclaration<'_>,
-        slot: &str,
-    ) -> Result<(), String>;
-}
-
-/// Declaration data needed by the Build owner's entry-slot judgment. This view
+/// Declaration data needed by Psi's source entry-slot judgment. This view
 /// carries no executable state or statement span. The query issuer retains the
 /// exact selected symbol and its lexical authority separately; this is neither
 /// an issued description nor evidence that the product has been admitted.

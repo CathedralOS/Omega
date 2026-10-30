@@ -1,0 +1,19 @@
+// Invalid control: carrier-selected Ascii still requires evidence for these bytes.
+domain [u8; 4]::Ascii requires ascii_only(self);
+domain [u8]::Ascii requires ascii_only(self);
+
+machine preserve(bytes: &mut [u8; 4] in Ascii)
+ensures bytes in Ascii
+{
+}
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] = [255u8, 0u8, 0u8, 0u8];
+    preserve(&mut bytes);
+    transition bytes[0] == 65 {
+        true -> good()
+        _ -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

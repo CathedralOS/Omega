@@ -50,11 +50,17 @@ impl PreparedScalarQualifications {
     pub(crate) fn prepare(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
+        scalar_applications: &crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
         signatures: &[SymbolHandle],
         bodies: &[SymbolHandle],
         boundaries: &[&checked_trees::CheckedBoundaryMachinePlan],
         fields: &[FieldType],
     ) -> Result<Self, LoweringError> {
+        let constant_views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications,
+            constant_values: &checked.typed.constant_recipe_closure.values,
+            ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
+        };
         let mut references = fields
             .iter()
             .map(|(_, reference)| *reference)
@@ -144,12 +150,19 @@ impl PreparedScalarQualifications {
             let scalar_type = terminal_scalar_type(primitive)?;
             let mut atom_identities = Vec::new();
             for (symbol, semantic_id) in atoms {
-                let predicate =
-                    domain_predicate(identities, checked, reference, symbol, semantic_id)?;
+                let predicate = domain_predicate(
+                    identities,
+                    checked,
+                    &constant_views,
+                    reference,
+                    symbol,
+                    semantic_id,
+                )?;
                 atom_identities.push(retain_domain(
                     &mut catalog,
                     identities,
                     checked,
+                    &constant_views,
                     symbol,
                     semantic_id,
                     scalar_type,
@@ -173,6 +186,7 @@ impl PreparedScalarQualifications {
                 let predicate = if routed {
                     Some(retained_domain_predicate(
                         identities,
+                        &constant_views,
                         &requirement.predicate,
                         scalar_type,
                     )?)
@@ -183,6 +197,7 @@ impl PreparedScalarQualifications {
                     &mut catalog,
                     identities,
                     checked,
+                    &constant_views,
                     requirement.domain_symbol,
                     requirement.domain,
                     scalar_type,
@@ -203,8 +218,14 @@ impl PreparedScalarQualifications {
                 }
             }
         }
-        let parameter_atoms =
-            parameters::prepare(identities, checked, bodies, &mut catalog, &mut atom_sets)?;
+        let parameter_atoms = parameters::prepare(
+            identities,
+            checked,
+            &constant_views,
+            bodies,
+            &mut catalog,
+            &mut atom_sets,
+        )?;
         domain_predicates::complete_value_components(&mut catalog.domains);
         catalog.domains.sort_by(|left, right| {
             identities
@@ -395,6 +416,7 @@ fn retain_domain(
     catalog: &mut ScalarQualificationCatalog,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     symbol: SymbolHandle,
     semantic_id: SemanticDomainId,
     scalar_type: semantic_vocabulary::ScalarType,
@@ -445,11 +467,18 @@ fn retain_domain(
                 .ok_or(LoweringError::Unsupported(
                     "scalar required-domain theory has no complete local predicate",
                 ))?;
-            Some(retained_domain_predicate(identities, &local, scalar_type)?)
+            Some(retained_domain_predicate(
+                identities,
+                constant_views,
+                &local,
+                scalar_type,
+            )?)
         }
     } else {
         validation::scalar_domain_definition_predicate(&checked.typed, symbol, semantic_id)
-            .map(|predicate| retained_domain_predicate(identities, &predicate, scalar_type))
+            .map(|predicate| {
+                retained_domain_predicate(identities, constant_views, &predicate, scalar_type)
+            })
             .transpose()?
             .or(predicate)
     };
@@ -525,12 +554,18 @@ fn retain_domain(
                     .ok_or(LoweringError::Unsupported(
                         "required scalar domain has no complete local predicate",
                     ))?;
-                Some(retained_domain_predicate(identities, &local, scalar_type)?)
+                Some(retained_domain_predicate(
+                    identities,
+                    constant_views,
+                    &local,
+                    scalar_type,
+                )?)
             };
             retain_domain(
                 catalog,
                 identities,
                 checked,
+                constant_views,
                 membership.domain_symbol,
                 membership.semantic_domain,
                 scalar_type,
@@ -543,6 +578,7 @@ fn retain_domain(
 
 fn retained_domain_predicate(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     predicate: &checked_trees::CheckedBooleanExpression,
     carrier: semantic_vocabulary::ScalarType,
 ) -> Result<terminal_psi::ScalarDomainPredicate, LoweringError> {
@@ -556,7 +592,7 @@ fn retained_domain_predicate(
             qualifications: ScalarQualificationSetId::ZERO,
         }],
         &[],
-        &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
+        constant_views,
     )?;
     Ok(terminal_psi::ScalarDomainPredicate {
         subject,
@@ -711,6 +747,7 @@ fn carries_scalar_qualifications(checked: &CheckedTrees, reference: TypeReferenc
 fn domain_predicate(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     mut reference: TypeReferenceHandle,
     symbol: SymbolHandle,
     semantic_id: SemanticDomainId,
@@ -762,7 +799,7 @@ fn domain_predicate(
                     qualifications: ScalarQualificationSetId::ZERO,
                 }],
                 &[],
-                &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
+                constant_views,
             )?;
             return Ok(Some(terminal_psi::ScalarDomainPredicate {
                 subject,
@@ -946,21 +983,6 @@ fn observed_scalar_carrier(
 /// The source checker retained the complete receiving restriction before its
 /// temporary mathematical view expired. Its exact source type identity includes
 /// every qualification; equal primitive layout alone supplies no restriction.
-fn retained_scalar_domain_predicate(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-    primitive: PrimitiveType,
-) -> bool {
-    checked.primitive_type_reference(reference) == Some(primitive)
-        && matches!(
-            retained_scalar_restriction(checked, reference),
-            Some(
-                checked_trees::CheckedUnitStructuralFieldType::RefinedScalar { .. }
-                    | checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
-            )
-        )
-}
-
 pub(crate) fn retained_scalar_restriction(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,

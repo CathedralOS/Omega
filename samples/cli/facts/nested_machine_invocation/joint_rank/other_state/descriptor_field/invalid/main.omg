@@ -1,0 +1,43 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Remaining { canary: u64; values: &[u8]; }
+machine perform(counter: &mut u64, bytes: &[u8], select: bool) crashes Trap
+requires bytes.len <= 7;
+{
+    let remaining: Remaining = match select { true -> Remaining { canary: 641, values: bytes } false -> Remaining { canary: 641, values: bytes[0..0] } };
+    transition { _ -> count(counter, remaining) }
+    machine count(counter: &mut u64, remaining: Remaining) crashes Trap
+    terminates;
+    terminates by remaining.values -> Slice::Length;
+    requires remaining.values.len <= 7;
+    {
+        transition remaining.values.len > 0 {
+            true -> forward(remaining, counter)
+            false -> finish(remaining.canary)
+        }
+        machine forward(pending: Remaining, counter: &mut u64) crashes Trap
+        requires pending.values.len > 0 && pending.values.len <= 7;
+        {
+            counter = ((counter as u64 in Wrapping) + 1) as u64;
+            let next: Remaining = Remaining { canary: pending.canary, values: pending.values };
+            transition { _ -> count(counter, next) }
+        }
+        machine finish(canary: u64) crashes Trap {
+            transition canary == 641 { true -> done() false -> bad() }
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 7] = [1, 2, 3, 4, 5, 6, 7];
+    let mut counted: u64 = 3;
+    perform(&mut counted, &bytes[..], true);
+    let matched: bool = counted == 10;
+    perform(&mut counted, &bytes[..], false);
+    transition matched && counted == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -94,6 +94,7 @@ pub(crate) fn validate_transition_target_node(
                 current_state,
                 owner,
                 state,
+                target,
                 diagnostics,
             );
         }
@@ -140,6 +141,7 @@ pub(crate) fn validate_transition_target_node(
                 current_state,
                 owner,
                 state,
+                target,
                 diagnostics,
             );
         }

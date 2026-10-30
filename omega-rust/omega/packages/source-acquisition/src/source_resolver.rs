@@ -48,9 +48,10 @@ impl SourceResolver {
 
     /// Open an isolated resolver tree beneath a caller-custodied base.
     ///
-    /// This is the explicit hardened-mode constructor for CI, bootstrap, and
-    /// other infrastructure that supplies its own private storage boundary.
-    /// Ordinary commands must use [`Self::for_current_user`].
+    /// No production caller exists: every shipped command reaches the resolver
+    /// through [`Self::for_current_user`]. This exists so tests can place their
+    /// own custody boundary instead of the per-user cache.
+    #[cfg(test)]
     pub(crate) fn for_hardened_base(
         base: impl AsRef<Path>,
         choices: PrimaryGitChoices<'_>,

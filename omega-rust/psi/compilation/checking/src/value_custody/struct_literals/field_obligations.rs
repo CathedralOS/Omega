@@ -680,7 +680,7 @@ pub fn selected_construction_definition<'a>(
     construction_members_are_concrete(program, definition).then_some(definition)
 }
 
-pub(crate) fn selected_construction_case<'a>(
+pub fn selected_construction_case<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
@@ -729,7 +729,7 @@ pub fn selected_construction_field_type(
         .map(|field| field.type_reference)
 }
 
-pub(crate) fn selected_construction_field<'a>(
+pub fn selected_construction_field<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,

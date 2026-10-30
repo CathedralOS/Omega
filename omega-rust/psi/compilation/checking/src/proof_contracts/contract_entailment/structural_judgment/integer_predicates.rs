@@ -131,10 +131,6 @@ impl<'program> PreparedIntegerPremisesCache<'program> {
 }
 
 impl<'program> PreparedIntegerPremises<'program> {
-    fn for_goal(&self) -> IntegerObservations<'program> {
-        self.observations.clone()
-    }
-
     fn take_goal_work(&self) -> IntegerObservations<'program> {
         if let Ok(mut guard) = self.goal_work.lock()
             && let Some(mut work) = guard.take()
@@ -192,12 +188,6 @@ impl<'program> PreparedIntegerPremises<'program> {
 }
 
 impl<'program> IntegerObservations<'program> {
-    fn reset_for_goal(&mut self, prepared: &PreparedIntegerPremises<'program>) {
-        let next_operation_id = self.next_operation_id;
-        *self = prepared.for_goal();
-        self.next_operation_id = self.next_operation_id.max(next_operation_id);
-    }
-
     fn operation_placeholder(&mut self) -> Option<Polynomial> {
         let identity = self.next_operation_id;
         self.next_operation_id = identity.checked_add(1)?;
@@ -396,18 +386,6 @@ impl<'program> IntegerObservations<'program> {
 }
 
 impl<'program> StructuralJudge<'program> {
-    pub(in crate::proof_contracts::contract_entailment) fn has_potential_integer_premises(
-        &self,
-    ) -> bool {
-        self.rewrites.has_potential_integer_premises()
-    }
-
-    pub(in crate::proof_contracts::contract_entailment) fn potential_integer_premises_len(
-        &self,
-    ) -> usize {
-        self.rewrites.potential_integer_premises_len()
-    }
-
     pub(in crate::proof_contracts::contract_entailment) fn integer_premise_revision(
         &self,
     ) -> usize {
@@ -915,10 +893,6 @@ impl<'program> StructuralJudge<'program> {
 
     pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites(&self) -> bool {
         self.rewrites.iter().next().is_none()
-    }
-
-    pub(in crate::proof_contracts::contract_entailment) fn rewrites_ptr(&self) -> usize {
-        std::sync::Arc::as_ptr(&self.rewrites) as usize
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites_or_substitutions(
@@ -1457,7 +1431,11 @@ impl<'program> StructuralJudge<'program> {
         &self,
         predicate: &StructuralTerm,
     ) -> Option<(IntegerObservations<'_>, Comparison, Vec<Comparison>)> {
-        if !self.runtime_body_values || self.case_facts_only {
+        // Numeric consequences depend on the already formed observed terms,
+        // not on whether their owner is a runtime prefix or a declaration.
+        // Declaration callers retain their own telescope and ordered premises;
+        // enabling this query must never switch them into runtime scope.
+        if self.case_facts_only {
             return None;
         }
         let mut observations = IntegerObservations {

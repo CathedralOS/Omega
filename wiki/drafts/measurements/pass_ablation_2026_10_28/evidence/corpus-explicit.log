@@ -1,0 +1,7 @@
+corpus_runner: 8612 prior timings loaded
+corpus_runner: 9/9 done, 0 compile(s) in flight
+corpus_gate: clean — 9 fixtures ({'built': 9}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 9 (exit codes {'0': 9}), 0 with stdout differing from expected
+corpus_gate: golden provenance: 9 rows stamped, 0 legacy (unstamped), oldest stamped row 671 commits behind HEAD (@5f668826adf3)
+corpus_gate: measured at jobs=runner default, golden jobs=8
+corpus_gate: 361 pass/run row(s) pinned without a success and 0 fail row(s) pinned as a success (3 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

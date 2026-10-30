@@ -458,6 +458,7 @@ impl ContractPredicates<'_, '_> {
                 return Some((
                     CheckedScalarExpression::ConstantApplication {
                         recipe,
+                        owner: self.owner,
                         primitive_type: primitive,
                     },
                     reference,
@@ -1210,11 +1211,16 @@ fn contract_storage_root(
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Reference { access, .. } => {
-                return matches!(
-                    access,
-                    language_core::ReferenceAccess::Shared
-                        | language_core::ReferenceAccess::Mutable
-                );
+                // Exclusive formals retain a fixed incoming address. A mutable
+                // shared binding can replace its own descriptor, so its exit
+                // referent is not necessarily the caller's original actual.
+                return match access {
+                    language_core::ReferenceAccess::Shared => {
+                        !allow_result || !parameter.is_mutable
+                    }
+                    language_core::ReferenceAccess::Mutable => true,
+                    _ => false,
+                };
             }
             _ => return !allow_result,
         }

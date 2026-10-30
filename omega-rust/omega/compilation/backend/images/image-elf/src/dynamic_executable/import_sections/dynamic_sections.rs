@@ -52,6 +52,7 @@ impl ValidatedElfDynamicSectionPlan {
         &self.inputs
     }
 
+    #[cfg(test)]
     pub(crate) fn needed_object_count(&self) -> usize {
         self.contents.needed.len()
     }
@@ -76,6 +77,7 @@ impl ValidatedElfDynamicSectionPlan {
         objects.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn required_version_count(&self) -> usize {
         self.contents
             .verneed

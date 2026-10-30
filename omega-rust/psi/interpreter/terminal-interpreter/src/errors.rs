@@ -129,6 +129,10 @@ pub enum TerminalInterpretError {
         stage: &'static str,
         detail: String,
     },
+    ReferenceFormation {
+        stage: &'static str,
+        detail: String,
+    },
     StructuralQualificationMissing(PlaceId),
     StructuralArgumentAliasing(u64),
     StructuralPrimitiveValueCount {
@@ -176,6 +180,10 @@ pub enum TerminalInterpretError {
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
     FoldedConstantClosure(&'static str),
+    EntryResultObservation(&'static str),
+    UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
+    ScalarApplicationEvaluation(String),
+    UnclosedArrayExtent(semantic_vocabulary::StructuralTypeId),
     TargetMachineSelectionIdentityMismatch,
     TargetLayoutSelectionIdentityMismatch,
     TargetLayoutSelectionMissing(terminal_psi::LayoutApplicationId),
@@ -248,6 +256,13 @@ pub(crate) fn malformed() -> TerminalInterpretError {
 }
 
 impl TerminalInterpretError {
+    pub(crate) fn in_reference_formation(self, stage: &'static str) -> Self {
+        Self::ReferenceFormation {
+            stage,
+            detail: format!("{self:?}"),
+        }
+    }
+
     /// Retain the admission stage without discarding the underlying refusal.
     pub(crate) fn in_argument_preparation(self, stage: &'static str) -> Self {
         let detail = match self {

@@ -1,11 +1,12 @@
 // A literal actual does not survive exposing the callee's private integer local.
-machine install_one(value: &mut u64[0..=1])
+machine install_one(value: &mut u64)
+requires value <= 1
 ensures value == 1 {
     value = 1;
 }
-machine choose<'input>(values: &'input mut [u64; 2], position: u64[0..=1]) -> &'input u64
+machine choose<'input>(values: &'input mut [u64; 2], position: u64) -> &'input u64
 requires position < 2 {
-    let mut selected_position: u64[0..=1] = position;
+    let mut selected_position: u64 = position;
     install_one(&mut selected_position);
     &values[selected_position]
 }

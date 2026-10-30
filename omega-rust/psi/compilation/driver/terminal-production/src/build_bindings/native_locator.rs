@@ -147,7 +147,12 @@ fn collect(
     }
     let shape = match &row.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => TerminalBuildValueShape::Scalar(*scalar),
-        StructuralTypeShape::FixedArray { element, length } => TerminalBuildValueShape::Array { length: *length, element: collect(module, *element, cache, visiting)? },
+        StructuralTypeShape::FixedArray { element, length } => TerminalBuildValueShape::Array {
+            length: length.literal().ok_or_else(|| Diagnostic::error(
+                "native locator requires a closed array extent",
+            ))?,
+            element: collect(module, *element, cache, visiting)?,
+        },
         StructuralTypeShape::Sum { cases } => TerminalBuildValueShape::Sum {
             cases: cases.iter().map(|case| Ok(TerminalBuildValueCase {
                 id: case.id,

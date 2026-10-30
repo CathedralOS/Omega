@@ -359,23 +359,7 @@ pub(super) fn lower_program_local_root_introductions(
 pub(super) fn lower_unit_structural_types(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    plans: UnitPlans<'_>,
-    closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
-) -> Result<
-    (
-        Vec<StructuralTypeDeclaration>,
-        Vec<(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)>,
-        Vec<StructuralReferentIdentity>,
-    ),
-    LoweringError,
-> {
-    lower_unit_structural_types_including(identities, checked, plans, closure, boundaries, &[])
-}
-
-pub(super) fn lower_unit_structural_types_including(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
@@ -569,7 +553,7 @@ pub(super) fn lower_unit_structural_types_including(
         }
     }
     let (mut declarations, mut identity_ids, referents) =
-        lower_unit_structural_type_roots(identities, checked, plans, &roots)?;
+        lower_unit_structural_type_roots(identities, checked, scalar_applications, plans, &roots)?;
     if literal_view {
         crate::emission::structural_byte_sequence_store::literal_view_type(
             identities,
@@ -676,6 +660,7 @@ pub(crate) fn selected_declaration<'a>(
 pub(crate) fn lower_unit_structural_type_roots(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     plans: UnitPlans<'_>,
     roots: &[typed_trees::type_identity::TypeIdentityId],
 ) -> Result<
@@ -961,13 +946,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 length,
             } => StructuralTypeShape::FixedArray {
                 element: lookup_type_id(&type_ids, element_type_identity)?,
-                // Terminal production runs on a closed program copy: every
-                // recipe extent carries its value under this target capsule.
-                length: length
-                    .closed(&checked.typed)
-                    .ok_or(LoweringError::Unsupported(
-                        "fixed array extent is a constant recipe the target capsule has not closed",
-                    ))?,
+                length: scalar_applications.array_extent(checked, *length)?,
             },
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 let mut case_identities = BTreeSet::new();
@@ -1342,7 +1321,15 @@ pub(super) fn lower_unit_structural_domains(
             selected_plans.push(plan);
         }
         if !found {
-            return unsupported("Unit closure references a missing structural domain carrier");
+            return Err(LoweringError::MissingUnitDomainPlan {
+                domain,
+                name: checked
+                    .typed
+                    .semantic_domains
+                    .name(domain)
+                    .unwrap_or_default()
+                    .to_owned(),
+            });
         }
     }
     // Semantic family and exact storage carrier are independent identities.

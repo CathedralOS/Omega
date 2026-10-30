@@ -1193,6 +1193,9 @@ fn captured_address_refines(
     remaining.is_empty()
 }
 
+/// Test-only witness: the opaque-window assertion in this file's tests is the
+/// only reader, so the lib build does not carry it.
+#[cfg(test)]
 pub(super) fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {
     for (left, right) in left.iter().zip(right) {
         if left == right {

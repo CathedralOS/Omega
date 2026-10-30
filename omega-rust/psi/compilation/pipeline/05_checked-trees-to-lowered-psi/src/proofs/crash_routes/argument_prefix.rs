@@ -307,7 +307,11 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                 }
             }
             StructuralPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                let StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = declaration.shape
+                else {
                     return unsupported(
                         "structural crash route argument fixed index receiver is not an array",
                     );

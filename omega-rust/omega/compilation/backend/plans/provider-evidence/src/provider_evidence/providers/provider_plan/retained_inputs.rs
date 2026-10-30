@@ -8,7 +8,8 @@
 
 use sha2::{Digest, Sha256};
 
-use super::digest_encoder::PROVIDER_PLAN_DOMAIN as DOMAIN;
+use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
+
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
 
@@ -36,18 +37,18 @@ impl<'a> ProviderPlanInput<'a> {
             return Err("provider plan input differs from its complete commitment");
         }
         let mut reader = Reader { bytes, offset: 0 };
-        if reader.take(DOMAIN.len())? != DOMAIN {
+        if reader.take(PROVIDER_PLAN_DOMAIN.len())? != PROVIDER_PLAN_DOMAIN {
             return Err("unknown provider plan input schema");
         }
         reader.nonempty_string()?; // selection name
         let provider = reader.string()?;
-        reader.string()?; // complete provider application; empty for a declaration
+        reader.string()?; // complete applied provider identity, empty for a declaration
         let provider_package = reader.package()?;
         let target = reader.string()?;
         reader.nonempty_string()?; // schema identity
         reader.package()?;
         for _ in 0..reader.count()? {
-            reader.string()?; // complete receiver application
+            reader.string()?; // complete receiving trait application identity
             reader.nonempty_string()?;
             reader.package()?;
             reader.strings()?;
@@ -301,7 +302,9 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+    use crate::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceReceiverApplication,
+    };
 
     fn selected_plan() -> ProviderPlan {
         let mut plan = ProviderPlan {
@@ -310,8 +313,21 @@ mod tests {
             target: "linux_x86_64".into(),
             ..ProviderPlan::default()
         };
+        plan.provider_application = plan.identities.intern("Provider<opaque>");
         plan.schema.trait_name = plan.schema.identities.intern("Boundary");
         let requirement = plan.schema.identities.intern("Boundary::consume(opaque)");
+        let application = plan.schema.identities.intern("Boundary<opaque>");
+        let argument = plan.schema.identities.intern("opaque");
+        plan.schema
+            .receiver_applications
+            .push(ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![argument],
+                lifetime_argument_identities: Vec::new(),
+                requirement_identities: vec![requirement],
+            });
         plan.schema.methods.push(ServiceMethod {
             name: "consume".into(),
             requirement_owner: "Boundary".into(),
@@ -388,7 +404,7 @@ mod tests {
             );
         }
         let mut old_schema = bytes;
-        old_schema[DOMAIN.len() - 2] = b'4';
+        old_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = b'4';
         assert!(read(&old_schema).is_err());
     }
 
@@ -406,8 +422,12 @@ mod tests {
         let mut unknown_schema = bytes.clone();
         unknown_schema[0] ^= 1;
         assert!(read(&unknown_schema).is_err());
+        let mut retired_schema = bytes.clone();
+        retired_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = b'4';
+        assert!(read(&retired_schema).is_err());
         let mut overflowing_string = bytes;
-        overflowing_string[DOMAIN.len()..DOMAIN.len() + 8].copy_from_slice(&u64::MAX.to_le_bytes());
+        overflowing_string[PROVIDER_PLAN_DOMAIN.len()..PROVIDER_PLAN_DOMAIN.len() + 8]
+            .copy_from_slice(&u64::MAX.to_le_bytes());
         assert!(read(&overflowing_string).is_err());
         let mut repeated = plan.clone();
         repeated.rows.push(repeated.rows[0].clone());

@@ -823,7 +823,9 @@ fn retain_places(
                 bindings.push((operand.clone(), operand.clone()));
             }
         }
-        Operand::Integer(..) | Operand::CompletedCall { .. } => {}
+        Operand::Integer(..) => {}
+        #[cfg(test)]
+        Operand::CompletedCall { .. } => {}
         Operand::CollectionLength(collection) => retain_places(collection, observed, bindings),
         Operand::Field { receiver, .. } => {
             // A sibling field can survive even when its containing record's
@@ -860,7 +862,9 @@ fn depends_on(operand: &ordered_values::Operand, observed: &ordered_values::Oper
     use ordered_values::Operand;
     operand == observed
         || match operand {
-            Operand::Place { .. } | Operand::Integer(..) | Operand::CompletedCall { .. } => false,
+            Operand::Place { .. } | Operand::Integer(..) => false,
+            #[cfg(test)]
+            Operand::CompletedCall { .. } => false,
             Operand::Field { receiver, .. } => depends_on(receiver, observed),
             Operand::CollectionLength(collection) => depends_on(collection, observed),
             Operand::Indexed {

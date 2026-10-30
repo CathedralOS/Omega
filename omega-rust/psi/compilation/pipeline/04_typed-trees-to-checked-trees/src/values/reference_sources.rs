@@ -87,13 +87,37 @@ pub(crate) fn capture(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<ReferenceCapture> {
+    capture_source(
+        program,
+        machine,
+        state,
+        statement_index,
+        validation::reference_formation_source(program, expression)?,
+        reference,
+        selector,
+    )
+}
+
+/// Geometry for an admitted reference capture, explicit or implicit. The
+/// caller selects custody from checked evidence; this operation retains the
+/// actual runtime source and every descriptor crossing, not ultimate backing.
+pub(crate) fn capture_source(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    formation: validation::ReferenceFormationSource,
+    reference: TypeReferenceHandle,
+    selector: &dyn Fn(
+        typed_trees::expression::ExpressionHandle,
+    ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+) -> Option<ReferenceCapture> {
     // Formation captures borrowed storage for every reference descriptor.
     // The pointer-roster query excludes byte/slice descriptors by design;
     // using it here would erase a fixed-byte local's actual establishment.
     let shell = validation::reference_shell(program, reference)?;
     let referent = shell.referee;
     let access = CheckedStructuralAccess::from(shell.access);
-    let formation = validation::reference_formation_source(program, expression)?;
     if CheckedStructuralAccess::from(formation.access) != access {
         return None;
     }
@@ -381,35 +405,4 @@ fn access_can_supply(source: CheckedStructuralAccess, result: CheckedStructuralA
             source,
             CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
         )
-}
-
-/// Existing stored descriptors retain their current carrier. Fresh formations
-/// use the same source capture as locals, with their selector evaluation owned
-/// by the consuming value occurrence.
-pub(crate) fn plan(
-    program: &dyn validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-    selector: &dyn Fn(
-        typed_trees::expression::ExpressionHandle,
-    ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if validation::reference_formation_source(program, expression).is_some() {
-        return Some(
-            capture(
-                program,
-                machine,
-                state,
-                statement_index,
-                expression,
-                reference,
-                selector,
-            )?
-            .source,
-        );
-    }
-    validation::reference_result_custody::initializer_source(program, state, expression, reference)
 }

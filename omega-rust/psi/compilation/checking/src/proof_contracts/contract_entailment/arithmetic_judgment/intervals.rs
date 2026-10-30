@@ -499,7 +499,20 @@ impl<'program> Engine<'program> {
             return (0, 0);
         }
         let value = self.substituted(value);
-        if let Some(value) = value.constant_value() {
+        // Equal established bounds identify one exact integer even when its
+        // contract used inequalities. Wider intervals supply no exact bits:
+        // bitwise results are not monotonic in their endpoints.
+        let known_value =
+            value
+                .constant_value()
+                .or_else(|| match self.polynomial_interval(&value) {
+                    Interval {
+                        low: Some(low),
+                        high: Some(high),
+                    } if low == high => Some(low),
+                    _ => None,
+                });
+        if let Some(value) = known_value {
             let (minimum, maximum) = bitwise_carrier_bounds(bits, signed);
             if value < minimum || value > maximum {
                 return (0, 0);

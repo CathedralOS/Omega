@@ -57,8 +57,7 @@ pub(super) use projections::{
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use reference_values::{
     canonical_reference_origins, canonical_reference_sources,
-    captured_reference_projection_origins, captured_reference_projection_sources,
-    completed_reference_projection_sources,
+    captured_reference_projection_origins, completed_reference_projection_sources,
 };
 pub(super) use type_origins::declared_origins;
 pub(super) use type_origins::declared_origins_for_query;

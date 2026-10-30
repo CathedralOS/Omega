@@ -1,0 +1,13 @@
+// An unused declaration still owes its complete constant-formation contract.
+data Cell { value: u64; }
+const REQUIRED_SIZE: u64 = 16u64;
+machine extent() -> u64 crashes Trap {
+    transition size_of<Cell>() == REQUIRED_SIZE {
+        true -> accepted()
+        false -> rejected()
+    }
+    machine accepted() -> u64 { 16u64 }
+    machine rejected() -> u64 { crash Trap; }
+}
+data Envelope { bytes: [u8; extent()]; }
+machine main() {}

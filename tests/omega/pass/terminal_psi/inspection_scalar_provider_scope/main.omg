@@ -1,0 +1,4 @@
+// Declaration scalar checking must not demand the inspected body's runtime supply.
+public boundary trait Choice { machine read() -> u32 reaches; }
+const UNUSED: u64 = size_of<u64>();
+machine inspect_runtime() -> u32 { Choice::read() }

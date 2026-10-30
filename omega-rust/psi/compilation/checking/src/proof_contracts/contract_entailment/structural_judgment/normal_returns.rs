@@ -10,6 +10,7 @@ mod array_elements;
 mod body_completion;
 mod collection_extents;
 mod match_captures;
+mod match_composition;
 mod operand_types;
 mod owned_arguments;
 
@@ -17,7 +18,7 @@ use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
     owner_return_type, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::bound_term;
+
 use super::value_predicates::boolean_term;
 use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
@@ -26,7 +27,7 @@ use facts::NormalizedWriteFrame;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -307,6 +308,7 @@ impl<'program> StructuralJudge<'program> {
                     .try_fold(subject.clone(), |value, field| {
                         super::super::observed_projections::project_declared_field(
                             self.program,
+                            self,
                             value,
                             field,
                         )
@@ -1056,59 +1058,26 @@ impl<'program> StructuralJudge<'program> {
                     expression,
                 )
         {
-            let subject_type = self.normal_value_type_reference(binary.left, scope)?;
-            let definition =
-                program.data_constructor_definition(subject_type, source_definition.symbol)?;
-            let variant = program.data_constructor_case(
-                subject_type,
+            return self.evaluate_case_paths(
+                expression,
+                binary.left,
                 source_definition.symbol,
                 source_variant.symbol,
-            )?;
-            let mut outcomes = Vec::new();
-            for subject in self.evaluate_normal_paths(
-                binary.left,
                 environment,
                 scope,
-                depth + 1,
-                requested_operations,
-                entries,
-                NormalValueDemand::Value,
-            )? {
-                let judgment = subject.judge.judge_case(
-                    subject.value.clone(),
-                    definition.symbol,
-                    variant.symbol,
-                );
-                for truth in [false, true] {
-                    if (truth && matches!(judgment, StructuralJudgment::Refuted))
-                        || (!truth && matches!(judgment, StructuralJudgment::Proven))
-                    {
-                        continue;
-                    }
-                    let mut selected = subject.judge.clone();
-                    if truth {
-                        selected.intake_case_guarantee(&super::CaseGuarantee {
-                            subject: subject.value.clone(),
-                            data: definition.symbol,
-                            case: variant.symbol,
-                        });
-                        selected.intake_completed_match_case(
-                            expression,
-                            binary.left,
-                            &subject.value,
-                            subject_type,
-                            scope.0,
-                            scope.1,
-                            environment,
-                        );
-                    }
-                    outcomes.push(
-                        NormalReturnPath::observed(boolean_term(truth), selected)
-                            .at_expression(expression, demand),
-                    );
-                }
-            }
-            return Some(outcomes);
+                demand,
+                |judge, operand| {
+                    judge.evaluate_normal_paths(
+                        operand,
+                        environment,
+                        scope,
+                        depth + 1,
+                        requested_operations,
+                        entries,
+                        NormalValueDemand::Value,
+                    )
+                },
+            );
         }
 
         if let ExpressionNode::Binary(binary) = node
@@ -1243,148 +1212,24 @@ impl<'program> StructuralJudge<'program> {
             return Some(outcomes);
         }
         if let ExpressionNode::Match(dispatch) = node {
-            let mut outcomes = Vec::new();
-            let mut remaining = self.evaluate_normal_paths(
-                dispatch.subject,
+            return self.evaluate_match_paths(
+                expression,
+                dispatch,
                 environment,
                 scope,
-                depth + 1,
-                requested_operations,
-                entries,
-                NormalValueDemand::Value,
-            )?;
-            for subject in &mut remaining {
-                subject.value = subject.judge.complete_match_subject(
-                    expression,
-                    dispatch,
-                    subject.value.clone(),
-                    scope,
-                )?;
-            }
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                let mut next_remaining = Vec::new();
-                for subject in remaining {
-                    let pattern = match arm.pattern {
-                        MatchPattern::Value(pattern) => Some((pattern, false)),
-                        MatchPattern::Destructure(pattern) => Some((pattern.condition, true)),
-                        MatchPattern::Wildcard => None,
-                    };
-                    if let Some((pattern, predicate)) = pattern {
-                        // Patterns execute only after every preceding pattern
-                        // failed. Keep their guarantees in that remaining path.
-                        for tested in subject.judge.evaluate_normal_paths(
-                            pattern,
-                            environment,
-                            scope,
-                            depth + 1,
-                            requested_operations,
-                            entries,
-                            NormalValueDemand::Value,
-                        )? {
-                            let primitive = if predicate {
-                                Some(typed_trees::types::PrimitiveType::Bool)
-                            } else {
-                                crate::match_subject_primitive_type(program, dispatch)
-                            };
-                            let equation_meaning = primitive.is_some_and(|primitive| {
-                                primitive == typed_trees::types::PrimitiveType::Bool
-                                    || primitive.is_integer()
-                            });
-                            let comparison = if equation_meaning {
-                                tested.judge.judge_equation(
-                                    tested.judge.resolve(if predicate {
-                                        tested.value.clone()
-                                    } else {
-                                        subject.value.clone()
-                                    }),
-                                    if predicate {
-                                        boolean_term(true)
-                                    } else {
-                                        tested.judge.resolve(tested.value.clone())
-                                    },
-                                    0,
-                                )
-                            } else {
-                                StructuralJudgment::Unknown
-                            };
-                            if !matches!(comparison, StructuralJudgment::Proven) {
-                                let mut skipped = tested.judge.clone();
-                                if predicate {
-                                    skipped.assume_normal_equation(
-                                        tested.value.clone(),
-                                        boolean_term(false),
-                                    );
-                                } else if primitive == Some(typed_trees::types::PrimitiveType::Bool)
-                                {
-                                    let pattern = skipped.resolve(tested.value.clone());
-                                    for truth in [false, true] {
-                                        if matches!(
-                                            skipped.judge_equation(
-                                                pattern.clone(),
-                                                boolean_term(truth),
-                                                0
-                                            ),
-                                            StructuralJudgment::Proven
-                                        ) {
-                                            skipped.assume_normal_equation(
-                                                subject.value.clone(),
-                                                boolean_term(!truth),
-                                            );
-                                            break;
-                                        }
-                                    }
-                                }
-                                next_remaining.push(NormalReturnPath {
-                                    value: subject.value.clone(),
-                                    judge: skipped,
-                                    observation: subject.observation,
-                                });
-                            }
-                            if matches!(comparison, StructuralJudgment::Refuted) {
-                                continue;
-                            }
-                            let mut selected = tested.judge;
-                            if predicate {
-                                selected.assume_normal_equation(tested.value, boolean_term(true));
-                            } else if equation_meaning {
-                                selected
-                                    .assume_normal_equation(subject.value.clone(), tested.value);
-                            }
-                            for value in selected.evaluate_normal_paths(
-                                arm.value,
-                                environment,
-                                scope,
-                                depth + 1,
-                                requested_operations,
-                                entries,
-                                demand,
-                            )? {
-                                outcomes.push(value.at_expression(expression, demand));
-                            }
-                        }
-                    } else {
-                        for value in subject.judge.evaluate_normal_paths(
-                            arm.value,
-                            environment,
-                            scope,
-                            depth + 1,
-                            requested_operations,
-                            entries,
-                            demand,
-                        )? {
-                            outcomes.push(value.at_expression(expression, demand));
-                        }
-                    }
-                }
-                remaining = next_remaining;
-                if matches!(arm.pattern, MatchPattern::Wildcard) {
-                    break;
-                }
-            }
-            for outcome in &mut outcomes {
-                outcome.judge.retire_match_subject(dispatch);
-            }
-            return Some(outcomes);
+                demand,
+                |judge, operand, demand| {
+                    judge.evaluate_normal_paths(
+                        operand,
+                        environment,
+                        scope,
+                        depth + 1,
+                        requested_operations,
+                        entries,
+                        demand,
+                    )
+                },
+            );
         }
         let has_own_effect = match node {
             ExpressionNode::Call(call) => {
@@ -1549,7 +1394,7 @@ impl<'program> StructuralJudge<'program> {
                 None
             },
         )?;
-        let mut outcomes: Vec<NormalReturnPath<'program>> = contexts
+        let outcomes: Vec<NormalReturnPath<'program>> = contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
                 let call_inputs = if let Some(call) = program.expression_table.call_node(expression)
@@ -2375,6 +2220,12 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         let Some(owner) = selected_call_contract(program, scope.0.symbol, call) else {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT normal-capture refused expression={expression:?} target={} stage=selected-contract",
+                    call.target
+                );
+            }
             return None;
         };
         // Computed proof machines are erased mathematical applications. Their
@@ -2388,7 +2239,12 @@ impl<'program> StructuralJudge<'program> {
         }
         let site = crate::CallSite::Expression { expression, call };
         let application =
-            AppliedProofBindings::for_call_site(program, scope.0.symbol, &owner, site)?;
+            AppliedProofBindings::for_call_site(program, scope.0.symbol, &owner, site).or_else(|| {
+                if super::super::struct_trace() {
+                    eprintln!("STRUCT normal-capture refused expression={expression:?} target={} owner={:?} application={:?} stage=static-bindings", call.target, owner_symbol(&owner), call.authored_machine_application);
+                }
+                None
+            })?;
         // The shared application intake authenticates the complete static
         // telescope. This observer imports only its selected public contract;
         // it never interprets a callback body. The exact call's callback
@@ -2399,7 +2255,12 @@ impl<'program> StructuralJudge<'program> {
             scope.0.symbol,
             &owner,
             crate::CallSite::Expression { expression, call },
-        )?;
+        ).or_else(|| {
+            if super::super::struct_trace() {
+                eprintln!("STRUCT normal-capture refused expression={expression:?} target={} owner={:?} stage=parameter-scope", call.target, owner_symbol(&owner));
+            }
+            None
+        })?;
         let parameters = parameter_scope.as_ref();
         if super::super::struct_trace() {
             eprintln!(
@@ -2625,6 +2486,7 @@ impl<'program> StructuralJudge<'program> {
                 program,
                 &owner,
                 call,
+                expression,
                 observed_type,
                 applied_result_parameters,
                 callable,
@@ -2650,28 +2512,91 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
-        let Some(guarantees) =
-            self.selected_guarantees(&owner, &entry_bindings, &bindings, captured.as_ref(), 0)
-        else {
-            return None;
-        };
+        let guarantees = self.selected_guarantees(
+            &owner,
+            &entry_bindings,
+            &bindings,
+            &application.types,
+            captured.as_ref(),
+            0,
+        )?;
         let mut equations = guarantees.equations;
+        // A completed occurrence keeps its identity. Both existing value-call
+        // judgments establish repeatability: conditional primitive normal
+        // returns, and the custody-free denotational call owner. Neither an
+        // empty write frame nor a generic declaration's spelling establishes it.
+        // Result presentation above has authenticated the complete applied
+        // carrier; importing the raw generic return type here would lose that
+        // correspondence. Actuals remain the completed input observations.
+        if let (Some(captured), Some(presentation)) = (&captured, &result_presentation)
+            && !crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+                program,
+                &crate::proof_only_classification(program),
+                presentation.type_reference,
+            )
+        {
+            let plans = crate::operand_call_plans(program, self.frame_resolver());
+            let normal_identity =
+                crate::machine_calls::denotational_calls::normal_return_call_candidate(
+                    program, call, &plans.0, &plans.1,
+                );
+            let repeatable = normal_identity.is_ok()
+                || crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity(
+                    program, call, &plans.0, &plans.1,
+                );
+            if super::super::struct_trace() && !repeatable {
+                eprintln!(
+                    "STRUCT normal-identity caller={} target={} failure={:?} static_arguments={} evidence_arguments={}",
+                    scope.0.name,
+                    call.target,
+                    normal_identity.err(),
+                    call.machine_arguments.len(),
+                    call.evidence_arguments.len()
+                );
+            }
+            if repeatable {
+                equations.push((
+                    captured.clone(),
+                    StructuralTerm::Application {
+                        result_type: crate::expression_result_type_reference(
+                            program, scope.0, scope.1, expression,
+                        )?,
+                        target: super::super::structural_terms::structural_call_target(
+                            program,
+                            scope.0.symbol,
+                            call,
+                        ),
+                        selections: call.machine_arguments.to_vec(),
+                        machine: super::structural_call_machine_name(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            &[],
+                        ),
+                        arguments: actuals.to_vec(),
+                    },
+                ));
+                if let Some(source) = application.source_value_application(
+                    program,
+                    scope.0.symbol,
+                    &owner,
+                    call,
+                    expression,
+                    presentation.type_reference,
+                    actuals,
+                ) {
+                    equations.push((captured.clone(), source));
+                }
+            }
+        }
         std::sync::Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
         // A saved local now resolves to this occurrence, so the callee's case
         // tags must classify it here; the citation route's saved-binding tags
         // never meet that environment term. Tags never become value equations.
-        let tag_callee = match owner {
-            SelectedCallContract::Concrete(machine, _)
-                if parameters.iter().all(|parameter| {
-                    bindings
-                        .iter()
-                        .any(|(symbol, _)| *symbol == parameter.symbol)
-                }) =>
-            {
-                Some(machine)
-            }
-            _ => None,
-        };
+        let tags_have_complete_bindings = parameters.iter().all(|parameter| {
+            bindings
+                .iter()
+                .any(|(symbol, _)| *symbol == parameter.symbol)
+        });
         let tag_map = parameters
             .iter()
             .filter_map(|parameter| {
@@ -2718,13 +2643,13 @@ impl<'program> StructuralJudge<'program> {
                     // its exact detached occurrence, never a live caller name
                     // or the result's borrowed referent. Later writes change
                     // the observed subject and cannot reuse this snapshot.
-                    if let Some(subject) = bound_term(
-                        program,
+                    if let Some(subject) = self.bound_contract_term(
                         guarantee.value,
                         callable,
                         parameters,
                         callable,
                         &bindings,
+                        &application.types,
                         captured.as_ref(),
                         0,
                     ) {
@@ -2746,9 +2671,9 @@ impl<'program> StructuralJudge<'program> {
                 let ProofFact::Expression(guarantee) = fact else {
                     continue;
                 };
-                if let Some(callee) = tag_callee {
-                    self.instantiated_case_guarantees(
-                        callee,
+                if tags_have_complete_bindings {
+                    self.instantiated_contract_case_guarantees(
+                        &owner,
                         *guarantee,
                         &tag_map,
                         &mut case_guarantees,
@@ -2762,7 +2687,7 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner),
             );
         }
-        if let (Some(captured), Some(result_presentation)) = (&captured, &result_presentation)
+        if let (Some(captured), Some(_)) = (&captured, &result_presentation)
             && let SelectedCallContract::Concrete(callee, selected_state) = &owner
         {
             equations.extend(self.returned_field_equations(

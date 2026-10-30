@@ -4,17 +4,7 @@
 use crate::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use diagnostics::Diagnostic;
 
-/// One executed root grant and its exact authored custody.
-///
-/// Selection strings remain transitional compiler input. The machine and span
-/// prevent package review from rediscovering authority from a spelling after
-/// the typed build program has been consumed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthoredRootGrant {
-    pub selector: String,
-    pub selecting_machine: symbols::SymbolHandle,
-    pub source_span: source::SourceSpan,
-}
+pub use language_semantics::declaration_selection::AuthoredRootGrant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderGrantSelectorKind {

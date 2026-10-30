@@ -1,0 +1,380 @@
+diff --git a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs
+index b4e93e4dbd8..85a56ed7a87 100644
+--- a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs
++++ b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs
+@@ -39,13 +39,15 @@
+ use register_environment::ValidatedTargetRegisterEnvironment;
+ use register_model::{RegisterClassId, RegisterOperandAccess};
+ use selected_instructions::{
+-    LocalStorageSlotId, SelectedFunction, SelectedInstruction,
+-    SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
++    LocalStorageSlotId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
++    SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
+ };
+ use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
+ 
+ use super::{BitsConversion, RuntimeSpillError, StorageDefinition, StoragePosition};
+ mod reaching;
++#[cfg(test)]
++mod summary_tests;
+ 
+ /// Admitted use positions for the victim, one entry per block in order. The
+ /// sharing check needs positions, not just block membership: a proposed reload
+@@ -99,14 +101,12 @@ pub(super) fn instruction_block(
+     function: &SelectedFunction,
+     instruction: SelectedInstructionId,
+ ) -> Option<usize> {
+-    function
+-        .blocks
+-        .instruction_block(instruction)
+-        .or_else(|| {
+-            function.blocks.iter().position(|block| {
+-                super::control(&block.terminator).0.id == instruction
+-            })
+-        })
++    function.blocks.instruction_block(instruction).or_else(|| {
++        function
++            .blocks
++            .iter()
++            .position(|block| super::control(&block.terminator).0.id == instruction)
++    })
+ }
+ 
+ /// The slot resolution the rewrite commits to: every emitted store and every
+@@ -167,7 +167,7 @@ impl Assignment {
+ const EXISTING: u8 = 1;
+ const NEW: u8 = 2;
+ 
+-#[derive(Debug, Clone, Copy)]
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ enum Event {
+     /// An already-admitted store writes the slot.
+     ExistingStore,
+@@ -184,22 +184,27 @@ enum StorePosition {
+ /// A candidate slot's classified access stream, computed once and reused
+ /// across every window the victim proposes against it.
+ struct CandidateAccesses {
+-    /// Per block: sorted `(instruction index, event)` pairs.
+-    accesses: Vec<Vec<(usize, Event)>>,
++    /// The scan's buffer, sorted by block and instruction without copying into per-block vectors.
++    accesses: Vec<(usize, usize, Event)>,
++    block_offsets: Vec<usize>,
+     /// Per block: the terminator instruction loads the slot.
+     terminal_loads: Vec<bool>,
+     /// Per block: the last `ExistingStore` instruction index, if any.
+     last_existing_store: Vec<Option<usize>>,
+-    /// Per block: whether the block contains any `ExistingLoad` (body or terminator).
+-    has_loads: Vec<bool>,
+     /// Blocks where `last_existing_store[b].is_some()`.
+     store_blocks: Vec<usize>,
+-    /// Blocks where `has_loads[b]` is true.
++    /// Blocks with an existing body or terminator load.
+     load_blocks: Vec<usize>,
+     /// True when every block in `load_blocks` starts its `accesses[b]` with `Event::ExistingStore`.
+     is_entry_insensitive: bool,
+ }
+ 
++impl CandidateAccesses {
++    fn block_accesses(&self, block: usize) -> &[(usize, usize, Event)] {
++        &self.accesses[self.block_offsets[block]..self.block_offsets[block + 1]]
++    }
++}
++
+ struct WindowSummary {
+     boundary_store: Vec<bool>,
+     anchored_stores: Vec<Vec<usize>>,
+@@ -329,8 +334,9 @@ pub(super) fn assign(
+     }
+     // Definitions anchored at each instruction index, in `definitions` order;
+     // boundary definitions open their block ahead of every instruction.
+-    let mut anchored: Vec<std::collections::BTreeMap<usize, Vec<usize>>> =
+-        (0..block_count).map(|_| std::collections::BTreeMap::new()).collect();
++    let mut anchored: Vec<std::collections::BTreeMap<usize, Vec<usize>>> = (0..block_count)
++        .map(|_| std::collections::BTreeMap::new())
++        .collect();
+     let mut boundary: Vec<Vec<usize>> = vec![Vec::new(); block_count];
+     for (definition, storage) in definitions.iter().enumerate() {
+         match storage.position {
+@@ -679,9 +685,11 @@ fn summarize_window(
+         if block_has_loads {
+             load_blocks.push(block_index);
+             if !has_boundary
+-                && !stores
+-                    .first()
+-                    .is_some_and(|&s_idx| load_marks[block_index].first().is_none_or(|&l_idx| s_idx < l_idx))
++                && !stores.first().is_some_and(|&s_idx| {
++                    load_marks[block_index]
++                        .first()
++                        .is_none_or(|&l_idx| s_idx < l_idx)
++                })
+             {
+                 is_entry_insensitive = false;
+             }
+@@ -894,43 +902,39 @@ impl RawCandidateSlots {
+             return None;
+         }
+         if self.finalized[slot_idx].is_none() {
+-            let raw_accesses = std::mem::take(&mut self.accesses[slot_idx]);
++            let mut slot_accesses = std::mem::take(&mut self.accesses[slot_idx]);
+             let raw_terminal_loads = std::mem::take(&mut self.terminal_loads[slot_idx]);
+-            let mut slot_accesses = vec![Vec::new(); self.block_count];
+-            for (block_index, index, event) in raw_accesses {
+-                slot_accesses[block_index].push((index, event));
++            // Stable ordering retains the last observed event at duplicate positions.
++            slot_accesses.sort_by_key(|&(block, instruction, _)| (block, instruction));
++            slot_accesses.dedup_by(|later, earlier| {
++                if (later.0, later.1) == (earlier.0, earlier.1) {
++                    earlier.2 = later.2;
++                    true
++                } else {
++                    false
++                }
++            });
++            let mut block_offsets = vec![0; self.block_count + 1];
++            for &(block, _, _) in &slot_accesses {
++                block_offsets[block + 1] += 1;
++            }
++            for block in 0..self.block_count {
++                block_offsets[block + 1] += block_offsets[block];
+             }
+             let mut slot_terminal_loads = vec![false; self.block_count];
+             for block_index in raw_terminal_loads {
+                 slot_terminal_loads[block_index] = true;
+             }
+-            for block_accesses in &mut slot_accesses {
+-                if block_accesses.len() > 1 {
+-                    block_accesses.sort_by_key(|&(idx, _)| idx);
+-                    block_accesses.dedup_by(|a, b| {
+-                        if a.0 == b.0 {
+-                            b.1 = a.1;
+-                            true
+-                        } else {
+-                            false
+-                        }
+-                    });
+-                }
+-            }
+             let mut last_existing_store = Vec::with_capacity(self.block_count);
+-            let mut has_loads = Vec::with_capacity(self.block_count);
+             let mut store_blocks = Vec::new();
+             let mut load_blocks = Vec::new();
+             let mut is_entry_insensitive = true;
+-            for (block_index, (block_accesses, &term_load)) in
+-                slot_accesses.iter().zip(&slot_terminal_loads).enumerate()
+-            {
+-                let last_store = block_accesses
+-                    .iter()
+-                    .rev()
+-                    .find_map(|&(index, event)| {
+-                        matches!(event, Event::ExistingStore).then_some(index)
+-                    });
++            for (block_index, &term_load) in slot_terminal_loads.iter().enumerate() {
++                let block_accesses =
++                    &slot_accesses[block_offsets[block_index]..block_offsets[block_index + 1]];
++                let last_store = block_accesses.iter().rev().find_map(|&(_, index, event)| {
++                    matches!(event, Event::ExistingStore).then_some(index)
++                });
+                 last_existing_store.push(last_store);
+                 if last_store.is_some() {
+                     store_blocks.push(block_index);
+@@ -938,13 +942,12 @@ impl RawCandidateSlots {
+                 let block_has_loads = term_load
+                     || block_accesses
+                         .iter()
+-                        .any(|&(_, event)| matches!(event, Event::ExistingLoad));
+-                has_loads.push(block_has_loads);
++                        .any(|&(_, _, event)| matches!(event, Event::ExistingLoad));
+                 if block_has_loads {
+                     load_blocks.push(block_index);
+                     if !block_accesses
+                         .first()
+-                        .is_some_and(|&(_, event)| matches!(event, Event::ExistingStore))
++                        .is_some_and(|&(_, _, event)| matches!(event, Event::ExistingStore))
+                     {
+                         is_entry_insensitive = false;
+                     }
+@@ -952,9 +955,9 @@ impl RawCandidateSlots {
+             }
+             self.finalized[slot_idx] = Some(CandidateAccesses {
+                 accesses: slot_accesses,
++                block_offsets,
+                 terminal_loads: slot_terminal_loads,
+                 last_existing_store,
+-                has_loads,
+                 store_blocks,
+                 load_blocks,
+                 is_entry_insensitive,
+@@ -983,7 +986,7 @@ fn shareable(
+             state = NEW;
+         }
+         let loads = &load_marks[block_index];
+-        let cand = &candidate.accesses[block_index];
++        let cand = candidate.block_accesses(block_index);
+         let stores = &window.anchored_stores[block_index];
+         let mut i_load = 0;
+         let mut i_cand = 0;
+@@ -992,14 +995,17 @@ fn shareable(
+             let next_load = loads.get(i_load).copied().unwrap_or(usize::MAX);
+             let next_store = stores.get(i_store).copied().unwrap_or(usize::MAX);
+             let next_victim = next_load.min(next_store);
+-            if state == EXISTING && i_cand < cand.len() && cand[i_cand].0 < next_victim {
++            if state == EXISTING && i_cand < cand.len() && cand[i_cand].1 < next_victim {
+                 if next_victim == usize::MAX {
+                     i_cand = cand.len();
+                 } else {
+-                    i_cand += cand[i_cand..].partition_point(|&(idx, _)| idx < next_victim);
++                    i_cand += cand[i_cand..].partition_point(|&(_, idx, _)| idx < next_victim);
+                 }
+             }
+-            let next_cand = cand.get(i_cand).map(|&(idx, _)| idx).unwrap_or(usize::MAX);
++            let next_cand = cand
++                .get(i_cand)
++                .map(|&(_, idx, _)| idx)
++                .unwrap_or(usize::MAX);
+             let index = next_victim.min(next_cand);
+             if index == usize::MAX {
+                 break;
+@@ -1011,7 +1017,7 @@ fn shareable(
+                 i_load += 1;
+             }
+             if next_cand == index {
+-                match cand[i_cand].1 {
++                match cand[i_cand].2 {
+                     Event::ExistingStore => state = EXISTING,
+                     Event::ExistingLoad => {
+                         if state & NEW != 0 {
+@@ -1037,7 +1043,8 @@ fn shareable(
+ 
+     if window.is_entry_insensitive && candidate.is_entry_insensitive {
+         for &block_index in &window.active_blocks {
+-            if candidate.accesses[block_index].is_empty() && !candidate.terminal_loads[block_index]
++            if candidate.block_accesses(block_index).is_empty()
++                && !candidate.terminal_loads[block_index]
+             {
+                 continue;
+             }
+diff --git a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot/summary_tests.rs b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot/summary_tests.rs
+new file mode 100644
+index 00000000000..e77bc7c2811
+--- /dev/null
++++ b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot/summary_tests.rs
+@@ -0,0 +1,119 @@
++use super::*;
++use std::collections::BTreeMap;
++
++fn raw_candidate(
++    block_count: usize,
++    accesses: Vec<(usize, usize, Event)>,
++    terminal_loads: Vec<usize>,
++) -> RawCandidateSlots {
++    RawCandidateSlots {
++        block_count,
++        invalid: vec![false],
++        accesses: vec![accesses],
++        terminal_loads: vec![terminal_loads],
++        finalized: vec![None],
++    }
++}
++
++#[test]
++fn candidate_summary_preserves_last_events_and_empty_blocks() {
++    for block_count in [0, 1, 4, 17] {
++        for event_count in [0, 1, 64, 257] {
++            if block_count == 0 && event_count != 0 {
++                continue;
++            }
++            let mut accesses = Vec::new();
++            let mut expected = BTreeMap::new();
++            for sequence in 0..event_count {
++                let block = (sequence * 7 + sequence / 3) % block_count;
++                let instruction = (sequence * 11 + sequence / 5) % 13;
++                let event = if sequence % 3 == 0 {
++                    Event::ExistingStore
++                } else {
++                    Event::ExistingLoad
++                };
++                accesses.push((block, instruction, event));
++                expected.insert((block, instruction), event);
++            }
++            let terminal_loads = if block_count == 0 {
++                vec![]
++            } else {
++                vec![block_count - 1; 2]
++            };
++            let mut raw = raw_candidate(block_count, accesses, terminal_loads.clone());
++            let candidate = raw.get(0).unwrap();
++            let mut expected_store_blocks = Vec::new();
++            let mut expected_load_blocks = Vec::new();
++            let mut expected_entry_insensitive = true;
++            for block in 0..block_count {
++                let row: Vec<_> = expected
++                    .iter()
++                    .filter_map(|(&(owner, instruction), &event)| {
++                        (owner == block).then_some((block, instruction, event))
++                    })
++                    .collect();
++                assert_eq!(candidate.block_accesses(block), row);
++                let last_store = row.iter().rev().find_map(|&(_, instruction, event)| {
++                    (event == Event::ExistingStore).then_some(instruction)
++                });
++                assert_eq!(candidate.last_existing_store[block], last_store);
++                assert_eq!(
++                    candidate.terminal_loads[block],
++                    terminal_loads.contains(&block)
++                );
++                if last_store.is_some() {
++                    expected_store_blocks.push(block);
++                }
++                if terminal_loads.contains(&block)
++                    || row.iter().any(|entry| entry.2 == Event::ExistingLoad)
++                {
++                    expected_load_blocks.push(block);
++                    expected_entry_insensitive &= row
++                        .first()
++                        .is_some_and(|entry| entry.2 == Event::ExistingStore);
++                }
++            }
++            assert_eq!(candidate.store_blocks, expected_store_blocks);
++            assert_eq!(candidate.load_blocks, expected_load_blocks);
++            assert_eq!(candidate.is_entry_insensitive, expected_entry_insensitive);
++            raw.invalid[0] = true;
++            assert!(
++                raw.get(0).is_none(),
++                "invalidated slots must not expose a cached summary"
++            );
++        }
++    }
++}
++
++#[test]
++fn candidate_summary_distinguishes_disjoint_and_destructive_windows() {
++    let mut raw = raw_candidate(
++        1,
++        vec![(0, 4, Event::ExistingLoad), (0, 0, Event::ExistingStore)],
++        vec![],
++    );
++    let candidate = raw.get(0).unwrap();
++    for (store, load, expected) in [(5, 6, true), (2, 3, false)] {
++        let window = WindowSummary {
++            boundary_store: vec![false],
++            anchored_stores: vec![vec![store]],
++            last_store: vec![Some(StorePosition::Instruction(store))],
++            has_loads: vec![true],
++            store_blocks: vec![0],
++            load_blocks: vec![0],
++            active_blocks: vec![0],
++            is_entry_insensitive: true,
++        };
++        assert_eq!(
++            shareable(
++                candidate,
++                &window,
++                &[vec![]],
++                &[vec![load]],
++                &[false],
++                &mut ShareableScratch::new(1)
++            ),
++            expected
++        );
++    }
++}

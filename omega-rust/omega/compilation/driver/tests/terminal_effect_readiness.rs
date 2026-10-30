@@ -563,6 +563,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                     admitted.clone(),
                     provider,
                     supplies,
+                    None,
                 )
                 .unwrap()
             };

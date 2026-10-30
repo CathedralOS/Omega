@@ -194,13 +194,19 @@ fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
     );
 }
 
-/// Ordinary routes declare no address operation: a resolved address on such a
-/// machine row is malformed input in the producer and a contradiction in the
-/// independent replay, even when the address equation is self-consistent.
-#[test]
-fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
+/// Ordinary and deferred control routes declare no address operation: a
+/// resolved address on either machine row is malformed input in the producer
+/// and a contradiction in the independent replay, even when the address
+/// equation is self-consistent. `kind` replaces the fixture's ordinary
+/// selected kind, and a deferred control row additionally states its wait and
+/// replays without the address, because it owns no bytes.
+fn unrouted_address_refuses_in_producer_and_replay(kind: Option<SelectedInstructionKind>) {
     let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
-    let (physical, selected, machine) = fixture();
+    let (physical, mut selected, machine) = fixture();
+    let deferred = kind.is_some();
+    if let Some(kind) = kind {
+        selected.kind = kind;
+    }
     let target = target::NativeTarget::linux_x64();
     let unrouted = Some(machine_code::ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::Load64 {
@@ -223,6 +229,13 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
     ));
     let row =
         encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
+    if deferred {
+        assert!(matches!(
+            row.state,
+            SelectedFormEncodingState::DeferredControl { .. }
+        ));
+        replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
+    }
     let mut changed = row;
     changed.address = unrouted;
     assert!(
@@ -230,43 +243,12 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
     );
 }
 
-/// Deferred control rows own no bytes and no address: attaching a resolved
-/// address rejects in the producer and in the independent replay.
+#[test]
+fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
+    unrouted_address_refuses_in_producer_and_replay(None);
+}
+
 #[test]
 fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
-    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
-    let (physical, mut selected, machine) = fixture();
-    selected.kind = SelectedInstructionKind::Jump;
-    let target = target::NativeTarget::linux_x64();
-    let unrouted = Some(machine_code::ResolvedPhysicalAddress {
-        symbolic: PhysicalAddressOperation::Load64 {
-            base_operand: 0,
-            byte_offset: 0,
-        },
-        frame_alignment_bytes: 1,
-        displacement: 0,
-    });
-    assert!(matches!(
-        encode_fixture_row(
-            target,
-            &selected,
-            &machine,
-            &physical,
-            unrouted,
-            &mut encoded
-        ),
-        Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
-    ));
-    let row =
-        encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
-    assert!(matches!(
-        row.state,
-        SelectedFormEncodingState::DeferredControl { .. }
-    ));
-    replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
-    let mut changed = row;
-    changed.address = unrouted;
-    assert!(
-        replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
-    );
+    unrouted_address_refuses_in_producer_and_replay(Some(SelectedInstructionKind::Jump));
 }

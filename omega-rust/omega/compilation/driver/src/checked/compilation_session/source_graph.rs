@@ -1,16 +1,18 @@
 //! One private source/check owner graph, never a portable IR or acceptance row.
 //!
-//! The compiler/library namespace finds a candidate shared by review and its
-//! dependents. Fresh per-request captures, package inputs, frontend keys and
+//! The compiler/library and first canonical root locate one invocation's whole
+//! candidate, including its dependents. This avoids restoring unrelated projects.
+//! Fresh per-request captures, package inputs, frontend keys and
 //! complete preparation admission decide reuse later. Installing the whole
 //! coordinate lineage before parsing keeps all declaration/body correspondences.
 //! Live Build returns, resources and authority are absent from this record.
 use super::PreparedSource;
 use compilation_products::{RetainedCompilationChecks, SourcePreparation};
 use compiler_storage::{Record, RecordLimits, RecordWriter};
-use optimization_core::digest_encoder::content_identity;
+use optimization_core::digest_encoder::{DomainDigestEncoder, content_identity, hex};
 use package_source::storage::RetainedStorageLane;
 use std::io::{Read, Write};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const MAGIC: &[u8; 8] = b"OMGSG01\0";
@@ -36,23 +38,26 @@ impl SourceGraphCache {
             .retain_child("source-graphs")
             .map_err(|reason| reason.to_string())?;
         let compiler = crate::compiler_input_identity()?;
-        let mut name = String::with_capacity(68);
-        for byte in compiler {
-            use std::fmt::Write;
-            write!(&mut name, "{byte:02x}").expect("String write");
-        }
-        name.push_str(".rec");
-        if phase_profile::enabled() {
-            eprintln!(
-                "compiler source record: {}",
-                storage.path().join(&name).display()
-            );
-        }
+        let name = format!("{}.rec", hex(&compiler));
         Ok(Self {
             storage,
             compiler,
             name,
         })
+    }
+    pub fn scope_to_root(&mut self, root: &Path) {
+        // A private lookup coordinate, never source identity or admission.
+        // The session binds this once, before installing any source coordinates.
+        let mut digest = DomainDigestEncoder::new(b"omega-source-graph-root-v1\0");
+        digest.raw(&self.compiler);
+        digest.bytes(root.as_os_str().as_encoded_bytes());
+        self.name = format!("{}.rec", hex(&digest.finish()));
+        if phase_profile::enabled() {
+            eprintln!(
+                "compiler source record: {}",
+                self.storage.path().join(&self.name).display()
+            );
+        }
     }
     fn require_current(&self) -> Result<(), String> {
         self.storage
@@ -64,16 +69,31 @@ impl SourceGraphCache {
         Ok(())
     }
     pub fn load(&self) -> Result<Option<SourceGraph>, String> {
-        self.require_current()?;
+        phase_profile::scope("source.graph.load.require_before", || {
+            self.require_current()
+        })?;
         let file = match self.storage.directory().open(&self.name) {
             Ok(file) => file,
             Err(reason) if reason.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(reason) => return Err(format!("open retained source graph: {reason}")),
         };
+        let read_limit = (MAX_BYTES + HEADER_BYTES + 1) as u64;
+        let capacity = file
+            .metadata()
+            .map_err(|reason| format!("inspect retained source graph: {reason}"))?
+            .len()
+            .saturating_add(1)
+            .min(read_limit) as usize;
         let mut bytes = Vec::new();
-        file.take((MAX_BYTES + HEADER_BYTES + 1) as u64)
-            .read_to_end(&mut bytes)
-            .map_err(|reason| format!("read retained source graph: {reason}"))?;
+        // Keep one spare byte for the EOF probe without growing the buffer.
+        bytes
+            .try_reserve_exact(capacity)
+            .map_err(|reason| format!("reserve retained source graph: {reason}"))?;
+        phase_profile::scope("source.graph.load.read", || {
+            file.take(read_limit)
+                .read_to_end(&mut bytes)
+                .map_err(|reason| format!("read retained source graph: {reason}"))
+        })?;
         if bytes.len() < HEADER_BYTES
             || bytes.len() > MAX_BYTES + HEADER_BYTES
             || &bytes[..8] != MAGIC
@@ -89,15 +109,20 @@ impl SourceGraphCache {
                 .map_err(|reason| format!("retained source graph length: {reason}"))?,
         );
         if length != (bytes.len() - HEADER_BYTES) as u64
-            || bytes[40..72] != content_identity(&bytes[HEADER_BYTES..])
+            || bytes[40..72]
+                != phase_profile::scope("source.graph.load.digest", || {
+                    content_identity(&bytes[HEADER_BYTES..])
+                })
         {
             return Err(
                 "retained source graph is truncated or has a different payload digest".to_owned(),
             );
         }
-        let graph = compiler_storage::decode(&bytes[HEADER_BYTES..], limits())
-            .map_err(|reason| format!("decode retained source graph: {reason}"))?;
-        self.require_current()?;
+        let graph = phase_profile::scope("source.graph.load.decode", || {
+            compiler_storage::decode(&bytes[HEADER_BYTES..], limits())
+                .map_err(|reason| format!("decode retained source graph: {reason}"))
+        })?;
+        phase_profile::scope("source.graph.load.require_after", || self.require_current())?;
         Ok(Some(graph))
     }
     fn prune(&self) -> Result<(), String> {
@@ -131,7 +156,9 @@ impl SourceGraphCache {
         records.sort_unstable();
         let mut count = records.len();
         for (_, name, length) in records {
-            if count <= 4 && total_bytes <= 512 * 1024 * 1024 {
+            // Root-scoped records share the existing byte budget. Keep a bounded
+            // number of small projects instead of evicting after four roots.
+            if count <= 64 && total_bytes <= MAX_BYTES as u64 {
                 break;
             }
             if name == std::ffi::OsStr::new(&self.name) {

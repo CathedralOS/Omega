@@ -20,6 +20,7 @@ numerics = { path = "../../../../psi/foundation/numerics" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
+runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 boundary-applications = { path = "../../backend/artifacts/boundary-applications" }

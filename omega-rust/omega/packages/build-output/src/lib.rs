@@ -19,6 +19,7 @@ mod captured_source;
 mod materialization;
 mod portable_paths;
 mod staged_output_tree;
+#[cfg(test)]
 mod tree_from_entries;
 
 pub use capture::capture;

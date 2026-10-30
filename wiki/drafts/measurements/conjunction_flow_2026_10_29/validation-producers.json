@@ -1,0 +1,24 @@
+{
+  "A": {
+    "sha256": "0fe9f17da920857de5356f47cc46727623b5717e81b74ce4c9bcab5e1f610046",
+    "profile": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "sha256": "0fe9f17da920857de5356f47cc46727623b5717e81b74ce4c9bcab5e1f610046",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "B": {
+    "sha256": "12ca439bfc0fd52daa45cd186195030b29af4a3bf1f3c5032909fda272f6cd22",
+    "profile": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "sha256": "12ca439bfc0fd52daa45cd186195030b29af4a3bf1f3c5032909fda272f6cd22",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  }
+}
