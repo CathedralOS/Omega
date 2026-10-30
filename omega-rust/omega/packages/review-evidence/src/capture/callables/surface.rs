@@ -7,6 +7,7 @@ use super::super::behavior::{
 use super::super::contracts::facts::{callable_contract_exposure, project_callable_contracts};
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::facts::exactly_one;
+use super::super::semantics::signatures::parameters::project_signature_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
 use crate::capture::PackageReviewInput;
@@ -90,23 +91,12 @@ pub(super) fn project<'a>(
         "reviewed callable",
         subject,
     )?;
-    let parameters = compilation
-        .state_parameters(entry)
-        .iter()
-        .map(|parameter| {
-            Ok(PackageReviewSignatureParameter {
-                name: parameter.name.as_str().to_owned(),
-                type_identity: review_signature_type_identity_with_binders(
-                    compilation,
-                    parameter.type_reference,
-                    &binders,
-                    &lifetime_parameters,
-                )?,
-                is_const: parameter.is_const,
-                is_mutable: parameter.is_mutable,
-            })
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let parameters = project_signature_parameters(
+        compilation,
+        compilation.state_parameters(entry),
+        &binders,
+        &lifetime_parameters,
+    )?;
     let return_type = review_signature_type_identity_with_binders(
         compilation,
         entry.return_type,

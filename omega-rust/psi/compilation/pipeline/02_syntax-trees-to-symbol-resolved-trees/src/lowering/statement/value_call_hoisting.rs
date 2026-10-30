@@ -1,5 +1,6 @@
 //! Capture a shared guard-call subject once without changing terminal invocation position.
 
+use crate::lowering::expression::expression_table;
 use crate::lowering::statement::hoist_temps::mint_hoist_temp;
 use crate::lowering::statement::indexed_read_hoisting::is_integer_embedding_call;
 use crate::lowering::statement::statement_nodes::set_expression;
@@ -36,13 +37,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
     // syntax subject handle shared across arms.
     let mut resolved_cmp = guard_expression;
     let binary = loop {
-        let node = lowerer
-            .symbol_resolved_trees
-            .tables
-            .bodies
-            .expressions
-            .expression(resolved_cmp)
-            .clone();
+        let node = expression_table(lowerer).expression(resolved_cmp).clone();
         let ExpressionNode::Binary(binary) = node else {
             return;
         };
@@ -50,12 +45,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
             binary.operator,
             BinaryOperator::Equal | BinaryOperator::NotEqual
         ) && matches!(
-            lowerer
-                .symbol_resolved_trees
-                .tables
-                .bodies
-                .expressions
-                .expression(binary.right),
+            expression_table(lowerer).expression(binary.right),
             ExpressionNode::Boolean(_)
         ) {
             let syntax::expression::ExpressionNode::Binary(syntax_outer) =

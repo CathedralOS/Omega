@@ -145,20 +145,11 @@ impl TerminalExecution<'_> {
         if let Some(owner) = self.activation_storage.owners.get(target) {
             return Ok(owner.structural_type);
         }
-        for owner in self
-            .structural_values
-            .values()
-            .chain(
-                self.call_stack
-                    .iter()
-                    .flat_map(|frame| frame.structural_values.values()),
-            )
-            .chain(
-                self.borrowed_entry_storage
-                    .iter()
-                    .map(|(_, _, value)| value),
-            )
-        {
+        for owner in self.live_structural_values().chain(
+            self.borrowed_entry_storage
+                .iter()
+                .map(|(_, _, value)| value),
+        ) {
             if owner.opaque_identity != target.opaque_identity
                 || !target.path.starts_with(&owner.path)
             {

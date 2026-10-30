@@ -1,7 +1,7 @@
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, PrimitiveJudgment, ProofNode,
-    ProofRule, check_certificate, check_integer_affine_witness, integer_affine_wrapping_evidence,
-    map_integer_affine_bound,
+    ProofRule, affine_witness, check_certificate, check_integer_affine_witness,
+    integer_affine_wrapping_evidence, map_integer_affine_bound, proof_node, value_context,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -19,10 +19,7 @@ fn literal(carrier: IntegerType, raw: u64) -> ScalarTerm {
     .unwrap()
 }
 fn context(carrier: IntegerType) -> PropositionContext {
-    PropositionContext::from_value_types(
-        (1..=4).map(|raw| (ValueId::new(raw).unwrap(), ScalarType::Integer(carrier))),
-    )
-    .unwrap()
+    value_context(ScalarType::Integer(carrier), 4)
 }
 fn operation(
     carrier: IntegerType,
@@ -57,21 +54,20 @@ fn operation(
     }
 }
 fn witness(carrier: IntegerType, end: u64, count: usize) -> IntegerAffineWitness {
-    IntegerAffineWitness {
-        root: value(carrier, 1),
-        target: value(carrier, end),
-        definition_axioms: (0..count).collect(),
-        literal_axioms: vec![None; count],
-    }
+    affine_witness(
+        value(carrier, 1),
+        value(carrier, end),
+        (0..count).collect(),
+        vec![None; count],
+    )
 }
 fn reflexive(root: &ScalarTerm) -> ProofNode {
     ProofNode {
         conclusion: Proposition::LessOrEqual(root.clone(), root.clone()),
         rule: ProofRule::IntegerOrderWeakening {
-            relation: Box::new(ProofNode {
-                conclusion: Proposition::Equal(root.clone(), root.clone()),
-                rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-            }),
+            relation: Box::new(
+                proof_node!(Proposition::Equal(root.clone(), root.clone()) => ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality)),
+            ),
         },
     }
 }
@@ -81,24 +77,24 @@ fn certificate(
     goal: Proposition,
 ) -> ProofNode {
     let base = reflexive(&witness.root);
-    let root_bound = if guards.is_empty() {
-        base
-    } else {
-        let mut children = vec![base];
-        children.extend(guards.iter().enumerate().map(|(index, guard)| ProofNode {
-            conclusion: guard.clone(),
-            rule: ProofRule::Assumption { index },
-        }));
-        ProofNode {
-            conclusion: Proposition::Conjunction(
-                children
-                    .iter()
-                    .map(|child| child.conclusion.clone())
-                    .collect(),
-            ),
-            rule: ProofRule::ConjunctionIntroduction(children),
-        }
-    };
+    let root_bound =
+        if guards.is_empty() {
+            base
+        } else {
+            let mut children = vec![base];
+            children.extend(guards.iter().enumerate().map(
+                |(index, guard)| proof_node!(guard.clone() => ProofRule::Assumption { index }),
+            ));
+            ProofNode {
+                conclusion: Proposition::Conjunction(
+                    children
+                        .iter()
+                        .map(|child| child.conclusion.clone())
+                        .collect(),
+                ),
+                rule: ProofRule::ConjunctionIntroduction(children),
+            }
+        };
     ProofNode {
         conclusion: goal,
         rule: ProofRule::IntegerAffineBound {

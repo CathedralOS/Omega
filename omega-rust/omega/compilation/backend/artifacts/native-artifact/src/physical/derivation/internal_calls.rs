@@ -21,14 +21,13 @@ use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::physical::TargetFamilyInternalCall;
 use crate::physical::derivation::evidence::boundary_physical_child_parts;
-use crate::physical::derivation::evidence::ranges_overlap;
 use crate::physical::derivation::evidence::span;
+use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::settlement_identity::{
     installed_provider_internal_call_identity, target_family_internal_call_identity,
 };
 use crate::physical::native_byte_span;
 use crate::physical::operator_applications::fragment_call::validate_destination;
-use object_file::SectionKind;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::InvocationSite;
 use target::{Architecture, NativeTarget, TargetProfile};
@@ -415,15 +414,7 @@ pub(crate) fn derive_boundary_internal_call_child(
             .text_offset
             .checked_add(interval.attribution.code_offset)
             != Some(interval.text_offset)
-        || object.relocations().records().any(|(_, relocation)| {
-            relocation.section == SectionKind::Text
-                && ranges_overlap(
-                    opcode,
-                    end,
-                    relocation.offset,
-                    relocation.offset.saturating_add(relocation.byte_width),
-                )
-        })
+        || text_relocation_overlaps(object, (opcode, end))
     {
         return Err("selected boundary internal call has ambiguous attribution or a relocation");
     }

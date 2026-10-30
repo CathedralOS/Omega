@@ -18,10 +18,10 @@ pub fn shared_descriptor_copy_matches<'types>(
     destination: StructuralTypeId,
     destination_multiplicity: terminal_psi::StructuralMultiplicity,
 ) -> bool {
-    let Some(source) = types.clone().find(|row| row.id == source) else {
+    let Some(source) = crate::structural_declaration(types.clone(), source) else {
         return false;
     };
-    let Some(destination) = types.clone().find(|row| row.id == destination) else {
+    let Some(destination) = crate::structural_declaration(types.clone(), destination) else {
         return false;
     };
     descriptor_geometry_matches(&source.shape, &destination.shape)
@@ -72,10 +72,10 @@ pub fn descriptor_reborrow_matches<'types>(
     destination: StructuralTypeId,
     requested_access: StructuralAccess,
 ) -> bool {
-    let Some(source) = types.clone().find(|row| row.id == source) else {
+    let Some(source) = crate::structural_declaration(types.clone(), source) else {
         return false;
     };
-    let Some(destination) = types.clone().find(|row| row.id == destination) else {
+    let Some(destination) = crate::structural_declaration(types.clone(), destination) else {
         return false;
     };
     descriptor_reborrow_shapes_match(
@@ -298,11 +298,8 @@ pub fn reference_source_projection_compatible<'types>(
     if let Some(StructuralTypeShape::Reference {
         access: StructuralAccess::SharedBorrow,
         referent,
-    }) = types
-        .clone()
-        .find(|row| row.id == reference)
-        .map(|row| &row.shape)
-        && let Some(target) = types.clone().find(|row| row.id == *referent)
+    }) = crate::structural_shape(types.clone(), reference)
+        && let Some(target) = crate::structural_declaration(types.clone(), *referent)
         && matches!(target.shape, StructuralTypeShape::PrimitiveScalar(_))
     {
         let Some(source) = crate::borrowed_primitive_projection_declaration(
@@ -330,22 +327,17 @@ pub fn reference_source_projection_compatible<'types>(
     else {
         return false;
     };
-    let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) = types
-        .clone()
-        .find(|row| row.id == reference)
-        .map(|row| &row.shape)
+    let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
+        crate::structural_shape(types.clone(), reference)
     else {
         return false;
     };
-    types
-        .clone()
-        .find(|row| row.id == *referent)
-        .is_some_and(|row| {
-            row.shape
-                == terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-                )
-        })
+    crate::structural_declaration(types.clone(), *referent).is_some_and(|row| {
+        row.shape
+            == terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+            )
+    })
 }
 
 /// Authenticate declared access independently of the selected endpoint's
@@ -521,19 +513,14 @@ pub fn reference_byte_field_compatible<'types, 'domains>(
     reference: StructuralTypeId,
     memberships: &[terminal_psi::StructuralPathQualification],
 ) -> bool {
-    let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = types
-        .clone()
-        .find(|declaration| declaration.id == reference)
-        .map(|declaration| &declaration.shape)
+    let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) =
+        crate::structural_shape(types.clone(), reference)
     else {
         return false;
     };
     let Some(terminal_psi::StructuralTypeShape::ByteSequence(
         terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-    )) = types
-        .clone()
-        .find(|declaration| declaration.id == *referent)
-        .map(|declaration| &declaration.shape)
+    )) = crate::structural_shape(types.clone(), *referent)
     else {
         return false;
     };
@@ -667,28 +654,18 @@ pub fn reference_storage_source_compatible<'types>(
     reference: StructuralTypeId,
     stored: Option<ScalarType>,
 ) -> bool {
-    let Some(StructuralTypeShape::Reference { referent, .. }) = types
-        .clone()
-        .find(|declaration| declaration.id == reference)
-        .map(|declaration| &declaration.shape)
+    let Some(StructuralTypeShape::Reference { referent, .. }) =
+        crate::structural_shape(types.clone(), reference)
     else {
         return false;
     };
-    let Some(source_shape) = types
-        .clone()
-        .find(|declaration| declaration.id == source)
-        .map(|declaration| &declaration.shape)
-    else {
+    let Some(source_shape) = crate::structural_shape(types.clone(), source) else {
         return false;
     };
     let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
         if !integer.is_address() && integer.bits() == 8
             && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
-    let Some(target) = types
-        .clone()
-        .find(|declaration| declaration.id == *referent)
-        .map(|declaration| &declaration.shape)
-    else {
+    let Some(target) = crate::structural_shape(types.clone(), *referent) else {
         return false;
     };
     match (stored, target) {
@@ -730,11 +707,7 @@ fn plain_storage<'types>(
     if active.len() >= 128 || active.contains(&root) {
         return false;
     }
-    let Some(shape) = types
-        .clone()
-        .find(|row| row.id == root)
-        .map(|row| &row.shape)
-    else {
+    let Some(shape) = crate::structural_shape(types.clone(), root) else {
         return false;
     };
     active.push(root);
@@ -832,22 +805,16 @@ pub fn scalar_reference_view_value(
 /// `reference` names the result carrier, not its referent. Callers independently
 /// validate source access, exact occurrence, qualifications and live backing.
 pub fn reference_source_compatible<'types>(
-    mut types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     source: StructuralTypeId,
     reference: StructuralTypeId,
 ) -> bool {
-    let Some(StructuralTypeShape::Reference { referent, access }) = types
-        .clone()
-        .find(|declaration| declaration.id == reference)
-        .map(|declaration| &declaration.shape)
+    let Some(StructuralTypeShape::Reference { referent, access }) =
+        crate::structural_shape(types.clone(), reference)
     else {
         return false;
     };
-    let Some(source_shape) = types
-        .clone()
-        .find(|declaration| declaration.id == source)
-        .map(|declaration| &declaration.shape)
-    else {
+    let Some(source_shape) = crate::structural_shape(types.clone(), source) else {
         return false;
     };
     if source == *referent {
@@ -856,9 +823,7 @@ pub fn reference_source_compatible<'types>(
     if matches!(
         source_shape,
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
-    ) && types
-        .clone()
-        .find(|row| row.id == *referent)
+    ) && crate::structural_declaration(types.clone(), *referent)
         .is_some_and(|row| row.shape == *source_shape)
     {
         return true;
@@ -866,9 +831,8 @@ pub fn reference_source_compatible<'types>(
     if *access != StructuralAccess::SharedBorrow {
         return false;
     }
-    let Some(StructuralTypeShape::PrimitiveScalar(target)) = types
-        .find(|declaration| declaration.id == *referent)
-        .map(|declaration| &declaration.shape)
+    let Some(StructuralTypeShape::PrimitiveScalar(target)) =
+        crate::structural_shape(types, *referent)
     else {
         return false;
     };

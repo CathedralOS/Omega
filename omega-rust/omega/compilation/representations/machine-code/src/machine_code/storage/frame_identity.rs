@@ -6,6 +6,7 @@ register_homes::identity_newtype! { pub struct TargetFrameLayoutIdentity([u8; 32
 
 register_homes::identity_newtype! { pub struct TargetFrameProtocolEncodingIdentity([u8; 32]); }
 
+use crate::machine_code::identity_encoding::encode_nested_identity;
 use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutPolicy};
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
@@ -35,18 +36,14 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
         hasher.raw(&function.outgoing_abi_area.shadow_bytes.to_le_bytes());
         hasher.len(function.local_storage_slots.len());
         for slot in &function.local_storage_slots {
-            let mut identity = Vec::new();
-            slot.id.encode_identity(&mut identity);
-            hasher.raw(&identity);
+            encode_nested_identity(&mut hasher, |out| slot.id.encode_identity(out));
             hasher.raw(&slot.frame_offset_bytes.to_le_bytes());
             hasher.raw(&slot.size_bytes.to_le_bytes());
             hasher.raw(&slot.alignment_bytes.to_le_bytes());
         }
         hasher.len(function.stable_address_loans.len());
         for slot in &function.stable_address_loans {
-            let mut identity = Vec::new();
-            slot.encode_identity(&mut identity);
-            hasher.raw(&identity);
+            encode_nested_identity(&mut hasher, |out| slot.encode_identity(out));
         }
         hasher.len(function.callee_save_slots.len());
         for slot in &function.callee_save_slots {

@@ -115,15 +115,10 @@ impl Expansion<'_> {
             result_types.push(result_type);
             let mut arguments = parameters(input_types);
             arguments.push(parameter(carried.len(), result_type));
-            let completion = self.push(LoweredScalarBranchState {
-                structural_parameters: Vec::new(),
-                structural_effects: Vec::new(),
-                parameter_types: result_types.clone(),
-                erased_formal_types: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                bindings: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::jump(target, arguments),
-            });
+            let completion = self.push(LoweredScalarBranchState::continuing(
+                result_types.clone(),
+                LoweredScalarBranchTerminator::jump(target, arguments),
+            ));
             let when_true_completion = self.claim_continuation(
                 expression,
                 vec![
@@ -184,14 +179,9 @@ impl Expansion<'_> {
                     site,
                     active,
                 )?;
-                self.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    structural_effects: Vec::new(),
-                    parameter_types: carried.clone(),
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    terminator: LoweredScalarBranchTerminator::Conditional {
+                self.push(LoweredScalarBranchState::continuing(
+                    carried.clone(),
+                    LoweredScalarBranchTerminator::Conditional {
                         condition: LoweredBooleanReturnExpression::Parameter {
                             position: condition_position,
                         },
@@ -204,7 +194,7 @@ impl Expansion<'_> {
                         when_false_erased_arguments: Vec::new(),
                         when_false_erased_proof_arguments: Vec::new(),
                     },
-                })
+                ))
             };
             for (position, computation) in order.iter().enumerate().rev() {
                 // Construction runs backwards, execution forwards: only earlier

@@ -1,6 +1,6 @@
 use super::super::contracts::propositions::evidence::collect_evidence_requirements;
 use super::super::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns, trait_requirement_identity,
+    nominal_identity, owned_identity, trait_requirement_identity,
 };
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
@@ -22,13 +22,9 @@ pub(crate) fn project_public_conformances<'a>(
         .iter()
         .filter(|conformance| conformance.is_public)
     {
-        if !is_product_scope_instance(compilation, conformance.symbol)? {
+        let Some(identity) = owned_identity(compilation, package, conformance.symbol)? else {
             continue;
-        }
-        let identity = nominal_identity(compilation, conformance.symbol)?;
-        if !reviewed_package_owns(&identity, package)? {
-            continue;
-        }
+        };
         let parameters = compilation.conformance_type_parameters(conformance);
         let (binders, type_parameters) = project_type_parameters(
             compilation,

@@ -345,7 +345,7 @@ fn original_owned_storage(
         TypeReferenceNode::FixedArray { element_type, .. } => {
             // The roster can enumerate only an exact retained literal extent.
             // Never publish a partial element predicate list for another form.
-            !storage_carries_rows(program, *element_type, &mut Vec::new())
+            !storage_carries_rows(program, operators, *element_type, &mut Vec::new())
         }
         TypeReferenceNode::Reference { .. } => true,
         _ => owned_data_definition(program, carrier).is_none_or(|definition| {

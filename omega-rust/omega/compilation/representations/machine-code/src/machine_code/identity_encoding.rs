@@ -2,11 +2,33 @@
 //! resolved control-flow evidence every branch-bearing identity writes.
 //! Call owners and boundary invocation sites retain distinct completion tags.
 
+use register_model::RegisterViewId;
 use selected_instructions::MachineIdentityBytes;
 use semantic_vocabulary::InvocationSite;
 use target_operations::CallSiteOwner;
 
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::{ResolvedConditionalBranchEvidence, ResolvedJumpEvidence};
+
+/// One contained record's own identity, hashed whole and unframed, as every
+/// earlier schema version wrote it.
+pub(super) fn encode_nested_identity(
+    hasher: &mut DomainDigestEncoder,
+    value: impl FnOnce(&mut Vec<u8>),
+) {
+    let mut identity = Vec::new();
+    value(&mut identity);
+    hasher.raw(&identity);
+}
+
+/// One ordered roster of register views: its count, then each view's exact
+/// register unit, in the order every identity carrying rosters writes them.
+pub(super) fn encode_views(hasher: &mut DomainDigestEncoder, views: &[RegisterViewId]) {
+    hasher.u64(views.len() as u64);
+    for view in views {
+        hasher.raw(&view.0.to_le_bytes());
+    }
+}
 
 /// One resolved conditional branch's destinations after its own discriminant
 /// and predicate rank: source block, both branch edges with their blocks and

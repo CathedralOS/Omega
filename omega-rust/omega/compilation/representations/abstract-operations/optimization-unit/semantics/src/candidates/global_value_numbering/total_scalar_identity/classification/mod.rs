@@ -120,6 +120,95 @@ fn right_law_row(
     )
 }
 
+/// The operand wiring of one exact-width bitwise operation, whatever the
+/// operator. Every other shape admits no such operands.
+struct BitwiseOperands {
+    family: BitwiseFamily,
+    source_operation: OperationId,
+    result: ValueId,
+    scalar_type: IntegerType,
+    left: ValueId,
+    right: ValueId,
+}
+
+/// The exact-width bitwise operators with a neutral or absorbing law.
+#[derive(Clone, Copy)]
+enum BitwiseFamily {
+    And,
+    Or,
+    Xor,
+}
+
+/// Which operand one exact-width bitwise law keeps.
+#[derive(Clone, Copy)]
+enum BitwiseSide {
+    Left,
+    Right,
+}
+
+fn bitwise_operands(operation: &O) -> Option<BitwiseOperands> {
+    let family = match operation {
+        O::IntegerBitwiseAnd { .. } => BitwiseFamily::And,
+        O::IntegerBitwiseOr { .. } => BitwiseFamily::Or,
+        O::IntegerBitwiseXor { .. } => BitwiseFamily::Xor,
+        _ => return None,
+    };
+    let (O::IntegerBitwiseAnd {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+    }
+    | O::IntegerBitwiseOr {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+    }
+    | O::IntegerBitwiseXor {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+    }) = operation
+    else {
+        return None;
+    };
+    Some(BitwiseOperands {
+        family,
+        source_operation: *psi_operation,
+        result: *result,
+        scalar_type: *scalar_type,
+        left: *left,
+        right: *right,
+    })
+}
+
+/// The identity row one exact-width bitwise operation publishes when its law
+/// keeps `law_side`'s operand and replaces the row with the other operand.
+fn bitwise_law_row(
+    operands: BitwiseOperands,
+    law_side: BitwiseSide,
+    law_constant: IntegerValue,
+) -> IndependentTotalScalarIdentity {
+    let (replacement, law_operand) = match law_side {
+        BitwiseSide::Left => (operands.right, operands.left),
+        BitwiseSide::Right => (operands.left, operands.right),
+    };
+    row(
+        operands.source_operation,
+        operands.result,
+        replacement,
+        law_operand,
+        operands.scalar_type,
+        operands.scalar_type,
+        law_constant,
+    )
+}
+
 fn typed_integer(scalar_type: IntegerType, value: u128) -> IntegerValue {
     match scalar_type.sign() {
         IntegerSign::Signed => IntegerValue::Signed(value as i128),

@@ -2,6 +2,7 @@
 
 use crate::machine_code::identity_encoding::{
     encode_call_owner, encode_conditional_branch_arm, encode_invocation_site, encode_jump_arm,
+    encode_views,
 };
 
 use super::{
@@ -354,10 +355,7 @@ fn encode_branch(
         }
     };
     encode_conditional_branch_arm(hasher, branch);
-    hasher.u64(branch.decoded_register_reads.len() as u64);
-    for read in &branch.decoded_register_reads {
-        hasher.raw(&read.0.to_le_bytes());
-    }
+    encode_views(hasher, &branch.decoded_register_reads);
     selected_instructions::encode_machine_encoded_effects_identity(hasher, &branch.decoded_effects);
 }
 

@@ -338,6 +338,13 @@ mod tests {
         DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(1).unwrap())
     }
 
+    /// Whether an edge transports the observed location in either direction.
+    fn joins(edge: &DescriptorFlowEdge, location: &DescriptorLocation) -> bool {
+        edge.parameters
+            .iter()
+            .any(|parameter| parameter.contains(location) || location.contains(parameter))
+    }
+
     fn copy_graph() -> (Vec<StructuralTypeDeclaration>, DescriptorMachine) {
         use super::super::{DescriptorDefinition, DescriptorPlace};
         use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
@@ -574,11 +581,7 @@ mod tests {
                 position(5),
                 |_, _| true,
                 |current, _| Ok(writes.iter().any(|write| position(*write) == current)),
-                |edge| {
-                    edge.parameters.iter().any(|parameter| {
-                        parameter.contains(&payload()) || (&payload()).contains(parameter)
-                    })
-                },
+                |edge| joins(edge, &payload()),
             )
             .unwrap()
         };
@@ -594,11 +597,7 @@ mod tests {
                 position(5),
                 |_, _| true,
                 |_, _| Ok(false),
-                |edge| edge
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.contains(&payload())
-                        || (&payload()).contains(parameter)),
+                |edge| joins(edge, &payload()),
             )
             .unwrap()
         );
@@ -639,11 +638,7 @@ mod tests {
                     position(5),
                     |_, _| true,
                     |_, _| Ok(false),
-                    |edge| edge
-                        .parameters
-                        .iter()
-                        .any(|parameter| parameter.contains(&original)
-                            || (&original).contains(parameter)),
+                    |edge| joins(edge, &original),
                 )
                 .unwrap(),
                 retained,
@@ -662,11 +657,7 @@ mod tests {
                 position(3),
                 |_, _| true,
                 |current, _| Ok(current == position(4)),
-                |edge| edge
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.contains(&payload())
-                        || (&payload()).contains(parameter)),
+                |edge| joins(edge, &payload()),
             )
             .unwrap()
         );
@@ -679,11 +670,7 @@ mod tests {
                 position(3),
                 |_, _| true,
                 |current, _| Ok(current == position(4)),
-                |edge| edge
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.contains(&payload())
-                        || (&payload()).contains(parameter)),
+                |edge| joins(edge, &payload()),
             )
             .unwrap()
         );

@@ -12,12 +12,11 @@ use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::physical::derivation::evidence::boundary_physical_child_parts;
-use crate::physical::derivation::evidence::ranges_overlap;
 use crate::physical::derivation::evidence::span;
+use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::settlement_identity::hosted_builtin_settlement_identity;
 use crate::physical::native_byte_span;
 use machine_code::BoundaryExecutionRecord;
-use object_file::SectionKind;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
@@ -370,15 +369,7 @@ pub(crate) fn derive_hosted_builtin_child(
         .text_offset
         .checked_add(settlement.byte_count)
         .ok_or("hosted builtin physical child relocation span overflow")?;
-    if object.relocations().records().any(|(_, relocation)| {
-        relocation.section == SectionKind::Text
-            && ranges_overlap(
-                installed.text_offset,
-                object_end,
-                relocation.offset,
-                relocation.offset.saturating_add(relocation.byte_width),
-            )
-    }) {
+    if text_relocation_overlaps(object, (installed.text_offset, object_end)) {
         return Err("hosted builtin physical child unexpectedly contains a relocation");
     }
 

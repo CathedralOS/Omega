@@ -1,5 +1,6 @@
 //! Hoisting runtime-indexed operand reads into synthetic locals.
 
+use crate::lowering::expression::expression_table;
 use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::match_subject_hoisting::{
     borrow_membership_subject, is_reference_struct_parameter_member,
@@ -49,13 +50,7 @@ fn rewrite_children(
     hoisted: &mut Vec<Statement>,
     mode: OperandHoisting,
 ) {
-    let node = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(expression)
-        .clone();
+    let node = expression_table(lowerer).expression(expression).clone();
     match node {
         ExpressionNode::Binary(binary) => {
             let left = hoist_child(lowerer, binary.left, hoisted, mode);
@@ -97,12 +92,7 @@ fn rewrite_children(
             // the index rewrite; only the top-level indexed READ is kept.
             let value = if cast.form.is_recast()
                 && matches!(
-                    lowerer
-                        .symbol_resolved_trees
-                        .tables
-                        .bodies
-                        .expressions
-                        .expression(cast.value),
+                    expression_table(lowerer).expression(cast.value),
                     ExpressionNode::Indexed(_)
                 ) {
                 cast.value

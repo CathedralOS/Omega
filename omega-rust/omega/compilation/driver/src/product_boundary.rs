@@ -1389,9 +1389,7 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
 
 #[test]
 fn callback_root_policy_consumes_prepared_source_correspondence() {
-    let preparation = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/specialization_rows.rs"
-    );
+    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
     assert!(preparation.contains("pub fn prepare_callback_providers"));
     assert!(preparation.contains("project_with_adapters("));
     assert!(!preparation.contains("program.callback_declaration(usage)"));
@@ -1403,11 +1401,6 @@ fn callback_root_policy_consumes_prepared_source_correspondence() {
         1
     );
     assert!(preparation.contains("machine: exact_checked_adapter(context, plan, row)"));
-    let trait_expansion = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/specialization_rows/trait_requirements.rs"
-    );
-    assert!(!trait_expansion.contains("exact_checked_adapter("));
-    assert!(trait_expansion.contains("adapters.machine(plan, row)"));
     assert!(preparation.contains("adapters.machine(plan, row)"));
     let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains("realization.boundary_arguments.is_empty()"));
@@ -1442,6 +1435,36 @@ fn callback_root_policy_consumes_prepared_source_correspondence() {
         assert!(
             !source.contains(forbidden),
             "callback source facts decide {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn provider_instance_policy_consumes_checked_declaration_groups() {
+    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
+    assert!(
+        preparation
+            .contains("provider_selection::project_provider_instances(selected, &declarations)")
+    );
+    assert!(preparation.contains("checked_trees::provider_instances::inherited_instances("));
+    assert!(preparation.contains("checked_trees::provider_instances::generic_instances("));
+    assert!(!preparation.contains("machine_specializations"));
+    assert!(!preparation.contains("provider_closed_requirements"));
+    let policy = include_str!("../../realization/provider-selection/src/provider_instances.rs");
+    assert!(policy.contains("application.candidates.as_slice()"));
+    assert!(policy.contains("declaration.generic_templates.as_slice()"));
+    assert!(policy.contains("template.required_instances"));
+    assert!(policy.contains("with_specialized_requirement_rows"));
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "CheckFacts",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "provider instance policy reopens {forbidden}"
         );
     }
 }

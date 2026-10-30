@@ -10,12 +10,13 @@ use checked_trees::{
     CheckedUnitStructuralPathSegment,
 };
 use semantic_vocabulary::{
-    PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, EdgeId, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
 use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, ValueDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, ValueDeclaration,
 };
 
 use crate::emission::expression_validation::{
@@ -121,3 +122,19 @@ pub(crate) fn emit_u64_coordinate(
 }
 
 pub(crate) mod quotient_values;
+
+/// A value-only successor edge: the allocated edge, its target and nothing
+/// else. A conditional edge that must carry erased, proof-only, structural or
+/// cleanup actuals builds the record itself, because that roster — not the
+/// pair — is what distinguishes it from its sibling.
+pub(crate) fn value_successor(edge: EdgeId, target: BlockId) -> SuccessorEdge {
+    SuccessorEdge {
+        edge,
+        target,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        cleanup_actions: Vec::new(),
+    }
+}

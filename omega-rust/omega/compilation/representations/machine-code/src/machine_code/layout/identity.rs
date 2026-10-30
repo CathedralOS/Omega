@@ -5,7 +5,9 @@ use target::NativeTarget;
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
 use super::{ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy};
-use crate::machine_code::identity_encoding::{encode_conditional_branch_arm, encode_jump_arm};
+use crate::machine_code::identity_encoding::{
+    encode_conditional_branch_arm, encode_jump_arm, encode_views,
+};
 use crate::{
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState,
@@ -122,14 +124,4 @@ fn encode_internal_fixup(
     hasher.raw(&fixup.reference_row_offset.to_le_bytes());
     hasher.byte(fixup.patch_byte_width);
     hasher.raw(&fixup.addend.to_le_bytes());
-}
-
-fn encode_views(
-    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-    values: &[register_model::RegisterViewId],
-) {
-    hasher.u64(values.len() as u64);
-    for value in values {
-        hasher.raw(&value.0.to_le_bytes());
-    }
 }

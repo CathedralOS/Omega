@@ -6,6 +6,7 @@
 //! shared with trait definitions. `token_bindings` rejects duplicate direct
 //! operator-token bindings once every selection has settled.
 
+use crate::lowering::expression::expression_table;
 use syntax_trees::identifier::JoinedSyntaxPath;
 mod token_bindings;
 mod type_equations;
@@ -193,12 +194,7 @@ fn lower_lexical_machine_parts(
             *expression,
         )?);
     }
-    let declared_type_predicates = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert_expression_handles(predicates);
+    let declared_type_predicates = expression_table(lowerer).insert_expression_handles(predicates);
 
     // Each member keeps its own conformances and target-owned `via` locators.
     // Provider selection joins an exact member without promoting it into the
@@ -889,12 +885,7 @@ fn lower_ranking_expressions(
         lowered.push(expression);
     }
 
-    Ok(lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert_expression_handles(lowered))
+    Ok(expression_table(lowerer).insert_expression_handles(lowered))
 }
 
 fn lower_machine_trait_conformances(

@@ -681,9 +681,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn narrower_inbound_clobbers_save_integer_and_full_vector_state() {
-        let mut request = request(NativeTarget::macos_arm64(), vec![], vec![], &[], &[], None);
+    /// Keep only the internal clobbers the case names as inbound, so one
+    /// narrowed set is stated once instead of rebuilt at each case.
+    fn narrow_inbound_clobbers(
+        request: &mut NativeEntryBridgeRequest,
+        keep: impl Fn(&MachineRegister) -> bool,
+    ) {
         request.inbound.ordinary_clobbers = RegisterSet::new(
             request
                 .internal
@@ -691,13 +694,19 @@ mod tests {
                 .as_slice()
                 .iter()
                 .copied()
-                .filter(|register| {
-                    !matches!(
-                        register,
-                        MachineRegister::Aarch64X(9) | MachineRegister::Aarch64V(16)
-                    )
-                }),
+                .filter(|register| keep(register)),
         );
+    }
+
+    #[test]
+    fn narrower_inbound_clobbers_save_integer_and_full_vector_state() {
+        let mut request = request(NativeTarget::macos_arm64(), vec![], vec![], &[], &[], None);
+        narrow_inbound_clobbers(&mut request, |register| {
+            !matches!(
+                register,
+                MachineRegister::Aarch64X(9) | MachineRegister::Aarch64V(16)
+            )
+        });
         let bridge = emit_native_entry_bridge(request).unwrap();
         assert_eq!(bridge.frame_bytes(), 32);
         let before_call = &bridge.bytes()[..bridge.call_field_offset()];
@@ -730,15 +739,7 @@ mod tests {
             &[],
             Some(ValueShape::integer(8, 8)),
         );
-        request.inbound.ordinary_clobbers = RegisterSet::new(
-            request
-                .internal
-                .ordinary_clobbers
-                .as_slice()
-                .iter()
-                .copied()
-                .filter(|register| *register != MachineRegister::Aarch64X(0)),
-        );
+        narrow_inbound_clobbers(&mut request, |r| *r != MachineRegister::Aarch64X(0));
         // Only result scratch and LR: preserving old X0 would allocate another
         // slot and, worse, overwrite the published result after distribution.
         assert_eq!(emit_native_entry_bridge(request).unwrap().frame_bytes(), 16);
@@ -754,15 +755,7 @@ mod tests {
             &[],
             Some(ValueShape::integer(24, 8)),
         );
-        request.inbound.ordinary_clobbers = RegisterSet::new(
-            request
-                .internal
-                .ordinary_clobbers
-                .as_slice()
-                .iter()
-                .copied()
-                .filter(|register| *register != MachineRegister::Aarch64X(8)),
-        );
+        narrow_inbound_clobbers(&mut request, |r| *r != MachineRegister::Aarch64X(8));
         let bridge = emit_native_entry_bridge(request).unwrap();
         assert_eq!(bridge.frame_bytes(), 48);
         for word in [0xf900_17e8_u32, 0xf940_17e8] {
