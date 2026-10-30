@@ -2,7 +2,7 @@
 
 use super::lock::same_std_and_capability_file_identity;
 #[cfg(windows)]
-use super::platform::verify_windows_open_cache_ancestry_identity;
+use super::platform::retain_verified_windows_cache_ancestor;
 use super::platform::{
     same_capability_file_identity, verify_cache_node_owner_and_mode,
     verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
@@ -281,7 +281,12 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
 
 #[cfg(windows)]
 fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
-    for ancestor in root.ancestors() {
+    // Open each component from its just-verified parent instead of reopening
+    // every prefix from the drive/share root. Fresh classification and handle
+    // identity checks still run at every component on every walk.
+    let ancestors: Vec<&Path> = root.ancestors().collect();
+    let mut verified_parent: Option<CapabilityDirectory> = None;
+    for ancestor in ancestors.into_iter().rev() {
         let metadata =
             std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -291,7 +296,12 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry contains a non-directory or reparse point",
             ));
         }
-        verify_windows_open_cache_ancestry_identity(kind, ancestor, &metadata)?;
+        verified_parent = Some(retain_verified_windows_cache_ancestor(
+            kind,
+            ancestor,
+            &metadata,
+            verified_parent.as_ref(),
+        )?);
     }
     Ok(())
 }
