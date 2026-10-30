@@ -85,8 +85,9 @@ pub(super) fn decode_call(reader: &mut Reader<'_>) -> Result<OperationKind, Code
     })
 }
 
-pub(super) fn encode_call_unit(
+pub(super) fn encode_tagged_module_invocation(
     writer: &mut Writer,
+    tag: u8,
     callee: MachineId,
     arguments: Vec<ValueId>,
     erased_arguments: Vec<ScalarTerm>,
@@ -96,7 +97,7 @@ pub(super) fn encode_call_unit(
     requirement_obligations: Vec<ObligationId>,
     crash_continuations: Vec<CrashRouteBucket>,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::CALL_UNIT);
+    writer.u8(tag);
     encode_module_invocation_inputs(
         writer,
         terminal_psi::ModuleInvocationInputs {
@@ -109,8 +110,7 @@ pub(super) fn encode_call_unit(
             requirement_obligations: &requirement_obligations,
             crash_continuations: &crash_continuations,
         },
-    )?;
-    Ok(())
+    )
 }
 
 pub(super) fn decode_claim_transfers(
@@ -200,34 +200,6 @@ pub(super) fn decode_call_dynamic(reader: &mut Reader<'_>) -> Result<OperationKi
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
     })
-}
-
-pub(super) fn encode_call_structural_scalar(
-    writer: &mut Writer,
-    callee: MachineId,
-    arguments: Vec<ValueId>,
-    erased_arguments: Vec<ScalarTerm>,
-    erased_proof_arguments: Vec<ProofTerm>,
-    structural_arguments: Vec<StructuralArgument>,
-    claim_transfers: Vec<ClaimTransfer>,
-    requirement_obligations: Vec<ObligationId>,
-    crash_continuations: Vec<CrashRouteBucket>,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::CALL_STRUCTURAL_SCALAR);
-    encode_module_invocation_inputs(
-        writer,
-        terminal_psi::ModuleInvocationInputs {
-            callee,
-            arguments: &arguments,
-            erased_arguments: &erased_arguments,
-            erased_proof_arguments: &erased_proof_arguments,
-            structural_arguments: &structural_arguments,
-            claim_transfers: &claim_transfers,
-            requirement_obligations: &requirement_obligations,
-            crash_continuations: &crash_continuations,
-        },
-    )?;
-    Ok(())
 }
 
 pub(super) fn decode_call_structural_scalar(
@@ -432,19 +404,17 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     crash_continuations: Vec<CrashRouteBucket>,
     selected_evidence: Vec<OutcomeSpecificCallEvidence>,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS);
-    encode_module_invocation_inputs(
+    encode_tagged_module_invocation(
         writer,
-        terminal_psi::ModuleInvocationInputs {
-            callee,
-            arguments: &arguments,
-            erased_arguments: &erased_arguments,
-            erased_proof_arguments: &erased_proof_arguments,
-            structural_arguments: &structural_arguments,
-            claim_transfers: &claim_transfers,
-            requirement_obligations: &requirement_obligations,
-            crash_continuations: &crash_continuations,
-        },
+        operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS,
+        callee,
+        arguments,
+        erased_arguments,
+        erased_proof_arguments,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
     )?;
     encode_selected_evidence(writer, selected_evidence)
 }

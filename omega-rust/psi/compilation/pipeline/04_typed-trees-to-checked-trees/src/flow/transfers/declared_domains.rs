@@ -198,14 +198,9 @@ pub(super) fn establish(
                 let segments = semantic.place_segments.span_or_empty(candidate.segments);
                 if candidate.root != target.root
                     || segments.len() != target_segments.len()
-                    || !segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::Case { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    })
+                    || !segments
+                        .iter()
+                        .all(|segment| crate::flow::fixed_selection_segment(segment))
                     || !target_segments
                         .iter()
                         .zip(segments)

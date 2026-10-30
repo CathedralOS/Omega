@@ -40,6 +40,20 @@ pub(crate) fn type_reference_matches_with_policy(
     const_bindings: &mut Vec<OperatorConstBinding>,
     allow_name_fallback: bool,
 ) -> bool {
+    macro_rules! match_reference {
+        ($actual:expr, $expected:expr $(,)?) => {
+            type_reference_matches_with_policy(
+                program,
+                $actual,
+                $expected,
+                bindable_owner,
+                type_parameters,
+                bindings,
+                const_bindings,
+                allow_name_fallback,
+            )
+        };
+    }
     if !actual.is_valid() || !expected.is_valid() {
         return false;
     }
@@ -102,17 +116,7 @@ pub(crate) fn type_reference_matches_with_policy(
                 lifetime: _,
             },
         ) => {
-            actual_access == expected_access
-                && type_reference_matches_with_policy(
-                    program,
-                    *actual_referee,
-                    *expected_referee,
-                    bindable_owner,
-                    type_parameters,
-                    bindings,
-                    const_bindings,
-                    allow_name_fallback,
-                )
+            actual_access == expected_access && match_reference!(*actual_referee, *expected_referee)
         }
         (
             TypeReferenceNode::Constrained {
@@ -120,32 +124,14 @@ pub(crate) fn type_reference_matches_with_policy(
                 ..
             },
             _,
-        ) => type_reference_matches_with_policy(
-            program,
-            *actual_base,
-            expected,
-            bindable_owner,
-            type_parameters,
-            bindings,
-            const_bindings,
-            allow_name_fallback,
-        ),
+        ) => match_reference!(*actual_base, expected),
         (
             _,
             TypeReferenceNode::Constrained {
                 base_type: expected_base,
                 ..
             },
-        ) => type_reference_matches_with_policy(
-            program,
-            actual,
-            *expected_base,
-            bindable_owner,
-            type_parameters,
-            bindings,
-            const_bindings,
-            allow_name_fallback,
-        ),
+        ) => match_reference!(actual, *expected_base),
         (
             TypeReferenceNode::FixedArray {
                 element_type: actual_element,
@@ -163,16 +149,7 @@ pub(crate) fn type_reference_matches_with_policy(
                 type_parameters,
                 const_bindings,
                 allow_name_fallback,
-            ) && type_reference_matches_with_policy(
-                program,
-                *actual_element,
-                *expected_element,
-                bindable_owner,
-                type_parameters,
-                bindings,
-                const_bindings,
-                allow_name_fallback,
-            )
+            ) && match_reference!(*actual_element, *expected_element)
         }
         (
             TypeReferenceNode::Slice {
@@ -181,16 +158,7 @@ pub(crate) fn type_reference_matches_with_policy(
             TypeReferenceNode::Slice {
                 element_type: expected_element,
             },
-        ) => type_reference_matches_with_policy(
-            program,
-            *actual_element,
-            *expected_element,
-            bindable_owner,
-            type_parameters,
-            bindings,
-            const_bindings,
-            allow_name_fallback,
-        ),
+        ) => match_reference!(*actual_element, *expected_element),
         (
             TypeReferenceNode::Named {
                 symbol: actual_symbol,
@@ -200,18 +168,7 @@ pub(crate) fn type_reference_matches_with_policy(
         ) if actual_symbol.is_valid() => program
             .data_definition_by_symbol(*actual_symbol)
             .and_then(|definition| definition.generic_instance)
-            .is_some_and(|origin| {
-                type_reference_matches_with_policy(
-                    program,
-                    origin,
-                    expected,
-                    bindable_owner,
-                    type_parameters,
-                    bindings,
-                    const_bindings,
-                    allow_name_fallback,
-                )
-            }),
+            .is_some_and(|origin| match_reference!(origin, expected)),
         (
             TypeReferenceNode::Named {
                 symbol: actual_symbol,

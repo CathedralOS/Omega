@@ -1,13 +1,12 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    SelectedBoundarySettlementPayload, SelectedInstruction, SelectedOperand, VirtualRegisterId,
-};
+use selected_instructions::{SelectedInstruction, SelectedOperand, VirtualRegisterId};
 
 use super::{RuntimeRematerializationError, ValidatedRuntimeRematerialization, admission};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::control_mut;
+use crate::rewrites::settlement_gaps::{gap_tables, push_position, remap};
 
 /// Regenerate one immediate-materialized runtime value before each flexible
 /// use. The independently checked output is the only admitted result.
@@ -58,16 +57,7 @@ pub fn rematerialize_selected_runtime_value(
                     .iter()
                     .any(|settlement| settlement.block == block.id);
                 let mut instructions = Vec::with_capacity(block.instructions.len() + 8);
-                let mut boundaries = if has_settlements {
-                    Vec::with_capacity(block.instructions.len() + 1)
-                } else {
-                    Vec::new()
-                };
-                let mut instruction_positions = if has_settlements {
-                    Vec::with_capacity(block.instructions.len() + 1)
-                } else {
-                    Vec::new()
-                };
+                let (mut boundaries, mut positions) = gap_tables(has_settlements, block);
                 let active_window = if has_settlements || block.instructions.is_empty() {
                     if block.instructions.is_empty() {
                         None
@@ -87,20 +77,12 @@ pub fn rematerialize_selected_runtime_value(
                         instructions.extend_from_slice(&block.instructions[..active_start]);
                     }
                     for original in &block.instructions[active_start..=active_end] {
-                        if has_settlements {
-                            boundaries
-                                .push(u32::try_from(instructions.len()).map_err(|_| {
-                                    RuntimeRematerializationError::IdentityOverflow
-                                })?);
-                        }
+                        push_position(&mut boundaries, has_settlements, instructions.len())
+                            .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
                         let mut rewritten = original.clone();
                         rematerialize(&mut rewritten.operands, &mut instructions)?;
-                        if has_settlements {
-                            instruction_positions
-                                .push(u32::try_from(instructions.len()).map_err(|_| {
-                                    RuntimeRematerializationError::IdentityOverflow
-                                })?);
-                        }
+                        push_position(&mut positions, has_settlements, instructions.len())
+                            .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
                         instructions.push(rewritten);
                     }
                     if active_end + 1 < block.instructions.len() {
@@ -119,30 +101,16 @@ pub fn rematerialize_selected_runtime_value(
                     &mut control_mut(&mut terminator).operands,
                     &mut instructions,
                 )?;
+                push_position(&mut boundaries, has_settlements, instructions.len())
+                    .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
+                push_position(&mut positions, has_settlements, instructions.len())
+                    .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
                 if has_settlements {
-                    let final_len = u32::try_from(instructions.len())
-                        .map_err(|_| RuntimeRematerializationError::IdentityOverflow)?;
-                    boundaries.push(final_len);
-                    instruction_positions.push(final_len);
-                    for settlement in &mut *boundary_settlements {
-                        if settlement.block != block.id {
-                            continue;
-                        }
-                        // Eliminated completions retain their gap; hosted settlements name
-                        // the surviving instruction, after any newly inserted
-                        // materializations.
-                        let positions = if matches!(
-                            settlement.settlement,
-                            SelectedBoundarySettlementPayload::ClaimCompletion(_)
-                        ) {
-                            &boundaries
-                        } else {
-                            &instruction_positions
-                        };
-                        settlement.instruction_index = *positions
-                            .get(settlement.instruction_index as usize)
-                            .ok_or(RuntimeRematerializationError::SourceMismatch)?;
-                    }
+                    // Eliminated completions retain their gap; hosted settlements name
+                    // the surviving instruction, after any newly inserted
+                    // materializations.
+                    remap(boundary_settlements, &boundaries, &positions, block.id)
+                        .ok_or(RuntimeRematerializationError::SourceMismatch)?;
                 }
                 let unchanged_suffix = if instructions.len() == pre_terminator_len {
                     active_window

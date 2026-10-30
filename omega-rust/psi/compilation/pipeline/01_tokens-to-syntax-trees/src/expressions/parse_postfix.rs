@@ -165,8 +165,15 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
         }
 
         if input.at_punctuation(PunctuationKind::Dot) {
+            let mut access_source_span = input.source_span(
+                input
+                    .tokens
+                    .first()
+                    .expect("recognized member punctuation has a source token"),
+            );
             let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
             let (member, rest) = after_dot.take_identifier()?;
+            access_source_span.span.end = member.source_span().span.end;
 
             if rest.at_punctuation(PunctuationKind::Less) {
                 let retired = match member.as_str(syntax_trees) {
@@ -254,6 +261,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     .expressions
                     .insert(ExpressionNode::Member(TableMemberExpression {
                         receiver: expression,
+                        access_source_span,
                         member,
                         case_variant: None,
                     }));

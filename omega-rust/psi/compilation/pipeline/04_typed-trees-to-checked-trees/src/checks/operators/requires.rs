@@ -654,6 +654,21 @@ fn contexts_prove_boolean_expression(
     operand_labels: &[String],
     expression: ExpressionHandle,
 ) -> bool {
+    macro_rules! prove_child {
+        ($expression:expr $(,)?) => {
+            contexts_prove_boolean_expression(
+                program,
+                point,
+                semantic,
+                operators,
+                contexts,
+                parameters,
+                operands,
+                operand_labels,
+                $expression,
+            )
+        };
+    }
     let leaf_is_proven = |expression| {
         contexts_prove_boolean_leaf(
             program,
@@ -679,65 +694,11 @@ fn contexts_prove_boolean_expression(
             )
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => contexts_prove_boolean_expression(
-            program,
-            point,
-            semantic,
-            operators,
-            contexts,
-            parameters,
-            operands,
-            operand_labels,
-            inner.target,
-        ),
+        ExpressionNode::Borrow(inner) => prove_child!(inner.target),
         ExpressionNode::Boolean(true) => true,
         ExpressionNode::Binary(binary) => match binary.operator {
-            BinaryOperator::And => {
-                contexts_prove_boolean_expression(
-                    program,
-                    point,
-                    semantic,
-                    operators,
-                    contexts,
-                    parameters,
-                    operands,
-                    operand_labels,
-                    binary.left,
-                ) && contexts_prove_boolean_expression(
-                    program,
-                    point,
-                    semantic,
-                    operators,
-                    contexts,
-                    parameters,
-                    operands,
-                    operand_labels,
-                    binary.right,
-                )
-            }
-            BinaryOperator::Or => {
-                contexts_prove_boolean_expression(
-                    program,
-                    point,
-                    semantic,
-                    operators,
-                    contexts,
-                    parameters,
-                    operands,
-                    operand_labels,
-                    binary.left,
-                ) || contexts_prove_boolean_expression(
-                    program,
-                    point,
-                    semantic,
-                    operators,
-                    contexts,
-                    parameters,
-                    operands,
-                    operand_labels,
-                    binary.right,
-                )
-            }
+            BinaryOperator::And => prove_child!(binary.left) && prove_child!(binary.right),
+            BinaryOperator::Or => prove_child!(binary.left) || prove_child!(binary.right),
             _ => leaf_is_proven(expression),
         },
         _ => leaf_is_proven(expression),

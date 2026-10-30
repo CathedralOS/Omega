@@ -936,14 +936,7 @@ pub(super) fn fold_scalar_binary(
         .iter()
         .all(|(primitive, _)| *primitive == typed_trees::types::PrimitiveType::Bool)
     {
-        let truth = |term: &StructuralTerm| {
-            let StructuralTerm::Constructor { data, case, fields } = term else {
-                return None;
-            };
-            (data == "bool" && fields.is_empty())
-                .then(|| language_semantics::const_value::boolean_literal_spelling(case))
-                .flatten()
-        };
+        let truth = |term: &StructuralTerm| term.boolean_constructor();
         // Operands here are already formed Boolean observations. Preserve
         // the evaluated operand when an identity removes only a fixed value;
         // a fixed left operand also determines ordinary short-circuiting.

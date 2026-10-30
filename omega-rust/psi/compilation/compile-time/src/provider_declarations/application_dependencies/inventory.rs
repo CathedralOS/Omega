@@ -139,7 +139,7 @@ pub(super) fn prepare(
         };
         let mut rows = Vec::new();
         for row in &application.declaration.rows {
-            let member = if application.application.is_some() {
+            let member = if application.capture.is_valid() {
                 prepared_named_provider_member(typed, &application, row.realization_machine)
             } else {
                 Some(row.realization_machine)

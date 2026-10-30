@@ -35,7 +35,7 @@ pub use builder::{
 pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
 pub(crate) use layout_plan::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout,
-    RepeatedFieldLayout, StoredIntegerLayout, TypeLayoutDescriptor, VariantLayout,
+    RepeatedFieldLayout, StoredIntegerLayout, TypeLayoutDescriptor, VariantLayout, type_layout,
 };
 pub use layout_plan::{
     LayoutPlan, TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,

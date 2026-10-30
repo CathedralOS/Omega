@@ -134,12 +134,7 @@ impl Builder<'_, '_> {
         copy: checked_trees::FlowOperandFact,
     ) -> Option<CheckedStructuralValueKind> {
         let receiver = self.flow.control.operands.get(copy.backing);
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            receiver.expression,
-        )?;
+        let place = self.canonical_place(receiver.expression)?;
         // The completed-subject receipt already requires a whole-symbol
         // descriptor with its exact stored Read loan. Its backing keeps the
         // original indexed address and selectors; this receiver is the saved
@@ -229,18 +224,8 @@ impl Builder<'_, '_> {
             .structural_values
             .root_for_captured_copy(self.state, self.statement_index as u32, identity)?
             .root;
-        let source = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
-        let prefix = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            copy.expression,
-        )?;
+        let source = self.canonical_place(expression)?;
+        let prefix = self.canonical_place(copy.expression)?;
         let place = validation::CanonicalPlace {
             root: facts::PlaceRoot::Expression(copy.expression),
             segments: source.segments[prefix.segments.len()..].to_vec(),
@@ -253,21 +238,7 @@ impl Builder<'_, '_> {
         let selectors =
             crate::values::authored_projection_selectors_below(self.program, expression, receiver)?;
         let selectors = self.retain_projection_selector_evaluations(expression, selectors)?;
-        let (projected, mut path) =
-            crate::execution::terminal_unit::calls::projected_argument_path(
-                self.program,
-                self.state,
-                self.statement_index,
-                &place,
-                Some(self.machine),
-                Some(&|expression| {
-                    selectors.iter().find_map(|(selector, value)| {
-                        (*selector == expression).then_some(
-                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
-                        )
-                    })
-                }),
-            )?;
+        let (projected, mut path) = self.projected_place_path(&place, &selectors)?;
         if !validation::declared_carriers_match(self.program, projected, expected) {
             return None;
         }

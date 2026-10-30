@@ -1,0 +1,5 @@
+{
+  "qemu_launch_to_qmp_ms": 181.7,
+  "qmp_to_ready_marker_ms": 4341.7,
+  "ready_marker": "Cathedral desktop: ready; choose a user"
+}

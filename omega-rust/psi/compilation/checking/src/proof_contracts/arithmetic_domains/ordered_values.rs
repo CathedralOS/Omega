@@ -28,6 +28,7 @@ use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap
 use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
+mod captured_references;
 mod congruence;
 pub(super) use congruence::ValueComparison;
 mod match_joins;
@@ -498,12 +499,28 @@ fn build_operand(
         ExpressionNode::Borrow(borrow) => {
             build_operand(program, machine, state, borrow.target, depth + 1, frames)
         }
+        // A saved subject is an already completed value, not another
+        // evaluation of the source expression or its mutable selectors.
+        ExpressionNode::SavedSubject(_) => {
+            captured_references::operand(program, machine, state, expression, frames)
+        }
         ExpressionNode::Integer(literal) => {
             Some(Operand::Integer(literal.clone(), literal.landing()))
         }
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid() || path.symbol != path.head_symbol {
                 return None;
+            }
+            // Resolve the actual completed descriptor at this read. Missing
+            // exact origins leave the named value opaque; its source recipe
+            // cannot replace the captured address or selector epoch.
+            if crate::expression_result_type_reference(program, machine, state, expression)
+                .and_then(|reference| crate::reference_shell(program, reference))
+                .is_some()
+                && let Some(captured) =
+                    captured_references::operand(program, machine, state, expression, frames)
+            {
+                return Some(captured);
             }
             let parameters = program.state_parameters(state);
             let local = program

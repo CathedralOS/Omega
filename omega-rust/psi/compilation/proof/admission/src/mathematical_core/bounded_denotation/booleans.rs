@@ -26,6 +26,16 @@ use super::{
 };
 use crate::mathematical_core::substitution::{shift, substitute};
 
+macro_rules! id {
+    ($ty:expr => $left:expr => $right:expr) => {
+        Term::Id {
+            ty: $ty,
+            left: $left,
+            right: $right,
+        }
+    };
+}
+
 /// One closed lambda, shared by the denotation. Supplying operands through
 /// Apply keeps each operand once in the stored term: directly substituting
 /// the right operand into both case branches creates exponential traversal
@@ -263,11 +273,9 @@ impl Denotation {
         else {
             return Ok(None);
         };
-        let domain = self.arena.insert(Term::Id {
-            ty: self.two,
-            left: premise_left,
-            right: premise_right,
-        });
+        let domain = self
+            .arena
+            .insert(id!(self.two => premise_left => premise_right));
         let body = match self.boolean_leaf_inhabitant(goal, remaining)? {
             Some(inhabitant) => inhabitant,
             None => {
@@ -472,21 +480,17 @@ impl Denotation {
         // twice.
         let shifted_premise_left = shift(&mut self.arena, premise_left, 0, 1);
         let bound = self.arena.insert(Term::Variable(0));
-        let proof_domain = self.arena.insert(Term::Id {
-            ty: self.two,
-            left: shifted_premise_left,
-            right: bound,
-        });
+        let proof_domain = self
+            .arena
+            .insert(id!(self.two => shifted_premise_left => bound));
         // `F(y)` discriminates on the proof's right endpoint under the
         // motive's two binders: at the branch `pl` selects it is `Id Two
         // pl pl` — closed by `refl` — and at the other it is `at_right`.
         let shifted_left = shift(&mut self.arena, premise_left, 0, 2);
         let shifted_at_right = shift(&mut self.arena, at_right, 0, 2);
-        let self_identity = self.arena.insert(Term::Id {
-            ty: self.two,
-            left: shifted_left,
-            right: shifted_left,
-        });
+        let self_identity = self
+            .arena
+            .insert(id!(self.two => shifted_left => shifted_left));
         let discriminant_motive = self.arena.insert(Term::Lambda {
             domain: self.two,
             body: self.type_zero,
@@ -814,11 +818,9 @@ mod tests {
         let expected_value = denotation
             .scalar_term(&ScalarTerm::Boolean(expected))
             .unwrap();
-        let expected_type = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: value,
-            right: expected_value,
-        });
+        let expected_type = denotation
+            .arena
+            .insert(id!(denotation.two => value => expected_value));
         let term = denotation.arena.insert(Term::Refl {
             ty: denotation.two,
             value,
@@ -844,11 +846,9 @@ mod tests {
         } else {
             denotation.two_one
         };
-        certificate.expected = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: value,
-            right: wrong,
-        });
+        certificate.expected = denotation
+            .arena
+            .insert(id!(denotation.two => value => wrong));
         assert!(
             verify_mathematical_certificate(
                 &mut denotation.arena,
@@ -880,11 +880,9 @@ mod tests {
             ty: denotation.two,
             value,
         });
-        let expected = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: value,
-            right: value,
-        });
+        let expected = denotation
+            .arena
+            .insert(id!(denotation.two => value => value));
         let certificate = MathematicalCertificate::with_signature(
             denotation.declarations,
             Vec::new(),
@@ -1142,16 +1140,8 @@ mod tests {
             )
             .unwrap();
         let one = denotation.two_one;
-        let premise = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: b,
-            right: one,
-        });
-        let goal = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: not_b,
-            right: one,
-        });
+        let premise = denotation.arena.insert(id!(denotation.two => b => one));
+        let goal = denotation.arena.insert(id!(denotation.two => not_b => one));
         let evidence = denotation.arena.insert(Term::Variable(0));
         assert_eq!(
             denotation
@@ -1160,11 +1150,9 @@ mod tests {
             None,
             "a premise-true, goal-false valuation must decline"
         );
-        let premise = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: b,
-            right: denotation.two_zero,
-        });
+        let premise = denotation
+            .arena
+            .insert(id!(denotation.two => b => denotation.two_zero));
         let term = denotation
             .boolean_identity_transport(premise, goal, evidence)
             .expect("the transport runs")
@@ -1204,16 +1192,10 @@ mod tests {
                 ScalarType::Boolean,
             ))
             .unwrap();
-        let premise = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: a,
-            right: a,
-        });
-        let failing_goal = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: x,
-            right: denotation.two_zero,
-        });
+        let premise = denotation.arena.insert(id!(denotation.two => a => a));
+        let failing_goal = denotation
+            .arena
+            .insert(id!(denotation.two => x => denotation.two_zero));
         let evidence = denotation.arena.insert(Term::Variable(0));
         assert!(
             denotation
@@ -1222,11 +1204,7 @@ mod tests {
                 .is_none(),
             "a valuation holding the premise but not the goal must decline"
         );
-        let reflexive_goal = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: x,
-            right: x,
-        });
+        let reflexive_goal = denotation.arena.insert(id!(denotation.two => x => x));
         let term = denotation
             .boolean_goal_transport(premise, reflexive_goal, evidence)
             .expect("the transport runs")
@@ -1281,16 +1259,8 @@ mod tests {
             function: applied,
             argument: y,
         });
-        let identity = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: a,
-            right: a,
-        });
-        let premise = denotation.arena.insert(Term::Id {
-            ty: denotation.two,
-            left: a,
-            right: a,
-        });
+        let identity = denotation.arena.insert(id!(denotation.two => a => a));
+        let premise = denotation.arena.insert(id!(denotation.two => a => a));
         // `Σ(t : Two). caseTwo(λ(_ : Two). Type 0, IntLt x y, Id Two a
         // a, t)` — the disjunction denotation shape with one open
         // integer-relation branch; the `Id Two a a` branch inhabits at

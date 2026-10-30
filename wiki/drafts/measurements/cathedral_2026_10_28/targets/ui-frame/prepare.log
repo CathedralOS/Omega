@@ -1,0 +1,2 @@
+package candidate checking failed: checked compilation failed for package `omega_ui_native` with 1 diagnostic(s)
+  error: \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\libraries\\omega-ui\\platform\\native\\main.omg:22:71: boundary-trait machine requirement `UiNativeLayout::query` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach

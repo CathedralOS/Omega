@@ -34,8 +34,9 @@ mod state_flow;
 mod symbolic_values;
 mod where_fact_intervals;
 
+pub use super::contract_entailment::data_predicates_admit_zero;
+pub use float_predicates::data_float_predicate;
 pub(crate) use float_predicates::float_field_literal_bound_meaning;
-pub use float_predicates::{data_float_predicate, data_predicates_admit_zero};
 pub(crate) use place_queries::membership_field;
 pub use standing_requirements::standing_facts_prove_requirement;
 pub(crate) use symbolic_values::applied_const_integer;

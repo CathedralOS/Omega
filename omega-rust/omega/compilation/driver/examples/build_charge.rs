@@ -16,6 +16,10 @@ fn limits(fuel: u64) -> BuildEvaluationSponsorLimits {
     .expect("positive limits")
 }
 
+fn exclusive_workspace(name: &str) -> platform_custody::temporary_directory::TemporaryDirectory {
+    platform_custody::temporary_directory::TemporaryDirectory::create(name, false).unwrap()
+}
+
 fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
         limits,
@@ -240,11 +244,7 @@ fn main() {
 fn nested_readiness_jobs() {
     let authored = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/nested_provider_readiness");
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "nested-readiness-jobs",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("nested-readiness-jobs");
     let root = temporary.path().join("project");
     for package in ["", "backing", "backing/leaf"] {
         std::fs::create_dir_all(root.join(package)).unwrap();
@@ -320,11 +320,7 @@ machine build(builder: &mut Build) suspends; {
 }
 
 fn source_discovery_root_inputs() {
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "discovery-root-inputs",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("discovery-root-inputs");
     let repository = fixture_package_inputs::repo_root();
     let fixture = repository.join("tests/omega/pass/build/captured_named_input_required_output");
     let project = temporary.path().join("project");
@@ -474,11 +470,7 @@ fn source_discovery_root_inputs() {
 /// authored output succeeds with adequate resources and refuses each smaller
 /// sponsor; no Product admission can supply a replacement budget afterward.
 fn source_discovery_root_resources() {
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "discovery-root-resources",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("discovery-root-resources");
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/fail/build/staging_byte_limit_exhausted/main.omg");
     let profile = target::TargetProfile::host_if_supported().unwrap();
@@ -588,11 +580,7 @@ fn source_discovery_root_resources() {
 /// inventory before a package name exists. Neither execution nor Product
 /// completion may reopen the live project after that acquisition.
 fn anonymous_generator_source_scope() {
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "anonymous-build-generator",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("anonymous-build-generator");
     let fixture = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/captured_source_generated_constant");
     let project = temporary.path().join("project");
@@ -991,11 +979,7 @@ fn terminal_build_filesystem() {
     );
     assert_eq!(counters::build_execution_count() - before, 1);
 
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "terminal-filesystem-budget",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("terminal-filesystem-budget");
     let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
         &temporary.path().join("staging"),
         build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
@@ -1758,9 +1742,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
 }
 
 fn project_session_lifecycle() {
-    let temporary =
-        platform_custody::temporary_directory::TemporaryDirectory::create("project-session", false)
-            .unwrap();
+    let temporary = exclusive_workspace("project-session");
     let fixture = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
@@ -1872,11 +1854,7 @@ fn project_session_lifecycle() {
 }
 
 fn completed_build_target_fanout() {
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "build-target-fanout",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("build-target-fanout");
     let fixture = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
@@ -2030,11 +2008,7 @@ fn completed_build_target_fanout() {
 }
 
 fn settled_build_product_contexts() {
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "settled-product-contexts",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("settled-product-contexts");
     let repository = fixture_package_inputs::repo_root();
     let fixture = repository.join("tests/omega/pass/build/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
@@ -2202,11 +2176,7 @@ fn settled_build_product_contexts() {
 }
 
 fn settled_default_build_contexts() {
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "settled-default-build",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("settled-default-build");
     std::fs::write(temporary.path().join("main.omg"), "machine main() {}\n").unwrap();
     let acquired = package_manager::resolution::source::AcquiredBuildSource::capture_local(
         temporary.path(),
@@ -2260,11 +2230,7 @@ fn settled_default_build_contexts() {
 }
 
 fn production_project_discovery() {
-    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "production-source-discovery",
-        false,
-    )
-    .unwrap();
+    let temporary = exclusive_workspace("production-source-discovery");
     let fixture = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/executed_project_identity_exit");
     let project = temporary.path().join("project");

@@ -22,8 +22,12 @@ fn scalar_call_is_explicitly_refused_before_encoding() {
     );
 }
 
-#[test]
-fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
+fn for_zero_extend(
+    kind: SelectedInstructionKind,
+    family: MachineAlternativeFamily,
+    byte_length: usize,
+    mut inspect: impl FnMut(&ValidatedPhysicalRegisterModel, &[RegisterViewId], &[u8]),
+) {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     for source in ["rax", "rcx", "rsi", "rdi", "r8", "r15"] {
         for destination in ["rax", "rcx", "rsi", "rdi", "r8", "r15"] {
@@ -31,10 +35,10 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
                 physical.model().view_named(source).unwrap().id,
                 physical.model().view_named(destination).unwrap().id,
             ];
-            let kind = SelectedInstructionKind::ZeroExtendU8;
-            let key = alternative(MachineAlternativeFamily::ZeroExtendU8, 0);
+            let key = alternative(family, 0);
             let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
-            assert_eq!(encoded.bytes().len(), 4);
+            assert_eq!(encoded.bytes().len(), byte_length);
+            inspect(&physical, &operands, encoded.bytes());
             validate_x86_64_selected_form_encoding(
                 &physical,
                 kind,
@@ -56,7 +60,7 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
                     kind,
                     key,
                     &operands,
-                    copy.bytes()
+                    copy.bytes(),
                 )
                 .is_err()
             );
@@ -73,73 +77,46 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
 }
 
 #[test]
+fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
+    for_zero_extend(
+        SelectedInstructionKind::ZeroExtendU8,
+        MachineAlternativeFamily::ZeroExtendU8,
+        4,
+        |_, _, _| {},
+    );
+}
+
+#[test]
 fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
-    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    for source in ["rax", "rcx", "rsi", "rdi", "r8", "r15"] {
-        for destination in ["rax", "rcx", "rsi", "rdi", "r8", "r15"] {
-            let operands = [
-                physical.model().view_named(source).unwrap().id,
-                physical.model().view_named(destination).unwrap().id,
-            ];
-            let kind = SelectedInstructionKind::ZeroExtendU32;
-            let key = alternative(MachineAlternativeFamily::ZeroExtendU32, 0);
-            let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
-            assert_eq!(encoded.bytes().len(), 3);
+    let kind = SelectedInstructionKind::ZeroExtendU32;
+    let key = alternative(MachineAlternativeFamily::ZeroExtendU32, 0);
+    for_zero_extend(
+        kind,
+        MachineAlternativeFamily::ZeroExtendU32,
+        3,
+        |physical, operands, bytes| {
             // A 32-bit MOV writes the full parent register with zero upper bits.
-            assert_eq!(encoded.bytes()[0] & 0xf8, 0x40);
-            assert_eq!(encoded.bytes()[1], 0x89);
-            validate_x86_64_selected_form_encoding(
-                &physical,
-                kind,
-                key,
-                &operands,
-                encoded.bytes(),
-            )
-            .unwrap();
+            assert_eq!(bytes[0] & 0xf8, 0x40);
+            assert_eq!(bytes[1], 0x89);
             let narrow = encode_x86_64_selected_form(
-                &physical,
+                physical,
                 SelectedInstructionKind::ZeroExtendU8,
                 alternative(MachineAlternativeFamily::ZeroExtendU8, 0),
-                &operands,
+                operands,
             )
             .unwrap();
             assert!(
                 validate_x86_64_selected_form_encoding(
-                    &physical,
+                    physical,
                     kind,
                     key,
-                    &operands,
-                    narrow.bytes()
+                    operands,
+                    narrow.bytes(),
                 )
                 .is_err()
             );
-            let copy = encode_x86_64_selected_form(
-                &physical,
-                SelectedInstructionKind::CopyI64,
-                alternative(MachineAlternativeFamily::CopyI64, 0),
-                &operands,
-            )
-            .unwrap();
-            assert!(
-                validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    copy.bytes()
-                )
-                .is_err()
-            );
-            assert_every_byte_change_rejected(
-                &physical,
-                kind,
-                key,
-                &operands,
-                encoded.bytes(),
-                "changed",
-            );
-        }
-    }
+        },
+    );
 }
 
 #[test]

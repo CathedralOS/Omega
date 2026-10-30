@@ -1,0 +1,51 @@
+// The case-dependent default domain admits only `Boolean` on `Value<bool>`
+// and establishes `lo <= hi` with `hi <= 32` on `Range`, so the typed
+// extractor consumes the Boolean payload and `hi - lo` is exact — the same
+// `<=` bound predicate re-admitted as the named generic domain
+// `u64::AtMost<32>` on the guarded `lo`.
+// Expected exit: 0.
+domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+data Interval [copy]
+    requires (self in Interval::Empty)
+       || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
+{
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+machine pick(v: Value<bool>) -> bool {
+    match v {
+        Value::Boolean { value } -> value
+    }
+}
+machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi {
+    let qualified_lo: u64 in AtMost<32> = lo as u64 in AtMost<32>;
+    hi - (qualified_lo as u64)
+}
+machine width(span: Interval) -> u64 {
+    match span {
+        Interval::Range { lo, hi } -> width_range(lo, hi)
+        Interval::Empty -> 0
+    }
+}
+data Carrier [copy] { marked: Value<bool>; span: Interval; }
+machine read(carrier: Carrier) -> bool { pick(carrier.marked) }
+machine measure(carrier: Carrier) -> u64 { width(carrier.span) }
+machine main() crashes Trap {
+    let carrier: Carrier = Carrier {
+        marked: Value::Boolean { value: true },
+        span: Interval::Range { lo: 17, hi: 21 }
+    };
+    transition read(carrier) == true && measure(carrier) == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

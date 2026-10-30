@@ -27,6 +27,17 @@ fn descriptors(
     crate::test_support::linkage_descriptors(inputs)
 }
 
+fn address_obligation(
+    row_ordinal: u32,
+    target: ElfDynamicAddressTarget,
+) -> ElfDynamicAddressObligation {
+    ElfDynamicAddressObligation {
+        row_ordinal,
+        byte_width: 8,
+        target,
+    }
+}
+
 fn candidate(target: TargetProfile) -> Candidate {
     let descriptors = descriptors(target, &IMPORTS);
     let contents = derive_contents(&descriptors).expect("derived dynamic tags");
@@ -95,51 +106,15 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
         assert_eq!(
             plan.contents.address_obligations,
             [
-                ElfDynamicAddressObligation {
-                    row_ordinal: 3,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::ProcedureGot,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 4,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::SystemVHash,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 5,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::GnuHash,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 6,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::DynamicString,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 7,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::DynamicSymbol,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 11,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::ProcedureRelocation,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 12,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::GeneralRelocation,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 15,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::GnuSymbolVersion,
-                },
-                ElfDynamicAddressObligation {
-                    row_ordinal: 16,
-                    byte_width: 8,
-                    target: ElfDynamicAddressTarget::GnuVersionRequirement,
-                },
+                address_obligation(3, ElfDynamicAddressTarget::ProcedureGot),
+                address_obligation(4, ElfDynamicAddressTarget::SystemVHash),
+                address_obligation(5, ElfDynamicAddressTarget::GnuHash),
+                address_obligation(6, ElfDynamicAddressTarget::DynamicString),
+                address_obligation(7, ElfDynamicAddressTarget::DynamicSymbol),
+                address_obligation(11, ElfDynamicAddressTarget::ProcedureRelocation),
+                address_obligation(12, ElfDynamicAddressTarget::GeneralRelocation),
+                address_obligation(15, ElfDynamicAddressTarget::GnuSymbolVersion),
+                address_obligation(16, ElfDynamicAddressTarget::GnuVersionRequirement),
             ],
         );
         assert_eq!(

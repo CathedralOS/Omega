@@ -271,15 +271,7 @@ pub(super) fn scalar_argument(
             .get(1)
             .ok_or_else(invalid)?
             .class;
-        builder.emit(
-            kind,
-            key,
-            &[input, output],
-            SelectedInstructionProvenance {
-                values: vec![value],
-                ..Default::default()
-            },
-        )?;
+        builder.emit(kind, key, &[input, output], super::value_provenance(value))?;
         output
     } else {
         builder.copy(input, value, site, scalar_type)?

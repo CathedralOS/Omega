@@ -1,0 +1,18 @@
+diff --git a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+index d8ccc258ee9..13a7e55def8 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+@@ -294,6 +294,13 @@ impl CompilationSession {
+         let root_path = canonical_entry.as_deref().unwrap_or(root_path);
+         let capture = capture.or(acquired.as_ref());
+         self.restore_source_graph();
++        if phase_profile::enabled() {
++            eprintln!("RESTORE request {:?} sources={}",root_path,self.sources.len());
++            for prepared in &self.sources {
++                eprintln!("RESTORE candidate {:?} root={} inputs={} capture={}",prepared.root,prepared.root==root_path,prepared.inputs==inputs,prepared.capture.as_ref()==capture);
++            }
++        }
++
+         if let Some(prepared) = self.sources.iter_mut().find(|prepared| {
+             prepared.root == root_path
+                 && prepared.inputs == inputs

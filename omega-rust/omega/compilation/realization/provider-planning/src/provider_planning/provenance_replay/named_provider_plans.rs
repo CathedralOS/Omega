@@ -70,6 +70,12 @@ pub(super) fn derive(
             let mut provenance = ProviderPlanProvenance {
                 schema: ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
                 provider_type: Some(implementation.symbol),
+                named_application: Some(
+                    checked_trees::provider_declarations::NamedProviderApplication {
+                        declaration: implementation.symbol,
+                        capture: application.capture,
+                    },
+                ),
                 row_requirements: Vec::new(),
                 row_realizations: Vec::new(),
                 row_target_machine_origins: Vec::new(),
@@ -82,7 +88,7 @@ pub(super) fn derive(
                 if typed.machine_states(named).first()?.symbol != row.realization_state {
                     return None;
                 }
-                let realization = if application.application.is_some() {
+                let realization = if application.capture.is_valid() {
                     prepared_named_provider_member(typed, &application, row.realization_machine)?
                 } else {
                     row.realization_machine

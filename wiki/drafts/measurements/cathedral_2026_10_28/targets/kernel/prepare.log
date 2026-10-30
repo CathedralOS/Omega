@@ -1,0 +1,1 @@
+source adapter failed for product dependency row 4 of package `cathedral`: cannot retain Git pin for `https://github.com/CathedralOS/Omega.git` at `849161c59ff74176dafc3f8de5ff66148581de22`: offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required

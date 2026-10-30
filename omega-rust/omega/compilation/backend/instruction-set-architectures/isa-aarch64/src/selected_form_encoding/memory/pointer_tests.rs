@@ -1,7 +1,7 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
-    SelectedInstructionKind, ValidatedPhysicalRegisterModel, encode_aarch64_selected_memory_form,
-    validate_aarch64_selected_memory_form,
+    SelectedInstructionKind, ValidatedPhysicalRegisterModel, check_memory,
+    encode_aarch64_selected_memory_form,
 };
 use crate::test_support::reject_every_bit_flip;
 #[test]
@@ -29,7 +29,7 @@ fn pointer_store_known_bytes_preserve_the_requested_width() {
                 .unwrap();
         assert_eq!(encoded.bytes(), expected);
         assert!(
-            validate_aarch64_selected_memory_form(
+            check_memory(
                 &physical,
                 kind,
                 alternative,
@@ -42,7 +42,7 @@ fn pointer_store_known_bytes_preserve_the_requested_width() {
         for wrong_width in [1, 2, 4, 8] {
             if wrong_width != byte_size {
                 assert!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         SelectedInstructionKind::Store {
                             byte_offset: 8,
@@ -185,7 +185,7 @@ fn check_replay(
         }
     );
     reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
-        validate_aarch64_selected_memory_form(
+        check_memory(
             physical,
             kind,
             alternative,
@@ -197,7 +197,7 @@ fn check_replay(
     });
     for end in 0..encoded.bytes().len() {
         assert!(
-            validate_aarch64_selected_memory_form(
+            check_memory(
                 physical,
                 kind,
                 alternative,
@@ -211,7 +211,7 @@ fn check_replay(
     let mut trailing = encoded.bytes().to_vec();
     trailing.push(0);
     assert!(
-        validate_aarch64_selected_memory_form(
+        check_memory(
             physical,
             kind,
             alternative,
@@ -222,7 +222,7 @@ fn check_replay(
         .is_err()
     );
     assert!(
-        validate_aarch64_selected_memory_form(
+        check_memory(
             physical,
             kind,
             alternative,
@@ -317,7 +317,7 @@ fn incoming_slot_address_and_pointer_load_replay_without_a_store() {
         48,
     )
     .unwrap();
-    validate_aarch64_selected_memory_form(
+    check_memory(
         &physical,
         address_kind,
         address_key,
@@ -327,7 +327,7 @@ fn incoming_slot_address_and_pointer_load_replay_without_a_store() {
     )
     .unwrap();
     assert!(
-        validate_aarch64_selected_memory_form(
+        check_memory(
             &physical,
             address_kind,
             address_key,
@@ -350,7 +350,7 @@ fn incoming_slot_address_and_pointer_load_replay_without_a_store() {
         0,
     )
     .unwrap();
-    validate_aarch64_selected_memory_form(
+    check_memory(
         &physical,
         load_kind,
         load_key,
@@ -378,7 +378,7 @@ fn incoming_slot_address_and_pointer_load_replay_without_a_store() {
         .is_err()
     );
     assert!(
-        validate_aarch64_selected_memory_form(
+        check_memory(
             &physical,
             store_kind,
             store_key,

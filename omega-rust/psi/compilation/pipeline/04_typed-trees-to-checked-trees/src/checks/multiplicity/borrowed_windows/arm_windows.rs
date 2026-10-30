@@ -601,6 +601,17 @@ impl<'facts> ArmWindowPlan<'facts> {
     ) {
         let program = frames.program;
         let operators = frames.operators;
+        macro_rules! frame {
+            ($expression:expr) => {
+                self.collect_frames(
+                    frames,
+                    $expression,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                )
+            };
+        }
         if !expression.is_valid() {
             return;
         }
@@ -625,13 +636,7 @@ impl<'facts> ArmWindowPlan<'facts> {
                     enclosing_arm,
                     conditional: statement_conditional,
                 });
-                self.collect_frames(
-                    frames,
-                    dispatch.subject,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(dispatch.subject);
                 for (ordinal, arm) in program
                     .expression_table
                     .match_arms(dispatch.arms)
@@ -656,40 +661,16 @@ impl<'facts> ArmWindowPlan<'facts> {
                 }
             }
             ExpressionNode::Atomic(atomic) => {
-                self.collect_frames(
-                    frames,
-                    atomic.value,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
-                self.collect_frames(
-                    frames,
-                    atomic.result,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(atomic.value);
+                frame!(atomic.result);
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in program.expression_table.expression_handles(*values) {
-                    self.collect_frames(
-                        frames,
-                        *value,
-                        enclosing_arm,
-                        statement_conditional,
-                        edge_conditional,
-                    );
+                    frame!(*value);
                 }
             }
             ExpressionNode::Binary(binary) => {
-                self.collect_frames(
-                    frames,
-                    binary.left,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(binary.left);
                 if matches!(
                     binary.operator,
                     typed_trees::expression::BinaryOperator::And
@@ -713,111 +694,39 @@ impl<'facts> ArmWindowPlan<'facts> {
                         );
                     }
                 } else {
-                    self.collect_frames(
-                        frames,
-                        binary.right,
-                        enclosing_arm,
-                        statement_conditional,
-                        edge_conditional,
-                    );
+                    frame!(binary.right);
                 }
             }
             ExpressionNode::Borrow(borrow) => {
-                self.collect_frames(
-                    frames,
-                    borrow.target,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(borrow.target);
             }
             ExpressionNode::Call(call) => {
-                self.collect_frames(
-                    frames,
-                    call.receiver,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(call.receiver);
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    self.collect_frames(
-                        frames,
-                        *argument,
-                        enclosing_arm,
-                        statement_conditional,
-                        edge_conditional,
-                    );
+                    frame!(*argument);
                 }
             }
             ExpressionNode::Cast(cast) => {
-                self.collect_frames(
-                    frames,
-                    cast.value,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(cast.value);
             }
             ExpressionNode::Indexed(indexed) => {
-                self.collect_frames(
-                    frames,
-                    indexed.collection,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
-                self.collect_frames(
-                    frames,
-                    indexed.index,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(indexed.collection);
+                frame!(indexed.index);
             }
             ExpressionNode::Member(member) => {
-                self.collect_frames(
-                    frames,
-                    member.receiver,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(member.receiver);
             }
             ExpressionNode::Range(range) => {
-                self.collect_frames(
-                    frames,
-                    range.start,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
-                self.collect_frames(
-                    frames,
-                    range.end,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(range.start);
+                frame!(range.end);
             }
             ExpressionNode::StructLiteral(literal) => {
                 for field in program.expression_table.struct_fields(literal.fields) {
-                    self.collect_frames(
-                        frames,
-                        field.value,
-                        enclosing_arm,
-                        statement_conditional,
-                        edge_conditional,
-                    );
+                    frame!(field.value);
                 }
             }
             ExpressionNode::Unary(unary) => {
-                self.collect_frames(
-                    frames,
-                    unary.operand,
-                    enclosing_arm,
-                    statement_conditional,
-                    edge_conditional,
-                );
+                frame!(unary.operand);
             }
             ExpressionNode::Name(_)
             | ExpressionNode::TypeExpression(_)

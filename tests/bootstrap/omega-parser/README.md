@@ -31,7 +31,7 @@ is a committed allocation rather than a reservation, a Windows host needs
 commit headroom — RAM plus pagefile — above that extent, or the evaluator
 fails before any tape byte is read.
 
-The Windows PE seed's complete execution is validated without a Windows
+The historical twelve-invocation customer's Windows PE execution was validated without a Windows
 host. Under wine-10 on Linux x86-64 (with `vm.overcommit_memory=1` standing
 in for the commit headroom), the stamped PE ran both gate legs byte-exactly:
 it reconstructed the pinned Epsilon execution receipt — 721,484 bytes,
@@ -55,17 +55,22 @@ Python-3 host, including Linux or a Windows host before the multi-hour run:
 sh tests/bootstrap/omega-parser/run.sh --identity
 ```
 
-Verified green on Linux x86-64: the identity leg, and the full execution —
+The historical twelve-invocation customer passed on Linux x86-64: the identity leg and full execution —
 receipt reconstruction in 262 s and the complete customer in 6,551 s,
 returning `000000000041` with status 0 and empty stderr — now that
 `alpha_x64_linux` is bound. The remaining leg is the literal Windows x64 Git
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The customer reuses one parser across twelve invocations. Three complete
+The customer reuses one parser across sixteen invocations. Complete
 inputs cover decimal expressions and transition guards, a named struct literal,
 a cast domain, reference/array/constrained types, and an externally bound
-satisfying clause. Eight incomplete inputs exercise each relevant failing guard.
+satisfying clause. Data predicates retain ordinary expression roots, repeated
+clauses, grouping, precedence, logical `self`, and ownership across adjacent
+declarations with and without requirements. Six incomplete inputs retain their
+existing implementation-boundary spans. Two retired scalar suffix inputs refuse
+at the opening bracket; three missing or unfinished predicates refuse at their
+missing expression.
 The no-clause external binding immediately follows a successful external leaf;
 the initial data input repeats after failures to check reset behavior. Only
 `Complete` permits syntax-row inspection; incomplete cases inspect status and
@@ -192,10 +197,10 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 4,583 bytes, SHA-256
-`61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618`, and packs
-on top of the bound member closure to 574,503 bytes, SHA-256
-`bb0926635a8f6442c2a8b40e8ad015a5db7f2eea914062892d50ee6905104726`.
+The [customer](main.epsilon) entry is bound at 10,867 bytes, SHA-256
+`42e53e69af142994a46558d311bcb0d5e1ffdddf17760173c76229f19cd45555`, and packs
+on top of the bound member closure to 582,785 bytes, SHA-256
+`3ceb640563ef2ce57dd3089bbc117a7345813b06dbf800acf18419339d1b1364`.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

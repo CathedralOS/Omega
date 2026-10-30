@@ -1,6 +1,13 @@
 use super::{BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape};
 use crate::{CallingPolicy, SystemVEightbyteClass, ValueClass, ValueShape};
 
+fn value_graph<'a>(
+    shapes: &'a [BoundaryValueShape],
+    fields: &'a [BoundaryValueField],
+) -> BoundaryValueGraph<'a> {
+    BoundaryValueGraph { shapes, fields }
+}
+
 fn shape(class: BoundaryValueClass, byte_size: u16, alignment: u16) -> BoundaryValueShape {
     BoundaryValueShape {
         class,
@@ -26,10 +33,7 @@ fn four_f32_array() -> [BoundaryValueShape; 2] {
 #[test]
 fn recursive_array_classification_is_policy_specific() {
     let shapes = four_f32_array();
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &[],
-    };
+    let graph = value_graph(&shapes, &[]);
     let hfa = ValueShape::homogeneous_float_aggregate(4, 4);
     for (policy, expected) in [
         (CallingPolicy::Aapcs64, hfa),
@@ -56,10 +60,7 @@ fn large_homogeneous_float_values_follow_each_policys_memory_cutoff() {
             8,
         ),
     ];
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &[],
-    };
+    let graph = value_graph(&shapes, &[]);
     for (policy, expected) in [
         (
             CallingPolicy::Aapcs64,
@@ -94,10 +95,7 @@ fn large_homogeneous_float_values_follow_each_policys_memory_cutoff() {
 #[test]
 fn authored_policy_cannot_publish_a_preclassified_shape_for_the_wrong_abi() {
     let shapes = four_f32_array();
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &[],
-    };
+    let graph = value_graph(&shapes, &[]);
     let error = graph
         .validate_abi_shape(1, ValueShape::integer(16, 4), CallingPolicy::Aapcs64)
         .expect_err("AAPCS64 policy must preserve the HFA classification");
@@ -147,10 +145,7 @@ fn nested_record_classification_preserves_leaf_offsets_and_eightbyte_order() {
             byte_offset: 0,
         },
     ];
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &fields,
-    };
+    let graph = value_graph(&shapes, &fields);
     let mixed = ValueShape {
         class: ValueClass::SystemVAggregate {
             first: SystemVEightbyteClass::Sse,
@@ -171,10 +166,7 @@ fn nested_record_classification_preserves_leaf_offsets_and_eightbyte_order() {
     }
     fields[0].byte_offset = 8;
     fields[1].byte_offset = 0;
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &fields,
-    };
+    let graph = value_graph(&shapes, &fields);
     assert_eq!(
         graph
             .classify(3, CallingPolicy::SystemVAMD64)
@@ -209,10 +201,7 @@ fn malformed_shape_links_and_cross_eightbyte_leaves_reject() {
         shape: 0,
         byte_offset: 4,
     }];
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &fields,
-    };
+    let graph = value_graph(&shapes, &fields);
     assert_eq!(
         graph.classify(1, CallingPolicy::SystemVAMD64),
         Err("aggregate has a scalar leaf crossing a SysV eightbyte boundary".to_owned())
@@ -221,10 +210,7 @@ fn malformed_shape_links_and_cross_eightbyte_leaves_reject() {
         graph.classify(2, CallingPolicy::Aapcs64),
         Err("shape root 2 is outside the normalized graph".to_owned())
     );
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &[],
-    };
+    let graph = value_graph(&shapes, &[]);
     assert_eq!(
         graph.classify(1, CallingPolicy::Aapcs64),
         Err("record field range is outside the normalized graph".to_owned())
@@ -233,10 +219,7 @@ fn malformed_shape_links_and_cross_eightbyte_leaves_reject() {
         element: 2,
         length: 1,
     };
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &[],
-    };
+    let graph = value_graph(&shapes, &[]);
     assert_eq!(
         graph.classify(1, CallingPolicy::Aapcs64),
         Err("array element shape 2 is outside the graph".to_owned())
@@ -245,10 +228,7 @@ fn malformed_shape_links_and_cross_eightbyte_leaves_reject() {
         element: 1,
         length: 1,
     };
-    let graph = BoundaryValueGraph {
-        shapes: &shapes,
-        fields: &[],
-    };
+    let graph = value_graph(&shapes, &[]);
     assert_eq!(
         graph.classify(1, CallingPolicy::Aapcs64),
         Err("boundary shape nesting exceeds 32 levels".to_owned())

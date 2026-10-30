@@ -476,6 +476,21 @@ fn collect_type(
     } else {
         (lifetimes, types)
     };
+    macro_rules! carry_child {
+        ($reference:expr $(,)?) => {
+            collect_type(
+                program,
+                $reference,
+                lifetimes,
+                types,
+                owner_path,
+                visiting,
+                output,
+                whole_elided_contract,
+                template,
+            )
+        };
+    }
     // Zero remains the ordinary absence/Unit convention. A stale nonzero
     // generational handle resolving to the same dummy node is not a type.
     if reference.is_valid()
@@ -508,17 +523,7 @@ fn collect_type(
                 match access {
                     language_semantics::ReferenceAccess::Shared => return true,
                     language_semantics::ReferenceAccess::Mutable => {
-                        return collect_type(
-                            program,
-                            *referee,
-                            lifetimes,
-                            types,
-                            owner_path,
-                            visiting,
-                            output,
-                            whole_elided_contract,
-                            template,
-                        );
+                        return carry_child!(*referee);
                     }
                     language_semantics::ReferenceAccess::WriteOnly => {}
                 }
@@ -552,17 +557,7 @@ fn collect_type(
             }
             let first_stored = output.len();
             template.frontier = LifetimeFrontier::BorrowedStorage;
-            let complete = collect_type(
-                program,
-                *referee,
-                lifetimes,
-                types,
-                owner_path,
-                visiting,
-                output,
-                whole_elided_contract,
-                template,
-            );
+            let complete = carry_child!(*referee);
             template.frontier = LifetimeFrontier::Input;
             if *access == language_semantics::ReferenceAccess::Shared {
                 // Shared access cannot load a write-only descriptor or lend
@@ -589,17 +584,7 @@ fn collect_type(
             constraints,
         } => {
             let first = output.len();
-            let complete = collect_type(
-                program,
-                *base_type,
-                lifetimes,
-                types,
-                owner_path,
-                visiting,
-                output,
-                whole_elided_contract,
-                template,
-            );
+            let complete = carry_child!(*base_type);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
                     && program
@@ -683,17 +668,7 @@ fn collect_type(
         {
             // Authority classification needs the element type, not a runtime
             // inventory of indices. Shared views have already cut access.
-            collect_type(
-                program,
-                *element_type,
-                lifetimes,
-                types,
-                owner_path,
-                visiting,
-                output,
-                whole_elided_contract,
-                template,
-            )
+            carry_child!(*element_type)
         }
         TypeReferenceNode::Slice { element_type }
             if template.frontier == LifetimeFrontier::BorrowedStorage =>

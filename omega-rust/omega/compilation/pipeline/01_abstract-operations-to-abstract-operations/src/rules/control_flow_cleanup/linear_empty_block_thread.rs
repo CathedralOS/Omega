@@ -14,7 +14,7 @@ use optimization_unit_semantics::{
 };
 use semantic_vocabulary::BlockId;
 
-use crate::rules::control_flow_cleanup::descriptor_telescope_free;
+use crate::rules::control_flow_cleanup::scalar_cleanup_functions;
 use crate::rules::control_flow_cleanup::{
     provenance_realized_at, thread_accounting_tail, threadable_empty_blocks,
 };
@@ -39,11 +39,7 @@ psi_rule_impl!(LinearEmptyBlockThreadRule, |unit, analyses| {
     required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(_));
 
     let mut candidates = Vec::new();
-    for function in &unit.functions {
-        // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-        if !descriptor_telescope_free(function) {
-            continue;
-        }
+    for function in scalar_cleanup_functions(&unit.functions) {
         for empty in threadable_empty_blocks(function, use_definitions) {
             let empty_id = empty.block.id;
             let incoming = function

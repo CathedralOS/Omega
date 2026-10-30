@@ -107,8 +107,6 @@ failed_display!(
     CountdownInvariantConstantAnalysisError,
     "countdown invariant-constant analysis failure"
 );
-
-impl std::error::Error for CountdownInvariantConstantAnalysisError {}
 fn validate_locations(
     function: &PsiOptimizationFunction,
     component: &optimization_unit::OptimizerCycleComponent,

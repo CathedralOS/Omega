@@ -190,9 +190,5 @@ pub(crate) fn validate_selected_cleanup_guarantees(
             )));
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }

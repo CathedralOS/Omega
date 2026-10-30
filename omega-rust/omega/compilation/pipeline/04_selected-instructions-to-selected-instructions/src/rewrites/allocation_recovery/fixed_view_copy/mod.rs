@@ -67,41 +67,24 @@ pub(crate) fn materialize_fixed_view_copies(
 
 // Transform-side evidence for the fixed-view-copy rewrite; the durable plan,
 // policy and artifact framing live in `register_homes::recovery`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedViewCopyValidationReceipt {
-    pub(crate) identity: FixedViewCopyIdentity,
-    pub(crate) source_selected: SelectedInstructionPlanIdentity,
-    pub(crate) source_ranges: LiveRangeIdentity,
-    pub(crate) source_legality: AllocationLegalityIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) source_evidence: FixedViewCopySourceEvidence,
-    pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
-    pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
-    pub(crate) fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
-    pub(crate) policy: FixedViewCopyPolicy,
-    pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) copy_count: usize,
-}
-
-impl FixedViewCopyValidationReceipt {
-    receipt_accessor_rows!(FixedViewCopyValidationReceipt {
-        identity: FixedViewCopyIdentity,
-        source_evidence: FixedViewCopySourceEvidence,
-        policy: FixedViewCopyPolicy,
-        usage: OptimizationWorkUsage,
-        function_count: usize,
-        copy_count: usize,
-        source_selected: SelectedInstructionPlanIdentity,
-        source_ranges: LiveRangeIdentity,
-        source_legality: AllocationLegalityIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
-        register_environment: TargetRegisterEnvironmentIdentity,
-        allocator_availability: AllocatorAvailabilityIdentity,
-        optimization_unit: optimization_core::OptimizationUnitIdentity,
-        fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
-    });
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct FixedViewCopyValidationReceipt {
+        pub(crate) identity: FixedViewCopyIdentity,
+        pub(crate) source_selected: SelectedInstructionPlanIdentity,
+        pub(crate) source_ranges: LiveRangeIdentity,
+        pub(crate) source_legality: AllocationLegalityIdentity,
+        pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+        pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
+        pub(crate) source_evidence: FixedViewCopySourceEvidence,
+        pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
+        pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
+        pub(crate) fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
+        pub(crate) policy: FixedViewCopyPolicy,
+        pub(crate) usage: OptimizationWorkUsage,
+        pub(crate) function_count: usize,
+        pub(crate) copy_count: usize,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

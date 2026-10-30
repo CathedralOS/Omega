@@ -438,34 +438,19 @@ mod tests {
                 StructuralAccess::MutableBorrow,
             )]),
         );
-        assert!(lends_from(
-            &custody,
-            place,
-            &parent,
-            StructuralAccess::MutableBorrow
-        ));
-        assert!(!lends_from(
-            &custody,
-            place,
-            &occurrence(4),
-            StructuralAccess::MutableBorrow
-        ));
+        macro_rules! lends {
+            ($parent:expr, $access:expr) => {
+                lends_from(&custody, place, $parent, $access)
+            };
+        }
+        assert!(lends!(&parent, StructuralAccess::MutableBorrow));
+        assert!(!lends!(&occurrence(4), StructuralAccess::MutableBorrow));
         let replaced_parent = OccurrenceIdentity::operation(
             &(PlaceId::new(3).unwrap(), Vec::new()),
             OperationId::new(7).unwrap(),
         );
-        assert!(!lends_from(
-            &custody,
-            place,
-            &replaced_parent,
-            StructuralAccess::MutableBorrow
-        ));
-        assert!(!lends_from(
-            &custody,
-            place,
-            &parent,
-            StructuralAccess::Owned
-        ));
+        assert!(!lends!(&replaced_parent, StructuralAccess::MutableBorrow));
+        assert!(!lends!(&parent, StructuralAccess::Owned));
         // Equal backing on a second incoming edge cannot supply the first
         // edge's captured permission occurrence.
         std::sync::Arc::make_mut(&mut custody.borrowed_sources)
@@ -474,12 +459,7 @@ mod tests {
             .as_mut()
             .unwrap()
             .push(source(occurrence(4), StructuralAccess::MutableBorrow));
-        assert!(!lends_from(
-            &custody,
-            place,
-            &parent,
-            StructuralAccess::MutableBorrow
-        ));
+        assert!(!lends!(&parent, StructuralAccess::MutableBorrow));
     }
 
     #[test]
@@ -487,36 +467,21 @@ mod tests {
         let place = PlaceId::new(2).unwrap();
         let parent = occurrence(3);
         let mut custody = Custody::default();
+        macro_rules! lends {
+            ($access:expr) => {
+                lends_from(&custody, place, &parent, $access)
+            };
+        }
         for sources in [None, Some(Vec::new())] {
             std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(place, sources);
-            assert!(!lends_from(
-                &custody,
-                place,
-                &parent,
-                StructuralAccess::SharedBorrow
-            ));
+            assert!(!lends!(StructuralAccess::SharedBorrow));
         }
         std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(
             place,
             Some(vec![source(parent.clone(), StructuralAccess::SharedBorrow)]),
         );
-        assert!(lends_from(
-            &custody,
-            place,
-            &parent,
-            StructuralAccess::SharedBorrow
-        ));
-        assert!(!lends_from(
-            &custody,
-            place,
-            &parent,
-            StructuralAccess::MutableBorrow
-        ));
-        assert!(!lends_from(
-            &custody,
-            place,
-            &parent,
-            StructuralAccess::WriteOnlyBorrow
-        ));
+        assert!(lends!(StructuralAccess::SharedBorrow));
+        assert!(!lends!(StructuralAccess::MutableBorrow));
+        assert!(!lends!(StructuralAccess::WriteOnlyBorrow));
     }
 }

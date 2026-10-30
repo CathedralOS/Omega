@@ -41,7 +41,7 @@ fn retained_at(function: &AbstractFunction, operation: usize, target: &TargetFun
 
 #[test]
 fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
-    use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let (mut function, mut target) = field_fixture(scalar);
@@ -100,6 +100,25 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
         parameter.multiplicity = multiplicity;
         changed_target.graph.blocks[0].structural_parameters[0] = parameter.clone();
         assert_eq!(read(&changed_function, &changed_target), None);
+    }
+}
+
+/// A structural type with no quotient, claim, copy, or cleanup authority.
+fn plain_structural_type(
+    id: StructuralTypeId,
+    identity: terminal_psi::TerminalIdentityIndex,
+    shape: StructuralTypeShape,
+) -> StructuralTypeDeclaration {
+    StructuralTypeDeclaration {
+        id,
+        identity,
+        shape,
+        quotient_carrier: None,
+        owns_linear_claim: false,
+        no_code_affine_cleanup: false,
+        copyable: false,
+        descriptor_cleanup: false,
+        scalar_restriction: None,
     }
 }
 
@@ -196,10 +215,10 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
             edges: vec![edge],
         },
         graph: TargetControlGraph {
-            structural_types: vec![StructuralTypeDeclaration {
-                id: StructuralTypeId::new(1).unwrap(),
-                identity: terminal_psi::TerminalIdentityIndex(1),
-                shape: StructuralTypeShape::Record {
+            structural_types: vec![plain_structural_type(
+                StructuralTypeId::new(1).unwrap(),
+                terminal_psi::TerminalIdentityIndex(1),
+                StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![StructuralFieldDeclaration {
                         id: field,
@@ -209,13 +228,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
                         storage: None,
                     }],
                 },
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-            }]
+            )]
             .into(),
             call_plan,
             scalar_parameters: vec![],
@@ -637,7 +650,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
 fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
     use semantic_vocabulary::{ObligationId, StructuralDomainId};
     use target_operations::TargetUnitScalarArgumentSource;
-    use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     for arrival in [false, true] {
@@ -847,7 +860,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     use terminal_psi::{
         BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
         StructuralOperationResult, StructuralReferenceResultSource, StructuralResultDeclaration,
-        StructuralTypeDeclaration, StructuralTypeShape,
+        StructuralTypeShape,
     };
 
     let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());

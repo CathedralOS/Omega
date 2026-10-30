@@ -52,7 +52,17 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
         return Ok(());
     }
     let types = module.structural_types.clone();
-    let graph = descriptors::terminal_graph(module);
+    let graph = phase_profile::scope("05.payload.graph", || {
+        descriptors::terminal_graph_from(
+            module,
+            module
+                .machines
+                .iter()
+                .zip(&candidate_machines)
+                .filter(|(_, candidate)| **candidate)
+                .map(|(machine, _)| machine.id),
+        )
+    });
     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
     for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
         if !has_candidate {
@@ -84,7 +94,9 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                             })?,
                         );
                         if let Ok(projected_qualifications) =
-                            reference_memberships.for_operation(machine, operation)
+                            phase_profile::scope("05.payload.reference", || {
+                                reference_memberships.for_operation(machine, operation)
+                            })
                             && !projected_qualifications.is_empty()
                         {
                             copies.push((
@@ -99,25 +111,29 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                                 },
                             ));
                         }
-                        if let Some(contract) = view_memberships::retained(
-                            module,
-                            machine,
-                            operation,
-                            position,
-                            &mut analysis,
-                            &memberships,
-                        ) {
+                        if let Some(contract) = phase_profile::scope("05.payload.view", || {
+                            view_memberships::retained(
+                                module,
+                                machine,
+                                operation,
+                                position,
+                                &mut analysis,
+                                &memberships,
+                            )
+                        }) {
                             copies.push((block_index, ordinal, contract));
                         }
-                        if let Some(contract) = operand_memberships::retained(
-                            module,
-                            machine,
-                            operation,
-                            position,
-                            &mut analysis,
-                            &mut history,
-                            &memberships,
-                        ) {
+                        if let Some(contract) = phase_profile::scope("05.payload.operand", || {
+                            operand_memberships::retained(
+                                module,
+                                machine,
+                                operation,
+                                position,
+                                &mut analysis,
+                                &mut history,
+                                &memberships,
+                            )
+                        }) {
                             copies.push((block_index, ordinal, contract));
                         }
                         // Every value transfer observes its source at this operation,
@@ -133,8 +149,9 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                             _ => None,
                         };
                         if let Some((source, path)) = selected_source
-                            && let Ok(root) =
+                            && let Ok(root) = phase_profile::scope("05.payload.history", || {
                                 history.current_payload_contract_in(&mut analysis, position, source)
+                            })
                             && terminal_semantics::qualification_path_carrier(
                                 types.iter(),
                                 root.carrier,

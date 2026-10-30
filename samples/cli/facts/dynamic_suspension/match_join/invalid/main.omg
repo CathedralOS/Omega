@@ -1,0 +1,57 @@
+// Fact: a suspension-capable dyn call preserves its selector, explicit operand, and public result bound when subtracting 100u64.
+// Expected exit: 0
+
+public boundary trait Scheduler {
+    machine identity(value: u64) -> u64
+    ensures result == value
+    suspends; reaches;
+}
+
+InlineScheduler satisfies Scheduler {
+    machine identity(value: u64) -> u64 ensures result == value { value }
+}
+
+trait DeferredValue {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result == 100u64
+    suspends;
+}
+
+InlineValue satisfies DeferredValue {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result == 100u64
+    suspends;
+    {
+        let returned: u64 = suspend Scheduler::identity(value);
+        returned
+    }
+}
+
+OtherInlineValue satisfies DeferredValue {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result == 100u64
+    suspends;
+    {
+        let returned: u64 = suspend Scheduler::identity(value);
+        returned
+    }
+}
+
+machine select(choose: bool) -> dyn DeferredValue { match choose { true -> InlineValue as dyn DeferredValue, _ -> OtherInlineValue as dyn DeferredValue } }
+machine main() crashes Trap {
+    let selected: dyn DeferredValue = select(true);
+    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
+    let other_selected: dyn DeferredValue = select(false);
+    let other_observed: u64 = suspend DeferredValue::get(other_selected, 99u64);
+    let other_difference: u64 = other_observed - 100u64;
+    let difference: u64 = observed - 100u64;
+    transition difference == 0u64 && other_difference == 0u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

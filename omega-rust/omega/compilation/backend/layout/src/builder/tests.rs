@@ -1,7 +1,7 @@
 //! Layout builder tests.
 
 use super::build_layout_plan;
-use crate::{DataShape, FieldLayout, TypeLayout};
+use crate::{DataShape, FieldLayout};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -90,10 +90,7 @@ fn private_callback_fields() -> [FieldLayout; 1] {
         symbol: symbols::SymbolHandle::from_arena_index(2),
         name: typed_trees::name::Identifier::from("payload"),
         offset: 0,
-        layout: TypeLayout {
-            size: 8,
-            alignment: 8,
-        },
+        layout: crate::type_layout(8, 8),
         ..FieldLayout::default()
     }]
 }

@@ -12,7 +12,7 @@ use typed_trees::{
 pub struct NamedProviderApplication<'program> {
     pub declaration: &'program Conformance,
     pub scope: AppliedTraitScope<'program>,
-    pub application: Option<&'program CapturedMachineApplication>,
+    pub capture: arena::Handle<CapturedMachineApplication>,
     pub identity: Option<String>,
 }
 
@@ -30,14 +30,14 @@ pub fn prepared_named_provider_applications(
             applications.push(NamedProviderApplication {
                 declaration,
                 scope,
-                application: None,
+                capture: arena::Handle::default(),
                 identity: None,
             });
         }
     }
     // Capture receipts arise from actual prepared conformance applications.
     // Unexecuted Product recipes never seed captures or executable candidates.
-    for (_, capture) in program.captured_machine_applications.iter() {
+    for (capture_handle, capture) in program.captured_machine_applications.iter() {
         let Some(declaration) = program
             .conformance_by_symbol(capture.conformance_application.declaration)
             .filter(|declaration| context.contains(declaration.symbol))
@@ -65,7 +65,7 @@ pub fn prepared_named_provider_applications(
         applications.push(NamedProviderApplication {
             declaration,
             scope,
-            application: Some(capture),
+            capture: capture_handle,
             identity: Some(identity),
         });
     }

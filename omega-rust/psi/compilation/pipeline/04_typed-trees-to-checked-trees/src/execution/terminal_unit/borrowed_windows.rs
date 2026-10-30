@@ -1085,17 +1085,27 @@ impl OpenWindows {
                     })
                     .flatten();
                 let retirement_path = captured_path.as_deref().unwrap_or(&path);
+                let transferred = facts.contextual_cleanup.replaces_transferred_storage(
+                    machine.symbol,
+                    state.symbol,
+                    language_semantics::PermissionEventSource::Statement {
+                        statement_index: index,
+                    },
+                    destination_place.root,
+                    &destination_place.segments,
+                );
                 let occupied = slot_occupied(facts, machine, state, index, &destination_place)
-                    || validation::reference_result_custody::replaced_reference_carrier(
-                        program,
-                        facts,
-                        machine.symbol,
-                        state,
-                        destination_place.root,
-                        statement_index,
-                        retirement_path,
-                    )
-                    .is_some();
+                    || (!transferred
+                        && validation::reference_result_custody::replaced_reference_carrier(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state,
+                            destination_place.root,
+                            statement_index,
+                            retirement_path,
+                        )
+                        .is_some());
                 let opening = self
                     .open
                     .iter()

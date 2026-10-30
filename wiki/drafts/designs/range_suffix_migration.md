@@ -705,3 +705,69 @@ Producer: optimized `867738eb9535b2fba0b8300eeaccd64d2c2e6474` on macOS
 ARM64. The original positive also ran 0/0 and the original negative rejected
 before migration. This closes only these three source positions, not the
 historical audit, parser retirement, a new fact row or the parent task.
+
+## Audited bootstrap parser customer
+
+The two accepted `data R` inputs in
+`tests/bootstrap/omega-parser/main.epsilon` declared `b: u32 [0..=9]`.
+Both now retain `b: u32` with complete-data `requires b <= 9`; the unsigned
+carrier supplies the zero floor. Their array, shared reference and named-domain
+neighbors and the repeated-invocation `Exit(0)` / stdout `A` oracle remain.
+The former hexadecimal endpoint controls instead refuse the retired suffix at
+its opening bracket, before an endpoint can be parsed. Independent hexadecimal
+array, expression and transition controls retain their original obligations.
+
+The Epsilon implementation records repeated data requirements as ordered roots
+in its ordinary expression arena, associated with the enclosing data row. The
+existing customer checks those roots, exact operand/operator spans, grouping,
+precedence and ownership across adjacent declarations with and without clauses.
+Missing and unfinished predicates refuse, and the same receiver rebuilds its
+live rows after failures. The obsolete suffix parser, range discriminator,
+endpoint payloads, scratch and diagnostics are removed together. Named-domain
+qualification retains its exact path; array and slice expressions are separate.
+
+This maps the bootstrap customer's original declarations and syntax controls.
+Epsilon execution of that customer is not Omega native/Terminal evidence and
+does not close the historical declaration audit, Rust Range retirement or the
+parent task. The existing qualification records distinguish model observations
+from actual lower-chain execution and retain their exact compiler subjects.
+
+## Case-payload customer contracts
+
+The `arm_pattern_rest_optout_exit` and `case_pattern_rename_waive_exit`
+control-flow programs retain both Move coordinates in `0..=50` through guarded
+`Msg` predicates, and retain the renamed argument's numeric call requirement.
+The arithmetic range program retains Dim's `0..=10` on `Cmd` and the scale/apply
+requirements; its entry constructs the original zero representation explicitly
+before borrowing Main. Their original operations and exit 70 remain.
+
+`sum_payload_non_case_guard_unproven` keeps One's `0..=50` and Two's `0..=1000`
+on the containing sum. Its unrelated flag cannot select One, so the exact
+payload-access obligation still rejects. No interval-only nominal domains are
+needed by these four customers. The wire-decoder customer's containing-data
+predicate establishment remains a separate open repair in this migration.
+
+## Audited wire destination customer
+
+`pass/wire/runtime_wire_decode_ranged_field_exit` now keeps its original
+unsigned `value <= 100` and signed `-10 <= delta <= 10` obligations on the
+containing data declaration, with bare scalar fields. Hostile 200/-20 must
+leave 42/7 unchanged; valid 50/-5 must establish the destination and exit 70.
+Both native and Terminal execution meet that oracle on macOS ARM64.
+
+Generated codecs retain the complete authored destination predicates and check
+prospective replacements before storing. Independent conjuncts survive writes
+to other fields only in established, closed storage; fresh storage still owes
+field-free clauses. The scalar roster carries exact closed bound values with
+their selected arithmetic policies. Parser-owned member suffix spans preserve
+grouped field projections, and every private codec binding uses a name prefix
+absent from the complete selected source text.
+
+`pass/wire/runtime_wire_decode_predicate_capture_exit` exercises grouped reads,
+reordered fields, colliding constant names and an exact nonconvex predicate:
+a hostile delta of 3 must not replace 7 even though it lies inside the numeric
+envelope. It also executes with native/Terminal exit 70. The source control
+`fail/dependent/data_where_field_free_conjunct_unestablished` refuses a whole
+value read after a field write fails to establish a false field-free conjunct.
+These close this customer and the demonstrated composition defects, not the
+remaining declaration audit, other predicate mechanisms or Rust suffix removal.

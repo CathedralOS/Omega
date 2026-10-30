@@ -393,9 +393,5 @@ pub(crate) fn bind_call_evidence_arguments(
     let mut diagnostics = Vec::new();
     evidence::bind_contract_expression_evidence_arguments(program, facts, &mut diagnostics);
     evidence::bind_call_evidence_arguments(program, facts, &mut diagnostics);
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }

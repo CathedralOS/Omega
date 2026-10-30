@@ -55,41 +55,30 @@ pub(crate) fn validate_relevance(
             Context::Runtime
         };
         for state in program.machine_states(machine) {
+            macro_rules! relevance_child {
+                ($expression:expr, $context:expr $(,)?) => {
+                    validate_expression(
+                        program,
+                        &proof_only,
+                        machine,
+                        state,
+                        $expression,
+                        $context,
+                        diagnostics,
+                    )
+                };
+            }
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assembly(_) => {}
                     StatementNode::AssemblyFact(fact) => {
                         for expression in program.tables.proof_fact_expression_roots(fact.fact) {
-                            validate_expression(
-                                program,
-                                &proof_only,
-                                machine,
-                                state,
-                                expression,
-                                Context::Proof,
-                                diagnostics,
-                            );
+                            relevance_child!(expression, Context::Proof);
                         }
                     }
                     StatementNode::Assignment(assignment) => {
-                        validate_expression(
-                            program,
-                            &proof_only,
-                            machine,
-                            state,
-                            assignment.target,
-                            machine_context,
-                            diagnostics,
-                        );
-                        validate_expression(
-                            program,
-                            &proof_only,
-                            machine,
-                            state,
-                            assignment.value,
-                            machine_context,
-                            diagnostics,
-                        );
+                        relevance_child!(assignment.target, machine_context);
+                        relevance_child!(assignment.value, machine_context);
                     }
                     StatementNode::Call(call) => {
                         let argument_context = if machine_context == Context::Proof
@@ -121,54 +110,30 @@ pub(crate) fn validate_relevance(
                             .iter()
                             .enumerate()
                         {
-                            validate_expression(
-                                program,
-                                &proof_only,
-                                machine,
-                                state,
+                            relevance_child!(
                                 *argument,
                                 argument_position_context(
                                     argument_context,
                                     callee_parameters,
                                     position,
                                 ),
-                                diagnostics,
                             );
                         }
                     }
-                    StatementNode::Expression(expression) => validate_expression(
-                        program,
-                        &proof_only,
-                        machine,
-                        state,
-                        *expression,
-                        machine_context,
-                        diagnostics,
-                    ),
-                    StatementNode::LocalData(local) => validate_expression(
-                        program,
-                        &proof_only,
-                        machine,
-                        state,
+                    StatementNode::Expression(expression) => {
+                        relevance_child!(*expression, machine_context)
+                    }
+                    StatementNode::LocalData(local) => relevance_child!(
                         local.initial_value,
                         if local.relevance.is_erased() && machine_context == Context::Runtime {
                             Context::ErasedInitializer
                         } else {
                             machine_context
                         },
-                        diagnostics,
                     ),
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = transition.guard {
-                            validate_expression(
-                                program,
-                                &proof_only,
-                                machine,
-                                state,
-                                guard,
-                                machine_context,
-                                diagnostics,
-                            );
+                            relevance_child!(guard, machine_context);
                         }
                         for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
@@ -187,30 +152,19 @@ pub(crate) fn validate_relevance(
                                         .iter()
                                         .enumerate()
                                     {
-                                        validate_expression(
-                                            program,
-                                            &proof_only,
-                                            machine,
-                                            state,
+                                        relevance_child!(
                                             *argument,
                                             argument_position_context(
                                                 machine_context,
                                                 target_parameters,
                                                 position,
                                             ),
-                                            diagnostics,
                                         );
                                     }
                                 }
-                                TransitionTargetNode::Value(value) => validate_expression(
-                                    program,
-                                    &proof_only,
-                                    machine,
-                                    state,
-                                    *value,
-                                    machine_context,
-                                    diagnostics,
-                                ),
+                                TransitionTargetNode::Value(value) => {
+                                    relevance_child!(*value, machine_context)
+                                }
                                 TransitionTargetNode::Terminal => {}
                             }
                         }

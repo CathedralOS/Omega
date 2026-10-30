@@ -1,0 +1,81 @@
+diff --git a/omega-rust/omega/application/build/src/build_execution/source_resolution.rs b/omega-rust/omega/application/build/src/build_execution/source_resolution.rs
+index c56956aeb66..c1fc9ea6fde 100644
+--- a/omega-rust/omega/application/build/src/build_execution/source_resolution.rs
++++ b/omega-rust/omega/application/build/src/build_execution/source_resolution.rs
+@@ -209,8 +209,7 @@ pub(crate) fn resolve_acquired_sources(
+     execution: package_compilation::BuildExecutionInputs,
+     collect_timings: bool,
+ ) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
+-    acquisitions
+-        .retain_root(&acquired)
++    phase_profile::scope("source.detail.retain_root", || acquisitions.retain_root(&acquired))
+         .map_err(ProjectSourceResolutionError::Source)?;
+     let mut scheduler = readiness::ReadinessScheduler::new(
+         session,
+diff --git a/omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs b/omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs
+index e2f055503aa..1a837a5b6c9 100644
+--- a/omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs
++++ b/omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs
+@@ -219,6 +219,7 @@ pub fn prepare_build_evaluation(
+     // Every activation checks its helpers before snapshot capture or effects.
+     // Package authority adds to that semantic floor; standalone source cannot
+     // bypass it. Admission below consumes this exact checked program.
++    let resolution_detail_started = std::time::Instant::now();
+     let (prepared, retained_check) = crate::admission::checking::prepare_checked_build(
+         typed,
+         pre_checks,
+@@ -229,6 +230,8 @@ pub fn prepare_build_evaluation(
+         &prior_checks,
+         retain_check,
+     )?;
++    if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() { eprintln!("RESOLUTION_DETAIL checked_build {:.3}", resolution_detail_started.elapsed().as_secs_f64()*1000.0); }
++    let resolution_detail_started = std::time::Instant::now();
+     let filesystem_scope = crate::prepare_filesystem_scope(
+         root_path,
+         package_inputs,
+@@ -239,6 +242,8 @@ pub fn prepare_build_evaluation(
+         filesystem_sponsor,
+         snapshot,
+     )?;
++    if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() { eprintln!("RESOLUTION_DETAIL filesystem_scope {:.3}", resolution_detail_started.elapsed().as_secs_f64()*1000.0); }
++    let resolution_detail_started = std::time::Instant::now();
+     let admitted = crate::admit_build_program(
+         prepared,
+         selected_machine,
+@@ -246,6 +251,8 @@ pub fn prepare_build_evaluation(
+         evaluation_sponsor.as_ref(),
+         artifact_only,
+     )?;
++    if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() { eprintln!("RESOLUTION_DETAIL admit_build {:.3}", resolution_detail_started.elapsed().as_secs_f64()*1000.0); }
++    let resolution_detail_started = std::time::Instant::now();
+     let restricted_build_requests = admitted.restricted_build_requests();
+     if let Some(grants) = restricted_build_grants.as_mut() {
+         for request in &restricted_build_requests {
+@@ -263,13 +270,19 @@ pub fn prepare_build_evaluation(
+     // checked result nor an old grant is reusable. Fresh admission above fixes
+     // the current checked Build meaning; exact equality below permits only its
+     // completed Pure value to be reused.
++    if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() { eprintln!("RESOLUTION_DETAIL restricted_requests {:.3}", resolution_detail_started.elapsed().as_secs_f64()*1000.0); }
++    let resolution_detail_started = std::time::Instant::now();
+     let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot);
++    if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() { eprintln!("RESOLUTION_DETAIL pure_inputs {:.3}", resolution_detail_started.elapsed().as_secs_f64()*1000.0); }
++    let resolution_detail_started = std::time::Instant::now();
+     let reusable = inputs
+         .as_ref()
+         .zip(pure_build_compilation)
+         .map(|(inputs, owner)| owner.matching_configuration(inputs))
+         .transpose()?
+         .flatten();
++    if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() { eprintln!("RESOLUTION_DETAIL pure_lookup {:.3}", resolution_detail_started.elapsed().as_secs_f64()*1000.0); }
++    let resolution_detail_started = std::time::Instant::now();
+     let state = if let Some(configuration) = reusable {
+         let configuration = if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
+             // Reusing a value avoids execution, not the current occurrence's
+@@ -296,6 +309,7 @@ pub fn prepare_build_evaluation(
+     } else {
+         BuildEvaluationState::Execute(crate::PreparedBuildExecution::prepare(admitted)?)
+     };
++    if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() { eprintln!("RESOLUTION_DETAIL execution_prepare {:.3}", resolution_detail_started.elapsed().as_secs_f64()*1000.0); }
+     Ok(PreparedBuildEvaluation {
+         state,
+         restricted_build_requests,

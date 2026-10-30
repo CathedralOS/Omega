@@ -1,0 +1,54 @@
+// Expected exit: 0.
+// Normal completion preserves the bound through every copy/store edge.
+data Text requires self.length <= 256u64 {
+    bytes: [u8; 256];
+    length: u64;
+}
+machine copy_text(out: &mut [u8; 256], text: &[u8]) -> u64
+    ensures result <= 256u64
+{
+    transition { _ -> copy(out, text, 0u64) }
+    machine copy(out: &mut [u8; 256], text: &[u8], position: u64) -> u64
+        requires position <= 256u64
+        ensures result <= 256u64
+    {
+        transition position < text.len && position < 256u64 {
+            true -> store(out, text, position)
+            false -> (position)
+        }
+    }
+    machine store(out: &mut [u8; 256], text: &[u8], position: u64) -> u64
+        requires position < text.len && position < 256u64
+        ensures result <= 256u64
+    {
+        out[position] = text[position];
+        transition {
+            _ -> copy(out, text, ((position as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64)
+        }
+    }
+}
+machine main() crashes Trap {
+    let mut bytes: [u8; 256];
+    bytes[3u64] = 71u8;
+    let length: u64 = copy_text(&mut bytes, "abc");
+    let text: Text = Text { bytes: bytes, length: length };
+    let mut empty_bytes: [u8; 256];
+    empty_bytes[0u64] = 29u8;
+    let empty_length: u64 = copy_text(&mut empty_bytes, "");
+    let mut source: [u8; 300];
+    source[254u64] = 37u8;
+    source[255u64] = 43u8;
+    source[256u64] = 59u8;
+    let mut capped: [u8; 256];
+    let capped_length: u64 = copy_text(&mut capped, &source);
+    transition text.length == 3u64 && text.bytes[2u64] == 99u8
+        && text.bytes[3u64] == 71u8 && empty_length == 0u64
+        && empty_bytes[0u64] == 29u8 && capped_length == 256u64
+        && capped[254u64] == 37u8 && capped[255u64] == 43u8
+        && source[256u64] == 59u8 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

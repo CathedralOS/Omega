@@ -322,6 +322,26 @@ fn selected(
     None
 }
 
+macro_rules! open_selected_substitution {
+    ($context:expr, $symbol:expr, $active:ident, $reference:ident, $nested:ident) => {
+        let (ordinal, $reference) = match selected($context, $symbol) {
+            Some(selected_reference) => selected_reference,
+            None => return None,
+        };
+        if $context.active_const_substitutions.len() >= 64
+            || $context.active_const_substitutions.contains(&$symbol)
+        {
+            return Some(rejected($context));
+        }
+        let mut $active = $context.active_const_substitutions.to_vec();
+        $active.push($symbol);
+        let $nested = TypeIdentityContext {
+            active_const_substitutions: &$active,
+            ..$context.replacement_context_at(ordinal)
+        };
+    };
+}
+
 pub(super) fn index(
     program: &TypedTrees,
     symbol: SymbolHandle,
@@ -346,18 +366,7 @@ pub(super) fn index(
             },
         ));
     }
-    let (ordinal, reference) = selected(context, symbol)?;
-    if context.active_const_substitutions.len() >= 64
-        || context.active_const_substitutions.contains(&symbol)
-    {
-        return Some(rejected(context));
-    }
-    let mut active = context.active_const_substitutions.to_vec();
-    active.push(symbol);
-    let nested = TypeIdentityContext {
-        active_const_substitutions: &active,
-        ..context.replacement_context_at(ordinal)
-    };
+    open_selected_substitution!(context, symbol, active, reference, nested);
     Some(index_reference(program, reference, &nested))
 }
 
@@ -401,18 +410,7 @@ pub(super) fn range_endpoint(
     end_inclusive: bool,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
-    let (ordinal, reference) = selected(context, symbol)?;
-    if context.active_const_substitutions.len() >= 64
-        || context.active_const_substitutions.contains(&symbol)
-    {
-        return Some(rejected(context));
-    }
-    let mut active = context.active_const_substitutions.to_vec();
-    active.push(symbol);
-    let nested = TypeIdentityContext {
-        active_const_substitutions: &active,
-        ..context.replacement_context_at(ordinal)
-    };
+    open_selected_substitution!(context, symbol, active, reference, nested);
     Some(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::ConstExpression(expression) => {
@@ -461,18 +459,7 @@ pub(super) fn array_length(
     _spelling: &str,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
-    let (ordinal, reference) = selected(context, symbol)?;
-    if context.active_const_substitutions.len() >= 64
-        || context.active_const_substitutions.contains(&symbol)
-    {
-        return Some(rejected(context));
-    }
-    let mut active = context.active_const_substitutions.to_vec();
-    active.push(symbol);
-    let nested = TypeIdentityContext {
-        active_const_substitutions: &active,
-        ..context.replacement_context_at(ordinal)
-    };
+    open_selected_substitution!(context, symbol, active, reference, nested);
     Some(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, name } => {

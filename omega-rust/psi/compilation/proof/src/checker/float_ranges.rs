@@ -99,6 +99,29 @@ fn float_range(
     }
 }
 
+fn float_statement_preserves(
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &typed_trees::machine::Machine,
+    statement: &StatementNode,
+    preserves: &impl Fn(Option<Vec<String>>) -> bool,
+    allow_transition: bool,
+) -> bool {
+    if !preserves(frames.statement_value_may_write_paths(machine, statement)) {
+        return false;
+    }
+    match statement {
+        StatementNode::Assignment(_) => preserves(
+            frames
+                .assignment_write_frame(machine, statement)
+                .into_complete_paths(),
+        ),
+        StatementNode::Call(call) => preserves(frames.may_write_paths(machine, call)),
+        StatementNode::Transition(_) if allow_transition => true,
+        StatementNode::LocalData(_) | StatementNode::Expression(_) => true,
+        _ => false,
+    }
+}
+
 /// A reaching literal describes current storage, not its declared invariant.
 /// Only resolved scalar places participate. Every crossed effect is checked
 /// with the ordinary alias-aware write frames; incomplete frames lose the fact.
@@ -208,26 +231,8 @@ fn float_range_at(
                 .flatten()
                 .map(FloatRange::closed);
         }
-        if !preserves(frames.statement_value_may_write_paths(machine, statement)) {
+        if !float_statement_preserves(&frames, machine, statement, &preserves, false) {
             return None;
-        }
-        match statement {
-            StatementNode::Assignment(_) => {
-                if !preserves(
-                    frames
-                        .assignment_write_frame(machine, statement)
-                        .into_complete_paths(),
-                ) {
-                    return None;
-                }
-            }
-            StatementNode::Call(call) => {
-                if !preserves(frames.may_write_paths(machine, call)) {
-                    return None;
-                }
-            }
-            StatementNode::LocalData(_) | StatementNode::Expression(_) => {}
-            _ => return None,
         }
     }
     None
@@ -716,28 +721,8 @@ fn stable_initializer(
     };
     let statements = program.statement_table.statements(state.statement_nodes);
     for statement in statements.get(declaration + 1..=statement_index)? {
-        if !preserves(frames.statement_value_may_write_paths(machine, statement)) {
+        if !float_statement_preserves(&frames, machine, statement, &preserves, true) {
             return None;
-        }
-        match statement {
-            StatementNode::Assignment(_) => {
-                if !preserves(
-                    frames
-                        .assignment_write_frame(machine, statement)
-                        .into_complete_paths(),
-                ) {
-                    return None;
-                }
-            }
-            StatementNode::Call(call) => {
-                if !preserves(frames.may_write_paths(machine, call)) {
-                    return None;
-                }
-            }
-            StatementNode::Transition(_)
-            | StatementNode::LocalData(_)
-            | StatementNode::Expression(_) => {}
-            _ => return None,
         }
     }
     Some((declaration, initializer))

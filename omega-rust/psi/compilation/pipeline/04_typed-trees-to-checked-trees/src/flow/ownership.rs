@@ -85,7 +85,8 @@ pub(super) fn append_statement_ownership_events(
         }
         StatementNode::LocalData(local_data) => {
             let source = FlowOwnershipEventSource::Statement { statement_index };
-            if !type_requires_ownership(program, local_data.type_reference) {
+            if !type_references::stored_value_requires_transfer(program, local_data.type_reference)
+            {
                 moves::observations::append(
                     program,
                     sink,

@@ -85,21 +85,7 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
     pub fn legality(&self) -> &ValidatedAllocationLegality {
         self.folds.final_step().legality()
     }
-    /// The register environment admitted with the fold's source legality —
-    /// folds preserve it, so the source's environment is the current one.
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.folds.source_legality_stage().register_environment()
-    }
-    /// The governing optimizer selections admitted with the source stage.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.folds.source_legality_stage().selections()
-    }
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.folds.source_legality_stage().budget_per_pass()
-    }
+    admitted_stage_accessors!(const pub, folds.source_legality_stage());
     assignment_context_accessors!(
         folds
             .source_legality_stage()

@@ -105,10 +105,7 @@ impl<'program> LayoutBuilder<'program> {
                     )));
                 };
 
-                Ok(TypeLayout {
-                    size,
-                    alignment: element_layout.alignment,
-                })
+                Ok(crate::type_layout(size, element_layout.alignment))
             }
             TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
             // A selector is one reference to its implementation's immutable
@@ -164,10 +161,7 @@ impl<'program> LayoutBuilder<'program> {
                 "proof-static index expression `{}` reached runtime layout as a standalone type",
                 self.program.expression_table.display_name(*expression)
             ))),
-            TypeReferenceNode::Unit => Ok(TypeLayout {
-                size: 0,
-                alignment: 1,
-            }),
+            TypeReferenceNode::Unit => Ok(crate::type_layout(0, 1)),
         }
     }
 
@@ -337,10 +331,7 @@ impl<'program> LayoutBuilder<'program> {
         if self.trait_definitions.iter().any(|trait_definition| {
             trait_definition.symbol == symbol && trait_definition.is_boundary
         }) {
-            return Ok(TypeLayout {
-                size: 0,
-                alignment: 1,
-            });
+            return Ok(crate::type_layout(0, 1));
         }
 
         Err(Diagnostic::error(format!(
