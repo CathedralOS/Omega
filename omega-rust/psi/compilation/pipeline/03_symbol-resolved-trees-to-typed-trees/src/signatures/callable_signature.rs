@@ -1,6 +1,5 @@
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_names;
-use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -30,12 +29,7 @@ pub(crate) fn lower_state_signature(
                 native_ordinal: parameter.native_ordinal,
             })
             .collect(),
-        return_type: signature
-            .return_type
-            .as_ref()
-            .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
-            .transpose()?
-            .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
+        return_type: crate::type_reference::lower_return_type(lowerer, &signature.return_type)?,
         invokes: Default::default(),
         service_reach_row: signature.service_reach_row,
         service_reach_is_installation_bound: signature.service_reach_is_installation_bound,

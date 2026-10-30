@@ -13,12 +13,7 @@ pub(crate) fn lower_measure_definition(
         .map(|parameter| lower_measure_parameter(lowerer, parameter))
         .transpose()?;
 
-    let return_type = measure
-        .return_type
-        .as_ref()
-        .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
-        .transpose()?
-        .unwrap_or_else(typed_trees::types::TypeReferenceHandle::invalid);
+    let return_type = crate::type_reference::lower_return_type(lowerer, &measure.return_type)?;
 
     let mut typed_measure = typed_trees::measure::MeasureDefinition {
         symbol: measure.symbol,

@@ -16,12 +16,7 @@ pub(crate) fn lower_operator_definition(
         lifetime_parameters: lower_names(&operator.lifetime_parameters),
         type_parameters: Default::default(),
         parameters: Default::default(),
-        return_type: operator
-            .return_type
-            .as_ref()
-            .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
-            .transpose()?
-            .unwrap_or_else(typed_trees::types::TypeReferenceHandle::invalid),
+        return_type: crate::type_reference::lower_return_type(lowerer, &operator.return_type)?,
         contracts: Default::default(),
         spelling: operator.spelling,
         token_count: operator.token_count,
