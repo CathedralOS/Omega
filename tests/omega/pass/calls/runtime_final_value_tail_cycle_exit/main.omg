@@ -1,0 +1,19 @@
+// Expected exit: 0
+// Final values and explicit arms share completion custody. The nested helper
+// returns its ancestor call directly; neither engine may grow a call stack.
+machine walk(remaining: u64, result: u64) -> u64 {
+    transition remaining > 0 {
+        true -> step(remaining, result)
+        false -> (result)
+    }
+    machine step(remaining: u64, result: u64) -> u64 requires remaining > 0 {
+        walk(remaining - 1, result)
+    }
+}
+machine main() crashes Trap {
+    let cycled: u64 = walk(20000, 73);
+    let direct: u64 = walk(0, 19);
+    transition cycled == 73 && direct == 19 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
