@@ -284,13 +284,17 @@ pub(crate) fn lower_call_arguments(
         validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
         validation::CallSite::TransitionNamed { .. } => &[],
     };
-    if machine_arguments.is_empty() {
+    // Ordinary static operands have already been admitted in the call's
+    // application telescope. They add no executable row-selection arguments
+    // and cannot erase the ordinary scalar arguments collected above.
+    let slot = program.dynamic_slot_by_symbol(target_symbol);
+    if machine_arguments.is_empty() || slot.is_none() {
         return Some(LoweredCallArguments {
             scalar_arguments: output,
             proof_terms,
         });
     }
-    let slot = program.dynamic_slot_by_symbol(target_symbol)?;
+    let slot = slot?;
     let requirement = program.dynamic_slot_requirement(slot)?;
     let typed_trees::finite_family::FamilyProbe::Finite { arity, .. } =
         program.finite_signature_family(requirement)

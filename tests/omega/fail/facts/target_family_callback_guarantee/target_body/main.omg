@@ -19,7 +19,7 @@ boundary trait BoundedSubtract {
 SharedSubtract satisfies BoundedSubtract {
     machine subtract(value: u64) -> u64 requires value <= 64 { 64u64 - value }
 }
-machine main() reaches CallbackApply, BoundedSubtract invokes CallbackApply, BoundedSubtract; crashes Trap {
+machine main() reaches CallbackApply, BoundedSubtract invokes CallbackApply; invokes BoundedSubtract; crashes Trap {
     let remaining: u64 = BoundedSubtract::subtract(CallbackApply::apply<identity>(42));
     transition remaining == 22 { true -> done() false -> bad() }
     machine done() {}

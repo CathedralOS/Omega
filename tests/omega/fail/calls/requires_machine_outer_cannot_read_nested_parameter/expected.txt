@@ -1,1 +1,1 @@
-undeclared variable: input
+arrival contract value `input` is not in the state's explicit parameter scope
