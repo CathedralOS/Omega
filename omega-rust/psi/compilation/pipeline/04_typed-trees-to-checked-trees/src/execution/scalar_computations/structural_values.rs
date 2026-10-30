@@ -721,12 +721,7 @@ impl Builder<'_, '_> {
             let mut selectors = Vec::new();
             let mut source_value = CheckedStructuralValueHandle::invalid();
             if let Some(formation) = reference_capture.as_ref() {
-                let place = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    formation.source,
-                )?;
+                let place = self.canonical_place(formation.source)?;
                 // Retain the complete anonymous producer before its selectors.
                 // The reference lends its selected path, not a detached copy
                 // of that child; the normal value schedule owns its cleanup.

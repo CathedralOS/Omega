@@ -134,12 +134,7 @@ impl Builder<'_, '_> {
         copy: checked_trees::FlowOperandFact,
     ) -> Option<CheckedStructuralValueKind> {
         let receiver = self.flow.control.operands.get(copy.backing);
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            receiver.expression,
-        )?;
+        let place = self.canonical_place(receiver.expression)?;
         // The completed-subject receipt already requires a whole-symbol
         // descriptor with its exact stored Read loan. Its backing keeps the
         // original indexed address and selectors; this receiver is the saved
@@ -229,18 +224,8 @@ impl Builder<'_, '_> {
             .structural_values
             .root_for_captured_copy(self.state, self.statement_index as u32, identity)?
             .root;
-        let source = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
-        let prefix = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            copy.expression,
-        )?;
+        let source = self.canonical_place(expression)?;
+        let prefix = self.canonical_place(copy.expression)?;
         let place = validation::CanonicalPlace {
             root: facts::PlaceRoot::Expression(copy.expression),
             segments: source.segments[prefix.segments.len()..].to_vec(),
