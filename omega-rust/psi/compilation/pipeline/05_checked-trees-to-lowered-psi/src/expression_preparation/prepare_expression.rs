@@ -308,31 +308,38 @@ impl<'a> PreparedExpressionContext<'a> {
                             .and_then(exact_u64_index)
                     };
                 let index = Box::new(lower_selector(identities, &index.expression)?);
-                // Bounded bytes read their live length, never capacity. A projected
-                // byte field also retains its declaration and containing selectors.
+                // Select the byte-descriptor operation from the retained carrier,
+                // not from a u8 field spelling: inline arrays use the ordinary
+                // indexed-element path below. Bounded bytes read live length,
+                // never capacity, and retain their containing selectors.
                 if element_path.is_empty()
-                && *primitive_type == PrimitiveType::U8
-                && matches!(
-                    path.last(),
-                    Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                        _
-                    ))
-                )
-                && let crate::emission::operation_emission::boolean::LoweredByteSequenceOperand {
-                    source,
-                    path,
-                    field: Some(field),
-                } = self.byte_sequence_observation(identities, *root, path)?
-            {
-                return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
-                    source,
-                    path,
-                    field,
-                    index,
-                    scalar_type: terminal_scalar_type(*primitive_type)?,
-                    bound_decided,
-                });
-            }
+                    && *primitive_type == PrimitiveType::U8
+                    && let Some(LoweredDirectExpression::ByteSequenceFieldLength {
+                        source,
+                        path,
+                        field,
+                        ..
+                    }) = self.sequence_observation(
+                        identities,
+                        *root,
+                        &path
+                            .iter()
+                            .cloned()
+                            .map(checked_trees::CheckedScalarReadProjection::Static)
+                            .collect::<Vec<_>>(),
+                        SequenceObservationPurpose::Contents,
+                        |_, _| unsupported("indexed byte observation has an unevaluated selector"),
+                    )?
+                {
+                    return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
+                        source,
+                        path,
+                        field,
+                        index,
+                        scalar_type: terminal_scalar_type(*primitive_type)?,
+                        bound_decided,
+                    });
+                }
                 // Geometry needs selector positions, not their expressions or proof
                 // identities. Scratch markers associate each declaration walk step
                 // with the read's ordered, evaluated selector, never emitted authority.
