@@ -2367,7 +2367,7 @@ fail/calls/constructor_child_named_state_epochs_not_equal rejected 3282ms expect
 	cannot prove requires contract for call selected from main: constructor:78:package:e7b936e9e187e5e0140a0a918b00a3a76058d5c890ed1c17cf20278388ea14b0::Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:78:package:e7b936e9e187e5e0140a0a918b00a3a76058d5c890ed1c17cf20278388ea14b0::Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `captured.first == captured.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/constructor_projected_membership_precedes_repair rejected 3037ms expected @a92f16431042
 	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued in state `entry`
-fail/calls/converted_call_value_private_arrival_rejected rejected 799ms expected @ef874b4d34bc
+fail/calls/converted_call_value_private_arrival_rejected rejected 854ms expected @8b519ca647cd+wt
 	cannot prove requires contract for call verify_wide from step: forwarded >= 300 && forwarded <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 3183ms expected @a92f16431042
 	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `capture`
@@ -3666,7 +3666,8 @@ fail/core/qualified_integer_cast_specification_requires_representability rejecte
 	Exact integer cast in machine `premise` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/core/resident_index_identity_mismatch_rejected rejected 1726ms expected @a92f16431042
 	index compatibility condition `index-equality:Resident:mismatch::entry:exit-0:Resident<Native, Packet>==Resident<Network, Packet>` is not established: actual `Resident<Native, Packet>` and expected `Resident<Network, Packet>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/core/scoped_integer_call_abstract_trait_operator_requires_formation rejected 4995ms expected @a92f16431042
+fail/core/scoped_integer_call_abstract_trait_operator_requires_formation rejected 5829ms expected @8b519ca647cd+wt
+	cannot form specification operator `==` in trait `ReplacementArithmetic` state `restricted` requires contract: no exact selected meaning
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
 fail/core/scoped_integer_call_actual_requires_selected_meaning rejected 1877ms expected @a92f16431042
@@ -16739,24 +16740,28 @@ fail/facts/sixteen_variant_enum_payload_bound_through_target_body_rejected rejec
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 2613ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 3654ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_field_rejected rejected 3137ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_local_rejected rejected 2639ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 3888ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_other_machine_rejected rejected 2664ms expected @a92f16431042
-	machine `query_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_other_state_rejected rejected 2993ms expected @a92f16431042
-	machine `main` state `compute` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_parameter_rejected rejected 2299ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_target_body_rejected rejected 3459ms expected @a92f16431042
-	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_private_arrival_calls_rejected rejected 1133ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_terminal_returns_rejected rejected 1431ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 1243ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 1158ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_field_rejected rejected 1144ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_local_rejected rejected 1084ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 1167ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_other_machine_rejected rejected 1163ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_other_state_rejected rejected 1196ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_parameter_rejected rejected 1118ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_target_body_rejected rejected 1126ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_element_read_bound_through_call_result_rejected rejected 3143ms expected @a92f16431042
 	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_element_read_bound_through_const_name_rejected rejected 3517ms expected @a92f16431042
@@ -20880,15 +20885,17 @@ fail/generics/runtime_value_recipe_cannot_retag rejected 825ms expected @a9e0628
 	machine `retag` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/generics/runtime_value_recipe_forged_descriptor rejected 311ms expected @a9e0628deefe+wt
 	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/generics/runtime_value_recipe_prior_write_overflow rejected 418ms expected @8b519ca647cd+wt
+	exact arithmetic in machine `main` state `entry` local `__value_index#2544#0` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/runtime_value_recipe_provider_wrong_projection rejected 459ms expected @a9e0628deefe+wt
 	machine `Direct::snapshot` state `snapshot` does not satisfy trait `Counting` machine `snapshot`: expected return `Counted<const source.bytes.len>`, got `Counted<const source.sibling.len>`
 fail/generics/runtime_value_recipe_qualified_unproved rejected 324ms expected @ba4c5b471bb8
 	`as ... in AtMost<10>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/generics/runtime_value_recipe_range_after_write rejected 300ms expected @ba4c5b471bb8
 	exact arithmetic in machine `invalid` state `entry` local `__value_index#1829#0` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/generics/runtime_value_recipe_typed_narrow_overflow rejected 264ms expected @a9e0628deefe+wt
+fail/generics/runtime_value_recipe_typed_narrow_overflow rejected 251ms expected @8b519ca647cd+wt
 	exact arithmetic in value argument `Count` of `Index` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/generics/runtime_value_recipe_unused_overflow rejected 290ms expected @ba4c5b471bb8
+fail/generics/runtime_value_recipe_unused_overflow rejected 259ms expected @8b519ca647cd+wt
 	exact arithmetic in value argument `Count` of `Index` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/runtime_value_recipe_wrong_carrier rejected 275ms expected @ba4c5b471bb8
 	value parameter `Count` of `Index` requires `u64`, but runtime subject `flag` has a different carrier
@@ -21143,6 +21150,12 @@ fail/layouts/layout_arithmetic_subtract_underflow rejected 2109ms expected @a92f
 	machine `main` state `entry` local `invalid`: exact arithmetic may overflow under target `macos_arm64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/layouts/layout_contract_selected_equality rejected 1369ms expected @a92f16431042
 	cannot prove requires contract for call required$specialized$c027caf142dac46a$0 from program: size_of() == 16 (needs fact `size_of() == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/layouts/layout_query_captured_result_join_unknown rejected 1104ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]
+fail/layouts/layout_query_private_arrival_child_formation rejected 1200ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/layouts/layout_query_private_arrival_unknown_input rejected 1055ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]
 fail/layouts/ordinary_placed_write_retires_owner_qualification rejected 1651ms expected @a92f16431042
 	cannot prove ensures contract for exit from corrupt at statement 2: words in Words::Registered
 	cannot prove ensures contract for exit from corrupt at statement 2: words.entries[1] == 41
@@ -24370,7 +24383,7 @@ pass/arithmetic/runtime_call_live_remainder_recovery_exit checked 6176ms check-t
 pass/arithmetic/runtime_captured_boolean_recurrence checked 2034ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit checked 1952ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_comparison_signedness_exit checked 5770ms check-target:macos_arm64 @a92f16431042
-pass/arithmetic/runtime_composite_bound_arrivals_exit checked 2026ms check-target:macos_arm64 @a92f16431042
+pass/arithmetic/runtime_composite_bound_arrivals_exit checked 1291ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 6910ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_dispatch_cast_decisions_exit checked 6343ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_domain_boundaries_exit checked 6530ms check-target:macos_arm64 @a92f16431042
@@ -25111,7 +25124,7 @@ pass/calls/computed_binding_argument_exit checked 1961ms check-target:macos_arm6
 pass/calls/computed_case_subject_slice_operands_exit checked 7137ms check-target:macos_arm64 @a92f16431042
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 6340ms check-target:macos_arm64 @a92f16431042
 pass/calls/constant_result_requires_argument_accepted checked 6328ms check-target:macos_arm64 @a92f16431042
-pass/calls/converted_call_value_private_arrival_exit checked 1094ms check-target:macos_arm64 @ef874b4d34bc
+pass/calls/converted_call_value_private_arrival_exit checked 1309ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/calls/copy_projection_from_borrowed_receiver checked 7265ms check-target:macos_arm64 @a92f16431042
 pass/calls/cyclic_affine_call_result_exit checked 6528ms check-target:macos_arm64 @a92f16431042
 pass/calls/cyclic_copy_arguments_exit checked 6352ms check-target:macos_arm64 @a92f16431042
@@ -31133,15 +31146,17 @@ pass/facts/sixteen_variant_enum_payload_bound_through_other_machine_exit checked
 pass/facts/sixteen_variant_enum_payload_bound_through_other_state_exit checked 2127ms check-target:macos_arm64 @a92f16431042
 pass/facts/sixteen_variant_enum_payload_bound_through_parameter_exit checked 2298ms check-target:macos_arm64 @a92f16431042
 pass/facts/sixteen_variant_enum_payload_bound_through_target_body_exit checked 2231ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_call_result_exit checked 2221ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_const_name_exit checked 2681ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_field_exit checked 2326ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_local_exit checked 2790ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_match_join_exit checked 2450ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_other_machine_exit checked 2485ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_other_state_exit checked 2502ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_parameter_exit checked 2026ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_target_body_exit checked 2417ms check-target:macos_arm64 @a92f16431042
+pass/facts/size_align_layout_geometry_private_arrival_calls_exit checked 1871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_terminal_returns_exit checked 1853ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_call_result_exit checked 1740ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_const_name_exit checked 1769ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_field_exit checked 1921ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_local_exit checked 1949ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_match_join_exit checked 1900ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_other_machine_exit checked 1788ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_other_state_exit checked 1839ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_parameter_exit checked 1711ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_target_body_exit checked 1874ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
 pass/facts/slice_view_element_read_bound_through_call_result_exit checked 2570ms check-target:macos_arm64 @a92f16431042
 pass/facts/slice_view_element_read_bound_through_const_name_exit checked 2065ms check-target:macos_arm64 @a92f16431042
 pass/facts/slice_view_element_read_bound_through_field_exit incomplete 2140ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
@@ -32972,6 +32987,7 @@ pass/layouts/invariant_record_layout_compile checked 2452ms @a92f16431042
 pass/layouts/layout_queries checked 2483ms @a92f16431042
 pass/layouts/mixed_alignment_layout_queries_compile checked 2427ms @a92f16431042
 pass/layouts/nested_record_layout_queries_compile checked 1372ms @a92f16431042
+pass/layouts/nested_reference_carrier_geometry_exit checked 1412ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/layouts/nested_sum_member_layout_compile checked 1502ms @a92f16431042
 pass/layouts/odd_array_then_byte_layout_compile checked 1329ms @a92f16431042
 pass/layouts/placed_factory_accepts_source_interval rejected 143ms @a92f16431042
@@ -33027,7 +33043,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit rejected 1476ms check-targe
 pass/layouts/runtime_captured_encoded_reference_replacement_exit rejected 1562ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_constant_layout_contract_exit checked 1899ms check-target:macos_arm64 @a92f16431042
+pass/layouts/runtime_constant_layout_contract_exit checked 1297ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/layouts/runtime_encoded_physical_view_exit rejected 1457ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
@@ -33036,7 +33052,7 @@ pass/layouts/runtime_foreign_encoded_reference_exit rejected 1437ms check-target
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 pass/layouts/runtime_indexed_restricted_field_read checked 2124ms check-target:macos_arm64 @a92f16431042
 pass/layouts/runtime_large_schema_field_exit checked 1948ms check-target:macos_arm64 @a92f16431042
-pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 3140ms check-target:macos_arm64 @a92f16431042
+pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 2023ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
 pass/layouts/runtime_multi_origin_encoded_reference_exit rejected 1386ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach

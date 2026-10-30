@@ -1,0 +1,244 @@
+{
+  "schema": "omega-layout-query-arrival-evidence-v1",
+  "compiler_source_revision": "8b519ca647cd3fb6c8d4259ff422cb8f6fefb978",
+  "compiler_source_archive_sha256": "924f6ad29a8a9ce80d837f16b0ae77ea29994e1e655066a18679676316435cad",
+  "compiler": {
+    "cli": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+      "sha256": "520f60a8c0b1bbaae0ac6e42473665f6a030c87ec9158903b2d66ddd2d483b7b",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "runner": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/corpus_runner",
+      "sha256": "09fd51656e91c40bc35d7a374b466adeaa335478e75a3275ec054a1f137849ed",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "optimized_build_commands": [
+      {
+        "role": "check",
+        "command": [
+          "/Users/zcanann/.cargo/bin/cargo",
+          "check",
+          "-p",
+          "validation"
+        ],
+        "returncode": 0,
+        "seconds": 8.827095875
+      },
+      {
+        "role": "clippy",
+        "command": [
+          "/Users/zcanann/.cargo/bin/cargo",
+          "clippy",
+          "-p",
+          "validation"
+        ],
+        "returncode": 0,
+        "seconds": 8.748318083000001
+      },
+      {
+        "role": "producer",
+        "command": [
+          "/Users/zcanann/.cargo/bin/cargo",
+          "build",
+          "-p",
+          "omega",
+          "--bin",
+          "omega",
+          "--message-format=json"
+        ],
+        "returncode": 0,
+        "seconds": 158.133915042
+      },
+      {
+        "role": "runner",
+        "command": [
+          "/Users/zcanann/.cargo/bin/cargo",
+          "test",
+          "-p",
+          "compiler",
+          "--test",
+          "corpus_runner",
+          "--no-run",
+          "--message-format=json"
+        ],
+        "returncode": 0,
+        "seconds": 54.58776179200001
+      }
+    ]
+  },
+  "baseline": {
+    "revision": "9d0ba50bdc865c2100f7b06763b6706b70bbdcbc",
+    "original_defects": [
+      "nested-machine arithmetic lost query ranges",
+      "ordinary call results lost query ranges at private arrival",
+      "terminal helper return lost query ranges in full runtime arithmetic"
+    ],
+    "scoped_comparison": {
+      "fixtures": 35,
+      "lost": 0,
+      "gained": 18,
+      "scope": "historical before post-operation runtime-oracle strengthening; same fact/bound/subtraction",
+      "raw": "retained local producer50-check-comparison-raw.txt"
+    }
+  },
+  "current_authored_oracle": {
+    "fact": "// Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.",
+    "required_runtime": "size16, alignment8, diff0, checked after forming subtraction",
+    "sample_both": {
+      "positive": 12,
+      "passed": 12,
+      "static_twins": 11,
+      "matched": 11,
+      "raw": "samples-both.txt",
+      "observations": "sample-observations.json"
+    },
+    "source": {
+      "fixtures": 35,
+      "positive": 16,
+      "negative": 19,
+      "all_expected": true,
+      "raw": "source.txt",
+      "observations": "source-observations.json"
+    },
+    "native_terminal": {
+      "fixtures": 16,
+      "native_target": "macos_arm64",
+      "native_exit": 0,
+      "terminal_exit": 0,
+      "agrees": true,
+      "four_target_same_artifact_fixtures": 12,
+      "same_artifact_targets": [
+        "windows_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64"
+      ],
+      "same_artifact_exits": 0,
+      "raw": "both-arm.txt",
+      "observations": "native-terminal-observations.json"
+    },
+    "runtime_corruption_falsifiers": {
+      "programs": 12,
+      "variants": [
+        {
+          "size": 0,
+          "alignment": 0
+        },
+        {
+          "size": 32,
+          "alignment": 16
+        }
+      ],
+      "actual_native_signal": 5,
+      "actual_terminal_crash": "Trap",
+      "observations": 24,
+      "all_prepares_exit": 0,
+      "all_comparisons_exit": 255,
+      "all_engines_agree": true,
+      "raw": "runtime-corruptions.txt",
+      "setup_failures": "Initial attempt wrote diagnostic logs into source package roots, invalidating package identity before execution. Those admission-only observations are retained separately and not counted.",
+      "observations_file": "runtime-corruption-observations.json"
+    },
+    "twin_audit": [
+      {
+        "place": "local",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "fd8b1920fed2fb60bee90aad8ed7f915c33b39329f30d0e8279e0e75e0f1c291",
+        "negative_sha256": "172d63377d8e69e97e85e4e4cb16c23055456cf47c03cae43d3994d5c224262a"
+      },
+      {
+        "place": "field",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "4554c7548aa46f48fce76079632fb6e4e1ed8122978b468a41becd414d3e0d46",
+        "negative_sha256": "66337d23680e338f97b989f73971d07050e45ad9e0fbb3d1a47e4276c32e8a3a"
+      },
+      {
+        "place": "parameter",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "46c6cb4dc4cb0d7249dde586f19d89c41d8ea4d54961053658696f3209c020fd",
+        "negative_sha256": "9094b9de70e30b375bddad9cdffaf7b2e8f5ef1ac5383a067860c743eacbf6e8"
+      },
+      {
+        "place": "call_result",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "7e23172d21a4b806148b024c737f4fd92fb7bea952bb7fdec7231af13f10fa21",
+        "negative_sha256": "5460c337cf0b988dc8e50b5c0395ba853d37b470dde76c46b91a592f386ef3d8"
+      },
+      {
+        "place": "match_join",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "94af4d22967d077d5413df175972aeb357b5c4894369237fc89de81cf47d8ddb",
+        "negative_sha256": "5f929f22291ca52027d660826e2d576abcdcc18ed00a00a02dede15922e0b3f2"
+      },
+      {
+        "place": "const_name",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "f83c2a7143a2a1e688507331ef51cf8a4e3aee039ca16fb1d43375366436d757",
+        "negative_sha256": "33b9bca9af283ec87517f2cd5f7772475e7371b0b9de089d52b24b6fd4b02e91"
+      },
+      {
+        "place": "other_state",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "22d8cc52975620d962016c196356a929596408d201f8443f401a3d4cbe0f100b",
+        "negative_sha256": "5dc2d3409e9d9dc312cabecf8414811e6b341c4198720095b43035265efbbe22"
+      },
+      {
+        "place": "other_machine",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "a1a326be1d635c231b305381e48845c5126a4576b6de0ce0858bee4c0e162c3d",
+        "negative_sha256": "bd43ace3966d507510a3cb66eb157ec1fb589b10d9ff8814f2557e3872cbb03e"
+      },
+      {
+        "place": "target_body",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "f224d9eb40c52c0c04d27562604bf2f894b7422473e1ed46061d853626442dfb",
+        "negative_sha256": "765b18f530f23ba416d97a2a4acdbcba011086517e4c01fa2a31ab03c0c2362e"
+      },
+      {
+        "place": "compositions/private_arrival_calls",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "63b8429217f58510b8fa852021a23ffe633989b31dd30575738deb9666ae01cc",
+        "negative_sha256": "e51b157597123d0079b2676e88cf7a70810eb9a4bb8bf8dadb33ca977a0b3785"
+      },
+      {
+        "place": "compositions/terminal_returns",
+        "only_twin_change": "remove Pair.hi",
+        "positive_sha256": "b5990fd550687b83e8a4c15f9841226f8d5b38688ab9bf7985424f067b37a281",
+        "negative_sha256": "16599f36f74c300cd34aa5d4d612f0d9ebbb84f6c28fcb99a2b9c535ba01cf6b"
+      }
+    ]
+  },
+  "golden_content_guard": [
+    {
+      "golden": "tests/omega/corpus_outcomes.txt",
+      "measured_keys": 35,
+      "added_keys": 9,
+      "lost_keys": 0,
+      "outside_measured_scope": "byte-identical row blocks, comments and context",
+      "diagnostic_lines_before": 14583,
+      "diagnostic_lines_after": 14590
+    },
+    {
+      "golden": "tests/omega/corpus_both_macos_arm64.txt",
+      "measured_keys": 16,
+      "added_keys": 4,
+      "lost_keys": 0,
+      "outside_measured_scope": "byte-identical row blocks, comments and context",
+      "diagnostic_lines_before": 1,
+      "diagnostic_lines_after": 1
+    }
+  ],
+  "applicability": "Compiler Rust/Cargo/toolchain and runtime-library inputs match producer50 manifest; authored programs changed only in post-operation runtime checks and fixture metadata after compiler capture, and were rechecked/reexecuted with this exact optimized pair. Earlier difference-only oracle observations are not exact-geometry acceptance.",
+  "limitations": [
+    "Native execution was measured on macOS ARM64; declared four-target Terminal runs use the same artifact.",
+    "Optional macos_x86_64 override chose a declared foreign entry because no fifth ProgramEntry was authored; it supplied no native execution and its attempted record was refused. No X86 native claim or golden mutation.",
+    "This repairs layout-query fact transport, not the full LIBRARY-REPRESENTATION-FAMILIES acceptance."
+  ]
+}

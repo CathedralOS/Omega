@@ -117,9 +117,10 @@ mod structural_case_arms;
 pub(crate) mod structural_judgment;
 pub(crate) mod structural_prefix;
 pub(crate) use operand_fits::{
-    anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
-    exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
-    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
+    CompletedIntegerFormation, anonymous_comparison_operand_fits_at_occurrence,
+    anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
+    exact_cast_fits_at_occurrence, float_integer_conversion_fits_at_occurrence,
+    integer_operands_exclude_at_occurrence,
 };
 mod structural_terms;
 pub(crate) mod transparent_applications;
@@ -200,7 +201,7 @@ use structural_terms::{
 /// Whether `OMEGA_STRUCT_TRACE` asks for structural-judgment tracing. Read
 /// once: each environment lookup takes the process environment lock, and
 /// body unfolding asks once per application.
-fn struct_trace() -> bool {
+pub(in crate::proof_contracts) fn struct_trace() -> bool {
     static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
 }
