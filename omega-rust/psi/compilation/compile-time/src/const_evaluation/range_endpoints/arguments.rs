@@ -10,6 +10,8 @@ use language_semantics::const_value::{
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
+    machine::Machine,
+    state::State,
     types::{PrimitiveType, TypeReferenceHandle},
 };
 
@@ -35,6 +37,22 @@ impl Invocation<'_> {
         super::resolve_endpoint_callee(self.execution, &endpoint)
     }
 
+    /// The selected machine a callee instance resolves to, and its entry state.
+    /// Both lookups refuse with the endpoint's own wording so a malformed call
+    /// never falls back to an invented machine or entry.
+    fn machine(&self, callee: super::EndpointCallee) -> Result<&Machine, String> {
+        self.execution
+            .machine(callee.instance)
+            .ok_or_else(|| "range endpoint lost its selected machine".to_string())
+    }
+
+    fn entry(&self, machine: &Machine) -> Result<&State, String> {
+        self.execution
+            .machine_states(machine)
+            .first()
+            .ok_or_else(|| "range endpoint lost entry".to_string())
+    }
+
     fn position(
         &self,
         callee: super::EndpointCallee,
@@ -49,15 +67,7 @@ impl Invocation<'_> {
     }
 
     fn result_position(&self, callee: super::EndpointCallee) -> Result<ScalarPosition, String> {
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
+        let entry = self.entry(self.machine(callee)?)?;
         self.position(callee, entry.return_type)
     }
 
@@ -73,15 +83,7 @@ impl Invocation<'_> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
         };
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
+        let entry = self.entry(self.machine(callee)?)?;
         let arguments = self
             .execution
             .expression_table
@@ -172,11 +174,7 @@ impl Invocation<'_> {
                 "range endpoint call argument count does not match its evaluated snapshots".into(),
             );
         }
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
+        let entry = self.entry(machine)?;
         let snapshots = argument_handles
             .iter()
             .zip(literals)
@@ -236,15 +234,8 @@ impl ConstantCalls for Invocation<'_> {
             self.authority,
         )?;
         let callee = self.callee(expression)?;
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
+        let machine = self.machine(callee)?;
+        let entry = self.entry(machine)?;
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),
         );
@@ -313,10 +304,7 @@ impl ConstantCalls for Invocation<'_> {
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let callee = self.callee(expression)?;
         let (arguments, literals, warnings) = self.arguments(expression, callee)?;
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
+        let machine = self.machine(callee)?;
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),
         );
