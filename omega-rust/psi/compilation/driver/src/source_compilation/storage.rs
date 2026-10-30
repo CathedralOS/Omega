@@ -7,10 +7,14 @@ use build_time_evaluation::BuildTimeSelectionAuthority;
 use compiler_storage::{Record, RecordError, RecordReader, RecordWriter};
 use std::sync::Arc;
 
+const SOURCE_CONTEXT_RECORD: [u8; 8] = *b"PSICTX02";
+
 impl Record for SourceContext {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| {
+            SOURCE_CONTEXT_RECORD.write(output)?;
             self.declaration_syntax.write(output)?;
+            self.normalization_context.write(output)?;
             self.bindings.write(output)?;
             self.build_helper_identity.write(output)?;
             let captured;
@@ -29,8 +33,12 @@ impl Record for SourceContext {
     }
     fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
         input.record(|input| {
+            if <[u8; 8]>::read(input)? != SOURCE_CONTEXT_RECORD {
+                return Err(input.error("unsupported source-context record schema"));
+            }
             Ok(Self {
                 declaration_syntax: Record::read(input)?,
+                normalization_context: Record::read(input)?,
                 bindings: Record::read(input)?,
                 build_helper_identity: Record::read(input)?,
                 authority: None,

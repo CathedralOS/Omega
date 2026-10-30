@@ -101,8 +101,9 @@ impl SourceCompilationRequest {
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("psi.source.prepare");
-        let context = SourceContext {
+        let mut context = SourceContext {
             declaration_syntax: Arc::new(self.syntax.clone()),
+            normalization_context: None,
             bindings: self.top_level_bindings.clone(),
             authority: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity.into(),
@@ -110,8 +111,9 @@ impl SourceCompilationRequest {
         };
         let activation = activation::select_retained_source(&self, &context, observer)?;
         let template_context = activation.as_ref().map(|activation| {
-            activation.remove_retained_syntax(&mut self.syntax, &self.source_items)
+            Arc::new(activation.remove_retained_syntax(&mut self.syntax, &self.source_items))
         });
+        context.normalization_context = template_context.clone();
         let retained_program = activation
             .as_ref()
             .map(|activation| activation.typing.typed().clone());
@@ -132,7 +134,7 @@ impl SourceCompilationRequest {
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
                     predecessor: retained.clone(),
-                    template_context: template_context.as_ref(),
+                    template_context: template_context.as_deref(),
                     declaration_syntax: Some(&context.declaration_syntax),
                 },
             },
