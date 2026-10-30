@@ -1,0 +1,8 @@
+{
+  "path": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-1342668-0\\omega-program.exe",
+  "sha256": "7ccbfb89151d286167c97d51c39092b03e33ccf79762dbd9802205578209eb66",
+  "bytes": 5632,
+  "native_exit": 0,
+  "interpreter_exit": 0,
+  "transcript": "cases/diagnostic-runtime_numeric_operand_order_exit/02.txt"
+}

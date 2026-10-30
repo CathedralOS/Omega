@@ -1,5 +1,17 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Repeated integer premise preparation: attribution - 2026-10-29
+
+No optimization retained. A fresh instrumented update took 127.65 s; inclusive
+premise projection/installation totals were 91.28/42.80 s, versus 0.087 s copying
+comparisons. The scopes nest, so these are not disjoint wall-time savings.
+787,550 projection input visits contained no exact duplicate pairs within a list;
+list deduplication is rejected. Cross-query reuse remains unmeasured and the
+existing prepared-premise route is not interchangeable with guard preparation.
+Actual native/Terminal execution passes, and the image matches prior evidence.
+Next: measure completed projection reuse under full context and active-chain
+identity before implementing a cache. [Evidence and limits](integer_premise_preparation_2026_10_29/README.md).
+
 ## Body unfolding: scalar guard preparation - 2026-10-29
 
 The unfolding timer is dominated by integer proof preparation for scalar guards;
