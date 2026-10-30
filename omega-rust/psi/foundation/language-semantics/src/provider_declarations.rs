@@ -29,3 +29,19 @@ pub struct ProviderRowDeclarations {
 pub struct ProviderDeclarations {
     pub rows: Vec<ProviderRowDeclarations>,
 }
+
+/// Exact normalized callable identities from this checked invocation, not
+/// display names, ABI compatibility or permission to execute a provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClosedProviderInstance {
+    pub requirement: String,
+    pub realization: String,
+}
+
+/// One checked receiving application and all its exact realization candidates.
+/// Keep failures inside the candidates: selection must judge cardinality before
+/// consuming an individual declaration's refusal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderInstanceApplication {
+    pub candidates: Vec<Result<ClosedProviderInstance, String>>,
+}

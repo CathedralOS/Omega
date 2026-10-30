@@ -418,6 +418,15 @@ review request their checked-source projection explicitly. Review derives it
 from original compiler custody, never from the supplied semantic candidate.
 The selected plans, Import application custody and exact owner identities stay
 unchanged; each completed instance roster recomputes its aggregate commitment.
+That source projection now has a declaration producer and a source-free policy
+consumer. Psi records exact inherited receiving-application candidates and
+generic specialization identities, preserving individual failures inside their
+candidate groups. `provider-planning/src/provider_instances.rs` supplies original
+plan/row correspondence and exact adapter judgments; `provider-selection` owns
+candidate cardinality, template-row agreement, complete closed-instance coverage
+and attachment to the selected plans. Review still prepares from the original
+compiler program, not the candidate under review. These are invocation-local
+declarations, not another portable format or permission to execute a provider.
 
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider
