@@ -454,8 +454,6 @@ retired-syntax deletions to completion.
   stage 04 scalar checking, stage 05 expression preparation, and
   `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
   with its interpreter and native consumers.
-  - Qualify the 16 `pass/core/numeric_*` fixtures reaching all 170 public
-    machines of `source/library/core/numeric_conversion.omg` on Linux x86-64.
   - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
     in maintained pass fixtures, samples (**SAMPLE-CORPUS**), bundled libraries,
     and `source/omega/main.omg` with `source/psi/{lex,parse,source}` to explicit
