@@ -15,7 +15,7 @@ pub fn scalar_array_leaf_path<'types>(
     let mut dimensions = Vec::new();
     let mut current = root;
     loop {
-        match types.clone().find(|row| row.id == current)?.shape {
+        match *crate::structural_shape(types.clone(), current)? {
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
@@ -63,9 +63,7 @@ pub fn scalar_array_leaf_declaration<'types>(
     let mut empty = false;
     let mut array = false;
     for _ in 0..types.clone().count() {
-        let declaration = types
-            .clone()
-            .find(|declaration| declaration.id == current)?;
+        let declaration = crate::structural_declaration(types.clone(), current)?;
         match declaration.shape {
             StructuralTypeShape::FixedArray {
                 element,
