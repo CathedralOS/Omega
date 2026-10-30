@@ -123,9 +123,21 @@ impl CallFrameResolver<'_> {
                 &self.tables.symbols,
             )
         })();
+        if completed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} phase=completion",
+                machine.symbol
+            );
+        }
         paths
             .iter()
-            .map(|path| completed.as_ref()?.invalidation_paths(self.program, path))
+            .map(|path| {
+                let result = completed.as_ref()?.invalidation_paths(self.program, path);
+                if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!("STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} path={path:?} phase=projection", machine.symbol);
+                }
+                result
+            })
             .collect()
     }
 

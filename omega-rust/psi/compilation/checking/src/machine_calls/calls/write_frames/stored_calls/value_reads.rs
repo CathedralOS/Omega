@@ -26,7 +26,7 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_value_reads(
     prefix: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<CompletedValueReads> {
-    let (captured, after) = expression_effects::completed_value(
+    let completed = expression_effects::completed_value(
         program,
         machine,
         state,
@@ -35,9 +35,27 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_value_reads(
         symbols,
         &mut FrameInference::for_state(state.symbol),
         expression,
-    )?;
+    );
+    let Some((captured, after)) = completed else {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT completed-value-read-refused machine={:?} expression={expression:?} reference={reference:?} phase=ordered-value",
+                machine.symbol
+            );
+        }
+        return None;
+    };
     let returned =
-        captured_inputs::completed_result(program, machine, &captured, reference, symbols)?;
+        captured_inputs::completed_result(program, machine, &captured, reference, symbols);
+    let Some(returned) = returned else {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT completed-value-read-refused machine={:?} expression={expression:?} reference={reference:?} phase=suppliers",
+                machine.symbol
+            );
+        }
+        return None;
+    };
     Some(CompletedValueReads {
         returned,
         after,
@@ -123,6 +141,14 @@ impl CompletedValueReads {
                 || !leaf.lifetime_dependencies.is_empty()
                 || !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(access) if access.is_readable())
             {
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT completed-value-read-refused path={path:?} phase=leaf may_select={} lifetime_debts={} source={:?}",
+                        leaf.may_select,
+                        leaf.lifetime_dependencies.len(),
+                        leaf.origin
+                    );
+                }
                 return None;
             }
             let source = match leaf.origin.as_ref()? {
