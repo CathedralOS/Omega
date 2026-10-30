@@ -1,0 +1,10 @@
+data Locator
+    requires ((self in Locator::Absolute) && self.length == 0)
+       || ((self in Locator::Module) && self.length <= 256)
+{
+    case Absolute(bytes: [u8; 256], length: u64);
+    case Module(bytes: [u8; 256], length: u64);
+}
+machine main() {
+    let invalid: Locator = Locator::Module { length: 257 };
+}

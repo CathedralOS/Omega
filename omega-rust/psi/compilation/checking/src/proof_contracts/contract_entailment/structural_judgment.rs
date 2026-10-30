@@ -139,6 +139,13 @@ pub(crate) enum StructuralTerm {
     },
     /// Exact literal value, independent of radix or authored spelling.
     Integer(numerics::bignum::BigInt),
+    /// A complete uniform array value, represented once regardless of extent.
+    /// Empty arrays have no element; nonempty arrays retain the independently
+    /// established element value. This conveys no storage or borrow authority.
+    RepeatedArray {
+        length: u64,
+        element: Option<Box<StructuralTerm>>,
+    },
     /// Exact mathematical observation of one already evaluated integer or
     /// address. Its declared carrier supplies bounds, never a new value or
     /// permission to reread the source storage.
@@ -338,6 +345,10 @@ impl StructuralTerm {
     /// about a completed collection, never the referent's contents.
     pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::RepeatedArray { length, element } => StructuralTerm::RepeatedArray {
+                length,
+                element: element.map(|element| Box::new(map(*element))),
+            },
             StructuralTerm::ScalarRepresentation {
                 source,
                 target,
@@ -3119,6 +3130,7 @@ impl<'program> StructuralJudge<'program> {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
                         StructuralTerm::Integer(_)
+                        | StructuralTerm::RepeatedArray { .. }
                         | StructuralTerm::Float(_)
                         | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::Application { .. }

@@ -16,6 +16,38 @@ mod resolution_payload_tests {
     use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
     #[test]
+    fn repeated_array_traversal_and_substitution_are_independent_of_extent() {
+        let array = StructuralTerm::RepeatedArray {
+            length: 1_000_000_000,
+            element: Some(Box::new(StructuralTerm::Integer(
+                numerics::bignum::BigInt::zero(),
+            ))),
+        };
+        let mut visits = 0;
+        array.for_each_child(|_| visits += 1);
+        assert_eq!(visits, 1);
+        let mut substitutions = 0;
+        let changed = array.clone().map_children(|_| {
+            substitutions += 1;
+            StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(1))
+        });
+        assert_eq!(substitutions, 1);
+        assert_ne!(array, changed);
+        assert!(array.same_resolution_payload(&array.clone()));
+        assert!(!array.same_resolution_payload(&changed));
+        let mut different_length = array.clone();
+        if let StructuralTerm::RepeatedArray { length, .. } = &mut different_length {
+            *length = 2;
+        }
+        assert_ne!(array, different_length);
+        let empty = StructuralTerm::RepeatedArray {
+            length: 0,
+            element: None,
+        };
+        assert!(!empty.any_child(|_| true));
+    }
+
+    #[test]
     fn payload_comparison_keeps_hidden_descriptors_and_nested_authority() {
         let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
         let observed = |reference, descriptor| StructuralTerm::ObservedValue {
@@ -194,6 +226,9 @@ impl StructuralTerm {
                         .is_some_and(|descriptor| visit(descriptor))
             }
             self_ => match self_.semantic_value() {
+                Self::RepeatedArray { element, .. } => {
+                    element.as_ref().is_some_and(|element| visit(element))
+                }
                 Self::Constructor { fields, .. } => fields.iter().any(|(_, value)| visit(value)),
                 Self::Application { arguments, .. } | Self::CallProjection { arguments, .. } => {
                     arguments.iter().any(|argument| visit(argument))
@@ -251,6 +286,11 @@ impl PartialEq for StructuralTerm {
         let other = other.semantic_value();
         match self {
             Self::ObservedValue { value, .. } => value.as_ref().eq(other),
+            Self::RepeatedArray { length, element } => matches!(
+                other,
+                Self::RepeatedArray { length: other_length, element: other_element }
+                    if length == other_length && element == other_element
+            ),
             Self::Variable(value) => {
                 let Self::Variable(other_value) = other else {
                     return false;
@@ -482,6 +522,11 @@ impl std::fmt::Debug for StructuralTerm {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ObservedValue { value, .. } => std::fmt::Debug::fmt(value, formatter),
+            Self::RepeatedArray { length, element } => formatter
+                .debug_struct("RepeatedArray")
+                .field("length", length)
+                .field("element", element)
+                .finish(),
             Self::Variable(value) => formatter.debug_tuple("Variable").field(value).finish(),
             Self::BoundValue(value) => formatter.debug_tuple("BoundValue").field(value).finish(),
             Self::CapturedValue {

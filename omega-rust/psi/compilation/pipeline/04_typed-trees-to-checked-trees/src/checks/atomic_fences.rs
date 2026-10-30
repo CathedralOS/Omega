@@ -107,7 +107,9 @@ pub(crate) fn ordering(
                         value.type_reference,
                     )
                     .is_some_and(|constructor| {
-                        constructor.case == *case && constructor.fields.is_empty()
+                        constructor.case == *case
+                            && constructor.fields.is_empty()
+                            && constructor.omitted_fields.is_empty()
                     }))
                     || case_at_capture(
                         program,

@@ -385,6 +385,23 @@ fn zero_term(
             _ => None,
         };
     }
+    if let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        // Admission above independently established the zero representation.
+        // Retain one element term, never allocate one term per array cell.
+        let element = if *length == 0 {
+            None
+        } else {
+            Some(Box::new(zero_term(program, *element_type, active)?))
+        };
+        return Some(StructuralTerm::RepeatedArray {
+            length: u64::try_from(*length).ok()?,
+            element,
+        });
+    }
     // A generic first case may be independent of its arguments (None). An
     // actually stored open parameter still fails below: no declaration or
     // established zero value exists for that field type.
