@@ -187,12 +187,14 @@ impl PartialEq for StructuralTerm {
                 callable,
                 occurrence,
                 result_type,
+                ..
             } => {
                 let Self::CapturedValue {
                     expression: other_expression,
                     callable: other_callable,
                     occurrence: other_occurrence,
                     result_type: other_result_type,
+                    ..
                 } = other
                 else {
                     return false;
@@ -405,6 +407,7 @@ impl std::fmt::Debug for StructuralTerm {
                 callable,
                 occurrence,
                 result_type,
+                ..
             } => formatter
                 .debug_struct("CapturedValue")
                 .field("expression", expression)

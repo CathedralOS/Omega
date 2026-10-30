@@ -111,6 +111,8 @@ pub(super) fn analyze(
         decisions.decided_formations.push(expression);
     }
     let mut exact_result_proven = false;
+    let mut completed =
+        crate::proof_contracts::contract_entailment::CompletedIntegerFormation::default();
     if effective_domain == ArithmeticDomain::Exact {
         if operation.cancels_to_zero() {
             // Both children were checked above. Cancellation establishes this
@@ -126,7 +128,10 @@ pub(super) fn analyze(
             && let Some(range) = primitive_range(primitive)
             && (operation.result_fits(primitive, range, interval, false)
                 || operation.relationally_fits_carrier(Some(primitive))
-                || operation.completed_operands_fit())
+                || {
+                    completed = operation.completed_operands_formation();
+                    completed.proven
+                })
         {
             interval = interval.intersect(range);
             exact_result_proven = true;
@@ -136,16 +141,18 @@ pub(super) fn analyze(
         .map(|primitive| integer_policy_bridge(primitive, effective_domain));
     let mut result_representable = false;
     let recipe = if effective_domain == ArithmeticDomain::Exact {
-        operation
-            .left
-            .range_recipe(walk.program, walk.lexical_owner, binary.left)
-            .zip(
-                operation
-                    .right
-                    .range_recipe(walk.program, walk.lexical_owner, binary.right),
-            )
-            .and_then(|(left, right)| left.binary(operator, &right))
-            .filter(checked_trees::IntegerRangeRecipe::is_target_dependent)
+        completed.recipe.or_else(|| {
+            operation
+                .left
+                .range_recipe(walk.program, walk.lexical_owner, binary.left)
+                .zip(
+                    operation
+                        .right
+                        .range_recipe(walk.program, walk.lexical_owner, binary.right),
+                )
+                .and_then(|(left, right)| left.binary(operator, &right))
+                .filter(checked_trees::IntegerRangeRecipe::is_target_dependent)
+        })
     } else {
         None
     };
@@ -423,7 +430,8 @@ impl Operation<'_, '_> {
                 // The Trapping expression's normal result is carrier-bounded
                 // only after it did not trap. Never use a range query on that
                 // same result to prove its own Exact counterpart forms.
-                self.result_fits(primitive, range, interval, false) || self.completed_operands_fit()
+                self.result_fits(primitive, range, interval, false)
+                    || self.completed_operands_formation().proven
             }),
             None,
             &mut super::ArithmeticDecisions::default(),
@@ -1068,20 +1076,23 @@ impl Operation<'_, '_> {
     /// exists; neither a proposed result bound nor a receiving annotation may
     /// justify this operation. Meaning-only analysis disables this recursive
     /// bridge while the structural judgment reconstructs operand denotations.
-    fn completed_operands_fit(&self) -> bool {
-        self.walk.checks_occurrence_fit
-            && self
-                .walk
-                .machine
-                .zip(self.walk.state)
-                .is_some_and(|(machine, state)| {
-                    crate::proof_contracts::contract_entailment::exact_binary_fits_at_occurrence(
-                        self.walk.program,
-                        machine,
-                        state,
-                        self.expression,
-                    )
-                })
+    fn completed_operands_formation(
+        &self,
+    ) -> crate::proof_contracts::contract_entailment::CompletedIntegerFormation {
+        if !self.walk.checks_occurrence_fit {
+            return Default::default();
+        }
+        self.walk
+            .machine
+            .zip(self.walk.state)
+            .map_or_else(Default::default, |(machine, state)| {
+                crate::proof_contracts::contract_entailment::exact_binary_formation_at_occurrence(
+                    self.walk.program,
+                    machine,
+                    state,
+                    self.expression,
+                )
+            })
     }
 
     fn unsigned_increase_fits(&self, ceiling: Option<i64>) -> bool {

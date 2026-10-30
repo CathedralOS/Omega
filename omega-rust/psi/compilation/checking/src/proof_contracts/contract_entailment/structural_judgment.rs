@@ -118,6 +118,9 @@ pub(crate) enum StructuralTerm {
         callable: SymbolHandle,
         occurrence: usize,
         result_type: TypeReferenceHandle,
+        // Immutable producer evidence for this exact completed observation.
+        // It does not participate in value identity or authorize a reread.
+        integer_range: Option<Arc<checked_trees::IntegerRangeRecipe>>,
     },
     /// A field path on the same completed value, never a callee-local spelling.
     BoundProjection {

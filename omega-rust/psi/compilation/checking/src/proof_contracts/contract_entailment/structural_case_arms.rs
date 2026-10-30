@@ -757,6 +757,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,
                                 result_type: local.type_reference,
+                                integer_range: None,
                             };
                             outcomes = vec![(Some(captured), rejoined)];
                         }
@@ -1416,6 +1417,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,
                                 result_type: local.type_reference,
+                                integer_range: None,
                             };
                             outcomes = vec![(Some(captured), rejoined)];
                         }

@@ -1606,6 +1606,7 @@ impl<'program> StructuralJudge<'program> {
                                 callable: SymbolHandle::invalid(),
                                 occurrence: judge.capture_sequence,
                                 result_type: declared.type_reference,
+                                integer_range: None,
                             })
                         },
                     );
@@ -1835,6 +1836,14 @@ impl<'program> StructuralJudge<'program> {
                     callable,
                     occurrence: rejoined.capture_sequence,
                     result_type,
+                    integer_range:
+                        crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
+                            program,
+                            scope.0.symbol,
+                            expression,
+                            program.primitive_type_reference(result_type),
+                        )
+                        .map(std::sync::Arc::new),
                 };
                 return Some(vec![
                     NormalReturnPath::observed(captured, rejoined)
@@ -1920,9 +1929,21 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         self.capture_sequence += 1;
+        let primitive = self
+            .normal_value_type_reference(expression, scope)
+            .and_then(|reference| self.program.primitive_type_reference(reference));
+        let integer_range =
+            crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
+                self.program,
+                scope.0.symbol,
+                expression,
+                primitive,
+            )
+            .map(std::sync::Arc::new);
         let value = StructuralTerm::CapturedValue {
             expression,
             callable: SymbolHandle::invalid(),
+            integer_range,
             occurrence: self.capture_sequence,
             result_type: self
                 .normal_value_type_reference(expression, scope)
@@ -2419,6 +2440,7 @@ impl<'program> StructuralJudge<'program> {
                 callable: owner_symbol(&owner),
                 occurrence: self.capture_sequence,
                 result_type: subject.entry.type_reference,
+                integer_range: None,
             };
             let mut observed = if program
                 .primitive_type_reference(subject.entry.type_reference)
@@ -2502,6 +2524,14 @@ impl<'program> StructuralJudge<'program> {
                 occurrence: self.capture_sequence,
                 callable,
                 result_type: presentation.type_reference,
+                integer_range:
+                    crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
+                        program,
+                        scope.0.symbol,
+                        expression,
+                        program.primitive_type_reference(presentation.type_reference),
+                    )
+                    .map(std::sync::Arc::new),
             }
         });
         if super::super::struct_trace() {

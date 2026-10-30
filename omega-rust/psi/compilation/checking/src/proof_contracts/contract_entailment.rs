@@ -117,9 +117,10 @@ mod structural_case_arms;
 pub(crate) mod structural_judgment;
 pub(crate) mod structural_prefix;
 pub(crate) use operand_fits::{
-    anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
-    exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
-    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
+    CompletedIntegerFormation, anonymous_comparison_operand_fits_at_occurrence,
+    anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
+    exact_cast_fits_at_occurrence, float_integer_conversion_fits_at_occurrence,
+    integer_operands_exclude_at_occurrence,
 };
 mod structural_terms;
 pub(crate) mod transparent_applications;
