@@ -1,37 +1,10 @@
+use omega::language::core::layout;
 // Expected exit: 0. A typed-cell re-view composes its signed byte encoding
 // with the unsigned observation, rather than narrowing the logical i64 directly.
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField
-where
-    size <= 4096,
-    1 <= align,
-    align <= 16,
-{
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema
-where
-    field_count <= 32,
-{ fields: [SchemaField; 32]; field_count: u64; }
-data IntegerInterpretation { case Signed; case Unsigned; }
-data FieldPlan {
-    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
 
-data SignedByte { }
-machine SignedByte::plan(schema: Schema) -> Plan {
+
+SignedByte satisfies FixedLayout<NarrowByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -49,11 +22,12 @@ machine SignedByte::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
+}
 
 
 data NarrowByte [copy] where -128 <= value, value <= 127 { value: i64; }
 data ByteView { value: u8; }
-data Main { encoded: SignedByte<NarrowByte>; }
+data Main { encoded: LayoutStorage<NarrowByte, SignedByte>; }
 
 machine read(value: &u8) -> u8 { value }
 machine identity(value: &u8) -> &u8 { value }

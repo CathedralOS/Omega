@@ -153,13 +153,14 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
 }
 
 
-public data Aligned { }
-machine Aligned::plan(schema: Schema) -> Plan {
+public Aligned satisfies FixedLayout<OwnedRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
     entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
     Plan { entries: entries, entry_count: 3, size_fixed: 32, size_is_dynamic: false, align: 32 }
+}
 }
 
 public data OwnedRecord [copy] { first: u64; second: u64; third: u64; }
@@ -177,7 +178,7 @@ public data ForeignInterface [copy] {
     abi: u32; argument_count: u32; argument_types: addr; result_type: addr;
     stack_bytes: u32; flags: u32; fixed_arguments: u32;
 }
-public data ArgumentValues { pair: &Aligned<OwnedRecord>; }
+public data ArgumentValues { pair: &LayoutStorage<OwnedRecord, Aligned>; }
 
 public boundary trait Prepare: Calling<PrepareCalling> {
     machine prepare(
@@ -186,27 +187,27 @@ public boundary trait Prepare: Calling<PrepareCalling> {
     ) -> u32 reaches;
 }
 public boundary trait Transform: Calling<TransformCalling> {
-    machine transform(pair: Aligned<OwnedRecord>) -> Aligned<OwnedRecord> reaches;
+    machine transform(pair: LayoutStorage<OwnedRecord, Aligned>) -> LayoutStorage<OwnedRecord, Aligned> reaches;
 }
 public boundary trait Invoke: Calling<InvokeCalling> {
     machine invoke<machine Handler>(
         interface: &PreparedInterface, native callback transform from Handler,
-        result: &mut Aligned<OwnedRecord>, arguments: &ArgumentValues
+        result: &mut LayoutStorage<OwnedRecord, Aligned>, arguments: &ArgumentValues
     )
     where machine Handler satisfies Transform::transform;
     reaches
     invokes Transform;
 }
 
-machine transformed(pair: Aligned<OwnedRecord>) -> Aligned<OwnedRecord> {
-    let mut result: Aligned<OwnedRecord>;
+machine transformed(pair: LayoutStorage<OwnedRecord, Aligned>) -> LayoutStorage<OwnedRecord, Aligned> {
+    let mut result: LayoutStorage<OwnedRecord, Aligned>;
     result.first = pair.third;
     result.second = pair.first;
     result.third = pair.second;
     result
 }
 public data Handler { }
-public machine Handler::transform(pair: Aligned<OwnedRecord>) -> Aligned<OwnedRecord>
+public machine Handler::transform(pair: LayoutStorage<OwnedRecord, Aligned>) -> LayoutStorage<OwnedRecord, Aligned>
 satisfies Transform::transform
 {
     transformed(pair)
@@ -234,7 +235,7 @@ macos_arm64 machine invoke_binding() -> ForeignBinding<21, 9, 0> {
     }
 }
 macos_arm64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut Aligned<OwnedRecord>, arguments: &ArgumentValues
+    interface: &PreparedInterface, result: &mut LayoutStorage<OwnedRecord, Aligned>, arguments: &ArgumentValues
 )
 where machine Selected satisfies Transform::transform;
 satisfies Invoke::invoke
@@ -242,7 +243,7 @@ via invoke_binding();
 
 data Main {
     interface: ForeignInterface;
-    input: Aligned<OwnedRecord>; result: Aligned<OwnedRecord>;
+    input: LayoutStorage<OwnedRecord, Aligned>; result: LayoutStorage<OwnedRecord, Aligned>;
 }
 machine Main::main(main: &mut Main) reaches Prepare + Invoke + Transform + Console
 invokes Prepare;
@@ -443,7 +444,7 @@ linux_x86_64 machine linux_invoke_binding() -> ForeignBinding<11, 8, 15> {
 }
 
 linux_x86_64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut Aligned<OwnedRecord>, arguments: &ArgumentValues
+    interface: &PreparedInterface, result: &mut LayoutStorage<OwnedRecord, Aligned>, arguments: &ArgumentValues
 )
 where machine Selected satisfies Transform::transform;
 satisfies Invoke::invoke
