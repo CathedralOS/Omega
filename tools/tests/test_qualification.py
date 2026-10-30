@@ -201,11 +201,11 @@ class QualificationTests(unittest.TestCase):
             qualification.load(presentation)
         record = qualification.load(self.state)
         self.assertEqual(summary["latest_run"]["receipt"], record["runs"][-1]["receipt"])
-        self.assertTrue(record["runs"][-1]["source_stamps"])
+        self.assertTrue(qualification.observation(record["runs"][-1])["source_stamps"])
         receipt = Path(record["runs"][-1]["receipt"]["path"])
         original_receipt = receipt.read_bytes()
         original_run = copy.deepcopy(record["runs"][-1])
-        self.assertEqual(json.loads(qualification.state_output(record, self.state, False)), record)
+        self.assertEqual(json.loads(qualification.state_output(record, self.state, False)), qualification.expanded_record(record))
         self.assertEqual(json.loads(qualification.state_output(dict(binding="full"), None, True)),
                          dict(binding="full"))
         failing = self.commit("check.py", "raise SystemExit(7)\n")
@@ -358,7 +358,8 @@ class QualificationTests(unittest.TestCase):
         for run in second['runs']:
             receipt = Path(run['receipt']['path'])
             self.assertEqual(qualification.file_digest(receipt), run['receipt']['sha256'])
-            self.assertEqual(json.loads(receipt.read_bytes()), {k: v for k, v in run.items() if k != 'receipt'})
+            self.assertEqual(json.loads(receipt.read_bytes()),
+                             {k: v for k, v in qualification.observation(run).items() if k != 'receipt'})
 
     def test_snapshot_running_reservation_is_not_overwritten(self):
         qualification.update(self.state, 0, lambda r: r.update(running={'id': 'other', 'check': 'values', 'candidate': self.base}))
@@ -373,7 +374,7 @@ class QualificationTests(unittest.TestCase):
         incoming = self.commit("README.md", "unrelated documentation")
         record = self.assess(incoming)
         decision = record["assessments"][-1]
-        self.assertEqual(decision["incoming_paths"], ["README.md"])
+        self.assertEqual(qualification.assessment(decision)["incoming_paths"], ["README.md"])
         self.assertEqual(decision["checks"][0]["action"], "reuse")
         self.assertEqual(decision["checks"][0]["observed_revision"], self.base)
         self.assertEqual(len(record["runs"]), 1)
@@ -1518,7 +1519,7 @@ class CompletedQualificationTests(unittest.TestCase):
         self.assertEqual(self.state.read_bytes(), before)
         review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
         result = self.recover(record, review, disposition="nonaccepted")
-        recovered = result["runs"][-1]
+        recovered = qualification.observation(result["runs"][-1])
         self.assertIsNone(result["running"])
         self.assertEqual({key:value for key,value in recovered.items() if key not in {"recovery", "receipt"}}, capture)
         self.assertEqual(recovered["recovery"]["disposition"], "nonaccepted")
@@ -1641,7 +1642,7 @@ class CompletedQualificationTests(unittest.TestCase):
         self.assertIsNone(result["running"])
         self.assertEqual(self.counter.read_text(), "1")
         self.assertEqual(receipt.read_bytes(), original_bytes)
-        recovered = result["runs"][-1]
+        recovered = qualification.observation(result["runs"][-1])
         self.assertEqual({k:v for k,v in recovered.items() if k not in {"recovery", "receipt"}}, capture)
         self.assertNotEqual(recovered["receipt"]["path"], str(receipt))
         self.assertEqual(recovered["recovery"]["original_receipt"]["sha256"], qualification.file_digest(receipt))
@@ -1784,7 +1785,7 @@ class CompletedQualificationTests(unittest.TestCase):
         # an empty PID roster is not itself that judgment.
         review, _ = self.completed_review(record, receipt, stopped_pids=[])
         result = self.recover(record, review)
-        self.assertEqual(result["runs"][-1]["artifact_stamps"], original_stamps)
+        self.assertEqual(qualification.observation(result["runs"][-1])["artifact_stamps"], original_stamps)
         self.assertIsNone(result["running"])
         self.assertEqual(self.counter.read_text(), "1")
 
