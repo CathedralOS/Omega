@@ -189,10 +189,7 @@ retired-syntax deletions to completion.
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
-    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)
-    and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
-    on Linux/Windows without rebuilding `proven_predicates_grant_domain`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
+    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
