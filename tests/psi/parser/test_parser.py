@@ -1676,7 +1676,7 @@ def machine_form_cases(program: str) -> None:
         ("contract-end", b"machine f<machine F>() requires machine F() x {}", 166, b"x", 1, {"generic_parameter_count": 1}),
         ("nominal-contract-takes-no-binding", b"machine f<machine F>() requires machine F satisfies H::c via b; {}",
          166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
-        ("contract-after-clause", b"machine f() requires a requires machine F(); {}", 105, b"where", 1,
+        ("contract-after-clause", b"machine f() requires a requires machine F(); {}", 105, b"requires", 2,
          {"expression_count": 1}),
         ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
         ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),
@@ -1715,7 +1715,7 @@ def machine_form_cases(program: str) -> None:
     assert status == 0 and len(decode(payload).contracts) == 256, "256 contracts"
     over = b"machine f() " + b"requires machine F; " * 257 + b"{}"
     start = len(b"machine f() ") + 256 * len(b"requires machine F; ")
-    rejected(program, "contract-capacity-plus-one", over, 167, (start, start + 5), root_count=0)
+    rejected(program, "contract-capacity-plus-one", over, 167, (start, start + len(b"requires")), root_count=0)
     exact = b"let x: u8 = 0;\n" * 256
     status, payload = run(program, exact)
     assert status == 0 and len(decode(payload).definitions) == 256, "256 definitions"
