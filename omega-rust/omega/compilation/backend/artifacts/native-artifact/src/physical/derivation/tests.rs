@@ -34,16 +34,25 @@ use optimization_core::OptimizedBoundaryOccurrenceIdentity;
 use optimization_core::OptimizedOperatorOccurrenceIdentity;
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
+use semantic_vocabulary::MachineId;
 use semantic_vocabulary::ScalarType;
 use target::NativeTarget;
-use terminal_psi::{SemanticFingerprint, VocabularyMarker};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+
+/// The canonical test terminal and its one machine: every derivation fixture
+/// below keys off this exact pair, so the fingerprint is the only variable.
+fn fixture_terminal(program_fingerprint: [u8; 32]) -> (TerminalPsiIdentity, MachineId) {
+    (
+        TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes(program_fingerprint),
+        },
+        MachineId::new(1).expect("machine"),
+    )
+}
 
 fn physical_projection() -> NativeOptimizationProjection {
-    let terminal = terminal_psi::TerminalPsiIdentity {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        program_fingerprint: SemanticFingerprint::from_bytes([19; 32]),
-    };
-    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let (terminal, machine) = fixture_terminal([19; 32]);
     let operator = optimized_operator_occurrence(
         terminal,
         machine,
@@ -88,11 +97,7 @@ fn exact_coordinates(projection: &NativeOptimizationProjection) -> [PhysicalChil
 
 #[test]
 fn equal_boundary_requirements_at_distinct_operations_have_distinct_occurrences() {
-    let terminal = terminal_psi::TerminalPsiIdentity {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
-    };
-    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let (terminal, machine) = fixture_terminal([7; 32]);
     let boundary = semantic_vocabulary::BoundaryMachineId::new(2).expect("boundary");
     let first = boundary_occurrence_identity(
         terminal,
@@ -114,11 +119,7 @@ fn equal_boundary_requirements_at_distinct_operations_have_distinct_occurrences(
 
 #[test]
 fn operator_occurrence_identity_binds_exact_terminal_operation() {
-    let terminal = terminal_psi::TerminalPsiIdentity {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        program_fingerprint: SemanticFingerprint::from_bytes([11; 32]),
-    };
-    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let (terminal, machine) = fixture_terminal([11; 32]);
     let first = operator_occurrence_identity(
         terminal,
         machine,
@@ -1304,11 +1305,7 @@ fn physical_child_identity_binds_every_retained_field() {
         PhysicalRelocationDisposition,
     };
 
-    let terminal = terminal_psi::TerminalPsiIdentity {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
-    };
-    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let (terminal, machine) = fixture_terminal([7; 32]);
     let operation = OperationId::new(41).expect("operation");
     let demands = TerminalBoundaryApplicationDemands::new(
         terminal,
@@ -1831,11 +1828,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
 /// occurrence rather than a boundary child.
 #[test]
 fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
-    let terminal = terminal_psi::TerminalPsiIdentity {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        program_fingerprint: SemanticFingerprint::from_bytes([19; 32]),
-    };
-    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let (terminal, machine) = fixture_terminal([19; 32]);
     let operator = optimized_operator_occurrence(
         terminal,
         machine,
