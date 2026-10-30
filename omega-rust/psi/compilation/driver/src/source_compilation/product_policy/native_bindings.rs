@@ -193,16 +193,15 @@ impl SourceContinuation {
         declarations: &[CapturedNativeDeclaration],
         intents: &[CapturedNativeIntent],
     ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-        let mut joined = Vec::with_capacity(declarations.len());
+        // A declaration-only request has no supplying telescope to reify.
+        // Resolve it under the original package/stratum custody, independently
+        // of whether its erased Build author belongs to the receiving program.
         for declaration in declarations {
-            let (request, author) = rejoin_declaration(self.typed(), declaration)?;
-            self.prepare_native_request(
-                &request,
-                author,
+            self.prepare_captured_native_request(
+                declaration,
                 None,
                 ProductApplicationDemand::FormationOnly,
             )?;
-            joined.push((request, author));
         }
         let mut prepared = Vec::with_capacity(intents.len());
         for (event_ordinal, intent) in intents.iter().enumerate() {
@@ -213,29 +212,95 @@ impl SourceContinuation {
                         "captured native effect lost its exact declaration",
                     )]
                 })?;
-            let (request, author) = &joined[intent.declaration as usize];
-            let environment = intent
-                .static_environment
-                .as_deref()
-                .map(|environment| rejoin_environment(self.typed(), declaration, environment))
-                .transpose()?;
-            let (application, table) = self.prepare_native_request(
-                request,
-                *author,
-                environment.as_ref(),
+            let (application, table) = self.prepare_captured_native_request(
+                declaration,
+                intent.static_environment.as_deref(),
                 ProductApplicationDemand::Selected,
             )?;
+            let source_span = self
+                .typed()
+                .symbols
+                .symbol_provenance_source_span(application.requirement)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "captured native requirement lost its receiving source",
+                    )]
+                })?;
             prepared.push(PreparedNativeIntent {
                 application,
                 table,
                 declaration: declaration.clone(),
                 target: intent.target,
                 intent: intent.intent.clone(),
-                source_span: request.source_span,
+                source_span,
                 event_ordinal,
             });
         }
         native_bindings::collect(self.typed(), &prepared)
+    }
+
+    fn prepare_captured_native_request(
+        &mut self,
+        declaration: &CapturedNativeDeclaration,
+        environment: Option<&ProductStaticEnvironment>,
+        demand: ProductApplicationDemand,
+    ) -> Result<(NativeRequirementApplication, Option<NativeTableField>), Vec<Diagnostic>> {
+        let request = &declaration.request;
+        request
+            .validate_shape()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if request
+            .operands
+            .iter()
+            .any(|operand| operand.application.is_some())
+        {
+            let (request, author) = rejoin_declaration(self.typed(), declaration)?;
+            let environment = environment
+                .map(|environment| rejoin_environment(self.typed(), declaration, environment))
+                .transpose()?;
+            return self.prepare_native_request(&request, author, environment.as_ref(), demand);
+        }
+        let resolve =
+            |operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+             role| {
+                typed_trees::product_operand::resolve_captured_product_path(
+                self.typed(), &operand.path, declaration.producer.package,
+                declaration.resolution_stratum, role,
+            ).ok_or_else(|| vec![Diagnostic::error(format!(
+                "captured native operand `{}` is not one visible declaration in its original supplier scope",
+                operand.path,
+            ))])
+            };
+        let requirement = resolve(
+            &request.operands[0],
+            language_semantics::declaration_selection::ProductOperandRole::Requirement,
+        )?;
+        native_bindings::requirement_owner(self.typed(), requirement)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let table = request.operands.get(1).map(|operand| {
+            let field = resolve(operand, language_semantics::declaration_selection::ProductOperandRole::TableField)?;
+            let typed = self.typed();
+            let (table, field_definition) = typed.data_definitions().iter().find_map(|definition| {
+                typed.data_members(definition).iter().filter_map(|member| member.as_field())
+                    .find(|candidate| candidate.symbol == field).map(|field| (definition.symbol, field))
+            }).ok_or_else(|| vec![Diagnostic::error("captured native field lost its exact table")])?;
+            if field_definition.relevance.is_erased()
+                || typed.primitive_type_reference(field_definition.type_reference)
+                    != Some(typed_trees::types::PrimitiveType::Addr)
+            {
+                return Err(vec![Diagnostic::error("native table dispatch requires a runtime addr field")]);
+            }
+            Ok(NativeTableField { table, field, drops_receiver:
+                request.operation == language_semantics::declaration_selection::BuildOperation::NativeTableFunction })
+        }).transpose()?;
+        Ok((
+            NativeRequirementApplication {
+                requirement,
+                closed_requirement: None,
+                trait_scope: None,
+            },
+            table,
+        ))
     }
 }
 

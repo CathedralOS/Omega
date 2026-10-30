@@ -82,6 +82,39 @@ pub fn resolve_product_path(
     )
 }
 
+/// Resolve an inert declaration from its authenticated completed-Build scope.
+/// This does not import the supplier's Build author into Product execution.
+pub fn resolve_captured_product_path(
+    typed: &TypedTrees,
+    path: &str,
+    package: semantic_vocabulary::PackageKeyIdentity,
+    stratum: source::SourceResolutionStratum,
+    kind: ProductOperandKind,
+) -> Option<SymbolHandle> {
+    let program = typed.product_declarations();
+    let candidates = if kind == ProductOperandKind::TableField {
+        program
+            .data_definitions()
+            .iter()
+            .flat_map(|definition| {
+                program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(move |member| {
+                        member
+                            .as_field()
+                            .map(|field| (field.symbol, definition.is_public))
+                    })
+            })
+            .collect()
+    } else {
+        product_candidates(program, kind)?
+    };
+    program
+        .symbols
+        .find_captured_product_declaration(path, package, stratum, candidates)
+}
+
 /// Explain a refused designation without resolving another declaration or
 /// granting access. The current and frozen description views can differ while
 /// Product sources are being joined; diagnostics retain that distinction.
