@@ -1105,99 +1105,108 @@ pub(super) fn captured_argument_write_regions(
     let references = captured
         .as_ref()
         .and_then(|origins| origins.references.as_deref());
-    if validation::reference_shell(program, parameter_type).is_none() {
-        let actual = *call_site_argument_expressions(program, site).get(position)?;
-        let mut regions = Vec::new();
-        for projection in crate::flow::literal_expression_projections(
-            program,
-            actual,
-            parameter_type,
-            relative,
-            false,
-        )? {
-            let projected_type = validation::project_type_reference_from_segments(
+    let result = (|| {
+        if validation::reference_shell(program, parameter_type).is_none() {
+            let actual = *call_site_argument_expressions(program, site).get(position)?;
+            let mut regions = Vec::new();
+            for projection in crate::flow::literal_expression_projections(
                 program,
+                actual,
                 parameter_type,
-                &projection.destination,
-            )?;
-            let projected_regions =
-                if validation::reference_shell(program, projected_type).is_some() {
-                    resolver
-                        .reference_operand_write_sources(
-                            machine,
+                relative,
+                false,
+            )? {
+                let projected_type = validation::project_type_reference_from_segments(
+                    program,
+                    parameter_type,
+                    &projection.destination,
+                )?;
+                let projected_regions =
+                    if validation::reference_shell(program, projected_type).is_some() {
+                        resolver
+                            .reference_operand_write_sources(
+                                machine,
+                                projection.expression,
+                                projected_type,
+                            )?
+                            .iter()
+                            .map(|source| {
+                                super::local_origins::write_source_region(
+                                    program,
+                                    state,
+                                    statement_index,
+                                    source,
+                                    &projection.remaining,
+                                )
+                            })
+                            .collect::<Option<Vec<_>>>()?
+                    } else {
+                        let mut place = canonical_place_from_expression_in_state(
+                            program,
+                            state_symbol,
+                            statement_index,
                             projection.expression,
-                            projected_type,
-                        )?
-                        .iter()
-                        .map(|source| {
-                            super::local_origins::write_source_region(
-                                program,
-                                state,
-                                statement_index,
-                                source,
-                                &projection.remaining,
-                            )
-                        })
-                        .collect::<Option<Vec<_>>>()?
-                } else {
-                    let mut place = canonical_place_from_expression_in_state(
+                        )?;
+                        place.segments.extend_from_slice(&projection.remaining);
+                        vec![StorageRegion::Declared(place)]
+                    };
+                for region in projected_regions {
+                    for region in rebase_projected_call_region(
                         program,
                         state_symbol,
                         statement_index,
-                        projection.expression,
-                    )?;
-                    place.segments.extend_from_slice(&projection.remaining);
-                    vec![StorageRegion::Declared(place)]
-                };
-            for region in projected_regions {
-                for region in rebase_projected_call_region(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    region,
-                    projected_type,
-                    &projection.remaining,
-                    destination,
-                    references,
-                    call_frames,
-                )? {
-                    crate::collections::push_unique(&mut regions, region);
+                        region,
+                        projected_type,
+                        &projection.remaining,
+                        destination,
+                        references,
+                        call_frames,
+                    )? {
+                        crate::collections::push_unique(&mut regions, region);
+                    }
                 }
             }
+            return Some(regions);
         }
-        return Some(regions);
+        let origins = captured.as_ref()?;
+        let mut places = Vec::new();
+        for source in origins.arguments.get(position)?.as_ref()? {
+            let projected = super::local_origins::write_source_region(
+                program,
+                state,
+                statement_index,
+                source,
+                relative,
+            )?;
+            if matches!(projected, StorageRegion::Declared(_))
+                && !storage_place_has_declared_identity(projected.anchor())
+            {
+                return None;
+            }
+            let rebased = rebase_projected_call_region(
+                program,
+                state_symbol,
+                statement_index,
+                projected,
+                parameter_type,
+                relative,
+                destination,
+                references,
+                call_frames,
+            )?;
+            for place in rebased {
+                crate::collections::push_unique(&mut places, place);
+            }
+        }
+        Some(places)
+    })();
+    if result.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "CHECKSITE captured-write-projection-refusal machine={} state={} statement={statement_index} position={position} parameter={parameter_type:?} relative={relative:?} destination={destination:?} captured={captured:?}",
+            machine.name, state.name
+        );
     }
-    let origins = captured.as_ref()?;
-    let mut places = Vec::new();
-    for source in origins.arguments.get(position)?.as_ref()? {
-        let projected = super::local_origins::write_source_region(
-            program,
-            state,
-            statement_index,
-            source,
-            relative,
-        )?;
-        if matches!(projected, StorageRegion::Declared(_))
-            && !storage_place_has_declared_identity(projected.anchor())
-        {
-            return None;
-        }
-        let rebased = rebase_projected_call_region(
-            program,
-            state_symbol,
-            statement_index,
-            projected,
-            parameter_type,
-            relative,
-            destination,
-            references,
-            call_frames,
-        )?;
-        for place in rebased {
-            crate::collections::push_unique(&mut places, place);
-        }
-    }
-    Some(places)
+    result
 }
 
 /// Rebase the selected source coordinate with its genuine receiving mode.
