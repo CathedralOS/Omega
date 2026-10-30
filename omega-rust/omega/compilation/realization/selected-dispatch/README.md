@@ -30,6 +30,13 @@ to execute.
 Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
+Callback roots use [source preparation](../provider-planning/src/callback_roots.rs)
+followed by [source-free selection](../provider-selection/src/callback_roots.rs).
+Psi classifies the original nominal declarations; preparation retains whole-set
+checked-instance admission and exact selected-row/calling-plan correspondence.
+Selection owns entry/cardinality diagnostics and which roots survive, preserving
+dormant uses and duplicate occurrence order. This is not native ABI placement or
+a claim that checked-instance preparation is already Terminal-only.
 Checked-provider binding prepares exact service declaration/schema records once.
 Resolved semantic bindings retain those records without source symbols; role and
 permission settlement read them directly. The invocation's catalog provides local

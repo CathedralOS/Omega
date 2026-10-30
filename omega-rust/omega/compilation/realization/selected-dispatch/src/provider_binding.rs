@@ -105,10 +105,9 @@ pub fn prepare_selected_execution(
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let callback_roots = provider_planning::calling_policy_plans::select_nominal_callback_roots(
-        &program.typed,
+    let callback_roots = provider_planning::callback_roots::prepare(
+        &program,
         &selected_provider_plan_facts,
-        &program.facts,
         settlement.boundary_calling_plan_realizations,
     )?;
     let service_declarations = Arc::new(
