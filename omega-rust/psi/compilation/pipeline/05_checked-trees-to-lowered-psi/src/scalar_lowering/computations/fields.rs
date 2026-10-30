@@ -52,6 +52,7 @@ use crate::expression_preparation::bindings::place_observations::{
     PlaceObservationCapture, PrimitiveObservation, byte_overlay_read,
 };
 use crate::scalar_lowering::branch_states::structural_values;
+use crate::terminal_identities::stored_structural_identity;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
@@ -916,12 +917,7 @@ pub(crate) fn prepare(
                     // Storage shares the owner's carrier namespace, not its
                     // qualified theory. The computation retains source_type;
                     // this lookup neither forgets nor establishes membership.
-                    let root_identity = validation::stored_structural_type_identity(
-                        &checked.typed,
-                        *source_type,
-                        &[],
-                        &[],
-                    );
+                    let root_identity = stored_structural_identity(checked, *source_type);
                     let mut declarations = types.iter().filter(|declaration| {
                         declaration.identity
                             == identities.intern(

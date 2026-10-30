@@ -5,6 +5,7 @@
 //! do not recursively expand reference edges in the type catalog. A caller that
 //! happens to construct the referent must not supply an isolated callee's types.
 use super::*;
+use crate::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan as Source,
     CheckedUnitStructuralPathSegment as Segment,
@@ -171,12 +172,7 @@ fn collect_scope<'plans>(
                     // completed values retain a descriptor and an explicit
                     // crossing. Do not peel another reference before walking.
                     if subject.path.contains(&Segment::Referent) {
-                        let identity = validation::stored_structural_type_identity(
-                            &checked.typed,
-                            *source_type,
-                            &[],
-                            &[],
-                        );
+                        let identity = stored_structural_identity(checked, *source_type);
                         collector.roots.push(identity);
                         collect_path(
                             collector.checked,
@@ -349,12 +345,7 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
                     selected.path.extend_from_slice(path);
                     self.argument(Some(value.statement_index), &selected, namespace)?;
                 } else {
-                    let identity = validation::stored_structural_type_identity(
-                        &self.checked.typed,
-                        source.type_reference,
-                        &[],
-                        &[],
-                    );
+                    let identity = stored_structural_identity(&self.checked, source.type_reference);
                     self.roots.push(identity);
                     collect_path(self.checked, self.plans, identity, path, self.roots)
                         .map_err(|error| self.at_statement(Some(value.statement_index), error))?;
@@ -398,12 +389,7 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
             && matches!(path.first(), Some(Segment::Referent))
             && let Some(local) = self.checked.facts.state_locals.named(self.state, symbol)
         {
-            let carrier = validation::stored_structural_type_identity(
-                &self.checked.typed,
-                local.declared_type,
-                &[],
-                &[],
-            );
+            let carrier = stored_structural_identity(&self.checked, local.declared_type);
             if carrier != root
                 && matches!(selected_declaration(self.plans, carrier)?.shape,
                     CheckedUnitStructuralTypeShape::Reference { referent_identity, .. } if referent_identity == root)
@@ -475,14 +461,7 @@ fn source_type(
                         expression,
                     )
             })
-            .map(|root| {
-                validation::stored_structural_type_identity(
-                    &checked.typed,
-                    root.type_reference,
-                    &[],
-                    &[],
-                )
-            }),
+            .map(|root| stored_structural_identity(checked, root.type_reference)),
         Source::ByteSequenceSubslice { root, .. } | Source::ElementViewSubslice { root, .. } => {
             match root {
                 checked_trees::CheckedStorageRoot::Parameter { index } => parameters

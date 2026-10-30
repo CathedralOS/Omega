@@ -1,5 +1,6 @@
 //! Unit construction supplies completed operands to the shared call emitter.
 use super::*;
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 impl Emission<'_, '_, '_> {
     pub(super) fn quotient_call(
@@ -13,12 +14,7 @@ impl Emission<'_, '_, '_> {
             let child = self.structural_value_node(*argument);
             let ty = lookup_type_id(
                 self.type_ids,
-                &validation::stored_structural_type_identity(
-                    &self.checked.typed,
-                    child.type_reference,
-                    &[],
-                    &[],
-                ),
+                &stored_structural_identity(&self.checked, child.type_reference),
             )?;
             let ValueOutcome::Normal(child) =
                 self.child_constructor_operand(identities, ty, *argument, child.type_reference)?

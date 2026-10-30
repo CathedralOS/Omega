@@ -7,6 +7,7 @@
 
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::expression_preparation::computation_graph::produced_value_root;
+use crate::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
     CheckedStructuralValueHandle, CheckedUnitStructuralArgumentSourcePlan, FlowCallFact,
@@ -85,12 +86,7 @@ pub(crate) fn prepare(
             // owns a descriptor; peeling its shell would reserve the referent
             // home and invalidate the checked Referent path. Authority and
             // ordinary operands retain their distinct occurrence identities.
-            let identity = validation::stored_structural_type_identity(
-                &checked.typed,
-                root.type_reference,
-                &[],
-                &[],
-            );
+            let identity = stored_structural_identity(checked, root.type_reference);
             let declaration = crate::terminal_identities::structural_declaration_by_identity(
                 types,
                 identities,

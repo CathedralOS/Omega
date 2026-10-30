@@ -10,6 +10,7 @@ use super::{OperationFrame, StructuralResults, StructuralTypeRoster, allocate_st
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralDomainId,
@@ -1067,12 +1068,7 @@ impl OperationFrame<'_, '_> {
                         local.statement_index < statement_index
                             // Rebinding replaces the stored carrier, not the
                             // borrowed referent exposed by argument presentation.
-                            && validation::stored_structural_type_identity(
-                                &self.checked.typed,
-                                local.declared_type,
-                                &[],
-                                &[],
-                            ) == type_identity
+                            && stored_structural_identity(&self.checked, local.declared_type) == type_identity
                     })
                 {
                     return unsupported(
@@ -1107,12 +1103,8 @@ impl OperationFrame<'_, '_> {
                         .is_some_and(|shell| {
                             shell.access == language_semantics::ReferenceAccess::Shared
                         })
-                    && validation::stored_structural_type_identity(
-                        &self.checked.typed,
-                        formal.type_reference,
-                        &[],
-                        &[],
-                    ) == type_identity
+                    && stored_structural_identity(&self.checked, formal.type_reference)
+                        == type_identity
                 {
                     // The signature keeps its borrowed ingress. Only the
                     // body's current binding adopts the completed descriptor

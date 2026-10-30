@@ -18,6 +18,7 @@ use super::{
     content_conservation, dense_identity, lookup_domain_id, lookup_service_id, lookup_type_id,
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
+use crate::terminal_identities::stored_structural_identity;
 use crate::terminal_identities::{
     BYTE_VIEW_ELEMENT_TYPE_IDENTITY, StructuralDomainBinding, lookup_domain_id_for_carrier,
     service_declaration_identity, structural_domain_identity,
@@ -48,12 +49,7 @@ pub(crate) fn collect_value_roots(
     // Evaluation validates the retained carrier before producing children.
     // Its declaration is needed independently of a receiving result binding:
     // a stopped constructor or selected branch never publishes such a value.
-    roots.push(validation::stored_structural_type_identity(
-        &checked.typed,
-        node.type_reference,
-        &[],
-        &[],
-    ));
+    roots.push(stored_structural_identity(checked, node.type_reference));
     match &node.kind {
         checked_trees::CheckedStructuralValueKind::Reference {
             source,
@@ -87,12 +83,7 @@ pub(crate) fn collect_value_roots(
         }
         checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. } => {
             let child = checked.facts.values.structural_values.nodes.get(*source);
-            roots.push(validation::stored_structural_type_identity(
-                &checked.typed,
-                child.type_reference,
-                &[],
-                &[],
-            ));
+            roots.push(stored_structural_identity(checked, child.type_reference));
             collect_value_roots(checked, *source, roots)?;
         }
         checked_trees::CheckedStructuralValueKind::Place(source)
@@ -113,11 +104,9 @@ pub(crate) fn collect_value_roots(
         } => {
             roots.push(*type_identity);
             let source_node = checked.facts.values.structural_values.nodes.get(*source);
-            roots.push(validation::stored_structural_type_identity(
-                &checked.typed,
+            roots.push(stored_structural_identity(
+                checked,
                 source_node.type_reference,
-                &[],
-                &[],
             ));
             collect_value_roots(checked, *source, roots)?;
         }
@@ -160,12 +149,7 @@ pub(crate) fn collect_value_roots(
                         checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
                             | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
                     ) {
-                        roots.push(validation::stored_structural_type_identity(
-                            &checked.typed,
-                            field.type_reference,
-                            &[],
-                            &[],
-                        ));
+                        roots.push(stored_structural_identity(checked, field.type_reference));
                     }
                     collect_value_roots(checked, nested, roots)?;
                 }
@@ -180,12 +164,7 @@ pub(crate) fn collect_value_roots(
             let captured = subject.structural_value();
             if captured.is_valid() {
                 let source = checked.facts.values.structural_values.nodes.get(captured);
-                roots.push(validation::stored_structural_type_identity(
-                    &checked.typed,
-                    source.type_reference,
-                    &[],
-                    &[],
-                ));
+                roots.push(stored_structural_identity(checked, source.type_reference));
                 collect_value_roots(checked, captured, roots)?;
             }
             for arm in checked
