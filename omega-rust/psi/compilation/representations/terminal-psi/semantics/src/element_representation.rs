@@ -4,6 +4,7 @@
 //! supplies its declared leaf restrictions; shared observation preserves them
 //! by containment, and mutable observation requires equal sets of stored bits.
 //! Padding stays padding, and source/target paths remain separate identities.
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{BoundedIntegerType, IntegerValue, ScalarType, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
@@ -80,11 +81,7 @@ pub fn element_representation_layout<'a>(
         if active.len() >= 128 || active.contains(&element) {
             return None;
         }
-        let mut rows = types.clone().filter(|row| row.id == element);
-        let row = rows.next()?;
-        if rows.next().is_some() {
-            return None;
-        }
+        let row = exactly_one(types.clone(), |row| row.id == element)?;
         active.push(element);
         let mut layout = match &row.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => scalar_layout(*scalar, None)?,

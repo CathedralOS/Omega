@@ -1,5 +1,6 @@
 //! Canonical carrier addresses authenticated against the actual type catalog.
 use super::{DescriptorLocation, DescriptorPathSegment};
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralFieldId, StructuralTypeId,
 };
@@ -233,13 +234,9 @@ fn resolved_path(
                     Some(fields) => fields,
                     None => fields(declaration)?,
                 };
-                let mut matching = fields
-                    .iter()
-                    .filter(|field| field.id == *id && !field.relevance.is_erased());
-                let field = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
+                let field = exactly_one(fields.iter(), |field| {
+                    field.id == *id && !field.relevance.is_erased()
+                })?;
                 tip = match field.field_type {
                     StructuralFieldType::Structural(id) => Some(id),
                     // An inline scalar still has its complete leaf contract.

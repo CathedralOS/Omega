@@ -2,6 +2,7 @@
 //! independently identified obligation kinds and actual case evidence. A path
 //! is geometry, never custody; cleanup ordering and claim retirement remain
 //! with their consuming transactions.
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
@@ -254,11 +255,7 @@ fn selected_children(
         StructuralTypeShape::Record { fields: common, .. } => fields(common, path),
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
             if case_payload_required {
-                let mut matches = cases.iter().filter(|case| selected(path, case.id));
-                let case = matches.next()?;
-                if matches.next().is_some() {
-                    return None;
-                }
+                let case = exactly_one(cases.iter(), |case| selected(path, case.id))?;
                 let mut payload_path = path.to_vec();
                 payload_path.push(StructuralPathSegment::Case(case.id));
                 fields(&case.fields, &payload_path);

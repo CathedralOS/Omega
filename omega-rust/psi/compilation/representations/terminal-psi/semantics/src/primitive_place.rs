@@ -29,6 +29,7 @@
 //! path; observing a refined IEEE field transports its predicate rather than
 //! inventing a reflexive IEEE equality that would fail for NaN.
 
+use crate::exactly_one::exactly_one;
 use crate::static_path::canonical_structural_path_tip;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
@@ -96,11 +97,7 @@ pub fn fixed_array_place_shape<'a>(
     else {
         return None;
     };
-    let mut matching = declarations.filter(|declaration| declaration.id == element);
-    let element_declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
+    let element_declaration = exactly_one(declarations, |declaration| declaration.id == element)?;
     match element_declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, length)),
         _ => None,
@@ -772,11 +769,7 @@ fn walk_primitive_projection_with_policy<'a>(
                 return None;
             }
             let cases = declaration.shape.sum_cases()?;
-            let mut matching = cases.iter().filter(|candidate| candidate.id == *case);
-            let selected = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
+            let selected = exactly_one(cases.iter(), |candidate| candidate.id == *case)?;
             payload_fields = Some(selected.fields.as_slice());
             step(Some(CanonicalStructuralPathSegment::Case(*case)));
             continue;

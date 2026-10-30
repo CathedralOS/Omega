@@ -1,4 +1,5 @@
 use super::*;
+use crate::exactly_one::exactly_one;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -110,11 +111,7 @@ impl<'a> Replay<'a> {
         machine: &'a DescriptorMachine,
         root: PlaceId,
     ) -> Option<(usize, StructuralAccess, StructuralTypeId)> {
-        let mut rows = machine.places.iter().filter(|row| row.place == root);
-        let row = rows.next()?;
-        if rows.next().is_some() {
-            return None;
-        }
+        let row = exactly_one(machine.places.iter(), |row| row.place == root)?;
         match row.definition {
             DescriptorDefinition::Parameter {
                 position,

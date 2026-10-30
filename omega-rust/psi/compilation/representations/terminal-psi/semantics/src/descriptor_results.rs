@@ -5,6 +5,7 @@
 //! Operation verification still checks access, initialization, bounds and order.
 //! An unresolved or recursive origin supplies no permission to escape storage.
 
+use crate::exactly_one::exactly_one;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind, StructuralTypeId};
@@ -714,13 +715,9 @@ pub fn aggregate_descriptor_slots(
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Option<Vec<DescriptorLocation>> {
-    let mut matching = types
-        .iter()
-        .filter(|declaration| declaration.id == structural_type);
-    let declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
+    let declaration = exactly_one(types.iter(), |declaration| {
+        declaration.id == structural_type
+    })?;
     if matches!(
         declaration.shape,
         StructuralTypeShape::Record { .. }
@@ -757,11 +754,7 @@ fn terminal_graph_closure(
         if reached.contains_key(&identity) {
             continue;
         }
-        let mut bodies = module.machines.iter().filter(|body| body.id == identity);
-        let body = bodies.next()?;
-        if bodies.next().is_some() {
-            return None;
-        }
+        let body = exactly_one(module.machines.iter(), |body| body.id == identity)?;
         let graph = terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], None)?;
         for call in graph.calls.values() {
             match &call.target {
