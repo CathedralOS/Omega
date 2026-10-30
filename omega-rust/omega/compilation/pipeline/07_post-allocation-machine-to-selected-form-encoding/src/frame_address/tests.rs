@@ -93,6 +93,27 @@ fn fixture() -> (
     (function, frame, instruction)
 }
 
+/// Bind one local slot's identity and geometry into both rosters a case
+/// states: the selected slot and the placed layout row it must agree with.
+fn place_local_slot(
+    function: &mut PostAllocationMachineFunction,
+    frame: &mut TargetFrameLayoutPlan,
+    slot: LocalStorageSlotId,
+    (offset, size, alignment): (u64, u32, u16),
+) {
+    function.local_storage_slots[0] = SelectedLocalStorageSlot {
+        id: slot,
+        byte_size: size,
+        alignment,
+    };
+    frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
+        id: slot,
+        frame_offset_bytes: offset,
+        size_bytes: size,
+        alignment_bytes: alignment,
+    };
+}
+
 /// One substituted frame proposal must fail the replay's address equation:
 /// each mutation below states a proposal the producer would not have derived,
 /// and the replay rejects it without re-running that derivation.
@@ -269,17 +290,7 @@ fn floating_control_frame_custody_rejects_slot_geometry_and_address_substitution
         let slot = LocalStorageSlotId::Boundary {
             operation: OperationId::new(3).unwrap(),
         };
-        function.local_storage_slots[0] = SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 8,
-            alignment: 8,
-        };
-        frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
-            id: slot,
-            frame_offset_bytes: 8,
-            size_bytes: 8,
-            alignment_bytes: 8,
-        };
+        place_local_slot(&mut function, &mut frame, slot, (8, 8, 8));
         frame.functions[0].outgoing_abi_area.byte_size = 8;
         frame.functions[0].stable_address_loans.clear();
         instruction.address = Some(if restore {
@@ -367,17 +378,7 @@ fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
     let slot = LocalStorageSlotId::Boundary {
         operation: OperationId::new(3).unwrap(),
     };
-    function.local_storage_slots[0] = SelectedLocalStorageSlot {
-        id: slot,
-        byte_size: 1,
-        alignment: 1,
-    };
-    frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
-        id: slot,
-        frame_offset_bytes: 0,
-        size_bytes: 1,
-        alignment_bytes: 1,
-    };
+    place_local_slot(&mut function, &mut frame, slot, (0, 1, 1));
     instruction.address = Some(Address::HostedWriteByteI32 { slot });
     let resolved = resolve(&function, Some(&frame), &instruction).unwrap();
     validate_address(&function, Some(&frame), &instruction, resolved).unwrap();
@@ -552,10 +553,7 @@ fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
     let slot = LocalStorageSlotId::Spill {
         register: selected_instructions::VirtualRegisterId(7),
     };
-    function.local_storage_slots[0].id = slot;
-    function.local_storage_slots[0].byte_size = 8;
-    frame.functions[0].local_storage_slots[0].id = slot;
-    frame.functions[0].local_storage_slots[0].size_bytes = 8;
+    place_local_slot(&mut function, &mut frame, slot, (0, 8, 8));
     // The whole addressed extent lives below the unadjusted entry RSP: the
     // prologue commits nothing and the return address sits at RSP+0.
     frame.functions[0].frame_size_bytes = 8;
@@ -626,15 +624,7 @@ fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
     let boundary = LocalStorageSlotId::Boundary {
         operation: OperationId::new(3).unwrap(),
     };
-    function.local_storage_slots[0].id = boundary;
-    function.local_storage_slots[0].byte_size = 1;
-    function.local_storage_slots[0].alignment = 1;
-    frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
-        id: boundary,
-        frame_offset_bytes: 0,
-        size_bytes: 1,
-        alignment_bytes: 1,
-    };
+    place_local_slot(&mut function, &mut frame, boundary, (0, 1, 1));
     instruction.address = Some(Address::HostedWriteByteI32 { slot: boundary });
     assert!(resolve(&function, Some(&frame), &instruction).is_err());
     assert_rejected(
@@ -658,10 +648,7 @@ fn compiler_spill_slot_addresses_bind_register_identity_and_exact_store_bounds()
     let slot = LocalStorageSlotId::Spill {
         register: selected_instructions::VirtualRegisterId(7),
     };
-    function.local_storage_slots[0].id = slot;
-    function.local_storage_slots[0].byte_size = 8;
-    frame.functions[0].local_storage_slots[0].id = slot;
-    frame.functions[0].local_storage_slots[0].size_bytes = 8;
+    place_local_slot(&mut function, &mut frame, slot, (0, 8, 8));
     instruction.address = Some(Address::Store64 {
         slot: FrameStorageSlotId::Local(slot),
         byte_offset: 0,
