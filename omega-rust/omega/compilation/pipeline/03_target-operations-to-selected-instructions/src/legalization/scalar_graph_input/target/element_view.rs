@@ -33,6 +33,11 @@ impl Checker<'_> {
             source,
             self.types.iter(),
         ) else {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE element-audit missing-backing source={source:?} view={view:?}"
+                );
+            }
             return false;
         };
         if !matches!(
@@ -189,6 +194,28 @@ impl Checker<'_> {
                     }
                     _ => false,
                 };
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE element-audit established source={source:?} argument={argument:?} actual={actual:?} backing={backing} accessible={} window={} view={view:?}",
+                        optimization_unit_semantics::descriptor_argument_accessible(
+                            self.optimized,
+                            argument,
+                            self.types,
+                            argument.access
+                        ),
+                        self.established_element_window(
+                            *root_structural_type,
+                            &argument.path,
+                            *element,
+                            *source_byte_offset,
+                            indices,
+                            *extent,
+                            *element_stride,
+                            expected_region,
+                            argument.access
+                        )
+                    );
+                }
                 *place == source
                     && access(argument.access)
                     && backing
@@ -468,6 +495,16 @@ impl Checker<'_> {
         let collection = projected.shape;
         let offset = projected.offset;
         let elements = projected.elements;
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE element-window root={root_structural_type:?} path={path:?} collection={collection:?} offset={offset} elements={elements:?} indices={indices:?} runtime={} extent={extent:?} stride={element_stride}",
+                super::unit::runtime_indices_rejoin(
+                    indices,
+                    &elements,
+                    self.available.unwrap_or(&[])
+                )
+            );
+        }
         if !super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&[])) {
             return false;
         }

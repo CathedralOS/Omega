@@ -1142,6 +1142,11 @@ pub(super) fn validate_operation(
                 || !matches!(view, target_operations::TargetElementView::Established { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.element_view(view, *destination, &[])
             {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE established-element-audit target={target:?} abstract={abstracted:?} sources={sources:?} parameters={parameters:?}"
+                    );
+                }
                 return Err(LegalizationError::custody());
             }
         }
