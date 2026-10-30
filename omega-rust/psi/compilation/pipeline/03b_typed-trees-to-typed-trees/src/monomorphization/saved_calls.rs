@@ -70,12 +70,7 @@ pub(super) fn replay(
         };
         // A cloned callee may exist only in the live graph. Obtain its name
         // there, then rewrite only this saved executable occurrence.
-        let arguments = selection
-            .runtime_value_bindings
-            .iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
+        let arguments = super::runtime_value_subjects(&selection.runtime_value_bindings);
         let subjects = crate::monomorphization::body_rewriting::runtime_value_operands(
             source,
             selection.lexical_state,
