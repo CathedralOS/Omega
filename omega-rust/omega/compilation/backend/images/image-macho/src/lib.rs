@@ -91,8 +91,6 @@ pub use shared_component::{
 };
 mod code_signature;
 pub use code_signature::code_signature_identifier;
-#[cfg(test)]
-mod byte_probe;
 mod dyld_linking;
 mod entry_symbol;
 mod file_layout;
