@@ -64,6 +64,33 @@ impl Projection<'_> {
     }
 }
 
+/// Review parameters for one checked parameter sequence. Callables, trait
+/// requirements, and operator operands spell the same reviewed value parameter;
+/// only the checked list and its lifetime telescope differ per owner.
+pub(crate) fn project_signature_parameters(
+    compilation: &PackageReviewInput<'_>,
+    parameters: &[typed_trees::signature::StateParameter],
+    binders: &[(SymbolHandle, String)],
+    lifetime_binders: &[typed_trees::name::Identifier],
+) -> Result<Vec<PackageReviewSignatureParameter>, Vec<Diagnostic>> {
+    parameters
+        .iter()
+        .map(|parameter| {
+            Ok(PackageReviewSignatureParameter {
+                name: parameter.name.as_str().to_owned(),
+                type_identity: super::super::types::review_signature_type_identity_with_binders(
+                    compilation,
+                    parameter.type_reference,
+                    binders,
+                    lifetime_binders,
+                )?,
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
+            })
+        })
+        .collect()
+}
+
 pub(crate) fn project_type_parameters(
     compilation: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],

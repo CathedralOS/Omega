@@ -5,12 +5,14 @@ use crate::capture::contracts::facts::{ContractProjectionContext, project_contra
 use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,
 };
-use crate::capture::semantics::signatures::parameters::project_type_parameters;
+use crate::capture::semantics::signatures::parameters::{
+    project_signature_parameters, project_type_parameters,
+};
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewCrashRouteGuard, PackageReviewOperatorCoordinate,
-    PackageReviewOperatorShape, PackageReviewSignatureParameter,
+    PackageReviewOperatorShape,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -80,23 +82,12 @@ pub(crate) fn project_public_operators<'a>(
             declaration_path,
             &declaration.lifetime_parameters,
         )?;
-        let parameters = compilation
-            .operator_parameters(declaration)
-            .iter()
-            .map(|parameter| {
-                Ok(PackageReviewSignatureParameter {
-                    name: parameter.name.as_str().to_owned(),
-                    type_identity: review_signature_type_identity_with_binders(
-                        compilation,
-                        parameter.type_reference,
-                        &binders,
-                        &declaration.lifetime_parameters,
-                    )?,
-                    is_const: parameter.is_const,
-                    is_mutable: parameter.is_mutable,
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let parameters = project_signature_parameters(
+            compilation,
+            compilation.operator_parameters(declaration),
+            &binders,
+            &declaration.lifetime_parameters,
+        )?;
         let context = ContractProjectionContext {
             subject_kind: "public operator",
             subject_name: declaration_path,
