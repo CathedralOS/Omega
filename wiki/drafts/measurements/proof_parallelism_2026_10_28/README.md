@@ -1,8 +1,10 @@
 # Dungeon: checking parallelism and repeated arithmetic queries
 
 Measured 2026-10-28 on Windows x86_64, Ryzen 9 7950X (16 cores, 32 logical processors).
-Base: `456c5e984452a45d977295e254b3ca9ae3cc7750`. This is a measurement,
-with no compiler optimization retained and no changes to shared main.
+Base: `456c5e984452a45d977295e254b3ca9ae3cc7750`. The original study retained
+no compiler optimization. The later [CPU attribution follow-up](graph_phase_cpu/README.md)
+supports retaining clean demand-driven reference graphs on this branch; shared
+main is unchanged. Earlier entries preserve their original decisions.
 
 The real workload is `samples/cli/games/dungeon_crawler_cli/main.omg`, with
 closed stdin. Every admitted observation requires exit 0 and the authored
@@ -200,3 +202,5 @@ Follow-up: [deferred reference-graph construction](lazy_reference_graph/README.m
 Follow-up: [cold variation controls](cold_variation/README.md) compares 24 cold runs in centered four-run blocks with 12 identical-binary repeat controls and process/system telemetry. Median same-binary wall variation is 8.46%, versus a 2.29% median block improvement; lowering favors the candidate in 5/6 blocks. Large variation is established, but a smaller producer effect remains unresolved. No compiler change is retained.
 
 Follow-up: [one-binary eager/lazy graph control](same_binary_graph/README.md) fixes the compiler and accepted lock across both modes. Graph builds remain 3 -> 0, but 24 cold and 12 warm timings do not establish a repeatable whole-compile gain: cold wall is tied, cold CPU is worse in 5/6 blocks, and warm wall improves in 4/6 pairs. All 42 observations and 12 same-mode controls are retained; the candidate and diagnostic selector stay parked.
+
+Follow-up: [graph phase CPU attribution](graph_phase_cpu/README.md) measures CPU before, within and after lowering using one binary and endpoint-only host accounting. Lazy lowering CPU improves 6/6 blocks (15.11% median), and lowering plus later work improves 6/6 without a compensating downstream cost. The clean implementation is retained with fresh focused tests, exact-source production qualification and unchanged proof/runtime outcomes; diagnostic selectors/probes are removed. Some whole-process gain precedes graph construction and is not credited to it.

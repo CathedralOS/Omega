@@ -1,0 +1,25 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\gpc-0-3-eager\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.08222640000167303,
+  "cpu_seconds": 0.0625,
+  "kernel_seconds": 0.0625,
+  "user_seconds": 0.0,
+  "exit_code": 0,
+  "system_before": {
+    "idle": 1579515.15625,
+    "kernel": 1754986.796875,
+    "user": 386109.890625
+  },
+  "system_after": {
+    "idle": 1579516.921875,
+    "kernel": 1754988.953125,
+    "user": 386110.40625
+  },
+  "system_cpu_capacity_seconds": 2.671875,
+  "system_busy_seconds": 0.90625,
+  "external_busy_seconds": 0.84375,
+  "external_busy_capacity_percent": 31.57894736842105,
+  "observer": "endpoints only"
+}
