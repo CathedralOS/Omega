@@ -13,6 +13,7 @@ pub(crate) enum Halt {
     Unsupported(String),
     Trap(String),
     Resource(String),
+    StaticInputUnavailable(crate::interpreter::UnavailableStaticInput),
 }
 
 pub(super) type EvalResult<T> = Result<T, Halt>;

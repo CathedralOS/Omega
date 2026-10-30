@@ -261,7 +261,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
         .collect();
     let mut execution = domain.execution_program(typed);
     let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
-    for request in requests {
+    'application: for request in requests {
         let storage = request.storage;
         let policy_is_closed = typed_trees::domain::index_argument_is_closed(typed, storage.policy);
         let mut targets = request.targets;
@@ -414,17 +414,26 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 &mut arguments,
             )
             .map_err(fail)?;
-            let evaluation = domain
-                .accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Typed(&execution),
-                    checked_interpreter::BuildMachineEvaluationRequest::symbol(
-                        machine.symbol,
-                        arguments,
-                    ),
-                )
-                .map_err(|reason| {
-                    fail(if policy_is_closed {
+            let evaluation = match domain.accounting.evaluate(
+                checked_interpreter::BuildMachineProgram::Typed(&execution),
+                checked_interpreter::BuildMachineEvaluationRequest::symbol(
+                    machine.symbol,
+                    arguments,
+                ),
+            ) {
+                Ok(evaluation) => evaluation,
+                Err(checked_interpreter::BuildMachineEvaluationError::StaticInputUnavailable(
+                    _,
+                )) if !policy_is_closed => {
+                    // No input value or branch was invented. A semantic-only
+                    // generic body can retain this unavailable recipe, but a
+                    // physical judgment still needs established geometry.
+                    // Publish no row, including any earlier target results:
+                    // one incomplete family is not a partial realization.
+                    continue 'application;
+                }
+                Err(reason) => {
+                    return Err(fail(if policy_is_closed {
                         format!(
                             "layout policy `{}` under `{}`: {reason}",
                             machine.name, target.profile
@@ -434,8 +443,9 @@ pub(crate) fn compute_plan_laid_layouts_in(
                             "universal fixed representation `{}` under `{}` cannot establish its geometry without a bound static operand: {reason}",
                             record.application_name, target.profile
                         )
-                    })
-                })?;
+                    }));
+                }
+            };
             let layout = super::super::layout_plans::validate_plan(
                 evaluation.value(),
                 &fields,

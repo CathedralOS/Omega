@@ -45,19 +45,35 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         self.tick()?;
-        if self
-            .program
-            .static_type_predicate_operands(handle)
-            .is_some()
-        {
+        if let Some((left, right, _)) = self.program.static_type_predicate_operands(handle) {
             return self
                 .program
                 .static_type_predicate_value(handle)
                 .map(Value::Bool)
                 .ok_or_else(|| {
-                    Halt::Unsupported(
-                        "static type predicate remains unbound during execution".to_owned(),
-                    )
+                    let input = [left, right].into_iter().find_map(|reference| {
+                        typed_trees::references::collect_type_symbol_dependencies(
+                            self.program,
+                            reference,
+                        )
+                        .into_iter()
+                        .find(|symbol| {
+                            symbol.is_valid()
+                                && self.program.symbols.get(*symbol).kind
+                                    == symbols::SymbolKind::TypeParameter
+                        })
+                    });
+                    match input {
+                        Some(input) => Halt::StaticInputUnavailable(
+                            crate::interpreter::UnavailableStaticInput::TypePredicate {
+                                expression: handle,
+                                input,
+                            },
+                        ),
+                        None => Halt::Unsupported(
+                            "closed static type predicate cannot be evaluated".to_owned(),
+                        ),
+                    }
                 });
         }
         let node = self.program.expression_table.expression(handle).clone();
