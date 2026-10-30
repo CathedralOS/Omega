@@ -22,13 +22,9 @@ impl Builder<'_, '_> {
         if expected_access == language_semantics::ReferenceAccess::WriteOnly {
             return None;
         }
-        let descriptor = if let Some(place) = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )
-        .filter(|place| place.root.as_symbol().is_some())
+        let descriptor = if let Some(place) = self
+            .canonical_place(expression)
+            .filter(|place| place.root.as_symbol().is_some())
         {
             let declared = validation::canonical_place_type_reference(
                 self.program,

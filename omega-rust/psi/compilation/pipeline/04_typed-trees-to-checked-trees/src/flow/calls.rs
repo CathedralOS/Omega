@@ -22,9 +22,7 @@ use checked_trees::{
     BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
     FlowSemanticContextRef, ProofFacts,
 };
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -415,12 +413,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
         return;
     }
 
-    let point = ProgramPoint::CallEnsures {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
-        statement_index: borrow_call.statement_index,
-        call_ordinal: borrow_call.call_ordinal,
-    };
+    let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let mut refs = HandleSpan::empty();
     for (payload, evidence) in transfers {
         let fact = semantic.append_fact(Fact {
@@ -505,12 +498,7 @@ fn append_call_result_field_domain_facts<'plans>(
     if paths.is_empty() {
         return;
     }
-    let point = ProgramPoint::CallEnsures {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
-        statement_index: borrow_call.statement_index,
-        call_ordinal: borrow_call.call_ordinal,
-    };
+    let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let evidence = QualificationEvidence::from_origin(
         language_semantics::QualificationEvidenceOrigin::Propagated,
         borrow_call.target_symbol,
@@ -650,12 +638,7 @@ fn append_call_parameter_domain_facts<'plans>(
         return;
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
-    let point = ProgramPoint::CallEnsures {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
-        statement_index: borrow_call.statement_index,
-        call_ordinal: borrow_call.call_ordinal,
-    };
+    let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let evidence = QualificationEvidence::from_origin(
         language_semantics::QualificationEvidenceOrigin::Propagated,
         borrow_call.target_symbol,

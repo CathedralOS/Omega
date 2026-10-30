@@ -161,6 +161,7 @@ mod runtime_spill;
 mod runtime_split;
 mod selected_lowering;
 mod selected_operands;
+mod settlement_gaps;
 pub mod unexecuted;
 mod window_hazards;
 

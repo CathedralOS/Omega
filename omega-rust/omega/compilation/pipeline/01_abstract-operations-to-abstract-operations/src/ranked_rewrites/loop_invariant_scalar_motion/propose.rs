@@ -192,6 +192,20 @@ impl PlanEvidence<'_> {
     }
 }
 
+/// Gate one arm's admitted substitution and hand back the operand rewrites the
+/// relocation records: every substitution-bearing arm states the representable
+/// gate and the roster conversion through this one tail.
+fn admit_substitution(
+    evidence: &PlanEvidence<'_>,
+    relocating: &std::collections::BTreeSet<ValueId>,
+    substitution: std::collections::BTreeMap<ValueId, ValueId>,
+) -> Option<Vec<(ValueId, ValueId)>> {
+    if !evidence.representable(&substitution, relocating) {
+        return None;
+    }
+    Some(substitution.into_iter().collect())
+}
+
 /// The complete admission of one member node under the current relocation
 /// run — the exact predicate the fixed-point scan and the mutable-borrower
 /// coverage oracle share: the non-speculative gate is stated once at the head,
@@ -265,11 +279,8 @@ fn admit_member_node(
     )>|
      -> Option<Vec<(ValueId, ValueId)>> {
         let (substitution, rewrites) = admission?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
         argument_rewrites = rewrites;
-        Some(substitution.into_iter().collect())
+        admit_substitution(evidence, relocating, substitution)
     };
     let operand_rewrites = if crate::validation::invariant_operations::admissible_scalar_leaf_relocation(node) {
         Vec::new()
@@ -381,10 +392,7 @@ fn admit_member_node(
         let substitution = crate::validation::invariant_operations::invariant_primitive_local_admission(
             function, component, node, relocating,
         )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        substitution.into_iter().collect()
+        admit_substitution(evidence, relocating, substitution)?
     } else if crate::validation::invariant_operations::admissible_invariant_record(node).is_some() {
         // A record establishment is the primitive local's multi-field
         // sibling: it declares a fresh claim-free record place
@@ -431,10 +439,7 @@ fn admit_member_node(
         let substitution = crate::validation::invariant_operations::invariant_scalar_array_admission(
             function, component, node, relocating,
         )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        substitution.into_iter().collect()
+        admit_substitution(evidence, relocating, substitution)?
     } else if crate::validation::invariant_operations::admissible_invariant_scalar_case(node).is_some() {
         // A scalar-case establishment is the family's first custody-rewriting
         // relocation: the cyclic eligibility fence already confines its
@@ -454,10 +459,7 @@ fn admit_member_node(
         let substitution = crate::validation::invariant_operations::invariant_scalar_case_admission(
             function, component, node, relocating,
         )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        substitution.into_iter().collect()
+        admit_substitution(evidence, relocating, substitution)?
     } else if crate::validation::invariant_operations::admissible_invariant_trivial_affine_local(node).is_some() {
         // A trivial affine local establishment is the scalar-case family's
         // operand-free sibling: the cyclic eligibility fence already
@@ -486,10 +488,7 @@ fn admit_member_node(
         let substitution = crate::validation::invariant_calls::invariant_scalar_call_admission(
             function, component, node, relocating, effects,
         )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        substitution.into_iter().collect()
+        admit_substitution(evidence, relocating, substitution)?
     } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_call(node).is_some() {
         // A scalar call carrying crash-route custody keeps the pure scalar
         // call's whole evidence surface — the non-speculative gate, the pure
@@ -509,10 +508,7 @@ fn admit_member_node(
             relocating,
             effects,
         )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        substitution.into_iter().collect()
+        admit_substitution(evidence, relocating, substitution)?
     } else if crate::validation::invariant_calls::admissible_invariant_unit_call(node).is_some() {
         // A unit-result call keeps the scalar call's full evidence surface —
         // the non-speculative gate, the pure transitive callee, and the
@@ -624,10 +620,7 @@ fn admit_member_node(
         let substitution = crate::validation::member_blocks::invariant_scalar_operand_substitution(
             function, component, node, relocating,
         )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        substitution.into_iter().collect()
+        admit_substitution(evidence, relocating, substitution)?
     };
     Some(MemberAdmission {
         operand_rewrites,

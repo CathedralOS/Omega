@@ -14,10 +14,9 @@ use crate::{
 };
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSymbol,
+    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSymbol,
 };
-use object_file::{RelocationKind, SymbolKind};
+use object_file::SymbolKind;
 use target::{ForeignLocatorCandidate, normalize_foreign_locator};
 
 #[derive(Clone, Copy)]
@@ -101,28 +100,7 @@ fn resolved(
             .into(),
         ),
     });
-    let (offset, kind) = match target {
-        TargetProfile::LinuxX64 => {
-            image.memory.text[0] = 0xe8;
-            (1, RelocationKind::X86_64Relative32)
-        }
-        TargetProfile::LinuxArm64 => {
-            image.memory.text[0..4].copy_from_slice(&[0, 0, 0, 0x94]);
-            (0, RelocationKind::Aarch64Branch26)
-        }
-        _ => unreachable!(),
-    };
-    image
-        .relocation_table
-        .relocations
-        .insert(FinalImageRelocation {
-            section: FinalImageSection::Text,
-            offset,
-            byte_width: 4,
-            symbol_handle: imported,
-            addend: 0,
-            kind,
-        });
+    crate::test_support::insert_text_call_relocations(&mut image, target, [(0, imported)]);
     let linkage = crate::test_support::resolved_linkage(image, target);
     let headers = crate::test_support::section_header_table_from_linkage(linkage);
     let payloads = plan_elf_indexed_section_payloads(headers).unwrap();

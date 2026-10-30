@@ -44,10 +44,7 @@ pub(super) fn propose(
 
     let mut candidates = Vec::new();
     for function in &unit.functions {
-        let machine_dominators = dominators
-            .function(function.machine)
-            .map(|(_, rows)| rows.as_slice())
-            .unwrap_or_default();
+        let machine_dominators = dominators.rows(function.machine);
         for block in function
             .blocks
             .iter()

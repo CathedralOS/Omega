@@ -269,13 +269,9 @@ impl Builder<'_, '_> {
         // An existing collection lends its admitted place. A computed value
         // instead completes its own descriptor before endpoint evaluation.
         // A refused place admission never falls back to an owned value move.
-        if validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            indexed.collection,
-        )
-        .is_some_and(|place| place.root.as_symbol().is_some())
+        if self
+            .canonical_place(indexed.collection)
+            .is_some_and(|place| place.root.as_symbol().is_some())
         {
             return self.subslice_view_place(expression, expected);
         }

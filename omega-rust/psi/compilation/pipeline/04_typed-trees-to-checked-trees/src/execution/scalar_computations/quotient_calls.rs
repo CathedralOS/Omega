@@ -86,12 +86,7 @@ impl Builder<'_, '_> {
                 arguments.push(self.structural_value(actual, formal.type_reference)?);
                 continue;
             }
-            let actual_type = validation::expression_type_reference_in_state(
-                self.program,
-                self.state,
-                self.statement_index,
-                actual,
-            )?;
+            let actual_type = self.expression_type(actual)?;
             let value = self.structural_value(actual, actual_type)?;
             let value = if let Some(data) = self.program.closed_data_definition(actual_type)
                 && let Some(quotient) = data.quotient.as_ref()
