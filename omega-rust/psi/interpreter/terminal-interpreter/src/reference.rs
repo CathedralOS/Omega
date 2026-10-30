@@ -1815,29 +1815,38 @@ impl TerminalExecution<'_> {
                         backing: value.structural_type,
                     })
                 });
+                let collection_home = if matches!(
+                    types
+                        .get(&value.structural_type)
+                        .map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::FixedArray { .. })
+                ) {
+                    let selected = collection_home
+                        .map(|(view, selected_prefix)| {
+                            let mut selected = selected_prefix.to_vec();
+                            selected.extend_from_slice(prefix);
+                            view.captured_storage_home(&types, &selected)
+                        })
+                        .transpose()?
+                        .flatten();
+                    match selected {
+                        Some(home) => Some(home),
+                        None => array_loan
+                            .as_ref()
+                            .map(|loan| loan.captured_storage_home(&types, &[]))
+                            .transpose()?
+                            .flatten(),
+                    }
+                } else {
+                    None
+                };
                 return Ok(Some(ResolvedStructuralProjection {
                     array_loan,
                     placed,
                     view_tip: tip,
                     endpoint_field,
                     primitive_storage,
-                    collection_home: if matches!(
-                        types
-                            .get(&value.structural_type)
-                            .map(|declaration| &declaration.shape),
-                        Some(StructuralTypeShape::FixedArray { .. })
-                    ) {
-                        collection_home
-                            .map(|(view, selected_prefix)| {
-                                let mut selected = selected_prefix.to_vec();
-                                selected.extend_from_slice(prefix);
-                                view.captured_storage_home(&types, &selected)
-                            })
-                            .transpose()?
-                            .flatten()
-                    } else {
-                        None
-                    },
+                    collection_home,
                     value,
                 }));
             }

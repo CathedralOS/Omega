@@ -207,6 +207,12 @@ impl RetainedStorage {
 
     pub(crate) fn aggregate_backing(&mut self, backing: &crate::reference::AggregateBacking) {
         self.value(&backing.value);
+        if let Some(home) = &backing.collection_home {
+            self.primitive_home(home.storage);
+        }
+        if let Some(loan) = &backing.array_loan {
+            loan.retain_storage(self);
+        }
         if let Some(region) = &backing.byte_region {
             self.primitive_endpoint(&region.endpoint);
         }
