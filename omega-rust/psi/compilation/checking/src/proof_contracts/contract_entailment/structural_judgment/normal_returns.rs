@@ -2728,6 +2728,11 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         for equation in equations {
+            // This producer already authenticated the completed call and its
+            // eager inputs. Preserve that identity instead of evaluating its
+            // description again; active dependency collectors still own the walk.
+            let completed_identity =
+                equation.completed_call_identity && !self.has_resolution_dependency_collector();
             let (left, right) = (equation.left.clone(), equation.right.clone());
             let max_premise_occ = self.rewrites.max_premise_occurrence();
             let pattern_occ = match (
@@ -2756,7 +2761,11 @@ impl<'program> StructuralJudge<'program> {
             std::sync::Arc::make_mut(&mut self.captured_result_equations).push(equation);
             std::sync::Arc::make_mut(&mut self.normal_guarantees)
                 .push((left.clone(), right.clone()));
-            self.intake_equation(left, right, 0);
+            if completed_identity {
+                self.intake_equation_fact(left, right, 0);
+            } else {
+                self.intake_equation(left, right, 0);
+            }
         }
         if let (Some(captured), Some(result_presentation)) = (captured, result_presentation) {
             let result_type = result_presentation.type_reference;

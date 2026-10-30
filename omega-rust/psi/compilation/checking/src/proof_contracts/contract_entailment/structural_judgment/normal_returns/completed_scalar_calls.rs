@@ -12,7 +12,7 @@ pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct 
 {
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) left: StructuralTerm,
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) right: StructuralTerm,
-    completed_call_identity: bool,
+    pub(super) completed_call_identity: bool,
 }
 
 impl CapturedResultEquation {
