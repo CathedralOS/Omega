@@ -20,6 +20,7 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
 
 #[derive(Clone, Copy)]
 struct Projection<'a> {
@@ -62,6 +63,18 @@ impl Projection<'_> {
             self.selection_exposure,
         )
     }
+}
+
+/// Each lifetime binder against itself: the substitution an uninstantiated
+/// static telescope performs, in authored order.
+pub(crate) fn identity_lifetime_substitutions(
+    lifetimes: &[Identifier],
+) -> Vec<(Identifier, Identifier)> {
+    lifetimes
+        .iter()
+        .cloned()
+        .map(|name| (name.clone(), name))
+        .collect()
 }
 
 /// Review parameters for one checked parameter sequence. Callables, trait
