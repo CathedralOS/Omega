@@ -68,13 +68,13 @@ fn family_binder_rebasing_keeps_distinct_static_applications() {
         ..Default::default()
     });
     let mut reached = ProofApplications::new(&plan, &graph)
-        .membership("macos_arm64", false, &[])
+        .membership("macos_arm64", false, &[], None)
         .0;
     reached.sort_unstable();
     assert_eq!(reached, [1, 3, 4, 5]);
     assert!(
         ProofApplications::new(&plan, &graph)
-            .membership("windows_x86_64", false, &[])
+            .membership("windows_x86_64", false, &[], None)
             .0
             .is_empty()
     );

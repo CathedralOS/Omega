@@ -269,10 +269,19 @@ record_fields!(backend_plan::TerminalTargetProviderPlan {
     row_numeric_realizations
 });
 
+// This companion references the same ordinary callable namespace as Terminal;
+// the artifact identity above owns both machine and boundary coordinates.
+record_variants!(terminal_psi::TargetMachineCallable {
+    0 => Machine(value0),
+    1 => Boundary(value0),
+});
+
 record_fields!(backend_plan::TerminalTargetProviderProposal {
     target,
     terminal_psi,
     optimization_selection,
+    application_roots,
+    application_required,
     selection
 });
 

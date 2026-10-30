@@ -15,9 +15,18 @@ pub fn complete(
     proposals: &[TerminalTargetProviderProposal],
     accounting: &mut build_time_evaluation::SourceCompletionAccounting,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
+    let deployed = proposals
+        .iter()
+        .any(|proposal| proposal.application_roots.is_some());
+    let scopes = proposals
+        .iter()
+        .filter(|proposal| proposal.application_required)
+        .map(|proposal| proposal.target.clone())
+        .collect::<Vec<_>>();
     build_time_evaluation::complete_scalar_applications(
         artifact,
         primary,
+        deployed.then_some(scopes.as_slice()),
         demand,
         None,
         accounting,
@@ -26,6 +35,9 @@ pub fn complete(
                 .iter()
                 .find(|proposal| proposal.target == scope)
                 .ok_or_else(|| format!("scalar checking has no provider inputs for {scope}"))?;
+            if proposal.terminal_psi != artifact.view().identity() {
+                return Err("scalar application roots belong to another artifact".into());
+            }
             let providers = proposal
                 .selection
                 .as_ref()
@@ -43,6 +55,7 @@ pub fn complete(
                     }
                 });
             Ok(build_time_evaluation::ScalarScopeEvaluation {
+                application_roots: proposal.application_roots.clone(),
                 layout_target: profile
                     .layout_target_facts()
                     .ok_or("scalar evaluation target has no immutable layout catalogue")?,

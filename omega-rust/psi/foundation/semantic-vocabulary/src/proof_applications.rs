@@ -164,8 +164,12 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
             return true;
         }
         let owners = self.plan.symbols.span_or_empty(self.plan.obligation_owners);
-        let (machines, declarations) =
-            self.membership(scope, false, self.plan.provider_candidates.storage_slice());
+        let (machines, declarations) = self.membership(
+            scope,
+            false,
+            self.plan.provider_candidates.storage_slice(),
+            None,
+        );
         machines
             .iter()
             .chain(&declarations)
@@ -196,8 +200,12 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
             if !machine.product_selected || scopes.contains(&scope) {
                 continue;
             }
-            let (machines, declarations) =
-                self.membership(scope, false, self.plan.provider_candidates.storage_slice());
+            let (machines, declarations) = self.membership(
+                scope,
+                false,
+                self.plan.provider_candidates.storage_slice(),
+                None,
+            );
             if unscoped
                 || machines
                     .iter()
@@ -215,8 +223,9 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         scope: &str,
         selected_product: bool,
         providers: &[(Declaration, Declaration)],
+        roots: Option<&[Declaration]>,
     ) -> (Vec<Declaration>, Vec<Declaration>) {
-        let machines = self.application_machines(scope, selected_product, providers);
+        let machines = self.application_machines(scope, selected_product, providers, roots);
         let mut declarations = self.plan.declaration_membership(&machines);
         declarations.sort_unstable_by_key(|declaration| Calls::declaration_order(*declaration));
         declarations.dedup();
@@ -228,13 +237,21 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         target: &str,
         selected_product: bool,
         provider_edges: &[(Declaration, Declaration)],
+        roots: Option<&[Declaration]>,
     ) -> Vec<Declaration> {
-        let mut pending = Vec::new();
+        let mut pending = roots
+            .into_iter()
+            .flatten()
+            .map(|root| Application {
+                machine: *root,
+                bindings: Vec::new(),
+            })
+            .collect::<Vec<_>>();
         for (_, machine) in self.plan.machines.iter() {
             let authored = machine.source_target.as_deref();
             if machine.product_selected
                 && (authored.is_some_and(|name| name == target)
-                    || (selected_product && authored.is_none()))
+                    || (roots.is_none() && selected_product && authored.is_none()))
             {
                 pending.push(Application {
                     machine: machine.machine,
@@ -285,6 +302,17 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                         resolve_bindings(self.operational, call.arguments, &application.bindings),
                     ),
                 };
+                // Supplied code can become a callback/indirect entry without
+                // a direct source invocation in the receiving body. Its exact
+                // captured telescope belongs to this same reached application.
+                let mut captures = bindings.clone();
+                while let Some(binding) = captures.pop() {
+                    captures.extend(binding.arguments.iter().cloned());
+                    pending.push(Application {
+                        machine: binding.selected,
+                        bindings: binding.arguments,
+                    });
+                }
                 pending.push(Application {
                     machine: callee,
                     bindings,

@@ -71,13 +71,14 @@ pub(crate) fn check(
     program: &AdmittedTerminalProgram,
     installation: Option<&TerminalRuntimeSupplies>,
 ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
-    check_with_private_entry_ram(program, installation, &[])
+    check_with_private_entry_ram(program, installation, &[], None)
 }
 
 pub(crate) fn check_with_private_entry_ram(
     program: &AdmittedTerminalProgram,
     installation: Option<&TerminalRuntimeSupplies>,
     private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    scalar_scope: Option<&terminal_installation::ScalarScopeInputs>,
 ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
     let entry = program.resolve_entry(installation)?;
     if private_entry_ram.iter().any(|recipe| {
@@ -120,6 +121,14 @@ pub(crate) fn check_with_private_entry_ram(
             continue;
         }
         let machine = program.verified_machine(machine_id)?;
+        if machine.declaration.is_some()
+            && scalar_scope
+                .is_some_and(|scope| !scope.admits_machine(&program.catalogs, machine_id))
+        {
+            return Err(TerminalInterpretError::ScalarApplicationEvaluation(
+                "execution reaches an authored body outside the completed scalar application closure".into(),
+            ));
+        }
         storage_roots.extend(
             machine
                 .structural_parameters

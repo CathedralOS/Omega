@@ -417,8 +417,12 @@ mod tests {
         assert_eq!(decoded.declarations, scope.declarations);
         assert_eq!(decoded.callables, scope.callables);
         assert_eq!(reader.remaining(), 0);
-        let before = scope.applications().membership("macos_arm64", false, &[]);
-        let after = decoded.applications().membership("macos_arm64", false, &[]);
+        let before = scope
+            .applications()
+            .membership("macos_arm64", false, &[], None);
+        let after = decoded
+            .applications()
+            .membership("macos_arm64", false, &[], None);
         assert_eq!(before, after);
         let mut machines = after.0;
         machines.sort_unstable();

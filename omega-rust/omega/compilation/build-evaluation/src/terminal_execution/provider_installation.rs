@@ -112,6 +112,7 @@ pub(super) fn prepare<'host, 'code>(
         let completed = build_time_evaluation::complete_scalar_applications(
             artifact,
             profile.target_name(),
+            None,
             &requirements.scalar_applications,
             Some(account),
             accounting,
@@ -119,6 +120,7 @@ pub(super) fn prepare<'host, 'code>(
                 let scope_profile = target::TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    application_roots: None,
                     layout_target: scope_profile
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,

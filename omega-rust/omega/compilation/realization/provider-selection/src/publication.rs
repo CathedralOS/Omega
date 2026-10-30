@@ -36,6 +36,7 @@ pub struct PreparedProviderCandidate {
 
 #[derive(Debug, Clone)]
 pub struct PreparedTargetChoices {
+    pub application_roots: Option<Vec<CanonicalProviderDeclaration>>,
     pub profile: target::TargetProfile,
     pub candidates: Vec<PreparedProviderCandidate>,
     pub defaults: Vec<ProviderDeclaration<CanonicalProviderDeclaration>>,
@@ -44,6 +45,8 @@ pub struct PreparedTargetChoices {
 
 #[derive(Debug, Clone)]
 pub struct PreparedTargetProviderPublication {
+    deployed: bool,
+    application_scopes: Vec<String>,
     targets: Vec<(String, Result<PreparedTargetChoices, Vec<Diagnostic>>)>,
     assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
 }
@@ -52,8 +55,12 @@ impl PreparedTargetProviderPublication {
     pub fn new(
         targets: Vec<(String, Result<PreparedTargetChoices, Vec<Diagnostic>>)>,
         assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
+        deployed: bool,
+        application_scopes: Vec<String>,
     ) -> Self {
         Self {
+            deployed,
+            application_scopes,
             targets,
             assumed_bindings,
         }
@@ -67,6 +74,8 @@ impl PreparedTargetProviderPublication {
         self.targets
             .into_iter()
             .map(|(target, prepared)| {
+                let mut application_roots = self.deployed.then(Vec::new);
+                let application_required = self.application_scopes.contains(&target);
                 let selection = prepared
                     .and_then(|prepared| {
                         if target::TargetProfile::from_canonical_target_name(&target).ok()
@@ -75,6 +84,12 @@ impl PreparedTargetProviderPublication {
                             return Err(vec![Diagnostic::error(
                                 "provider publication target differs from its authored inventory",
                             )]);
+                        }
+                        if let Some(roots) = &prepared.application_roots {
+                            application_roots = Some(
+                                close_application_roots(roots, artifact)
+                                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                            );
                         }
                         prepared.select(artifact)
                     })
@@ -92,6 +107,8 @@ impl PreparedTargetProviderPublication {
                     target,
                     terminal_psi: artifact.identity(),
                     optimization_selection,
+                    application_roots,
+                    application_required,
                     selection,
                 }
             })
@@ -133,4 +150,54 @@ impl PreparedTargetChoices {
         backend_plan::TerminalTargetProviderSelection::from_plans(plans, artifact)
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
+}
+
+/// Rejoin exact prepared declarations to this immutable artifact, retaining
+/// overloads and refusing both missing and competing executable coordinates.
+fn close_application_roots(
+    roots: &[CanonicalProviderDeclaration],
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+) -> Result<Vec<terminal_psi::TargetMachineCallable>, String> {
+    let module = artifact.module();
+    let mut result = Vec::with_capacity(roots.len());
+    for root in roots {
+        let CanonicalProviderDeclaration::Machine { owner, callable } = root else {
+            return Err("Build application root is not an exact ordinary machine".into());
+        };
+        let declarations = module
+            .machines
+            .iter()
+            .filter_map(|machine| {
+                machine.declaration.as_ref().map(|declaration| {
+                    (
+                        terminal_psi::TargetMachineCallable::Machine(machine.id),
+                        declaration,
+                    )
+                })
+            })
+            .chain(module.boundary_machines.iter().filter_map(|boundary| {
+                boundary.declaration.as_ref().map(|declaration| {
+                    (
+                        terminal_psi::TargetMachineCallable::Boundary(boundary.id),
+                        &declaration.source,
+                    )
+                })
+            }));
+        let mut matches = declarations
+            .filter(|(_, declaration)| {
+                module.identities.text(declaration.machine.identity()) == Some(owner.as_str())
+                    && module.identities.text(declaration.callable) == Some(callable.as_str())
+            })
+            .map(|(callable, _)| callable);
+        let root = matches
+            .next()
+            .ok_or("Build application root has no emitted checked declaration")?;
+        if matches.next().is_some() {
+            return Err("Build application root has competing emitted declarations".into());
+        }
+        if !result.contains(&root) {
+            result.push(root);
+        }
+    }
+    Ok(result)
 }

@@ -55,6 +55,7 @@ pub struct ScalarApplicationObservations<'artifact> {
     layouts: AdmittedTargetLayouts,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     applications: std::sync::Arc<Arena<ApplicationObservations>>,
+    application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
 }
 
 /// Immutable provisional inputs to one evaluation. Cloning shares the retained
@@ -123,6 +124,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             layouts,
             carrier_layout: None,
             applications: std::sync::Arc::new(applications),
+            application_roots: None,
         })
     }
 
@@ -151,6 +153,41 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         &self.layouts
     }
 
+    /// Bind complete Build roots to this artifact's proof coordinates. Provider
+    /// implementations join from the already admitted whole selection, never
+    /// from dormant candidate declarations or a target spelling in Source.
+    pub fn with_application_roots(
+        mut self,
+        roots: Option<&[terminal_psi::TargetMachineCallable]>,
+    ) -> Result<Self, String> {
+        let Some(roots) = roots else {
+            return Ok(self);
+        };
+        let scope = &self.artifact.module().scalar_applications.proof_scope;
+        let mut declarations = Vec::new();
+        for callable in roots
+            .iter()
+            .copied()
+            .chain(
+                self.providers
+                    .providers()
+                    .map(|(_, body)| terminal_psi::TargetMachineCallable::Machine(body)),
+            )
+            .chain(self.providers.assumed_bindings().iter().map(|binding| {
+                terminal_psi::TargetMachineCallable::Machine(binding.implementation)
+            }))
+        {
+            let owner = scope
+                .callable_declaration(callable)
+                .ok_or("Build scalar application root has no retained proof declaration")?;
+            if !declarations.contains(&owner) {
+                declarations.push(owner);
+            }
+        }
+        self.application_roots = Some(declarations);
+        Ok(self)
+    }
+
     pub fn values(&self) -> ScalarApplicationValues {
         ScalarApplicationValues(std::sync::Arc::clone(&self.applications))
     }
@@ -175,6 +212,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                     .map(|binding| (binding.required, binding.implementation)),
             ),
             demanded,
+            self.application_roots.as_deref(),
         )
     }
 

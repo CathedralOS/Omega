@@ -19,6 +19,8 @@ pub struct ScalarConditionSelection<'artifact> {
     ranges: Vec<usize>,
     predicates: Vec<usize>,
     completions: Vec<usize>,
+    application_machines: Option<Vec<terminal_psi::ProofDeclarationId>>,
+    application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
 }
 
 impl<'artifact> ScalarConditionSelection<'artifact> {
@@ -29,6 +31,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
         primary: bool,
         providers: impl IntoIterator<Item = (BoundaryMachineId, MachineId)>,
         demanded: &[ScalarApplicationId],
+        roots: Option<&[terminal_psi::ProofDeclarationId]>,
     ) -> Result<Self, String> {
         let providers: Vec<_> = providers.into_iter().collect();
         let mut selected = Vec::new();
@@ -42,7 +45,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             selected.push((requirement, realization));
         }
         let applications = scope.applications();
-        let (machines, declarations) = applications.membership(target, primary, &selected);
+        let (machines, declarations) = applications.membership(target, primary, &selected, roots);
         let all_declarations = applications.declarations();
         let applies = |subject, address_model| match subject {
             ScalarConditionSubject::Module => true,
@@ -99,7 +102,13 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             ranges,
             predicates,
             completions,
+            application_machines: roots.map(|_| machines),
+            application_roots: roots.map(<[_]>::to_vec),
         })
+    }
+
+    pub(super) fn application_machines(&self) -> Option<&[terminal_psi::ProofDeclarationId]> {
+        self.application_machines.as_deref()
     }
 
     pub fn ranges(&self) -> &[usize] {
@@ -129,6 +138,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 .conditions,
         ) && self.target == observations.targets().target()
             && self.primary == (self.target == primary)
+            && self.application_roots == observations.application_roots
             && self
                 .providers
                 .iter()

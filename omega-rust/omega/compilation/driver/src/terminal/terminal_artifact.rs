@@ -176,7 +176,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = &request.view;
         if request.use_kind != TerminalProductUse::Application {
-            let provider_publication = prepare_target_provider_publication(view);
+            let provider_publication = prepare_target_provider_publication(view)?;
             return Ok(Self {
                 position,
                 request,
@@ -204,7 +204,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
             .copied()
             .chain(entry.physical_adapter())
             .collect();
-        let provider_publication = prepare_target_provider_publication(view);
+        let provider_publication = prepare_target_provider_publication(view)?;
         Ok(Self {
             position,
             request,
@@ -531,7 +531,8 @@ fn admit_terminal_production<'a>(
 /// deferred refusal rows, never cohort failures.
 fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
-) -> provider_planning::target_machines::PreparedTargetProviderPublication {
+) -> Result<provider_planning::target_machines::PreparedTargetProviderPublication, Vec<Diagnostic>>
+{
     let mut targets = source
         .provider_defaults
         .iter()
@@ -594,17 +595,61 @@ fn prepare_target_provider_publication(
             (target, prepared)
         })
         .collect::<Vec<_>>();
-    provider_planning::target_machines::TargetProviderPreparationRequest {
-        context: provider_planning::ProviderPlanningContext::new(
-            &source.program.typed,
-            source::DependencyScope::Product,
-        ),
-        exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-        overrides: &source.build.config.provider_selections,
-        assumed_bindings: source.plan_facts.assumed_bindings(),
-        targets: &targets,
+    let deployed = !source.build.config.root_bindings.is_empty()
+        || !source.build.config.provider_selections.is_empty()
+        || !source.build.config.package_provider_selections.is_empty();
+    let roots = source
+        .build
+        .config
+        .root_bindings
+        .iter()
+        .map(|binding| {
+            let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "Build application root lost its exact target slot",
+                )]
+            })?;
+            let profile =
+                target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
+            Ok((
+                profile.target_name().to_owned(),
+                binding.implementation_symbol,
+            ))
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let mut application_scopes = roots
+        .iter()
+        .map(|(scope, _)| scope.clone())
+        .collect::<Vec<_>>();
+    for choice in source
+        .build
+        .config
+        .provider_selections
+        .iter()
+        .chain(&source.build.config.package_provider_selections)
+    {
+        if let Some(scope) = choice.target {
+            let name = scope.canonical_name();
+            if !application_scopes.iter().any(|scope| scope == name) {
+                application_scopes.push(name.to_owned());
+            }
+        }
     }
-    .prepare()
+    Ok(
+        provider_planning::target_machines::TargetProviderPreparationRequest {
+            application_roots: deployed.then_some(roots.as_slice()),
+            application_scopes: &application_scopes,
+            context: provider_planning::ProviderPlanningContext::new(
+                &source.program.typed,
+                source::DependencyScope::Product,
+            ),
+            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
+            overrides: &source.build.config.provider_selections,
+            assumed_bindings: source.plan_facts.assumed_bindings(),
+            targets: &targets,
+        }
+        .prepare(),
+    )
 }
 
 /// Check declarations through the ordinary Terminal producer without inventing

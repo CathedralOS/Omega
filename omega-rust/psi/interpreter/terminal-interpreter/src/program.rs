@@ -366,6 +366,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             &self.execution_program(installation, None),
             installation,
             recipes,
+            None,
         )
     }
 
@@ -767,6 +768,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             &program,
             installation,
             structural_inputs.private_entry_ram,
+            scalar_admission.map(|admission| admission.primary()),
         )
         .map_err(TerminalArtifactInterpretError::Execution)?;
         for application in &requirements.scalar_applications {
@@ -908,6 +910,15 @@ impl TerminalProgram<'_> {
         };
         let installation = installation.ok_or_else(reject)?;
         let primary = admission.primary();
+        let entry = self.program.resolve_entry(Some(installation))?;
+        if self
+            .module()
+            .machine(entry)
+            .is_some_and(|row| row.declaration.is_some())
+            && !primary.admits_machine(self.module(), entry)
+        {
+            return Err(reject());
+        }
         let expected = TerminalRuntimeSupplies::from(primary.providers());
         if self.program.identity
             != terminal_codec::TerminalExecutionIdentity::portable(admission.terminal())

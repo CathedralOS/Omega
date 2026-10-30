@@ -51,6 +51,8 @@ pub(super) fn prepare(
         inventory.prepare(profile.target_name()),
     )];
     let publication = TargetProviderPreparationRequest {
+        application_roots: None,
+        application_scopes: &[],
         context,
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         overrides: &checked.build().config.provider_selections,

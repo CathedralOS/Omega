@@ -160,6 +160,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         let completed = build_time_evaluation::complete_scalar_applications(
             artifact,
             completion.target(),
+            None,
             completion.demand(),
             None,
             &mut accounting,
@@ -177,6 +178,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
                 let profile = target::TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    application_roots: None,
                     layout_target: profile
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,

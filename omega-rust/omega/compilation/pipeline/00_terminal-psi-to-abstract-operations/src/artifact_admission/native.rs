@@ -127,6 +127,7 @@ impl NativeScopePreparation {
                     &layouts,
                     selection,
                     &scalar_demand,
+                    scope.machines(),
                 )
             })
             .transpose()

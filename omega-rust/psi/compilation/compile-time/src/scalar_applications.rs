@@ -22,6 +22,7 @@ mod tests;
 /// canonical jobs and discharges every applicable condition. Address-model
 /// refusal remains deferred until predicates have been checked.
 pub struct ScalarScopeEvaluation {
+    pub application_roots: Option<Vec<terminal_psi::TargetMachineCallable>>,
     pub targets: terminal_installation::AdmittedTargetMachineSelections,
     pub providers: terminal_installation::AdmittedProviderSelections,
     pub address_model: Result<Option<terminal_installation::ScalarAddressModel>, String>,
@@ -36,6 +37,7 @@ pub struct ScalarScopeEvaluation {
 pub fn complete_scalar_applications(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     primary: &str,
+    deployment_scopes: Option<&[String]>,
     requested: &[ScalarApplicationId],
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     accounting: &mut crate::SourceCompletionAccounting,
@@ -45,6 +47,7 @@ pub fn complete_scalar_applications(
     let result = complete_scopes(
         artifact,
         primary,
+        deployment_scopes,
         requested,
         sponsor,
         &mut records,
@@ -58,6 +61,7 @@ pub fn complete_scalar_applications(
 fn complete_scopes(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     primary: &str,
+    deployment_scopes: Option<&[String]>,
     requested: &[ScalarApplicationId],
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     records: &mut Vec<crate::evaluation_accounting::CanonicalScalarEvaluationReceipt>,
@@ -65,6 +69,9 @@ fn complete_scopes(
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
     let mut closure =
         terminal_installation::ScalarApplicationClosure::new(artifact.view(), primary);
+    if let Some(scopes) = deployment_scopes {
+        closure = closure.with_deployment_scopes(scopes);
+    }
     let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
     for scope in scopes {
         let selected = select(&scope)?;
@@ -77,7 +84,8 @@ fn complete_scopes(
             &selected.providers,
             &selected.layout_target,
         )?
-        .with_target_carriers(selected.carrier_layout);
+        .with_target_carriers(selected.carrier_layout)
+        .with_application_roots(selected.application_roots.as_deref())?;
         let demand = if scope == primary { requested } else { &[] };
         let input = crate::evaluation_accounting::CanonicalScalarScope::capture(
             artifact,
