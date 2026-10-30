@@ -144,7 +144,7 @@ public boundary trait SortRegistrar: Calling<SortCalling> {
         elements: &mut Elements, count: u64, width: u64,
         native callback compare from Handler
     )
-    where machine Handler satisfies Comparator::compare;
+    requires machine Handler satisfies Comparator::compare;
     reaches
     invokes Comparator;
     requires count == 2 && width == 8;
@@ -180,7 +180,7 @@ macos_arm64 machine sort_binding() -> ForeignBinding<26, 6, 0> {
 macos_arm64 machine sort_leaf<machine Handler>(
     elements: &mut Elements, count: u64, width: u64
 )
-where machine Handler satisfies Comparator::compare;
+requires machine Handler satisfies Comparator::compare;
 satisfies SortRegistrar::sort
 via sort_binding()
 requires count == 2 && width == 8;
@@ -272,7 +272,7 @@ linux_x86_64 machine linux_sort_binding() -> ForeignBinding<9, 5, 11> {
 linux_x86_64 machine sort_leaf<machine Handler>(
     elements: &mut Elements, count: u64, width: u64
 )
-where machine Handler satisfies Comparator::compare;
+requires machine Handler satisfies Comparator::compare;
 satisfies SortRegistrar::sort
 via linux_sort_binding()
 requires count == 2 && width == 8;

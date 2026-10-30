@@ -634,11 +634,11 @@ impl std::error::Error for IntegerCorrelatedForbiddenRootWitnessError {}
 mod tests {
     use super::{
         BTreeSet, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,
-        CorrelatedAffineStepWitness, IntegerCorrelatedForbiddenRootWitness,
-        IntegerCorrelatedForbiddenRootWitnessError, IntegerSign, IntegerType, IntegerValue,
-        Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
-        check_integer_correlated_forbidden_root_witness,
+        IntegerCorrelatedForbiddenRootWitness, IntegerCorrelatedForbiddenRootWitnessError,
+        IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
+        ScalarType, ValueId, check_integer_correlated_forbidden_root_witness,
     };
+    use crate::correlated_step;
 
     fn i8_type() -> IntegerType {
         IntegerType::new(IntegerSign::Signed, 8).expect("i8")
@@ -735,30 +735,12 @@ mod tests {
             dividend: CorrelatedAffineBranchWitness {
                 root: root.clone(),
                 target: dividend,
-                steps: vec![
-                    CorrelatedAffineStepWitness {
-                        definition_axiom: 1,
-                        literal_axiom: Some(0),
-                    },
-                    CorrelatedAffineStepWitness {
-                        definition_axiom: 3,
-                        literal_axiom: Some(2),
-                    },
-                ],
+                steps: vec![correlated_step(1, Some(0)), correlated_step(3, Some(2))],
             },
             divisor: CorrelatedAffineBranchWitness {
                 root: root.clone(),
                 target: divisor,
-                steps: vec![
-                    CorrelatedAffineStepWitness {
-                        definition_axiom: 5,
-                        literal_axiom: Some(4),
-                    },
-                    CorrelatedAffineStepWitness {
-                        definition_axiom: 6,
-                        literal_axiom: None,
-                    },
-                ],
+                steps: vec![correlated_step(5, Some(4)), correlated_step(6, None)],
             },
             definition_axiom_count: 7,
             lower_bound_axiom: 7,
@@ -833,24 +815,12 @@ mod tests {
             dividend: CorrelatedAffineBranchWitness {
                 root: root.clone(),
                 target: dividend,
-                steps: vec![
-                    CorrelatedAffineStepWitness {
-                        definition_axiom: 0,
-                        literal_axiom: None,
-                    },
-                    CorrelatedAffineStepWitness {
-                        definition_axiom: 1,
-                        literal_axiom: None,
-                    },
-                ],
+                steps: vec![correlated_step(0, None), correlated_step(1, None)],
             },
             divisor: CorrelatedAffineBranchWitness {
                 root,
                 target: divisor,
-                steps: vec![CorrelatedAffineStepWitness {
-                    definition_axiom: 2,
-                    literal_axiom: None,
-                }],
+                steps: vec![correlated_step(2, None)],
             },
             definition_axiom_count: 3,
             lower_bound_axiom: 3,

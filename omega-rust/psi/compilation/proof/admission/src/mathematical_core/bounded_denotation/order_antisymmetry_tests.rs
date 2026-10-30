@@ -2,7 +2,9 @@ use super::test_utilities::{elaborate_checked, verify_and_assert_forged};
 use std::collections::BTreeSet;
 
 use crate::proof::assumption_proof;
-use crate::{AcceptedProofRule, ProofNode, ProofRule, accept_certificate, check_certificate};
+use crate::{
+    AcceptedProofRule, ProofNode, ProofRule, accept_certificate, check_certificate, value_context,
+};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
@@ -14,13 +16,7 @@ fn value(carrier: IntegerType, identity: u64) -> ScalarTerm {
     )
 }
 fn context(carrier: IntegerType) -> PropositionContext {
-    PropositionContext::from_value_types((1..=3).map(|identity| {
-        (
-            ValueId::new(identity).unwrap(),
-            ScalarType::Integer(carrier),
-        )
-    }))
-    .unwrap()
+    value_context(ScalarType::Integer(carrier), 3)
 }
 fn proof(left: ScalarTerm, right: ScalarTerm) -> (Vec<Proposition>, ProofNode) {
     let forward = Proposition::LessOrEqual(left.clone(), right.clone());

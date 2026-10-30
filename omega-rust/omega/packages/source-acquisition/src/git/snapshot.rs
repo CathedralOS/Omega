@@ -16,7 +16,7 @@ use crate::limits::{
 use crate::storage::RetainedStorageLane;
 use crate::tree::ResolvedLocalSource;
 use crate::tree::capture::{
-    CapturedLocalEntry, CapturedLocalEntryKind, SourceTreePolicy,
+    CapturedLocalEntry, CapturedLocalEntryKind, SourceTreePolicy, capture_exact_materialized,
     capture_local_source_from_open_root,
 };
 use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
@@ -187,15 +187,7 @@ fn resolve_git_snapshot_in_collection(
     // shared batch payload first so that this verification does not retain a
     // second package-sized in-memory copy.
     release_git_blob_payloads(&mut entries);
-    let staged = capture_local_source_from_open_root(
-        source.clone(),
-        source_directory
-            .try_clone()
-            .map_err(|error| io_error(&source, error))?,
-        limits,
-        SourceTreePolicy::ExactMaterialized,
-    )?
-    .normalized;
+    let staged = capture_exact_materialized(&source, &source_directory, limits)?.normalized;
     if staged.file_count != expected.file_count
         || staged.byte_count != expected.byte_count
         || staged.content_identity != expected.content_identity
@@ -214,15 +206,7 @@ fn resolve_git_snapshot_in_collection(
         false,
     )?;
     make_open_snapshot_read_only(kind, pending.directory()?, &pending.root)?;
-    let finalized = capture_local_source_from_open_root(
-        source.clone(),
-        source_directory
-            .try_clone()
-            .map_err(|error| io_error(&source, error))?,
-        limits,
-        SourceTreePolicy::ExactMaterialized,
-    )?
-    .normalized;
+    let finalized = capture_exact_materialized(&source, &source_directory, limits)?.normalized;
     if finalized.file_count != expected.file_count
         || finalized.byte_count != expected.byte_count
         || finalized.content_identity != expected.content_identity

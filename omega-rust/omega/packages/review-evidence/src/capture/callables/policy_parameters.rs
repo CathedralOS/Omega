@@ -3,6 +3,7 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::signatures::callable_declaration_scope;
+use crate::capture::semantics::signatures::parameters::identity_lifetime_substitutions;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;
@@ -35,11 +36,7 @@ pub(super) fn prepare(
         });
     }
     let mut projected = validation::CheckingProjection::new(scope.source.checking_input);
-    let lifetimes = lifetime_parameters
-        .iter()
-        .cloned()
-        .map(|name| (name.clone(), name))
-        .collect::<Vec<_>>();
+    let lifetimes = identity_lifetime_substitutions(lifetime_parameters);
     let mut scopes = Vec::new();
     instantiate_static_parameters(
         projected.program_mut(),

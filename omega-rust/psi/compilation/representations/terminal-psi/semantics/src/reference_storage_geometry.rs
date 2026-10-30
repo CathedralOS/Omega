@@ -193,9 +193,7 @@ fn geometry<'types>(
     if active.contains(&root) {
         return Err(StorageGeometryError::RecursiveType(root));
     }
-    let shape = &types
-        .clone()
-        .find(|row| row.id == root)
+    let shape = &crate::structural_declaration(types.clone(), root)
         .ok_or(StorageGeometryError::MissingType(root))?
         .shape;
     active.push(root);
@@ -474,7 +472,7 @@ fn storage_path<'types>(
             }
             let source_size = match selected_scalar {
                 Some(logical) => scalar_geometry(selected_storage.unwrap_or(logical))?.0,
-                None => match types.clone().find(|row| row.id == carrier)?.shape {
+                None => match *crate::structural_shape(types.clone(), carrier)? {
                     StructuralTypeShape::PrimitiveScalar(logical) => {
                         scalar_geometry(selected_storage.unwrap_or(logical))?.0
                     }
@@ -502,7 +500,7 @@ fn storage_path<'types>(
         if selected_scalar.is_some() {
             return None;
         }
-        let shape = &types.clone().find(|row| row.id == carrier)?.shape;
+        let shape = &crate::structural_shape(types.clone(), carrier)?;
         match (shape, segment) {
             (
                 StructuralTypeShape::Record { fields, storage },
@@ -579,7 +577,7 @@ fn storage_path<'types>(
     }
     let scalar = match selected_scalar {
         Some(logical) => Some((logical, selected_storage.unwrap_or(logical))),
-        None => match types.clone().find(|row| row.id == carrier)?.shape {
+        None => match *crate::structural_shape(types.clone(), carrier)? {
             StructuralTypeShape::PrimitiveScalar(logical) => {
                 Some((logical, selected_storage.unwrap_or(logical)))
             }

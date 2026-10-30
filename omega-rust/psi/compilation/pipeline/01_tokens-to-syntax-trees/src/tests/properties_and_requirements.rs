@@ -349,7 +349,7 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         }
 
         machine schedule<machine Callback>()
-        where machine Callback() suspends; blocks;
+        requires machine Callback() suspends; blocks;
         {
         }
         "#;
@@ -1163,7 +1163,7 @@ fn rejects_installation_bound_reach_outside_bodyless_boundary_requirement() {
     for source in [
         "trait Completion { machine complete() reaches <= MachineControl; }",
         "boundary trait Completion { machine complete() reaches <= MachineControl {} }",
-        "machine run<machine Op>() where machine Op() reaches <= MachineControl; {}",
+        "machine run<machine Op>() requires machine Op() reaches <= MachineControl; {}",
     ] {
         let error = super::parse_source_error(
             source,

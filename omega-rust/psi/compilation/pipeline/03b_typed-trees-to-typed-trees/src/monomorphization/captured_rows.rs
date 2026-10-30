@@ -3,7 +3,9 @@
 //! The exact closed selection supplies operands; runtime carriers and diagnostic
 //! names cannot infer a missing map application.
 
+use super::requirement_applications::selected_applications;
 use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees};
+use crate::expression_roots::append_statement_roots;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 macro_rules! err {
@@ -37,13 +39,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 }
             }
             let mut expressions = Vec::new();
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                validation::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
-            }
+            append_statement_roots(program, state, &mut expressions);
             for handle in expressions {
                 if let Some(call) = program.expression_table.call_node(handle) {
                     calls.push((
@@ -221,14 +217,7 @@ fn call_capture(
     if target != dispatch.realization_state {
         return Ok(None);
     }
-    let applications = program.selected_conformance_applications(
-        owner,
-        dispatch.selection_application,
-        dispatch.evidence_parameter,
-        dispatch.requirement,
-        dispatch.application_report_fingerprint,
-        dispatch.application_commitment,
-    );
+    let applications = selected_applications(program, owner, dispatch);
     let [application] = applications.as_slice() else {
         return Ok(None);
     };

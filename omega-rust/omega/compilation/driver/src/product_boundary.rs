@@ -1377,8 +1377,8 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
         "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec.rs"
     );
     assert!(selection.contains("callback_roots"));
-    let roots = include_str!("../../realization/provider-planning/src/callback_roots.rs");
-    assert!(roots.contains("provider_selection::select_callback_roots(candidates)"));
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("provider_selection::select_callback_declarations("));
     for source in [selection, source, persisted] {
         assert!(!source.contains("NativeCallbackPlacement"));
         assert!(!source.contains("SelectedCallbackPlacement"));
@@ -1389,17 +1389,28 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
 
 #[test]
 fn callback_root_policy_consumes_prepared_source_correspondence() {
-    let preparation = include_str!("../../realization/provider-planning/src/callback_roots.rs");
-    assert!(preparation.contains("project_checked_provider_instances("));
+    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
+    assert!(preparation.contains("pub fn callback_providers"));
+    assert!(preparation.contains("self.project_instances()?"));
     assert!(!preparation.contains("program.callback_declaration(usage)"));
     assert!(!preparation.contains("program.facts.nominal_machine_uses"));
-    assert!(preparation.contains("declarations.declaration(usage)"));
-    assert!(preparation.contains("selected_instances.selected_requirement_row(identity)"));
-    assert!(preparation.contains("crate::exact_checked_adapter(context, plan, row)"));
+    assert_eq!(
+        preparation
+            .matches("exact_checked_adapter(context, plan, row)")
+            .count(),
+        1
+    );
+    assert!(preparation.contains("machine: exact_checked_adapter(context, plan, row)"));
+    assert!(preparation.contains("adapters.machine(plan, row)"));
     let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains("realization.boundary_arguments.is_empty()"));
     assert!(binding.contains("external_providers.callbacks.calling_requirements("));
     let policy = include_str!("../../realization/provider-selection/src/callback_roots.rs");
+    assert!(policy.contains("declarations.declaration(usage)"));
+    assert!(policy.contains("self.selected.as_ref()?.selected_requirement_row(identity)"));
+    assert!(policy.contains("prepared.plan == plan && prepared.row == row"));
+    assert!(policy.contains("providers.selected.is_none()"));
+    assert!(!policy.contains("CallbackRootCandidate"));
     for forbidden in [
         "TypedTrees",
         "CheckFacts",
@@ -1426,6 +1437,62 @@ fn callback_root_policy_consumes_prepared_source_correspondence() {
             "callback source facts decide {forbidden}"
         );
     }
+}
+
+#[test]
+fn provider_instance_policy_consumes_checked_declaration_groups() {
+    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
+    assert!(
+        preparation
+            .contains("provider_selection::project_provider_instances(&self.plans, &declarations)")
+    );
+    assert!(preparation.contains("checked_trees::provider_instances::inherited_instances("));
+    assert!(preparation.contains("checked_trees::provider_instances::generic_instances("));
+    assert!(!preparation.contains("machine_specializations"));
+    assert!(!preparation.contains("provider_closed_requirements"));
+    let policy = include_str!("../../realization/provider-selection/src/provider_instances.rs");
+    assert!(policy.contains("application.candidates.as_slice()"));
+    assert!(policy.contains("declaration.instances.generic_templates.as_slice()"));
+    assert!(policy.contains("template.required_instances"));
+    assert!(policy.contains("with_specialized_requirement_rows"));
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "CheckFacts",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "provider instance policy reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn provider_instance_consumers_share_one_immutable_declaration_owner() {
+    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
+    assert!(preparation.contains("pub struct SelectedProviderSource"));
+    assert!(preparation.contains("declarations: OnceLock<PreparedProviderInstances>"));
+    assert!(preparation.contains("self.declarations.get_or_init("));
+    assert!(!preparation.contains("pub fn project_checked_provider_instances"));
+    let consumers = [
+        include_str!("execution_settlement.rs"),
+        include_str!("../../realization/selected-dispatch/src/checked_interpreter_dispatch.rs"),
+        include_str!("../../../packages/review-evidence/src/capture/providers/policy.rs"),
+    ];
+    for consumer in consumers {
+        assert!(consumer.contains("provider_source.project_instances()?"));
+        assert!(!consumer.contains("provider_planning::project_checked_provider_instances("));
+    }
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("provider_source.callback_providers("));
+    let execution = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
+    assert!(
+        execution.contains("pub provider_source: Arc<provider_planning::SelectedProviderSource>")
+    );
+    assert!(!execution.contains("pub program:"));
+    assert!(!execution.contains("pub selected_provider_plan_facts:"));
 }
 
 #[test]

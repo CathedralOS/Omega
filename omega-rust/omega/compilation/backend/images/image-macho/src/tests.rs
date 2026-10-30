@@ -1,7 +1,6 @@
 //! Check loader-visible storage against the layout used for symbol relocation.
 //! A planner-only assertion misses a section writer that recomputes placement.
 
-use arena::Handle;
 use image::{
     FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
 };
@@ -47,7 +46,7 @@ fn storage_image_for(
     bss_alignment: usize,
 ) -> FinalImage {
     let text_size = text.len();
-    let mut image = FinalImage::with_capacity(
+    let mut image = crate::test_support::image(
         target,
         FinalImageMemory {
             text,
@@ -55,10 +54,6 @@ fn storage_image_for(
             bss_size,
             bss_alignment,
         },
-        Handle::invalid(),
-        2,
-        0,
-        1,
     );
     image.symbol_table.entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "entry".into(),

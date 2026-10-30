@@ -69,14 +69,15 @@ machine geometry() -> u64 {
     let excess: u64 = bytes - 6;
     excess + 6
 }
-GeometryProducer satisfies GeometryQuery { machine query() -> u64 { geometry() } }
-machine invoke<Query satisfies GeometryQuery>() -> u64 { Query::query() }
+machine invoke<machine Query>() -> u64
+requires machine Query satisfies GeometryQuery::query;
+{ Query() }
 boundary trait LayoutScoped { machine scoped() reaches; }
 MacosArm64LayoutScoped satisfies LayoutScoped {
     machine scoped() {}
 }
 WindowsX8664LayoutScoped satisfies LayoutScoped {
-    machine scoped() { let observed: u64 = invoke<GeometryProducer>(); }
+    machine scoped() { let observed: u64 = invoke<geometry>(); }
 }
 
 

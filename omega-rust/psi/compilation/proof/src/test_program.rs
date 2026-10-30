@@ -45,6 +45,22 @@ pub(crate) fn program() -> Program {
 }
 
 impl Program {
+    /// The `bounded` `count` obligation over the fixture's first data symbol,
+    /// with the `Int` carrier it names -- the row every derivation-consultation
+    /// test opens with.
+    pub(crate) fn count_value(&mut self) -> (TypeReferenceHandle, ProofObligation) {
+        let base = self.int_reference();
+        let obligation = bounded_value(
+            self.machine,
+            "Main",
+            self.data[0],
+            "count",
+            base,
+            arena::HandleSpan::empty(),
+        );
+        (base, obligation)
+    }
+
     pub(crate) fn int_reference(&mut self) -> TypeReferenceHandle {
         self.typed_trees
             .type_reference_table

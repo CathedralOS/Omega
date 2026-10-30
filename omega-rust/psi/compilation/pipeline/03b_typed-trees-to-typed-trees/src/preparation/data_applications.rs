@@ -26,6 +26,7 @@
 //! `node.next.value` prepares that reached referent, not every future
 //! `Nest<[T; 2]>` in a growing recursive family.
 
+use crate::expression_roots::{append_statement_roots, visit_post_order};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
@@ -110,26 +111,12 @@ fn elaborate_projected_fields(program: &mut TypedTrees) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut expressions = Vec::new();
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                validation::expression_traversal::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
-            }
-            let mut visited = Vec::new();
-            for expression in expressions {
-                validation::expression_traversal::visit_post_order(
-                    program,
-                    expression,
-                    &mut visited,
-                    |_, node| {
-                        if let typed_trees::expression::ExpressionNode::Member(member) = node {
-                            projections.push((machine.symbol, state.symbol, member.receiver));
-                        }
-                    },
-                );
-            }
+            append_statement_roots(program, state, &mut expressions);
+            visit_post_order(program, expressions, |_, node| {
+                if let typed_trees::expression::ExpressionNode::Member(member) = node {
+                    projections.push((machine.symbol, state.symbol, member.receiver));
+                }
+            });
         }
     }
     for (machine_symbol, state_symbol, receiver) in projections {

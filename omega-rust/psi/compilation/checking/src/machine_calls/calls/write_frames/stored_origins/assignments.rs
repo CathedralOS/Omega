@@ -237,6 +237,7 @@ fn assigned_stored_origins(
     // pointer boundary from invalidation.
     let reference_paths = if may_select {
         super::declared_origins_for_query(program, source.root, "", target_type, true)?
+            .into_owned()
             .references
             .into_iter()
             .map(|reference| {
@@ -297,13 +298,13 @@ fn assigned_stored_origins(
         },
         },
     )?;
-    let mut replaced = StoredLocalOrigins {
+    let mut replaced = StoredLocalOrigins::new(super::StoredOriginRecord {
         local_symbol: source.root,
         references: Vec::new(),
         cases: Vec::new(),
         moves: Vec::new(),
         symbolic: false,
-    };
+    });
     let (target_path, precision) =
         coordinate_storage_path(program, program.symbols.name(source.root), &source.segments);
     for leaf in leaves.references {

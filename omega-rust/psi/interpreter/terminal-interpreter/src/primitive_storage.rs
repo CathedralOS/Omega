@@ -23,6 +23,7 @@ use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::TerminalExecution;
+use crate::execution::frame_field_mut;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     StructuralFieldNamespace, StructuralRuntimePlace, StructuralScalarRuntimeField,
@@ -1114,22 +1115,8 @@ impl TerminalExecution<'_> {
         writing: bool,
         path: &[StructuralPathSegment],
     ) -> Result<(StructuralTypeId, bool), TerminalInterpretError> {
-        let machine_id = if home.depth == self.call_stack.len() {
-            self.current_machine
-        } else {
-            self.call_stack
-                .get(home.depth)
-                .ok_or_else(malformed)?
-                .current_machine
-        };
-        if machine_id != home.machine {
-            return Err(malformed());
-        }
-        let machine = self
-            .program
-            .machines()
-            .get(&machine_id)
-            .ok_or_else(malformed)?;
+        let machine_id = self.owned_array_home(&home)?;
+        let machine = self.program.machine(machine_id)?;
         let preserves =
             |root,
              whole: &[semantic_vocabulary::StructuralDomainId],
@@ -1429,11 +1416,7 @@ impl TerminalExecution<'_> {
             // the remaining typed projection and stored scalar carrier.
             return loan.scalar_storage(self, path, writing);
         }
-        let machine = self
-            .program
-            .machines()
-            .get(&machine_id)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(machine_id)?;
         if let Some(loan) = primitive_loan_values.get(&place) {
             let parameter = machine.structural_parameter(place).ok_or_else(malformed)?;
             if !path.is_empty()
@@ -1868,13 +1851,7 @@ impl TerminalExecution<'_> {
         shared_view: bool,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         let root = self
-            .structural_values
-            .values()
-            .chain(
-                self.call_stack
-                    .iter()
-                    .flat_map(|frame| frame.structural_values.values()),
-            )
+            .live_structural_values()
             .filter(|value| value.path.is_empty())
             .find_map(|value| {
                 (value.opaque_identity == view.opaque_identity).then_some(value.structural_type)
@@ -1963,11 +1940,7 @@ impl TerminalExecution<'_> {
         value: ValueId,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         // Block entry retired any earlier visit's local, so a value still
         // here is a second live definition.
         if local_type(machine, result.place) != Some(result.structural_type)
@@ -2220,11 +2193,7 @@ impl TerminalExecution<'_> {
         let mut path = argument.path.clone();
         path.extend_from_slice(relative_path);
         if path.is_empty() {
-            let machine = self
-                .program
-                .machines()
-                .get(&self.current_machine)
-                .ok_or_else(malformed)?;
+            let machine = self.program.machine(self.current_machine)?;
             if let Some(parameter) = machine
                 .structural_parameter(argument.place)
                 .filter(|parameter| parameter.access == StructuralAccess::Owned)
@@ -2400,11 +2369,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let scalar = self.scalar_value(value)?;
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let (root, whole, projected) = machine
             .structural_parameter(destination)
             .map(|parameter| {
@@ -2568,15 +2533,7 @@ impl TerminalExecution<'_> {
         // storage topology changes between preparation and this commit.
         match endpoint {
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
-                let arrays = if home.depth == self.call_stack.len() {
-                    &mut self.scalar_array_values
-                } else {
-                    &mut self
-                        .call_stack
-                        .get_mut(home.depth)
-                        .ok_or(malformed())?
-                        .scalar_array_values
-                };
+                let arrays = frame_field_mut!(self, home.depth, scalar_array_values);
                 let array = arrays.backing_mut(&home.place).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
                 )?;

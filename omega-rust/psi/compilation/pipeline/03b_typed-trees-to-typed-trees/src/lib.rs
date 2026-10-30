@@ -10,6 +10,7 @@ mod assembly_control;
 mod assignment_destinations;
 mod conformance;
 mod constructed_results;
+mod expression_roots;
 mod monomorphization;
 mod operators;
 mod preparation;

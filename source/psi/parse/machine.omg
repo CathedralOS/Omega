@@ -27,7 +27,7 @@ public data MachineHead [copy] {
 // state* } | ;)`, entered at the `machine` keyword with its head. A fixed
 // operator token (`+`, `==`, `[]`, `[..]`, ...) binds operator syntax to the
 // declaration; a conformance member supplies an implementation and binds no
-// token. The `where machine` contracts of its static machine binders precede
+// token. The `requires machine` contracts of its static machine binders precede
 // its other clauses. generics.omg owns the generic parameters, shared with
 // data declarations; clause.omg owns the clauses and statement.omg the
 // statements; the entry's statements precede the `state` members. A bodyless
@@ -574,10 +574,10 @@ crashes Trap
     machine done() {}
 }
 
-// `where machine Name [<generic parameters>] [(parameters)] [-> Type]
+// `requires machine Name [<generic parameters>] [(parameters)] [-> Type]
 // clauses`, the contracts of a machine head's static machine binders,
 // entered after its signature. A contract ends at its `;` or at the next
-// `where machine`; its clauses never read past that `;`, which belongs to
+// `requires machine`; its clauses never read past that `;`, which belongs to
 // the contract only while the declaration continues after it. A contract
 // may name a binder of an earlier contract's own generic parameters, so
 // contracts form one flat list whose binders resolution matches. The range
@@ -589,7 +589,7 @@ crashes Trap
     transition { _ -> next(parser, input, owner) }
 
     machine next(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        let facts: bool = Parser::at_word(parser, input, "where");
+        let facts: bool = Parser::at_word(parser, input, "requires");
         let contract: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
         transition facts && contract {
             true -> capacity(parser, input, owner)
@@ -653,7 +653,7 @@ crashes Trap
     }
 
     machine end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, semicolon: bool) {
-        let facts: bool = Parser::at_word(parser, input, "where");
+        let facts: bool = Parser::at_word(parser, input, "requires");
         let contract: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
         transition semicolon {
             true -> semicolon_end(parser, input, owner)

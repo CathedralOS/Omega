@@ -8,6 +8,31 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/borrows/nested_byte_field_capture_breaks_utf8 rejected 761ms expected @7b9a72614daf
+	cannot prove requires contract for call consume from write: main.line in [u8; N]::Utf8 (invalidated by prior mutation of main.line[1]; main.line is part of [u8; N]::Utf8) in state `entry`
+	cannot prove default-domain field requirement for return from write at statement 2: main.line requires [u8; N]::Utf8
+fail/borrows/nested_byte_field_capture_stale_carrier rejected 709ms expected @7b9a72614daf
+	cannot prove requires contract for call consume from write: main.line in [u8; N]::Utf8 (invalidated by prior mutation of main.line[1]; main.line is part of [u8; N]::Utf8) in state `entry`
+	cannot prove default-domain field requirement for return from write at statement 2: main.line requires [u8; N]::Utf8
+fail/calls/requires_machine_conflicting_const_kind rejected 7ms expected @45fb2a705c96
+	tests/omega/fail/calls/requires_machine_conflicting_const_kind/main.omg:2:26: `Selected` is not a machine parameter; its declared kind or property bounds conflict with `requires machine Selected`
+fail/calls/requires_machine_outer_cannot_read_nested_parameter rejected 1511ms expected @45fb2a705c96
+	machine `apply` state `entry` arrival contract value `input` is not in the state's explicit parameter scope or prior local declarations
+	cannot form specification operator `<=` in machine `apply` requires contract: no exact selected meaning
+fail/calls/retired_where_machine_requirement rejected 5ms expected @45fb2a705c96
+	tests/omega/fail/calls/retired_where_machine_requirement/main.omg:3:1: `where machine` is retired; write `requires machine` with its complete contract and terminating semicolon
+fail/concurrency/suspend_live_value_rejected rejected 1715ms expected @a92f16431042
+	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
+	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -580,6 +605,7 @@ pass/borrows/runtime_nested_array_range_record_domains_exit rejected 3054ms chec
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[0][1].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][0].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][1].room.label requires [u8; N]::Utf8
+pass/borrows/runtime_nested_byte_field_capture_exit checked 1105ms check-target:macos_arm64 @7b9a72614daf
 pass/borrows/runtime_nested_callable_field_regions_exit checked 3416ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 16323ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 10879ms check-target:macos_arm64 @ccdb99ca2214
@@ -1039,6 +1065,7 @@ pass/calls/recursive_unit_positive_requires_control_exit checked 17387ms check-t
 pass/calls/reference_loan_field_requires checked 2632ms @ccdb99ca2214
 pass/calls/requirement_declared_static_operands checked 2165ms @ccdb99ca2214
 pass/calls/requires_carrier_ceiling_vacuous checked 11756ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/requires_machine_explicit_operational_closers_exit checked 1220ms check-target:macos_arm64 @45fb2a705c96
 pass/calls/requires_operand_flip_discharge checked 16267ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/result_overload_terminal_arm_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/resultless_native_callback_compile checked 18398ms check-target:linux_x86_64 @ccdb99ca2214
@@ -8530,18 +8557,21 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/call_result checked 3824ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/const_name checked 4645ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/distinct_capture checked 3493ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/field checked 3578ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/local checked 3817ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/match_join checked 4957ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/other_machine checked 3337ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/other_state checked 3565ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/parameter checked 4259ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/sibling_helper checked 3661ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/target_body checked 3690ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/target_values checked 3710ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/target_family_callback_guarantee/bare_interleaved checked 2806ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/call_result checked 3041ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/const_name checked 3887ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/distinct_capture checked 2659ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/evaluation_once checked 2591ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/field checked 3519ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/local checked 2997ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/match_join checked 3519ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/other_machine checked 2597ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/other_state checked 3357ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/parameter checked 4446ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/repeated_application checked 3268ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/sibling_helper checked 4062ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/target_body checked 4071ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
+pass/facts/target_family_callback_guarantee/target_values checked 4627ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
 pass/facts/target_family_contract_operand/call_result checked 3674ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_family_contract_operand/const_name checked 4293ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_family_contract_operand/field checked 3412ms check-target:macos_arm64 @ccdb99ca2214
@@ -13429,7 +13459,7 @@ fail/asm/checked_asm_compare_x86_uninitialized_register rejected 729ms expected 
 	assembly label `asm#entry` reads uninitialized scratch register/flag value
 fail/asm/checked_asm_nested_implicit_runtime_capture rejected 1271ms expected @ccdb99ca2214
 	machine `received` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/asm/checked_asm_nested_unproved_arrival rejected 1116ms unexpected @ccdb99ca2214
+fail/asm/checked_asm_nested_unproved_arrival rejected 412ms expected @7b9a72614daf
 	machine `left` state `entry` value call to `received` violates required fact `value == 37`: the instantiated fact is structurally false (`36 == 37`)
 fail/asm/checked_asm_nominal_overwritten_exit rejected 2689ms expected @ccdb99ca2214
 	cannot prove asm `ensures` fact at block exit in move_selected state `entry` (statement 7): output == selected.length && output == 7
@@ -31368,56 +31398,36 @@ fail/facts/structural_issuer_forwarding_target_body rejected 2936ms expected @cc
 	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
 fail/facts/subslice_state_extent_wrong_view_rejected rejected 2746ms expected @ccdb99ca2214
 	cannot prove requires contract for call extended from transfer: buffer.len >= 1024 (needs fact `buffer.len >= 1024` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/target_family_callback_guarantee/call_result rejected 1240ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/const_name rejected 1183ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/disjunctive_guarantee rejected 1091ms expected @ccdb99ca2214
+fail/facts/target_family_callback_guarantee/call_result rejected 1028ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/const_name rejected 1434ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Action`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/distinct_capture rejected 1075ms expected @ccdb99ca2214
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/disjunctive_guarantee rejected 1436ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/distinct_capture rejected 1262ms expected @45fb2a705c96
 	machine argument `identity` for `contract::apply` does not refine `Selected`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/field rejected 1005ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/local rejected 1222ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/match_join rejected 1310ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/other_machine rejected 1098ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/other_state rejected 1195ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/parameter rejected 1163ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/sibling_helper rejected 1252ms expected @ccdb99ca2214
+fail/facts/target_family_callback_guarantee/field rejected 1091ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/local rejected 1186ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/match_join rejected 1159ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/other_machine rejected 1118ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/other_state rejected 1131ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/parameter rejected 1114ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/sibling_helper rejected 715ms expected @45fb2a705c96
 	argument `value` for state `entry` expects `u64`, got `bool`
 	argument `value` for state `entry` expects `u64`, got `bool`
-fail/facts/target_family_callback_guarantee/stronger_precondition rejected 1349ms expected @ccdb99ca2214
+fail/facts/target_family_callback_guarantee/stronger_precondition rejected 738ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Action`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its requires facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/target_body rejected 1407ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/target_body rejected 709ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_contract_operand/call_result rejected 1591ms expected @ccdb99ca2214
 	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
 	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)

@@ -179,7 +179,7 @@ public boundary trait Invoke: Calling<InvokeCalling> {
         interface: &PreparedInterface, native callback transform from Handler,
         result: &mut FloatPair, arguments: &ArgumentValues
     )
-    where machine Handler satisfies Transform::transform;
+    requires machine Handler satisfies Transform::transform;
     reaches
     invokes Transform;
 }
@@ -218,7 +218,7 @@ macos_arm64 machine invoke_binding() -> ForeignBinding<21, 9, 0> {
 macos_arm64 machine invoke_leaf<machine Selected>(
     interface: &PreparedInterface, result: &mut FloatPair, arguments: &ArgumentValues
 )
-where machine Selected satisfies Transform::transform;
+requires machine Selected satisfies Transform::transform;
 satisfies Invoke::invoke
 via invoke_binding();
 
@@ -415,7 +415,7 @@ linux_x86_64 machine linux_invoke_binding() -> ForeignBinding<11, 8, 15> {
 linux_x86_64 machine invoke_leaf<machine Selected>(
     interface: &PreparedInterface, result: &mut FloatPair, arguments: &ArgumentValues
 )
-where machine Selected satisfies Transform::transform;
+requires machine Selected satisfies Transform::transform;
 satisfies Invoke::invoke
 via linux_invoke_binding();
 

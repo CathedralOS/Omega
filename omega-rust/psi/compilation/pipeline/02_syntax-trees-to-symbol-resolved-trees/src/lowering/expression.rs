@@ -147,10 +147,7 @@ fn lower_nonbinary_expression_node_into_table(
                 *reference,
             )?;
             let reference = lowerer
-                .symbol_resolved_trees
-                .tables
-                .declarations
-                .child_type_references
+                .declaration_child_type_references()
                 .append(reference);
             Ok(expression_table(lowerer).insert(ExpressionNode::TypeExpression(reference)))
         }
@@ -230,10 +227,7 @@ fn lower_nonbinary_expression_node_into_table(
                 cast.target_type,
             )?;
             let target_type = lowerer
-                .symbol_resolved_trees
-                .tables
-                .declarations
-                .child_type_references
+                .declaration_child_type_references()
                 .append(target_type);
             let mut target_label = HandleSpan::empty();
             for member in syntax_trees
@@ -461,10 +455,7 @@ fn lower_nonbinary_expression_node_into_table(
                 *type_reference,
             )?;
             let type_reference = lowerer
-                .symbol_resolved_trees
-                .tables
-                .declarations
-                .child_type_references
+                .declaration_child_type_references()
                 .append(type_reference);
             Ok(expression_table(lowerer).insert(ExpressionNode::ZeroValue(type_reference)))
         }
@@ -548,10 +539,7 @@ fn lower_applied_requirement_qualifier(
         application,
     )?;
     let application = lowerer
-        .symbol_resolved_trees
-        .tables
-        .declarations
-        .child_type_references
+        .declaration_child_type_references()
         .append(reference);
     Ok((receiver, application))
 }
@@ -568,10 +556,7 @@ pub(crate) fn lower_static_machine_argument(
             argument.type_reference,
         )?;
         lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
+            .declaration_child_type_references()
             .append(reference)
     } else {
         arena::Handle::invalid()
@@ -601,12 +586,7 @@ pub(crate) fn lower_static_machine_argument(
                                 })?;
                             let member =
                                 lower_static_machine_argument(lowerer, syntax_trees, source)?;
-                            lowerer
-                                .symbol_resolved_trees
-                                .tables
-                                .bodies
-                                .expressions
-                                .insert_static_member(member)
+                            expression_table(lowerer).insert_static_member(member)
                         } else {
                             arena::Handle::invalid()
                         },

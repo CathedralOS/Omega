@@ -5,7 +5,7 @@ machine keep<'storage>(source: View<'storage>) -> View<'storage>
 ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len
 { source }
 machine apply<'storage, machine Callback>(source: View<'storage>) -> View<'storage>
-where machine Callback<'fresh>(source: View<'fresh>) -> View<'fresh>
+requires machine Callback<'fresh>(source: View<'fresh>) -> View<'fresh>
 ensures result.bytes.len == source.bytes.len;
 ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len
 { Callback(source) }

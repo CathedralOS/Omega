@@ -36,8 +36,8 @@ pub(crate) use provenance_replay::{
 };
 pub use provenance_replay::{
     ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
-    exact_checked_adapter, project_checked_provider_instances, same_semantic_name,
-    satisfies_plan_name, selected_requirement_checked_adapter,
+    exact_checked_adapter, same_semantic_name, satisfies_plan_name,
+    selected_requirement_checked_adapter,
 };
 
 pub use selection_provenance::{

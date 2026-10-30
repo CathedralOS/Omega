@@ -1,7 +1,7 @@
 machine accepts<'borrow, Kind>(value: &'borrow Kind) -> bool { true }
 
 machine apply<const Count: u64, machine Callback>(value: &[u8; Count]) -> bool
-where machine Callback(value: &[u8; Count]) -> bool;
+requires machine Callback(value: &[u8; Count]) -> bool;
 { Callback(value) }
 
 machine first<const Count: u64>(value: &[u8; Count]) -> bool {

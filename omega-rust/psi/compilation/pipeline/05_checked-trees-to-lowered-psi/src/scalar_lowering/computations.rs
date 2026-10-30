@@ -464,21 +464,16 @@ impl<'a> Expansion<'a> {
     ) -> usize {
         let mut value_types = input_types.to_vec();
         value_types.push(value_type);
-        self.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            parameter_types: value_types.clone(),
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            structural_effects: Vec::new(),
-            terminator: LoweredScalarBranchTerminator::Qualify {
+        self.push(LoweredScalarBranchState::continuing(
+            value_types.clone(),
+            LoweredScalarBranchTerminator::Qualify {
                 target,
                 arguments: parameters(&value_types),
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
             },
-        })
+        ))
     }
 
     pub(crate) fn push(&mut self, mut state: LoweredScalarBranchState) -> usize {
@@ -960,14 +955,9 @@ impl<'a> Expansion<'a> {
                     self.binding(input_types, input_types.len(), target, literal(0));
                 let mut condition_types = input_types.to_vec();
                 condition_types.push(ScalarType::Boolean.into());
-                let dispatch = self.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    structural_effects: Vec::new(),
-                    parameter_types: condition_types,
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    terminator: LoweredScalarBranchTerminator::Conditional {
+                let dispatch = self.push(LoweredScalarBranchState::continuing(
+                    condition_types,
+                    LoweredScalarBranchTerminator::Conditional {
                         condition: LoweredBooleanReturnExpression::Parameter {
                             position: input_types.len(),
                         },
@@ -980,7 +970,7 @@ impl<'a> Expansion<'a> {
                         when_false_erased_arguments: Vec::new(),
                         when_false_erased_proof_arguments: Vec::new(),
                     },
-                });
+                ));
                 self.argument(identities, &operand, input_types, dispatch, site, active)?
             }
             CheckedScalarComputationKind::Call {

@@ -226,7 +226,8 @@ impl TypedTrees {
                     ))
                     .is_some_and(|(expected, actual)| expected == actual)
             }
-            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual)) => {
+            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual))
+            | (TypeParameterKind::Implementation, StaticMachineBindingValue::Conformance(actual)) => {
                 argument == actual
             }
             _ => false,

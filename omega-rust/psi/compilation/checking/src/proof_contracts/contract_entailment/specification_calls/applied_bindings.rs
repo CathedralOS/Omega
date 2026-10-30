@@ -293,6 +293,15 @@ impl AppliedProofBindings {
         };
         if handle.is_valid() {
             let application = program.expression_table.static_machine_application(handle);
+            if super::super::struct_trace() && !arguments.is_empty() {
+                eprintln!(
+                    "STRUCT selected static call caller={caller:?} lexical={:?} owner={:?} declaration={:?} registration={:?} arguments={arguments:?}",
+                    application.lexical_owner,
+                    owner_symbol(owner),
+                    application.binding_declaration,
+                    application.registration_operation,
+                );
+            }
             if application.lexical_owner != caller {
                 if super::super::struct_trace() {
                     eprintln!(
@@ -621,6 +630,11 @@ impl AppliedProofBindings {
                     .static_machine_application_bindings(handle)
                     .is_empty()
         };
+        if super::super::struct_trace() && !machine_arguments.is_empty() {
+            eprintln!(
+                "STRUCT selected static intake declaration={declaration:?} registration_only={registration_only} parameters={parameters:?} arguments={machine_arguments:?}",
+            );
+        }
         if registration_only
             && conformance_bounds.is_empty()
             && parameters

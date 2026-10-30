@@ -7,7 +7,7 @@ use psi::syntax::syntax;
 // Fact names. A machine's or state's `requires` fact names that body's
 // parameters (and the machine's value binders) exactly as its statements
 // do, with no locals in scope (wiki/spec/language/state_contracts.md), and
-// a `where machine` contract's names its own parameters. A
+// a `requires machine` contract's names its own parameters. A
 // machine's `ensures` fact names the same, and `result` the value it
 // returns unless an entry parameter spells `result` (same page, Returns and
 // proof use). A data declaration's `where` fact names its
@@ -40,7 +40,7 @@ crashes Trap
         transition { _ -> next_contract(resolver, sources, syntax, index, item, 0) }
     }
 
-    // A `where machine` contract's `requires` facts name its own parameters.
+    // A `requires machine` contract's `requires` facts name its own parameters.
     machine next_contract(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
             true -> contract_facts(resolver, sources, syntax, index, item, offset)

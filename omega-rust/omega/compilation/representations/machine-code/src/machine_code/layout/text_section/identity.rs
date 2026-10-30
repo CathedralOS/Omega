@@ -4,7 +4,9 @@ use super::{
     RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
-use crate::machine_code::identity_encoding::{encode_call_owner, encode_invocation_site};
+use crate::machine_code::identity_encoding::{
+    encode_call_owner, encode_invocation_site, encode_nested_identity,
+};
 #[cfg(test)]
 use target::NativeTarget;
 
@@ -113,9 +115,7 @@ pub fn relocation_free_text_section_identity(
         hasher.raw(b"image-addresses-v2");
         hasher.u64(section.unresolved_image_addresses.len() as u64);
         for placed in &section.unresolved_image_addresses {
-            let mut identity = Vec::new();
-            placed.encode_identity(&mut identity);
-            hasher.raw(&identity);
+            encode_nested_identity(&mut hasher, |out| placed.encode_identity(out));
         }
     }
     hasher.byte(match section.relocation_requirements {

@@ -81,7 +81,7 @@ public data Selection [copy] {
     case Machine(handle: u64 in Trapping);
     case Field(field: u64 in Trapping);
     case Length;
-    // A call of a machine binder through its `where machine` contract, by
+    // A call of a machine binder through its `requires machine` contract, by
     // generic parameter handle.
     case Binder(parameter: u64 in Trapping);
 }

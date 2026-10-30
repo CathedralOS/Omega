@@ -12,6 +12,7 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+use crate::emission::value_successor;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Emit the selected structural producer through ordinary operand preparation.
@@ -99,15 +100,7 @@ pub(super) fn emit(
             block_id(allocate_dense(next_block)?)
         };
         let edge = |target, counter: &mut u64| -> Result<SuccessorEdge, LoweringError> {
-            Ok(SuccessorEdge {
-                edge: edge_id(allocate_dense(counter)?),
-                target,
-                arguments: Vec::new(),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                cleanup_actions: Vec::new(),
-            })
+            Ok(value_successor(edge_id(allocate_dense(counter)?), target))
         };
         evaluation.blocks.push(Block {
             id: evaluation.current,

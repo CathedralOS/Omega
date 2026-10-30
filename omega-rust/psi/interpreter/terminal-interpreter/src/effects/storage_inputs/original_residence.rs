@@ -7,6 +7,7 @@ use crate::{
     effects::{TerminalEffectHandler, original_storage::*},
     errors::{TerminalInterpretError, malformed},
     execution::TerminalExecution,
+    execution::frame_field_mut,
     primitive_storage::{ArrayCell, PrimitiveStorage, PrimitiveStorageEndpoint},
     scalar_storage::ScalarCell,
     values::{StructuralFieldNamespace, StructuralRuntimePlace, TerminalStructuralValue},
@@ -364,15 +365,7 @@ impl BoundaryStorageInputs {
                     }
                 };
                 let (depth, place, _) = home.scalar_array_frame();
-                let arrays = if depth == execution.call_stack.len() {
-                    &mut execution.scalar_array_values
-                } else {
-                    &mut execution
-                        .call_stack
-                        .get_mut(depth)
-                        .ok_or_else(malformed)?
-                        .scalar_array_values
-                };
+                let arrays = frame_field_mut!(execution, depth, scalar_array_values);
                 arrays
                     .backing_mut(&place)
                     .ok_or_else(malformed)?
@@ -433,15 +426,7 @@ impl BoundaryStorageInputs {
                             }
                         };
                     let (depth, place, _) = home.scalar_array_frame();
-                    let arrays = if depth == execution.call_stack.len() {
-                        &mut execution.scalar_array_values
-                    } else {
-                        &mut execution
-                            .call_stack
-                            .get_mut(depth)
-                            .ok_or_else(malformed)?
-                            .scalar_array_values
-                    };
+                    let arrays = frame_field_mut!(execution, depth, scalar_array_values);
                     arrays
                         .backing_mut(&place)
                         .ok_or_else(malformed)?

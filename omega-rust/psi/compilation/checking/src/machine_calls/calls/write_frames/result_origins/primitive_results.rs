@@ -137,7 +137,7 @@ fn placement_view_result_origins(
                 },
             })),
         }],
-        cases: frontier.cases,
+        cases: frontier.into_owned().cases,
         ..Default::default()
     })
 }

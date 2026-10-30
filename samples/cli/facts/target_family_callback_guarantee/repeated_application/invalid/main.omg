@@ -1,0 +1,28 @@
+// Fact: a selected callback satisfies the public callable guarantee, and its bounded result permits subtraction from 64u64.
+// Expected exit: 0
+machine identity(value: u64) -> u64 requires value <= 64 ensures result <= 64 { value }
+boundary trait CallbackApply {
+    machine apply<machine Selected>(value: u64) -> u64
+        requires machine Selected(input: u64) -> u64
+            requires input <= 64 ensures result <= 64 && result >= input;
+        reaches requires value <= 64 ensures result <= 64;
+}
+SharedApply satisfies CallbackApply {
+    machine apply<machine Action>(value: u64) -> u64
+        requires machine Action(input: u64) -> u64
+            requires input <= 64 ensures result <= 64 && result >= input;
+        requires value <= 64 ensures result <= 64
+    { Action(value) }
+}
+data Carrier [copy] where value <= 64 { value: u64; }
+machine main() reaches CallbackApply invokes CallbackApply; crashes Trap {
+    let result: u64 = CallbackApply::apply<identity>(42);
+    let another: u64 = CallbackApply::apply<identity>(41);
+    let first: Carrier = Carrier { value: result };
+    let second: Carrier = Carrier { value: another };
+    let remaining: u64 = 64u64 - first.value;
+    let other_remaining: u64 = 64u64 - second.value;
+    transition remaining == 22 && other_remaining == 23 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

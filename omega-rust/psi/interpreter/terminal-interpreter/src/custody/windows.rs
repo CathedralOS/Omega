@@ -145,11 +145,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         hole: &StructuralRuntimePlace,
     ) -> Result<Option<StructuralArgument>, TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         if path.contains(&StructuralPathSegment::Referent)
             || self.element_view_values.contains_key(&root)
             || machine

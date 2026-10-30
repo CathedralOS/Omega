@@ -25,11 +25,7 @@ impl TerminalExecution<'_> {
         &self,
         place: PlaceId,
     ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let result = machine
             .structural_place(place)
             .and_then(|declaration| declaration.kind.as_operation_result());
@@ -168,11 +164,7 @@ impl TerminalExecution<'_> {
         &self,
         place: PlaceId,
     ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         // Owned parameters and completed owned results both bind activation
         // storage. Mutation must detach that home's payload, never an immutable
         // literal descriptor or another activation's backing.

@@ -11,6 +11,7 @@
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::execution::frame_field_mut;
 use crate::primitive_storage::{PrimitiveStorageEndpoint, scalar_field_projection};
 use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
@@ -166,15 +167,7 @@ impl TerminalExecution<'_> {
             return Ok(identity);
         }
         let identity = self.local_structural_identities.allocate_staged(cursor)?;
-        let arrays = if depth == self.call_stack.len() {
-            &mut self.scalar_array_values
-        } else {
-            &mut self
-                .call_stack
-                .get_mut(depth)
-                .ok_or_else(malformed)?
-                .scalar_array_values
-        };
+        let arrays = frame_field_mut!(self, depth, scalar_array_values);
         arrays
             .backing_mut(&place)
             .ok_or_else(malformed)?

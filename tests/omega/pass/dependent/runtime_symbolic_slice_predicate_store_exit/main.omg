@@ -55,7 +55,9 @@ ensures valid_values(values) == true && ascending_values(values) == true
         values[selected] = replacement;
     }
 }
-data Rows where valid_values(&values) == true, ascending_values(&values) == true {
+data Rows
+requires valid_values(&self.values) == true && ascending_values(&self.values) == true
+ {
     values: [i32; 6];
 }
 data Main { rows: Rows; }

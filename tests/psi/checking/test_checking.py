@@ -1071,7 +1071,7 @@ def main() -> None:
         b"}",
     )
 
-    # A machine binder's call owes its `where machine` contract's `requires`
+    # A machine binder's call owes its `requires machine` contract's `requires`
     # facts and derives the crash causes the contract declares; whatever its
     # exclusive arguments reach may change. A static machine argument
     # refines the contract: its published crash causes lie within the
@@ -1079,7 +1079,7 @@ def main() -> None:
     accepted(
         program,
         "binder-call-proves-its-contract",
-        b"machine apply<machine F>(x: u64) -> u64\nwhere machine F(value: u64) -> u64 requires value > 0;\n{\n"
+        b"machine apply<machine F>(x: u64) -> u64\nrequires machine F(value: u64) -> u64 requires value > 0;\n{\n"
         b"    transition x > 0 {\n"
         b"        true -> called(x)\n"
         b"        _ -> skipped()\n"
@@ -1092,7 +1092,7 @@ def main() -> None:
     rejected(
         program,
         "binder-call-owes-its-contract",
-        b"machine apply<machine F>(x: u64) -> u64\nwhere machine F(value: u64) -> u64 requires value > 0;\n{ F(x) }",
+        b"machine apply<machine F>(x: u64) -> u64\nrequires machine F(value: u64) -> u64 requires value > 0;\n{ F(x) }",
         "RequirementUnproven",
         b"F(x)",
     )
@@ -1101,7 +1101,7 @@ def main() -> None:
         "binder-call-releases-exclusive-arguments",
         b"data P { x: u64; }\n"
         b"machine read(a: &[u8; 4], i: u64) -> u8\nrequires i < 4\n{ a[i] }\n"
-        b"machine apply<machine F>(p: &mut P, a: &[u8; 4]) -> u8\nwhere machine F(target: &mut P);\n{\n"
+        b"machine apply<machine F>(p: &mut P, a: &[u8; 4]) -> u8\nrequires machine F(target: &mut P);\n{\n"
         b"    p.x = 1;\n"
         b"    F(p);\n"
         b"    read(a, p.x)\n"
@@ -1112,22 +1112,22 @@ def main() -> None:
     accepted(
         program,
         "static-machine-argument-within-contract-crash-causes",
-        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }\npublic machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ apply<bump>(x) }',
+        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nrequires machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }\npublic machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ apply<bump>(x) }',
         {0: "?/T", 1: "?/T", 2: "T/T"},
     )
     rejected(
         program,
         "binder-crash-causes-are-declared",
-        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
+        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nrequires machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
         "CrashNotDeclared",
-        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
+        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nrequires machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
     )
     rejected(
         program,
         "static-machine-argument-crash-outside-contract",
         b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
         b"machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
+        b"requires machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
         b"machine outer(x: u64 in Trapping) -> u64 in Trapping { apply<bump>(x) }",
         "CrashNotDeclared",
         b"bump!2",
@@ -1136,9 +1136,9 @@ def main() -> None:
         program,
         "forwarded-binder-crash-outside-contract",
         b"machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
+        b"requires machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
         b"machine again<machine G>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine G(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ apply<G>(x) }",
+        b"requires machine G(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ apply<G>(x) }",
         "CrashNotDeclared",
         b"G!3",
     )
@@ -1146,7 +1146,7 @@ def main() -> None:
         program,
         "static-machine-argument-premises-are-unsupported",
         b"machine positive(x: u64) -> u64\nrequires x > 0\n{ x }\n"
-        b"machine apply<machine F>(x: u64) -> u64\nwhere machine F(value: u64) -> u64;\n{ F(x) }\n"
+        b"machine apply<machine F>(x: u64) -> u64\nrequires machine F(value: u64) -> u64;\n{ F(x) }\n"
         b"machine outer(x: u64) -> u64 { apply<positive>(x) }",
         "UnsupportedFact",
         b"positive!2",

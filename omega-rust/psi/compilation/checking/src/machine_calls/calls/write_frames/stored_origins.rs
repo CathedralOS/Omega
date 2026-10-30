@@ -22,6 +22,8 @@ use super::place_paths::{
 use super::{Machine, SymbolHandle, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
 use facts::PlaceSegment;
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 use typed_trees::statement::TableLocalData;
 use typed_trees::types::TypeReferenceNode;
 
@@ -67,7 +69,38 @@ pub(super) use type_origins::declared_origins_for_query;
 pub(super) use type_origins::demand_is_declared;
 
 #[derive(Debug, Clone)]
-pub(super) struct StoredLocalOrigins {
+pub(super) struct StoredLocalOrigins(Arc<StoredOriginRecord>);
+
+impl StoredLocalOrigins {
+    pub(super) fn new(record: StoredOriginRecord) -> Self {
+        Self(Arc::new(record))
+    }
+
+    pub(super) fn into_owned(self) -> StoredOriginRecord {
+        Arc::unwrap_or_clone(self.0)
+    }
+}
+
+// Operand captures, statement prefixes and inference scopes all freeze this
+// same record. Sharing at the record owner prevents each consumer from copying
+// its reference/case trees. A branch mutation first acquires its own record;
+// there is no interior mutation visible through a retained observation.
+impl Deref for StoredLocalOrigins {
+    type Target = StoredOriginRecord;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for StoredLocalOrigins {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct StoredOriginRecord {
     pub local_symbol: SymbolHandle,
     pub references: Vec<StoredWriteOrigin>,
     pub cases: Vec<Vec<PlaceSegment>>,
@@ -317,13 +350,13 @@ pub(super) fn declaration_origins_for_query(
             });
         }
     }
-    Some(StoredLocalOrigins {
+    Some(StoredLocalOrigins::new(StoredOriginRecord {
         local_symbol: local.symbol,
         references: origins,
         cases: leaves.cases,
         moves: leaves.moves,
         symbolic: false,
-    })
+    }))
 }
 
 /// Classify one exclusive borrow's replacement ceiling. Its enclosing call

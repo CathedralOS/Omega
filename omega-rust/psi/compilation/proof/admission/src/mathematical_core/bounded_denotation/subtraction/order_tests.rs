@@ -4,6 +4,7 @@
 //! orientation and minuend is load-bearing.
 
 use super::super::test_utilities::{assert_refused, elaborate_checked};
+use crate::value_context;
 use std::collections::BTreeSet;
 
 use semantic_vocabulary::{
@@ -27,13 +28,7 @@ fn zero(integer: IntegerType) -> ScalarTerm {
 }
 
 fn context(integer: IntegerType) -> PropositionContext {
-    PropositionContext::from_value_types((1..=6).map(|identity| {
-        (
-            ValueId::new(identity).unwrap(),
-            ScalarType::Integer(integer),
-        )
-    }))
-    .unwrap()
+    value_context(ScalarType::Integer(integer), 6)
 }
 
 fn cited(conclusion: Proposition, index: usize) -> Box<ProofNode> {

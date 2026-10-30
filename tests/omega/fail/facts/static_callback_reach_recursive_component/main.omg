@@ -21,7 +21,7 @@ requires value <= 37
 ensures result <= 37
 { value }
 machine traverse<machine Step>(value: u64, remaining: u64) -> u64
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 terminates by remaining;
 requires value <= 37 && remaining <= 3
 ensures result <= 37

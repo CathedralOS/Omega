@@ -17,7 +17,7 @@ satisfies Other::call
 }
 
 machine register<machine Selected>(value: i32) -> i32
-where machine Selected satisfies Handler::call;
+requires machine Selected satisfies Handler::call;
 {
     Selected(value)
 }

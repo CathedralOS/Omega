@@ -96,9 +96,7 @@ pub fn collection_backing<'types>(
     collection: StructuralTypeId,
     element: StructuralTypeId,
 ) -> Option<CollectionBacking> {
-    let declaration = types
-        .clone()
-        .find(|declaration| declaration.id == collection)?;
+    let declaration = crate::structural_declaration(types.clone(), collection)?;
     collection_shape_backing(types, &declaration.shape, element)
 }
 

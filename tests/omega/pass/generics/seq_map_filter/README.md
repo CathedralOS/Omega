@@ -3,7 +3,7 @@
 Depend-free compile-scope probe: static machine parameters. `map<F>` and
 `filter<Predicate>` take `machine` arguments whose calls specialize the
 recursive templates into direct calls — no runtime callable or capture
-object. First sample exercising that `where machine F(...)` surface; the
+object. First sample exercising that `requires machine F(...)` surface; the
 only prior exercise is a corpus fixture.
 
 The machine builds `Seq::Cons` 1..5, maps through `triple` (3,6,9,12,15),

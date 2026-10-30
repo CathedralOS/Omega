@@ -40,7 +40,8 @@ impl ComponentPublication {
         // do not enumerate every exported component requirement.
         let plans = checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .plans()
             .iter()
             .collect::<Vec<_>>();
@@ -56,7 +57,7 @@ impl ComponentPublication {
                     )]
                 })?;
             provider_planning::calling_policy_plans::component_calling_applications(
-                &checked.execution().program.typed,
+                &checked.execution().provider_source.program().typed,
                 target,
                 &plans,
                 &checked.providers().boundary_calling_plan_realizations,
@@ -112,7 +113,13 @@ impl ComponentPublication {
         accounting: &mut build_time_evaluation::SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {
         let execution = self.checked.execution();
-        if execution.program.facts.proof_applications.has_obligations {
+        if execution
+            .provider_source
+            .program()
+            .facts
+            .proof_applications
+            .has_obligations
+        {
             let profile = execution
                 .selected_target_profile
                 .unwrap_or_else(target::TargetProfile::host);
@@ -127,7 +134,7 @@ impl ComponentPublication {
         }
         crate::execution_settlement::check_terminal_task_activations(
             produced.artifact.view().module(),
-            &execution.selected_provider_plan_facts,
+            execution.provider_source.plans(),
             execution.selected_target_profile,
         )
     }
@@ -199,7 +206,7 @@ fn describe_component(
     // separate native description once image emission supplies those facts.
     let (expected_subject, description) = publish_component_description(ComponentDescriptionFacts {
         artifact,
-        selected_provider_plans: &checked.execution().selected_provider_plan_facts,
+        selected_provider_plans: checked.execution().provider_source.plans(),
         stack_demand: None,
         realization_identity: None,
     })

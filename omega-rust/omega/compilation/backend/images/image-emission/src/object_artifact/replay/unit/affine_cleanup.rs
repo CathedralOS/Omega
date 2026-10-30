@@ -99,30 +99,7 @@ pub(crate) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bo
         return true;
     }
     let expected_root_length = match construction_locals.len() {
-        2 => 3,
-        3 => 4,
-        4 => 5,
-        5 => 6,
-        6 => 7,
-        7 => 8,
-        8 => 9,
-        9 => 10,
-        10 => 11,
-        11 => 12,
-        12 => 13,
-        13 => 14,
-        14 => 15,
-        15 => 16,
-        16 => 17,
-        17 => 18,
-        18 => 19,
-        19 => 20,
-        20 => 21,
-        21 => 22,
-        22 => 23,
-        23 => 24,
-        24 => 25,
-        25 => 26,
+        length @ 2..=25 => length + 1,
         _ => return false,
     };
     construction_locals.len() == cleanup.locals.len()
@@ -148,7 +125,7 @@ pub(crate) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bo
                                 root.shape,
                                 terminal_psi::StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) }
                                     if element == *element_type
-                                        && length == expected_root_length
+                                        && usize::try_from(length) == Ok(expected_root_length)
                             )
                     })
             })

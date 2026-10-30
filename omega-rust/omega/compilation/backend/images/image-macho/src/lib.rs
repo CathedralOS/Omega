@@ -96,6 +96,8 @@ mod entry_symbol;
 mod file_layout;
 mod isa;
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
 
 pub use dyld_linking::imports::validate_macho_import_binding_pairing;

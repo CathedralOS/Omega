@@ -38,6 +38,21 @@ macro_rules! scalar_field_forms {
     };
 }
 
+/// The little-endian scalar payloads: each writes its own width and the field
+/// text that names it, and carries no framing of its own.
+macro_rules! scalar_numbers {
+    ($($method:ident($value:ty)),+ $(,)?) => {
+        $(
+            pub(crate) fn $method(&mut self, value: $value) {
+                if let Some(text) = &mut self.text {
+                    text.number(stringify!($method), value);
+                }
+                self.append(&value.to_le_bytes());
+            }
+        )+
+    };
+}
+
 impl Encoder<'_> {
     scalar_field_forms!(@total
         byte_field(u8) => byte,
@@ -96,33 +111,7 @@ impl Encoder<'_> {
         self.append(&[u8::from(value)]);
     }
 
-    pub(crate) fn u16(&mut self, value: u16) {
-        if let Some(text) = &mut self.text {
-            text.number("u16", value);
-        }
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn u32(&mut self, value: u32) {
-        if let Some(text) = &mut self.text {
-            text.number("u32", value);
-        }
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn u64(&mut self, value: u64) {
-        if let Some(text) = &mut self.text {
-            text.number("u64", value);
-        }
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn i64(&mut self, value: i64) {
-        if let Some(text) = &mut self.text {
-            text.number("i64", value);
-        }
-        self.append(&value.to_le_bytes());
-    }
+    scalar_numbers!(u16(u16), u32(u32), u64(u64), i64(i64));
 
     pub(crate) fn usize(&mut self, value: usize) -> Result<(), PackageReviewEncodingError> {
         self.u64(u64::try_from(value).map_err(|_| {

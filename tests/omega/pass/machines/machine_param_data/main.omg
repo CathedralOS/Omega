@@ -1,5 +1,5 @@
 // A proof-only data family indexed by a compile-time machine symbol:
-// `data Stream<machine S> where machine S(index: Index) -> Index`
+// `data Stream<machine S> requires machine S(index: Index) -> Index`
 // — the family contract is checked at a concrete use (`Stream<sample>`)
 // while a recursive occurrence forwards its own static parameter
 // without storing a callable value.
@@ -8,7 +8,7 @@ public data Index {
     case Next(previous: Index);
 }
 data Stream<machine S>
-where machine S(index: Index) -> Index;
+requires machine S(index: Index) -> Index;
 {
     case Empty;
     case More(sample: Index, tail: Stream<S>);

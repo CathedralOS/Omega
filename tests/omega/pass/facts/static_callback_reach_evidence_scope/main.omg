@@ -24,7 +24,7 @@ requires value <= 37
 ensures result <= 37
 { value }
 machine traverse<Operations satisfies Marker, machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract<Operations>::step;
+requires machine Step satisfies StepContract<Operations>::step;
 terminates;
 requires value <= 37
 ensures result <= 37

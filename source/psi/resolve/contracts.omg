@@ -4,7 +4,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 
 // Machine binder contracts (wiki/spec/language/generics.md, Static machine
-// binder categories). Each `where machine Name(...)` contract of a machine
+// binder categories). Each `requires machine Name(...)` contract of a machine
 // gives the one `machine` binder of that machine spelled `Name` its
 // callable signature; the clause declares the binder's contract rather
 // than inferring it from calls, so a contract naming no such binder, or a

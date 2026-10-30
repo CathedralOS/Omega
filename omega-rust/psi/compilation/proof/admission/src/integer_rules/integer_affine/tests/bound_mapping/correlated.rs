@@ -18,10 +18,7 @@ fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
     let redirected = value(4, integer_type);
     let target = ScalarTerm::exact_integer_add(integer_type, left.clone(), right.clone())
         .expect("exact add");
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     for (endpoint, evidence, expected) in [
         (
             127,
@@ -55,12 +52,7 @@ fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
             )
             .unwrap(),
         );
-        let witness = IntegerAffineWitness {
-            root: correlated.clone(),
-            target: target.clone(),
-            definition_axioms: vec![0],
-            literal_axioms: vec![None],
-        };
+        let witness = affine_witness(correlated.clone(), target.clone(), vec![0], vec![None]);
         let checked =
             check_integer_affine_witness(&context, std::slice::from_ref(&axiom), &witness)
                 .expect("correlated add witness");
@@ -111,12 +103,7 @@ fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
         ScalarTerm::exact_integer_subtract(integer_type, landed_endpoint.clone(), right.clone())
             .unwrap(),
     );
-    let landed_witness = IntegerAffineWitness {
-        root: correlated.clone(),
-        target: target.clone(),
-        definition_axioms: vec![1],
-        literal_axioms: vec![Some(0)],
-    };
+    let landed_witness = affine_witness(correlated.clone(), target.clone(), vec![1], vec![Some(0)]);
     let landed = check_integer_affine_witness(
         &context,
         &[landing.clone(), complement.clone()],
@@ -204,22 +191,14 @@ fn correlated_subtract_replays_complement_definition_and_endpoint_landing() {
     let landed_endpoint = value(4, integer_type);
     let target =
         ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone()).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let landing = Proposition::Equal(landed_endpoint.clone(), literal(integer_type, -128));
     let complement = Proposition::Equal(
         correlated.clone(),
         ScalarTerm::exact_integer_add(integer_type, landed_endpoint.clone(), right.clone())
             .unwrap(),
     );
-    let witness = IntegerAffineWitness {
-        root: correlated.clone(),
-        target: target.clone(),
-        definition_axioms: vec![1],
-        literal_axioms: vec![Some(0)],
-    };
+    let witness = affine_witness(correlated.clone(), target.clone(), vec![1], vec![Some(0)]);
     let checked =
         check_integer_affine_witness(&context, &[landing.clone(), complement.clone()], &witness)
             .expect("landed MIN plus right complement");
@@ -265,10 +244,7 @@ fn correlated_negative_multiply_uses_target_endpoint_and_sign_orientation() {
     let left = value(1, integer_type);
     let right = value(2, integer_type);
     let quotient = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let target =
         ScalarTerm::exact_integer_multiply(integer_type, left.clone(), right.clone()).unwrap();
     let negative = Proposition::LessOrEqual(right.clone(), literal(integer_type, -2));
@@ -308,12 +284,7 @@ fn correlated_negative_multiply_uses_target_endpoint_and_sign_orientation() {
         let checked = check_integer_affine_witness(
             &context,
             std::slice::from_ref(&axiom),
-            &IntegerAffineWitness {
-                root: quotient.clone(),
-                target: target.clone(),
-                definition_axioms: vec![0],
-                literal_axioms: vec![None],
-            },
+            &affine_witness(quotient.clone(), target.clone(), vec![0], vec![None]),
         )
         .expect("negative quotient witness");
         let evidence = Proposition::Conjunction(vec![negative.clone(), comparison.clone()]);

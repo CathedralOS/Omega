@@ -1,7 +1,7 @@
 // Expected refusal: a callback cannot name an undeclared supplying region.
 trait Borrowing<Input, Output> { machine borrow(value: Input) -> Output blocks; }
 Selected<'capture, machine Callback> satisfies Borrowing<&'capture i32, &'capture i32>
-where machine Callback satisfies Borrowing<&'capture i32, &'capture i32>::borrow;
+requires machine Callback satisfies Borrowing<&'capture i32, &'capture i32>::borrow;
 {
     machine borrow(value: &'capture i32) -> &'capture i32 { block Callback(value) }
 }

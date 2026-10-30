@@ -1,7 +1,7 @@
 // Expected exit: 0. Exact captured callable admission.
 trait Identity<Value> { machine keep(value: Value) -> Value blocks; }
 Selected<Value, machine Callback> satisfies Identity<Value>
-where machine Callback(value: Value) -> Value;
+requires machine Callback(value: Value) -> Value;
 { machine keep(value: Value) -> Value { Callback(value) } }
 machine read<Value>(value: Value) -> Value { value }
 machine choose<Operations satisfies Identity<i32>>(value: i32) -> i32 blocks; { block Operations::keep(value) }

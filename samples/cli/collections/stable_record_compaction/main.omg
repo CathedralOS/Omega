@@ -14,7 +14,7 @@ machine eligible(event: &Event, minimum: u32) -> bool {
 machine at_least(value: &u32, minimum: u32) -> bool { value >= minimum }
 
 machine compact<T [copy], machine Predicate>(events: &mut [T], minimum: u32) -> u64
-where machine Predicate(event: &T, minimum: u32) -> bool;
+requires machine Predicate(event: &T, minimum: u32) -> bool;
 ensures result <= events.len;
 {
     transition { _ -> scan(events, minimum, 0, 0) }

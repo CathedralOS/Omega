@@ -23,6 +23,7 @@
 //! Abstract operators and requirement signatures use their exact parameter
 //! roster without manufacturing a machine or demanding runtime specialization.
 
+use crate::expression_roots::{append_statement_roots, visit_post_order};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -146,34 +147,18 @@ fn occurrences(
                     validation::append_fact_expression_roots(program, fact, &mut expressions);
                 }
             }
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                validation::expression_traversal::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
-            }
-            let mut visited = Vec::new();
-            for expression in expressions {
-                // A child may be shared by several parents. Actual postorder,
-                // not reversed preorder, ensures it is derived first.
-                validation::expression_traversal::visit_post_order(
-                    program,
-                    expression,
-                    &mut visited,
-                    |expression, node| {
-                        if selected(node) {
-                            occurrences.push((
-                                ValueTypeOwner::State {
-                                    machine: machine.symbol,
-                                    state: state.symbol,
-                                },
-                                expression,
-                            ));
-                        }
-                    },
-                );
-            }
+            append_statement_roots(program, state, &mut expressions);
+            visit_post_order(program, expressions, |expression, node| {
+                if selected(node) {
+                    occurrences.push((
+                        ValueTypeOwner::State {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                        },
+                        expression,
+                    ));
+                }
+            });
         }
     }
     let mut declarations = Vec::<(ValueTypeOwner, Vec<ExpressionHandle>)>::new();
@@ -203,19 +188,11 @@ fn occurrences(
         }
     }
     for (owner, roots) in declarations {
-        let mut visited = Vec::new();
-        for root in roots {
-            validation::expression_traversal::visit_post_order(
-                program,
-                root,
-                &mut visited,
-                |expression, node| {
-                    if selected(node) {
-                        occurrences.push((owner, expression));
-                    }
-                },
-            );
-        }
+        visit_post_order(program, roots, |expression, node| {
+            if selected(node) {
+                occurrences.push((owner, expression));
+            }
+        });
     }
     occurrences
 }

@@ -114,11 +114,7 @@ fn git_blob_batch_uses_one_bounded_launch_for_many_files() {
     ignore = "Windows prevents replacement while the retained cache-parent handle is open"
 )]
 fn git_batch_request_creation_and_cleanup_remain_in_the_retained_cache_parent() {
-    let (repo, _) = create_git_source("retained-batch-request-source");
-    let cache = temp_root("retained-batch-request-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("retained-batch-request");
     let verified = open_verified_git_repository(&cache, &request);
     let cache_root = verified
         .entry_root
@@ -172,11 +168,7 @@ fn git_batch_request_creation_and_cleanup_remain_in_the_retained_cache_parent() 
 
 #[test]
 fn git_batch_request_cleanup_does_not_remove_a_replacement_name() {
-    let (repo, _) = create_git_source("replaced-batch-request-source");
-    let cache = temp_root("replaced-batch-request-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("replaced-batch-request");
     let verified = open_verified_git_repository(&cache, &request);
     let cache_root = verified
         .entry_root

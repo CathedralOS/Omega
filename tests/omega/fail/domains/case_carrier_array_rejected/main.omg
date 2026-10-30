@@ -1,0 +1,36 @@
+// Expected rejection: construction exceeds the selected payload carrier.
+// Payload intervals survive nested-array transport and replacement. Tags and
+// neighboring slots remain observable; the empty arm must not read a payload.
+data Count [copy]
+    requires (self in Count::Empty)
+        || ((self in Count::Full) && self.value <= 256u64)
+{
+    case Empty;
+    case Full(value: u64);
+}
+data Row { counts: [Count; 8]; }
+data Grid { before: u64; rows: [Row; 8]; after: u64; }
+
+machine remaining(count: Count) -> u64 {
+    match count {
+        Count::Empty -> 777u64
+        Count::Full { value } -> 256u64 - value
+    }
+}
+machine replace(grid: &mut Grid) {
+    grid.rows[7].counts[7] = Count::Full { value: 257u64 };
+}
+machine main() crashes Trap {
+    let mut grid: Grid = Grid { before: 17u64, after: 91u64 };
+    grid.rows[7].counts[6] = Count::Full { value: 241u64 };
+    replace(&mut grid);
+    transition remaining(grid.rows[7].counts[7]) == 5u64
+        && remaining(grid.rows[7].counts[6]) == 15u64
+        && remaining(grid.rows[0].counts[0]) == 777u64
+        && grid.before == 17u64 && grid.after == 91u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

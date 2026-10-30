@@ -32,6 +32,11 @@ pub(super) fn parse_conformance<'tokens, 'source>(
         generic_parameters.type_parameters,
         rest,
     )?;
+    crate::parameters::contracts::validate_machine_parameter_contracts(
+        syntax_trees,
+        generic_parameters.type_parameters,
+        rest,
+    )?;
     if !rest.at_punctuation(PunctuationKind::LeftBrace) {
         return Err(rest.error_here(
             "a named implementation owns one complete closed map; add `{ ... }` binding every requirement after the selected trait application",

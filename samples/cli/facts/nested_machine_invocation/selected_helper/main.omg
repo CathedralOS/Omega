@@ -1,6 +1,6 @@
 // Expected exit: 0
 machine apply<machine Transform>(value: u64) -> u64
-where machine Transform(item: u64) -> u64;
+requires machine Transform(item: u64) -> u64;
 { Transform(value) }
 machine choose<const Number: u64>(value: u64) -> u64 {
     apply<read>(value)

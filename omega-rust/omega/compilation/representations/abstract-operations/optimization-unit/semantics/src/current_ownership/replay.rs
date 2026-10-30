@@ -1225,20 +1225,23 @@ pub(super) fn validate_current_ownership_cfg(
             let membership = |source, path: &[StructuralPathSegment], case, expected| {
                 membership_at(node_index as usize, source, path, case, expected)
             };
+            let cleanup_frontier = |actions, frontier: &CurrentOwnership| {
+                validate_return_cleanup_actions(
+                    function,
+                    functions,
+                    structural_types,
+                    &call_accesses.references,
+                    block_id,
+                    frontier,
+                    actions,
+                    &membership,
+                )
+            };
             match &node.operation {
                 O::Return {
                     cleanup_actions, ..
                 } => {
-                    frontier = validate_return_cleanup_actions(
-                        function,
-                        functions,
-                        structural_types,
-                        &call_accesses.references,
-                        block_id,
-                        &frontier,
-                        cleanup_actions,
-                        &membership,
-                    )?;
+                    frontier = cleanup_frontier(cleanup_actions, &frontier)?;
                     reject_live_linear_claim(function, block_id, &frontier)?;
                 }
                 O::ReturnUnit {
@@ -1246,16 +1249,7 @@ pub(super) fn validate_current_ownership_cfg(
                 } => {
                     // A unit exit has no retired structural rows to continue;
                     // the drained frontier retires with the activation.
-                    validate_return_cleanup_actions(
-                        function,
-                        functions,
-                        structural_types,
-                        &call_accesses.references,
-                        block_id,
-                        &frontier,
-                        cleanup_actions,
-                        &membership,
-                    )?;
+                    cleanup_frontier(cleanup_actions, &frontier)?;
                 }
                 O::ReturnStructural {
                     source,
@@ -1316,16 +1310,7 @@ pub(super) fn validate_current_ownership_cfg(
                     for binding in returned_claims {
                         frontier.claims.remove(&binding.claim);
                     }
-                    frontier = validate_return_cleanup_actions(
-                        function,
-                        functions,
-                        structural_types,
-                        &call_accesses.references,
-                        block_id,
-                        &frontier,
-                        cleanup_actions,
-                        &membership,
-                    )?;
+                    frontier = cleanup_frontier(cleanup_actions, &frontier)?;
                     if let Some(claim) = frontier.claims.keys().next().copied() {
                         return Err(
                             OptimizationUnitValidationError::CurrentClaimLiveAfterStructuralReturn {

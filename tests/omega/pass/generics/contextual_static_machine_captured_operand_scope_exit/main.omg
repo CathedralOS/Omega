@@ -4,7 +4,7 @@ data Item { value: u64; }
 machine pick<'call, Context>(context: Context, item: &'call Item) -> u64 { item.value }
 
 machine apply<Context, machine Callback>(context: Context, item: &Item) -> u64
-where machine Callback<'call>(context: Context, item: &'call Item) -> u64;
+requires machine Callback<'call>(context: Context, item: &'call Item) -> u64;
 { Callback(context, item) }
 
 machine relay<'call>(context: Holder<'call>, item: &'call Item) -> u64 {

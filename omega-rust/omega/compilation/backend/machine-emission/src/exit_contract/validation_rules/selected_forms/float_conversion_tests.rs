@@ -46,11 +46,7 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                 };
                 assert_non_return_refused(
                     &format!("{form:?}"),
-                    instruction,
-                    kind,
-                    &encoding,
-                    &layout,
-                    &changed,
+                    (instruction, kind, &encoding, &layout, &changed),
                 );
             }
         }

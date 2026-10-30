@@ -9,7 +9,7 @@ use super::{
 };
 use crate::checker::AssignmentRangeContext;
 
-use crate::obligations::{BoundedStateReturnObligation, IntegerRange, ProofConstraint, ProofPlan};
+use crate::obligations::{BoundedStateReturnObligation, ProofConstraint, ProofPlan};
 use arena::HandleSpan;
 use numerics::bignum::BigInt;
 use numerics::literals::IntegerLiteral;
@@ -189,10 +189,7 @@ fn arrival_interval_certificate_verifies_under_the_kernel() {
         fixture.carrier,
         0,
         200,
-        &IntegerRange {
-            minimum: BigInt::from_i64(0),
-            maximum: BigInt::from_i64(220),
-        },
+        &crate::integer_range(0, 220),
         71,
     )
     .expect("certificate");
@@ -215,10 +212,7 @@ fn arrival_interval_gap_stays_uncovered() {
             fixture.carrier,
             0,
             255,
-            &IntegerRange {
-                minimum: BigInt::from_i64(0),
-                maximum: BigInt::from_i64(10),
-            },
+            &crate::integer_range(0, 10),
             72,
         )
         .is_none()
@@ -300,10 +294,7 @@ fn contract_refined_return_gap_stays_uncovered() {
             machine,
             state,
             &context,
-            &IntegerRange {
-                minimum: BigInt::from_i64(0),
-                maximum: BigInt::from_i64(100),
-            },
+            &crate::integer_range(0, 100),
             74,
         )
         .is_none(),

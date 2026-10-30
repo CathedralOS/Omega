@@ -413,11 +413,7 @@ impl TerminalExecution<'_> {
                     .map(|frame| (frame.current_machine, &frame.structural_values)),
             )
         {
-            let machine = self
-                .program
-                .machines()
-                .get(&machine_id)
-                .ok_or_else(malformed)?;
+            let machine = self.program.machine(machine_id)?;
             for (place, value) in values.iter().filter(|(_, value)| owns_target(value)) {
                 if !covered(
                     value,

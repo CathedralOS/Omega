@@ -290,3 +290,6 @@ pub mod evidence_calls;
 pub use evidence_calls::validate_runtime_evidence_inputs;
 mod unchanged_scalar;
 pub use unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};
+
+mod structural_declarations;
+pub(crate) use structural_declarations::{structural_declaration, structural_shape};

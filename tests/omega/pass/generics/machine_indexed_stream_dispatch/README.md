@@ -5,7 +5,7 @@ indexed by a static machine:
 
 - `Index` is a recursive enum (`Next` carries an `Index` payload).
 - `Stream<machine S>` binds a static machine index under
-  `where machine S(index: Index) -> Index`; `Stream::More` stores
+  `requires machine S(index: Index) -> Index`; `Stream::More` stores
   `tail: Stream<S>`.
 - `forward_schema<identity_schema, succ>` passes one machine through another
   machine's nested machine parameter; specialization makes the calls direct.

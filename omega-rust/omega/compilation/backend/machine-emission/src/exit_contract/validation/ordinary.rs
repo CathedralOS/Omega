@@ -1,5 +1,6 @@
 //! Ordinary exit roster and effect checks, driven by the claimed contract.
 
+use super::super::WholeFunctionExitContractError::{NonReturnControlEffect, NonReturnStackEffect};
 use super::super::{
     WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
     validation_rules::{
@@ -218,9 +219,7 @@ pub(super) fn check(
                             encoded,
                         )
                     {
-                        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-                            instruction.id,
-                        ));
+                        return Err(NonReturnStackEffect(instruction.id));
                     }
                     let exited = process_exits
                         .next()
@@ -281,9 +280,7 @@ pub(super) fn check(
                     selected_instructions::selected_call_pattern!(..)
                 ) {
                     if function_frame.is_none() {
-                        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                            instruction.id,
-                        ));
+                        return Err(NonReturnControlEffect(instruction.id));
                     }
                     validate_internal_call(
                         machine.target,
@@ -304,9 +301,7 @@ pub(super) fn check(
                         && instruction.constraint.family
                             != register_model::RegisterConstraintFamily::SystemCall
                     {
-                        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                            instruction.id,
-                        ));
+                        return Err(NonReturnControlEffect(instruction.id));
                     }
                     validate_normalized_foreign_call(
                         machine.target,
@@ -329,9 +324,7 @@ pub(super) fn check(
                             encoded,
                         )
                     {
-                        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-                            instruction.id,
-                        ));
+                        return Err(NonReturnStackEffect(instruction.id));
                     }
                     validate_non_return(
                         machine.target.architecture,

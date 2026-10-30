@@ -116,7 +116,8 @@ fn accept(
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let candidates = checked
         .execution()
-        .selected_provider_plan_facts
+        .provider_source
+        .plans()
         .plans()
         .iter()
         .zip(checked.execution().selected_provider_provenance.as_slice())

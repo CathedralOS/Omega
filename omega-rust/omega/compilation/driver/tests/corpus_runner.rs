@@ -825,7 +825,8 @@ fn interpret_checked_fixture(
     // the same member native realization binds.
     let machine_bodies: Vec<checked_interpreter::SelectedBuildTimeMachineBody> = checked
         .execution()
-        .program
+        .provider_source
+        .program()
         .typed
         .target_machine_families
         .iter()
@@ -851,7 +852,7 @@ fn interpret_checked_fixture(
         None
     };
     let outcome = checked_interpreter::interpret_entry(
-        &checked.execution().program,
+        checked.execution().provider_source.program(),
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
         &input_bytes,
         checked_interpreter::InterpretOptions {

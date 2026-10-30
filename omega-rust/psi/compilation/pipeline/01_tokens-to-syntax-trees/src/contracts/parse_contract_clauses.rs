@@ -47,6 +47,7 @@ type RankedSubjects = (
 pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
 ) -> ParseResult<'tokens, 'source, MachineClauses> {
     let mut terminates_guarantee = false;
     let mut ranking_subjects = HandleSpan::empty();
@@ -55,13 +56,13 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
-    let mut service_reaches = crate::handle_spans::HandleSpanBuilder::new();
-    let mut invokes = crate::handle_spans::HandleSpanBuilder::new();
+    let mut service_reaches = Vec::new();
+    let mut invokes = Vec::new();
     let mut suspends_keyword_source_spans = Vec::new();
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
-    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
+    let mut contracts = Vec::new();
     let mut outcome_case_groups = Vec::<String>::new();
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
@@ -74,6 +75,19 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         // loop stands down and leaves the semicolon for parse_machine.
         && !input.at_punctuation(PunctuationKind::Semicolon)
     {
+        if input.at_contextual("requires")
+            && input
+                .take_contextual("requires")?
+                .at_keyword(KeywordKind::Machine)
+        {
+            let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
+                syntax_trees,
+                type_parameters,
+                input,
+            )?;
+            input = rest;
+            continue;
+        }
         if input.at_contextual("terminates") {
             input = input.take_contextual("terminates")?;
             // Decision 23 (TPR1): bare `terminates;` authors the public
@@ -135,7 +149,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("reaches") {
             input = super::take_operational_reaches_clause(
                 input,
-                syntax_trees,
                 &mut service_reach_keyword_source_spans,
                 &mut service_reaches,
                 &mut service_reach_is_installation_bound,
@@ -147,8 +160,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("invokes") {
             input = input.take_contextual("invokes")?;
             let (binding, after_binding) = input.take_identifier()?;
-            let handle = syntax_trees.items.append_identifier_path_member(binding);
-            invokes.push(handle);
+            invokes.push(binding);
             input = take_invokes_clause_terminator(after_binding)?;
             continue;
         }
@@ -214,19 +226,15 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     },
                     true,
                 )?;
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind: CapabilityContractKind::Crashes { cause },
-                    keyword_source_span,
-                    binding: None,
-                    facts,
-                    token_count: fact_token_count
-                        .checked_add(header_token_count)
-                        .expect("crash contract token count overflow"),
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind: CapabilityContractKind::Crashes { cause },
+                keyword_source_span,
+                binding: None,
+                facts,
+                token_count: fact_token_count
+                    .checked_add(header_token_count)
+                    .expect("crash contract token count overflow"),
+            });
             input = rest;
             continue;
         }
@@ -273,7 +281,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                         }
                         public_selectors.push(binding.as_str(syntax_trees).to_owned());
                     }
-                    super::record_capability_contract(syntax_trees, contract, &mut contracts);
+                    contracts.push(contract);
                 }
                 input = rest;
                 continue;
@@ -311,17 +319,13 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 }
                 public_selectors.push(binding.as_str(syntax_trees).to_owned());
             }
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind,
-                    keyword_source_span,
-                    binding,
-                    facts,
-                    token_count,
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind,
+                keyword_source_span,
+                binding,
+                facts,
+                token_count,
+            });
             input = rest;
             continue;
         }
@@ -347,7 +351,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             let after_where = input.take_contextual("where")?;
             if after_where.at_keyword(KeywordKind::Machine) {
                 return Err(after_where.error_here(
-                    "one-off `where machine T::member(...)` requirements are unsupported; declare a trait and bind an explicit conformance",
+                    "`where machine` is retired; write `requires machine` with an explicit generic binder",
                 ));
             }
             input = after_where;
@@ -405,13 +409,15 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             ranking_range,
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
-            service_reaches: service_reaches.finish(),
-            invokes: invokes.finish(),
+            service_reaches: syntax_trees
+                .items
+                .insert_identifier_path_members(service_reaches),
+            invokes: syntax_trees.items.insert_identifier_path_members(invokes),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts: contracts.finish(),
+            contracts: super::publish_capability_contracts(syntax_trees, contracts),
             return_type,
             where_facts: where_facts_span.finish(),
             admitted_same_stack_bytes,
@@ -618,18 +624,9 @@ fn parse_crash_header<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, (CrashCause, usize)> {
     let input = input.take_contextual("crashes")?;
-    let (cause, input) = input.take_identifier()?;
-    let cause = match cause.as_str(&input) {
-        "Trap" => CrashCause::Trap,
-        "Abort" => CrashCause::Abort,
-        _ => {
-            return Err(input.error_here(format!(
-                "unknown crash cause `{}`; expected `Trap` or `Abort`",
-                cause.as_str(&input)
-            )));
-        }
-    };
-    Ok(((cause, 2), input))
+    let (cause, after_cause) = input.take_identifier()?;
+    let cause = crate::contracts::parse_crash_cause(&cause, after_cause)?;
+    Ok(((cause, 2), after_cause))
 }
 
 fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {

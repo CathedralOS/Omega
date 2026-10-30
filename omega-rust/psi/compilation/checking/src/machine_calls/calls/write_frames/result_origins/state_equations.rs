@@ -377,7 +377,8 @@ fn finite_substitutions(
                             parameter.name.as_str(),
                             parameter.type_reference,
                             include_shared,
-                        )?;
+                        )?
+                        .into_owned();
                         AggregateOrigins {
                             references: declared
                                 .references

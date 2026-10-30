@@ -1,5 +1,5 @@
 machine count<T, machine Predicate>(values: &[T]) -> u64
-where machine Predicate(value: &T) -> bool;
+requires machine Predicate(value: &T) -> bool;
 {
     transition { _ -> next(values, 0, 0) }
     machine next(values: &[T], position: u64, matched: u64) -> u64
@@ -24,6 +24,6 @@ where machine Predicate(value: &T) -> bool;
 machine small(value: &u8) -> bool { value > 0 }
 data Batch<T, const Capacity: u64> { values: [T; Capacity]; }
 machine scan_batch<T, const Capacity: u64, machine Predicate>(batch: &Batch<T, Capacity>) -> u64
-where machine Predicate(value: &T) -> bool;
+requires machine Predicate(value: &T) -> bool;
 { count<Predicate>(&batch.values) }
 machine main() { let batch: Batch<i32,3> = Batch { values: [0,1,2] }; let total: u64 = scan_batch<small>(&batch); }

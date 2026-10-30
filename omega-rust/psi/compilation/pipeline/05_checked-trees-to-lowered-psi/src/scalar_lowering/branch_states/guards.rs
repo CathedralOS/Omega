@@ -91,15 +91,10 @@ pub(crate) fn evaluate(
     // condition consumes the appended result; neither arm starts before it.
     let mut parameter_types = source_types.to_vec();
     parameter_types.push(ScalarType::Boolean.into());
-    let target = computations.push(LoweredScalarBranchState {
-        structural_parameters: Vec::new(),
-        structural_effects: Vec::new(),
+    let target = computations.push(LoweredScalarBranchState::continuing(
         parameter_types,
-        erased_formal_types: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        bindings: Vec::new(),
-        terminator: branch,
-    });
+        branch,
+    ));
     let target = computations.retained_value(
         identities,
         state,

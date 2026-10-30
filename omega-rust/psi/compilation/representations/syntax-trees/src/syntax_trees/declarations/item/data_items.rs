@@ -175,7 +175,7 @@ pub enum TypeParameterKind {
     Value {
         type_reference: crate::types::TypeReferenceHandle,
     },
-    /// A compile-time machine-symbol parameter. The authored `where machine`
+    /// A compile-time machine-symbol parameter. The authored `requires machine`
     /// requirement is mandatory and stored with the parameter rather than
     /// inferred from uses or instantiations. `None` exists only while the
     /// parser is between `<machine M>` and its declaration-site validation.
@@ -208,7 +208,7 @@ pub enum MachineParameterContract {
     /// executable machine contract.
     RequirementIdentity,
     Structural(StateSignature),
-    /// `where machine Step satisfies Visitor<Context>::visit;`: the exact
+    /// `requires machine Step satisfies Visitor<Context>::visit;`: the exact
     /// requirement path plus the trait application the binder's callable
     /// contract is instantiated under. Empty arguments for a parameterless
     /// trait.

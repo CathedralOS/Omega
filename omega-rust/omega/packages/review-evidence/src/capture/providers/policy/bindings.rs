@@ -1,6 +1,6 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
-use crate::capture::semantics::declarations::nominal_identity;
+use crate::capture::semantics::declarations::{nominal_identity, producer_callable_identity};
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyProviderBinding,
     PackagePolicyProviderEvaluatedSyscall, PackageReviewForeignLocator,
@@ -149,14 +149,7 @@ fn producer(
     Ok(PackagePolicyEvaluatedBindingProducer {
         declaration: nominal_identity(compilation, row.producer_machine())?,
         package: receipt.producer_package(),
-        callable_identity: compilation
-            .custody
-            .providers()
-            .evaluated_via_bindings
-            .identities()
-            .text(receipt.producer_callable_identity())
-            .unwrap_or_default()
-            .to_owned(),
+        callable_identity: producer_callable_identity(compilation, receipt),
     })
 }
 

@@ -70,7 +70,8 @@ crashes Trap
 
     machine requires_word(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         let requires: bool = Parser::at_word(parser, input, "requires");
-        transition requires {
+        let contract: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
+        transition requires && !contract {
             true -> admit(parser, input, owner, ClauseKind::Requires)
             _ -> ensures_word(parser, input, owner)
         }
@@ -100,12 +101,19 @@ crashes Trap
         }
     }
 
-    // A contract's clauses also end at the next `where machine` contract,
+    // A contract's clauses also end at the next `requires machine` contract,
     // which its owner reads.
     machine where_word(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         let facts: bool = Parser::at_word(parser, input, "where");
         let contract: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
-        transition facts && !(contract && owner == ClauseOwner::Contract) {
+        transition facts && contract {
+            true -> reject(parser, input, ParseDiagnosticCode::RetiredWhereMachineRequirement)
+            _ -> predicate_where(parser, input, owner, facts)
+        }
+    }
+
+    machine predicate_where(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, facts: bool) {
+        transition facts {
             true -> admit(parser, input, owner, ClauseKind::Where)
             _ -> done()
         }

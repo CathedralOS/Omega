@@ -12,21 +12,16 @@ pub(crate) fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagn
 #[cfg(test)]
 mod tests {
     use super::macho_entry_text_offset;
-    use arena::Handle;
     use image::{FinalImage, FinalImageSection, FinalImageSymbol};
 
     #[test]
     fn resolves_macho_entry_offset_from_final_image_entry_symbol() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 text: vec![0; 16],
                 ..Default::default()
             },
-            Handle::invalid(),
-            0,
-            0,
-            0,
         );
         let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "_start".into(),

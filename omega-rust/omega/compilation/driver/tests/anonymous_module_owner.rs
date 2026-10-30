@@ -30,7 +30,8 @@ fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
     .unwrap_or_else(|failure| panic!("anonymous check: {:?}", failure.into_diagnostics()));
     let owners = checked
         .execution()
-        .program
+        .provider_source
+        .program()
         .symbols
         .source_files()
         .filter(|file| file.origin == source::SourceOrigin::User)
@@ -223,7 +224,8 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         assert!(
             checked
                 .execution()
-                .program
+                .provider_source
+                .program()
                 .symbols
                 .source_files()
                 .filter(|file| file.path.starts_with(&library))

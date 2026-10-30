@@ -179,7 +179,7 @@ public data OnceControl { signature: u64; opaque: u64; }
 
 public boundary trait OnceRegistrar: Calling<OnceCalling> {
     machine execute<machine Handler>(control: &mut OnceControl, native callback initialize from Handler) -> i32
-    where machine Handler satisfies Initializer::call;
+    requires machine Handler satisfies Initializer::call;
     reaches
     invokes Initializer;
 }
@@ -226,7 +226,7 @@ macos_arm64 machine once_binding() -> ForeignBinding<26, 13, 0> {
 }
 
 macos_arm64 machine once_leaf<machine Handler>(control: &mut OnceControl) -> i32
-where machine Handler satisfies Initializer::call;
+requires machine Handler satisfies Initializer::call;
 satisfies OnceRegistrar::execute
 via once_binding();
 
@@ -389,7 +389,7 @@ linux_x86_64 machine linux_once_binding() -> ForeignBinding<9, 12, 10> {
 }
 
 linux_x86_64 machine once_leaf<machine Handler>(control: &mut OnceControl) -> i32
-where machine Handler satisfies Initializer::call;
+requires machine Handler satisfies Initializer::call;
 satisfies OnceRegistrar::execute
 via linux_once_binding();
 
