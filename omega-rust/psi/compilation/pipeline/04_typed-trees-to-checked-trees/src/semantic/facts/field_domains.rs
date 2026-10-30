@@ -40,6 +40,8 @@ use facts::{
 use symbols::SymbolHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+use super::points::state_point;
+
 use validation::field_domains::{
     FieldDomainRow, WHOLE_ELEMENT_EXTENT, readable_fixed_array_elements,
     readable_nominal_definition, readable_slice_element,
@@ -296,10 +298,7 @@ pub(super) fn append_state_parameter_domain_facts(
                     }
                     let fact = facts.append_fact(Fact {
                         place: FactPlace::Place(place),
-                        point: ProgramPoint::State {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                        },
+                        point: state_point(machine.symbol, state.symbol),
                         origin: obligation_origin,
                         evidence: QualificationEvidence::from_origin(
                             language_semantics::QualificationEvidenceOrigin::Propagated,
@@ -325,10 +324,7 @@ pub(super) fn append_state_parameter_domain_facts(
                     for predicate in predicates {
                         let fact = facts.append_fact(Fact {
                             place: FactPlace::Place(place),
-                            point: ProgramPoint::State {
-                                machine_symbol: machine.symbol,
-                                state_symbol: state.symbol,
-                            },
+                            point: state_point(machine.symbol, state.symbol),
                             // Numeric range admission already has its own
                             // incoming-value obligation, not a membership row.
                             origin: FactOrigin::StatementTransfer,
@@ -391,10 +387,7 @@ pub(super) fn append_state_parameter_domain_facts(
             }
             append_independent_place_contexts(
                 facts,
-                ProgramPoint::State {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                },
+                state_point(machine.symbol, state.symbol),
                 refs,
             );
         }
@@ -444,10 +437,7 @@ fn append_state_parameter_carry(
     let place = facts.append_symbol_place(parameter_symbol);
     let fact = facts.append_fact(Fact {
         place: FactPlace::Place(place),
-        point: ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
+        point: state_point(machine_symbol, state_symbol),
         origin: FactOrigin::StateParameterDomain {
             machine_symbol,
             state_symbol,
@@ -576,10 +566,7 @@ fn append_state_parameter_domain_fact(
     }
     let fact = facts.append_fact(Fact {
         place: FactPlace::Place(place),
-        point: ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
+        point: state_point(machine_symbol, state_symbol),
         origin,
         evidence: QualificationEvidence::from_origin(
             language_semantics::QualificationEvidenceOrigin::Propagated,
@@ -623,10 +610,7 @@ pub(super) fn append_local_zii_field_domain_facts(
                 if local_data.initial_value.is_valid() {
                     continue;
                 }
-                let point = ProgramPoint::State {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                };
+                let point = state_point(machine.symbol, state.symbol);
                 let origin = FactOrigin::StatementTransfer;
                 let evidence = QualificationEvidence::from_origin(
                     language_semantics::QualificationEvidenceOrigin::CheckedValidation,
@@ -705,10 +689,7 @@ pub(super) fn append_local_zii_field_domain_facts(
             }
             append_independent_place_contexts(
                 facts,
-                ProgramPoint::State {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                },
+                state_point(machine.symbol, state.symbol),
                 refs,
             );
         }
