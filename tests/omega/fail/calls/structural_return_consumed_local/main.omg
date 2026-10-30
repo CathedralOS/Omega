@@ -1,0 +1,10 @@
+// A returning call cannot recover a local already moved into another owner.
+data Chain { marker: u64; }
+data Path { chain: Chain; }
+machine path_default() -> Path { (Path { chain: Chain { marker: 73 } }) }
+machine relay(value: Path) -> Path { (value) }
+machine main() -> Path {
+    let built: Path = path_default();
+    let moved: Path = relay(built);
+    transition { _ -> (relay(built)) }
+}
