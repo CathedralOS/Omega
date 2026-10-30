@@ -194,6 +194,7 @@ pub(super) struct CapturedStorageValue {
     pub(super) entry: Option<super::StructuralTerm>,
     pub(super) current: Option<super::StructuralTerm>,
     pub(super) completed_read: Option<(ExpressionHandle, usize)>,
+    pub(super) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
 }
 
 /// One authenticated store destination, frozen before replacement evaluation.
@@ -251,6 +252,7 @@ impl StructuralJudge<'_> {
                     entry: Some(current.clone()),
                     current: Some(current),
                     completed_read: None,
+                    backing: None,
                 });
             }
         }
@@ -348,6 +350,63 @@ impl StructuralJudge<'_> {
         }
     }
 
+    /// Retain the scalar subjects of an admitted invocation contract at its
+    /// original entry cut. The hypotheses already establish their predicates;
+    /// this captures storage identity only and adds no value or permission.
+    pub(super) fn retain_entry_scalar_reads(&mut self, state: &State, fact: ExpressionHandle) {
+        let Some(machine) = self.program.machine(self.machine_symbol) else {
+            return;
+        };
+        let mut expressions = Vec::new();
+        crate::expression_traversal::collect_expression_tree(self.program, fact, &mut expressions);
+        for expression in expressions {
+            if super::super::observed_projections::scalar_storage_read(
+                self.program,
+                machine,
+                state,
+                expression,
+            )
+            .is_none()
+            {
+                continue;
+            }
+            let Some(place) = self.captured_storage_coordinate(Some((machine, state)), expression)
+            else {
+                continue;
+            };
+            let Some(canonical) = crate::canonical_place_from_expression(self.program, expression)
+            else {
+                continue;
+            };
+            let Some(root) = place.root.as_symbol() else {
+                continue;
+            };
+            let Some(backing) = self.frame_resolver().and_then(|frames| {
+                frames.storage_read_backing_before_statement(
+                    machine,
+                    state,
+                    0,
+                    root,
+                    &canonical.segments,
+                )
+            }) else {
+                continue;
+            };
+            let Some(value) = self.declaration_term(expression) else {
+                continue;
+            };
+            self.retain_storage_value(place.clone(), value, true);
+            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
+                .iter_mut()
+                .find(|stored| stored.coordinate == place)
+            {
+                stored.backing = Some(backing);
+                // No executable read was observed while admitting a Requires.
+                stored.completed_read = None;
+            }
+        }
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_effects(
         &mut self,
         state: &State,
@@ -371,6 +430,9 @@ impl StructuralJudge<'_> {
                 .iter()
                 .map(|stored| {
                     let stable = written.is_some_and(|written| {
+                        if let Some(backing) = &stored.backing {
+                            return backing.survives(written);
+                        }
                         stored.coordinate.has_stable_backing(program, state, frames)
                             && stored.coordinate.frame_path(program).is_some_and(|path| {
                                 written
@@ -759,12 +821,22 @@ impl StructuralJudge<'_> {
                     .is_some()
                     && !self.storage_binding_invalidated(root)
             });
+        let backing = self.frame_resolver().and_then(|frames| {
+            frames.storage_read_backing_at_expression(
+                machine,
+                state,
+                expression,
+                place.root.as_symbol()?,
+                &crate::canonical_place_from_expression(self.program, expression)?.segments,
+            )
+        });
         self.retain_storage_value(place.clone(), value, entry);
         if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
             .iter_mut()
             .find(|stored| stored.coordinate == place)
         {
             stored.completed_read = Some((expression, self.storage_write_sequence));
+            stored.backing = backing;
         }
     }
 
@@ -797,12 +869,14 @@ impl StructuralJudge<'_> {
             }
             stored.current = Some(value);
             stored.completed_read = None;
+            stored.backing = None;
         } else {
             values.push(CapturedStorageValue {
                 coordinate,
                 entry: entry.then(|| value.clone()),
                 current: Some(value),
                 completed_read: None,
+                backing: None,
             });
         }
     }

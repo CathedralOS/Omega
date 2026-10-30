@@ -734,6 +734,7 @@ impl<'program> StructuralJudge<'program> {
                 let mut matched_read = entry.completed_read;
                 let mut matched_current = entry.current.clone();
                 let mut matched_entry = entry.entry.clone();
+                let mut matched_backing = entry.backing.clone();
                 let mut all_have_coord = true;
                 for judge in &outcomes[1..] {
                     let Some(other) = judge
@@ -744,6 +745,9 @@ impl<'program> StructuralJudge<'program> {
                         all_have_coord = false;
                         break;
                     };
+                    if matched_backing != other.backing {
+                        matched_backing = None;
+                    }
                     if matched_read != other.completed_read {
                         matched_read = None;
                     }
@@ -784,6 +788,7 @@ impl<'program> StructuralJudge<'program> {
                         entry: matched_entry,
                         current: matched_current,
                         completed_read: matched_read,
+                        backing: matched_backing,
                     });
                 }
             }
@@ -907,6 +912,9 @@ impl<'program> StructuralJudge<'program> {
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
+            if let Some(state) = state {
+                judge.retain_entry_scalar_reads(state, *fact);
+            }
         }
         if let Some(state) = state {
             judge.intake_entry_domain_predicates(machine, state);

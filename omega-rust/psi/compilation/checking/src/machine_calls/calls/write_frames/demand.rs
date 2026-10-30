@@ -4,6 +4,8 @@
 //! complete-or-opaque summaries to its parent frame engine. It does not own
 //! call validation, alias-origin inference, or transition fixed points.
 
+mod read_backing;
+pub(crate) use read_backing::CapturedStorageReadBacking;
 mod call_origins;
 mod normal_subjects;
 mod result_transport;
