@@ -305,10 +305,7 @@ retired-syntax deletions to completion.
     - Complete suspending requirements with borrowed values and remaining
       operational envelope refinement, retaining the scalar/Unit-call,
       live-value, and exact selector-envelope witnesses in
-      `samples/cli/facts/dynamic_suspension`; finish crash-refinement
-      rows when operands lead with the selector and ranked recursion cycles
-      crossing a dispatch edge
-      (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked` until ranked).
+      `samples/cli/facts/dynamic_suspension`.
     - Extend public slot metadata with returned-borrow origins and parameter
       qualification preconditions, consume the new records in package review,
       and implement `source/psi/` and `source/omega/` producer/consumer parity.
@@ -1077,38 +1074,6 @@ helper that passes does not close an item.
   without staging caller storage. Missing repair, early return, stale reads,
   overlapping loans, wrong-place repair, repeated extraction, and whole-owner
   cleanup reject (`fail/ownership/{whole_borrowed_*,borrowed_window_*,borrowed_storage_*}`).
-
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (also covers
-  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**)
-  Complete runtime selection of named implementations (`dyn`) with separated
-  selector and data lanes under
-  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md) end to end
-  across Psi checking/lowering/interpretation, package review, Omega 8-byte
-  dispatch-table realization, and `source/psi/` + `source/omega/` product parity.
-  - Extend requirement-contract checking at selector calls beyond exact fact
-    correspondence to transparent proposition aliases, supported integer
-    arithmetic, and literal IEEE-bound weakening while preserving the
-    requirement's public contract independently of stronger implementation
-    guarantees.
-  - Support suspending requirements at planning, crash-refinement rows when
-    operands lead with the selector, and ranked recursion cycles crossing a
-    dispatch edge (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked`
-    until ranked).
-  - Extend public slot metadata with returned-borrow origins and parameter
-    qualification preconditions, consume the new records in package review, and
-    implement `source/psi/` and `source/omega/` producer/consumer parity.
-  - Preserve complete 8-byte tables, zero trap slots, exact private callable
-    identities, and patched image targets across all supported hosts, including
-    matching-host Windows x86-64 execution.
-  Acceptance: `python3 tools/corpus_gate.py --both --filter traits/` (including
-  `runtime_dyn_rebound_selector_forwarded_exit`,
-  `runtime_dyn_two_impl_dispatch_exit`,
-  `runtime_dyn_{structural,nested,array,guarded,linear}_result_exit`,
-  `runtime_dyn_data_argument_counts_exit`, `runtime_dyn_joined_selector_exit`,
-  and `runtime_dyn_selector_record_field_exit`) passes with Terminal and native
-  agreement on all matching supported hosts (including Windows and macOS), and
-  copying or rebinding a selector neither captures data nor changes its borrow
-  lifetime.
 
 Prioritize unchanged customer programs reaching native execution over
 additional evidence without an exercising program. The

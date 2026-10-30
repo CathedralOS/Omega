@@ -104,6 +104,29 @@ pub(crate) fn dynamic_selector_call<'program>(
     else {
         return Err("dynamic call names an unresolved trait".to_owned());
     };
+    // A qualified selector call inside the selected row can still carry that
+    // row's entry as its target. The leading selector chooses the
+    // implementation at runtime, so the call denotes the requirement, not a
+    // direct reentry into this body.
+    let target = if program
+        .trait_machine_signature_by_symbol(declaring, target)
+        .is_some()
+    {
+        target
+    } else {
+        program
+            .typed_program()
+            .conformances
+            .iter()
+            .map(|(_, conformance)| conformance)
+            .flat_map(|conformance| conformance.rows.iter())
+            .find(|row| {
+                row.declaring_trait == declaring.symbol
+                    && (row.realization_state == target || row.realization_machine == target)
+            })
+            .map(|row| row.requirement)
+            .unwrap_or(target)
+    };
     let Some(signature) = program.trait_machine_signature_by_symbol(declaring, target) else {
         return Err(format!(
             "`{}` declares no requirement named `{}`",

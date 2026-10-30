@@ -14,6 +14,7 @@
 pub(crate) use optimization::digest_encoder;
 mod authored_selections;
 mod borrow;
+mod call_formals;
 mod checking;
 mod checks;
 mod execution;
