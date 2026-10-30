@@ -4683,15 +4683,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 2574ms exit:0 @a
 pass/facts/replaced_field_loan_through_other_state_exit built 2012ms exit:0 @a92f16431042
 pass/facts/replaced_field_loan_through_parameter_exit built 1981ms exit:0 @a92f16431042
 pass/facts/replaced_field_loan_through_target_body_exit built 2378ms exit:0 @a92f16431042
-pass/facts/repro_through_call_result_exit built 10271ms exit:0 @a92f16431042
-pass/facts/repro_through_const_name_exit built 10212ms exit:0 @a92f16431042
-pass/facts/repro_through_field_exit built 10435ms exit:0 @a92f16431042
-pass/facts/repro_through_local_exit built 10448ms exit:0 @a92f16431042
-pass/facts/repro_through_match_join_exit built 10185ms exit:0 @a92f16431042
-pass/facts/repro_through_other_machine_exit built 11151ms exit:0 @a92f16431042
-pass/facts/repro_through_other_state_exit built 9485ms exit:0 @a92f16431042
-pass/facts/repro_through_parameter_exit built 10780ms exit:0 @a92f16431042
-pass/facts/repro_through_target_body_exit built 6416ms exit:0 @a92f16431042
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3275ms exit:0 @a92f16431042
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3252ms exit:0 @a92f16431042
 pass/facts/result_cleanup_guarantee_through_field_exit built 3199ms exit:0 @a92f16431042

@@ -4938,15 +4938,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 2587ms exit:0 in
 pass/facts/replaced_field_loan_through_other_state_exit built 2525ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/replaced_field_loan_through_parameter_exit built 2262ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/replaced_field_loan_through_target_body_exit built 1793ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_call_result_exit built 11326ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_const_name_exit built 10408ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_field_exit built 10183ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_local_exit built 10095ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_match_join_exit built 9986ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_other_machine_exit built 9549ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_other_state_exit built 9804ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_parameter_exit built 12873ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_target_body_exit built 10107ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3917ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3614ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantee_through_field_exit built 3862ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
