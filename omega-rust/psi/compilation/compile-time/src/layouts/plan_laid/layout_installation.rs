@@ -51,6 +51,12 @@ fn invocation_owners(
     storage: typed_trees::layout_storage::LayoutStorageArguments,
     owner: symbols::SymbolHandle,
 ) -> Vec<symbols::SymbolHandle> {
+    // A universal recipe is demanded by this exact source occurrence, not a
+    // consumer's closed application. It must pass the same package/admission
+    // floor even when its open static operands do not affect the output.
+    if !typed_trees::domain::index_argument_is_closed(typed, storage.policy) {
+        return vec![owner];
+    }
     let Some(inputs) = &domain.layout_applications else {
         return vec![owner];
     };
@@ -99,16 +105,32 @@ pub(crate) fn compute_plan_laid_layouts_in(
             }
             continue;
         }
-        // Open constructor recipes remain source-checked templates; actual
-        // storage demands retain their closed semantic field views.
+        // A symbolic policy application owes the generic body's universal
+        // geometry, independently of its consumers' concrete arguments. The
+        // ordinary evaluator receives no value for those symbolic operands:
+        // only an output that does not read them can complete. Explicit target
+        // facts remain known inputs; no caller's policy instance supplies proof.
         if typed
             .closed_data_field_definition(storage.semantic_type)
             .is_some()
-            && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
         {
+            let policy_is_closed =
+                typed_trees::domain::index_argument_is_closed(typed, storage.policy);
+            let targets = if policy_is_closed {
+                applicable_targets(typed, domain, storage)
+            } else {
+                domain.layout_targets.clone()
+            };
+            // An empty deployment roster cannot prove universal geometry.
+            // Leave the original physical obligation unavailable, so settled
+            // consumers still refuse rather than treating no alternatives as
+            // successful representation compatibility.
+            if !policy_is_closed && targets.is_empty() {
+                continue;
+            }
             requests.push(ScopedRepresentationRequest {
                 storage,
-                targets: applicable_targets(typed, domain, storage),
+                targets,
                 dependencies: representation_dependencies(typed, storage.semantic_type)?,
                 invocation_owners: invocation_owners(
                     typed,
@@ -230,6 +252,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
     let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
     for request in requests {
         let storage = request.storage;
+        let policy_is_closed = typed_trees::domain::index_argument_is_closed(typed, storage.policy);
         let mut targets = request.targets;
         let invocation_owners = request.invocation_owners;
         targets.sort_by(|left, right| left.profile.cmp(&right.profile));
@@ -390,10 +413,17 @@ pub(crate) fn compute_plan_laid_layouts_in(
                     ),
                 )
                 .map_err(|reason| {
-                    fail(format!(
-                        "layout policy `{}` under `{}`: {reason}",
-                        machine.name, target.profile
-                    ))
+                    fail(if policy_is_closed {
+                        format!(
+                            "layout policy `{}` under `{}`: {reason}",
+                            machine.name, target.profile
+                        )
+                    } else {
+                        format!(
+                            "universal fixed representation `{}` under `{}` cannot establish its geometry without a bound static operand: {reason}",
+                            record.application_name, target.profile
+                        )
+                    })
                 })?;
             let layout = super::super::layout_plans::validate_plan(
                 evaluation.value(),
