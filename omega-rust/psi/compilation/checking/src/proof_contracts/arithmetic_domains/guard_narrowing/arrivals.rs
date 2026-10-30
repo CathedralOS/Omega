@@ -22,7 +22,7 @@ use super::requirements::{RequirementSeeds, machine_written_paths};
 
 mod normal_returns;
 mod transition_arguments;
-pub(crate) use normal_returns::inferred_normal_return_interval;
+pub(crate) use normal_returns::{ReturnInference, inferred_normal_return_interval};
 
 struct EvaluatedValue {
     interval: Interval,
@@ -364,6 +364,7 @@ pub(crate) fn occurrence_value_environments(
     };
     let frames = CallFrameResolver::new(program);
     let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
+    let return_ranges = ReturnInference::default();
     let mut walk = ArrivalWalk {
         program,
         machine,
@@ -374,7 +375,7 @@ pub(crate) fn occurrence_value_environments(
             .map(ExpressionObservation::environment)
             .collect(),
         completed_children: Default::default(),
-        infer_call_bodies: true,
+        return_ranges: Some(&return_ranges),
         collect_arrivals: false,
     };
     walk.state(state, &mut environment);
@@ -422,6 +423,7 @@ fn expression_observations(
     };
     let frames = CallFrameResolver::new(program);
     let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
+    let return_ranges = ReturnInference::default();
     let mut walk = ArrivalWalk {
         program,
         machine,
@@ -429,7 +431,7 @@ fn expression_observations(
         arrivals: Vec::new(),
         observations: Vec::new(),
         completed_children: Default::default(),
-        infer_call_bodies: true,
+        return_ranges: Some(&return_ranges),
         collect_arrivals: false,
     };
     if !walk.statements(
@@ -467,7 +469,10 @@ pub(super) fn incoming_environments(
             Option<checked_trees::IntegerRangeRecipe>,
         )],
     )>,
+    return_ranges: Option<&ReturnInference>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
+    let root_ranges = ReturnInference::default();
+    let return_ranges = return_ranges.or_else(|| invocation.is_none().then_some(&root_ranges));
     let states = program.machine_states(machine);
     let mut current = states
         .iter()
@@ -576,7 +581,7 @@ pub(super) fn incoming_environments(
                     arrivals: Vec::new(),
                     observations: Vec::new(),
                     completed_children: Default::default(),
-                    infer_call_bodies: invocation.is_none(),
+                    return_ranges,
                     collect_arrivals: true,
                 };
                 let mut environment = environment.clone();
@@ -714,7 +719,7 @@ struct ArrivalWalk<'program, 'frames> {
         (u32, u32),
         super::super::expression_analysis::CheckedIntegerValue,
     >,
-    infer_call_bodies: bool,
+    return_ranges: Option<&'frames ReturnInference>,
     collect_arrivals: bool,
 }
 
@@ -844,7 +849,7 @@ impl ArrivalWalk<'_, '_> {
             None,
             ArithmeticDomain::Exact,
             "state arrival",
-            self.infer_call_bodies,
+            self.return_ranges,
             &mut diagnostics,
         );
         diagnostics.is_empty().then_some(analysis)

@@ -14,9 +14,7 @@ use super::{Analysis, ExpressionWalk, NEUTRAL};
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, primitive_range,
 };
-use crate::proof_contracts::arithmetic_domains::return_ranges::{
-    ensured_call_result_interval, infer_return_interval,
-};
+use crate::proof_contracts::arithmetic_domains::return_ranges::ensured_call_result_interval;
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, ExpressionHandle, Interval, TableCallExpression, call_return_type,
     range_constraint_interval,
@@ -510,10 +508,8 @@ fn inferred_return_range(
     >,
 ) -> Option<Analysis> {
     let program = walk.program;
-    if !walk.infer_call_bodies
-        || !call.selects_only_nominal_route()
-        || !call.machine_arguments.is_empty()
-    {
+    let inference = walk.return_ranges?;
+    if !call.selects_only_nominal_route() || !call.machine_arguments.is_empty() {
         return None;
     }
     let (callee, state) =
@@ -528,8 +524,7 @@ fn inferred_return_range(
             exact_ordinary_actual_intervals(walk, call, child_values).unwrap_or_default()
         })
         .as_slice();
-    let (interval, recipe) =
-        infer_return_interval(program, callee, state, Some(primitive), actuals)?;
+    let (interval, recipe) = inference.infer(program, callee, state, Some(primitive), actuals)?;
     Some(Analysis {
         recipe,
         domain: None,

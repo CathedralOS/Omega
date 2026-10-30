@@ -7,8 +7,30 @@
 use super::{ArrivalWalk, ExpressionObservation, ValueObservationSite, incoming_environments};
 use crate::CallFrameResolver;
 use crate::proof_contracts::arithmetic_domains::{Interval, Machine, State};
+use std::cell::RefCell;
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+/// One outer range request owns the active invocation graph. Ordinary and
+/// terminal descendants share it; recurrence retains published guarantees
+/// rather than using the recursive body as its own proof.
+#[derive(Default)]
+pub(crate) struct ReturnInference {
+    active: RefCell<Vec<(SymbolHandle, SymbolHandle)>>,
+}
+
+impl ReturnInference {
+    pub(crate) fn infer(
+        &self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        entry: &State,
+        target_primitive: Option<typed_trees::types::PrimitiveType>,
+        actuals: &[ActualRange],
+    ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
+        inferred_normal_return_interval_in(program, machine, entry, target_primitive, actuals, self)
+    }
+}
 
 type ActualRange = (
     SymbolHandle,
@@ -23,14 +45,7 @@ pub(crate) fn inferred_normal_return_interval(
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
 ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
-    inferred_normal_return_interval_in(
-        program,
-        machine,
-        entry,
-        target_primitive,
-        actuals,
-        &mut Vec::new(),
-    )
+    ReturnInference::default().infer(program, machine, entry, target_primitive, actuals)
 }
 
 fn join_return(
@@ -56,7 +71,7 @@ fn inferred_normal_return_interval_in(
     entry: &State,
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
-    active: &mut Vec<(SymbolHandle, SymbolHandle)>,
+    inference: &ReturnInference,
 ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
     // This judgment publishes integer intervals. Other result carriers have
     // their own evidence owners and cannot benefit from this body traversal.
@@ -89,13 +104,53 @@ fn inferred_normal_return_interval_in(
         return interval.clone();
     }
     let identity = (machine.symbol, entry.symbol);
-    if active.contains(&identity) {
-        return None;
+    {
+        let mut active = inference.active.borrow_mut();
+        if active.contains(&identity) {
+            return None;
+        }
+        active.push(identity);
     }
-    active.push(identity);
-    let interval =
-        discover_normal_return_interval(program, machine, entry, target_primitive, actuals, active);
-    active.pop();
+    let interval = discover_normal_return_interval(
+        program,
+        machine,
+        entry,
+        target_primitive,
+        actuals,
+        inference,
+    );
+    inference.active.borrow_mut().pop();
+    if interval.is_none() && crate::proof_contracts::contract_entailment::struct_trace() {
+        eprintln!(
+            "STRUCT integer-return unknown owner={} entry={:?} primitive={target_primitive:?} supply={:?} all-exits={}",
+            machine.name,
+            entry.symbol,
+            machine.supply_mode,
+            crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
+                program, machine
+            )
+        );
+        for state in program.machine_states(machine) {
+            let last = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .last();
+            eprintln!(
+                "STRUCT integer-return state={:?} primitive={:?} last={last:?}",
+                state.symbol,
+                program.primitive_type_reference(state.return_type)
+            );
+            if let Some(StatementNode::Transition(transition)) = last {
+                for target in transition.targets() {
+                    eprintln!(
+                        "STRUCT integer-return target={:?}",
+                        program.statement_table.transition_target(target)
+                    );
+                }
+            }
+        }
+    }
+
     if interval.is_some()
         && let Some(memos) = memos
         && let Ok(mut intervals) = memos.normal_return_intervals.lock()
@@ -111,7 +166,7 @@ fn discover_normal_return_interval(
     entry: &State,
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
-    active: &mut Vec<(SymbolHandle, SymbolHandle)>,
+    inference: &ReturnInference,
 ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
     if machine.target_family_interface
         && program.machine_states(machine).first()?.symbol == entry.symbol
@@ -145,7 +200,7 @@ fn discover_normal_return_interval(
                 member_entry,
                 target_primitive,
                 &member_actuals,
-                active,
+                inference,
             )?;
             combined_recipe = if combined.is_none() {
                 recipe
@@ -238,7 +293,13 @@ fn discover_normal_return_interval(
         return None;
     }
     let frames = CallFrameResolver::new(program);
-    let incoming = incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
+    let incoming = incoming_environments(
+        program,
+        machine,
+        frames.as_ref(),
+        Some((entry, actuals)),
+        Some(inference),
+    );
     let mut combined: Option<Interval> = None;
     let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
     for (state, mut returns) in state_returns {
@@ -253,7 +314,7 @@ fn discover_normal_return_interval(
             arrivals: Vec::new(),
             observations: returns,
             completed_children: Default::default(),
-            infer_call_bodies: false,
+            return_ranges: Some(inference),
             collect_arrivals: false,
         };
         walk.state(state, &mut environment);
@@ -301,7 +362,7 @@ fn discover_normal_return_interval(
                             entry,
                             target_primitive,
                             &actuals,
-                            active,
+                            inference,
                         )?;
                         join_return(&mut combined, &mut combined_recipe, interval, recipe);
                     }
