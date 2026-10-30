@@ -22,7 +22,6 @@
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 
-pub mod callback_roots;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
 pub mod native_bindings;
@@ -70,9 +69,9 @@ pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, derive_satisfies_plans,
-    exact_checked_adapter, prepare_selected_plan_declarations, project_checked_provider_instances,
-    same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
-    selected_checked_operator_body, selected_provider_plan_facts,
+    exact_checked_adapter, prepare_callback_providers, prepare_selected_plan_declarations,
+    project_checked_provider_instances, same_semantic_name, satisfies_plan_name,
+    select_derived_provider_plans, selected_checked_operator_body, selected_provider_plan_facts,
     selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use provider_planning::{
