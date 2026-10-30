@@ -58,15 +58,6 @@ impl TerminalScalarArrayValue {
         })
     }
 
-    fn snapshot(&self) -> Result<Self, TerminalInterpretError> {
-        Ok(Self {
-            storage_identity: None,
-            qualifications: self.qualifications.clone(),
-            structural_type: self.structural_type,
-            elements: Arc::new(self.elements.copy()?),
-        })
-    }
-
     fn into_runtime(self) -> Result<PackedScalarArrayValue, TerminalInterpretError> {
         let storage = match Arc::try_unwrap(self.elements) {
             Ok(storage) => storage,
@@ -96,6 +87,7 @@ pub(crate) struct PackedScalarArrayValue {
 }
 
 impl PackedScalarArrayValue {
+    #[cfg(test)]
     pub fn elements(&self) -> Result<Vec<TerminalScalarValue>, TerminalInterpretError> {
         self.cells().iter().map(ScalarCell::read).collect()
     }
@@ -169,6 +161,7 @@ impl PackedScalarArrayValue {
         Ok(())
     }
 
+    #[cfg(test)]
     fn collect(
         structural_type: StructuralTypeId,
         qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
