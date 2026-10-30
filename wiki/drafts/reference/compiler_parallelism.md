@@ -391,3 +391,11 @@ launch timeout and incomplete cohort remain separate from the complete replay;
 its cause is unresolved after 32 successful bounded replays. Source-bound pinned
 qualification passed. Publication is tracked with the experiment rather than
 inferred from the local commit.
+
+The [post-queue Windows ancestry screen](../measurements/windows_ancestry_postqueue_2026_10_29/README.md)
+missed its declared two-subject gate: length improved 27.5%, dispatch 12.0%,
+stack32 13.6%, including one losing dispatch block. All 60 image/native checks
+passed; full conditional qualification and confirmation did not run. Its
+unpublished production patch was parked. The next
+[invocation setup attribution](../measurements/invocation_setup_2026_10_29/README.md)
+measures startup and remaining serial setup before choosing another candidate.
