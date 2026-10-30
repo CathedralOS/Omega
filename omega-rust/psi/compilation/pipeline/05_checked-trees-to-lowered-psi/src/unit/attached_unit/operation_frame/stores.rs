@@ -418,26 +418,8 @@ impl OperationFrame<'_, '_> {
                     &store.destination.path,
                     self.structural_types.declarations(),
                 )?;
-            let indexes = {
-                let (mut environment, emission) = self.reborrow().split();
-                crate::emission::runtime_elements::evaluate_selectors(
-                    identities,
-                    &destination.steps,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
-                    store.statement_index,
-                    emission.evaluation,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
+            let indexes =
+                self.store_selectors(identities, &destination.steps, store.statement_index)?;
             let path = crate::emission::runtime_elements::complete_path(
                 std::mem::take(&mut destination.steps),
                 indexes,
@@ -525,26 +507,11 @@ impl OperationFrame<'_, '_> {
             None
         };
         if captured_index.is_none() {
-            let descriptor_selectors = {
-                let (mut environment, emission) = self.reborrow().split();
-                crate::emission::runtime_elements::evaluate_selectors(
-                    identities,
-                    &destination.descriptor_steps,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
-                    leaf.statement_index(),
-                    emission.evaluation,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
+            let descriptor_selectors = self.store_selectors(
+                identities,
+                &destination.descriptor_steps,
+                leaf.statement_index(),
+            )?;
             let descriptor_path = crate::emission::runtime_elements::complete_path(
                 std::mem::take(&mut destination.descriptor_steps),
                 descriptor_selectors,
@@ -936,26 +903,7 @@ impl OperationFrame<'_, '_> {
                 .iter()
                 .map(|index| crate::emission::runtime_elements::selector_step(&index.selector))
                 .collect::<Vec<_>>();
-            let indexes = {
-                let (mut environment, emission) = self.reborrow().split();
-                crate::emission::runtime_elements::evaluate_selectors(
-                    identities,
-                    &steps,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
-                    statement_index,
-                    emission.evaluation,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
+            let indexes = self.store_selectors(identities, &steps, statement_index)?;
             if indexes.len() != projection.indices.len() {
                 return unsupported("record byte store lost a declared array coordinate");
             }
@@ -1142,26 +1090,7 @@ impl OperationFrame<'_, '_> {
                 .collect();
         }
         // The carrier's runtime elements are evaluated before the value.
-        let indexes = {
-            let (mut environment, emission) = self.reborrow().split();
-            crate::emission::runtime_elements::evaluate_selectors(
-                identities,
-                &lowered.steps,
-                environment.checked,
-                environment.machine,
-                environment.state,
-                store.statement_index,
-                emission.evaluation,
-                emission.source_value_count,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )
-        }?;
+        let indexes = self.store_selectors(identities, &lowered.steps, store.statement_index)?;
         let value = self.scalar_store_value(
             identities,
             store.statement_index,

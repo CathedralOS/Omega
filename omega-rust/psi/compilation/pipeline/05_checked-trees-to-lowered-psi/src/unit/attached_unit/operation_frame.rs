@@ -329,6 +329,34 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
             &mut environment,
         )
     }
+
+    /// Evaluate every runtime element of one store path on this frame's own
+    /// lanes, in the authored selector order the destination names.
+    pub(super) fn store_selectors(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        steps: &[crate::emission::runtime_elements::ProjectionStep],
+        statement: u32,
+    ) -> Result<Vec<crate::emission::runtime_elements::EvaluatedSelector>, LoweringError> {
+        let (mut environment, emission) = self.reborrow().split();
+        crate::emission::runtime_elements::evaluate_selectors(
+            identities,
+            steps,
+            environment.checked,
+            environment.machine,
+            environment.state,
+            statement,
+            emission.evaluation,
+            emission.source_value_count,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
+            &mut environment,
+        )
+    }
 }
 
 impl OperationEnvironment<'_> {
