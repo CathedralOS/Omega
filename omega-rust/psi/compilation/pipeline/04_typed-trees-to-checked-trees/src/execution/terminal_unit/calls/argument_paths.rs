@@ -624,7 +624,10 @@ pub(crate) fn projected_argument_path(
     // root of a member/index path above does. Its declared reference is not
     // an extra stored descriptor to cross. Locals and completed values keep
     // their stored reference shells; their producer owns those descriptors.
+    // View carriers already contain their bounds and backing: only the common
+    // stored-reference classification denotes a shell to peel here.
     if place.segments.is_empty()
+        && validation::stores_reference_shape(program, projected, &[])
         && let Some(symbol) = place.root.as_symbol()
         && let Some(state) = program.state_by_symbol(state_symbol)
         && program
