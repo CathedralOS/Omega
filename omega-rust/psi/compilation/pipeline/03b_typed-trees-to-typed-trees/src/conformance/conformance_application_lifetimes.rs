@@ -555,8 +555,8 @@ fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option
         .find_map(|(parameter, argument)| (parameter == name).then_some(argument.as_str()))
 }
 
-/// An unapplied field schema still declares its own region parameters after
-/// retaining its lexical owner. A supplied Type operand instead carries fixed
+/// A receiving declaration still owns its lexical region formals after field
+/// or callable-view copying. A supplied Type operand instead carries fixed
 /// caller regions, even when it came from this same declaration recursively.
 #[derive(Clone, Copy)]
 enum RequiredLifetimeScope {
@@ -654,11 +654,14 @@ fn visit_lifetime_bindings_in_scope(
     let owner = program
         .type_reference_table
         .operand_lifetime_owner(required);
-    if owner.is_valid()
-        && !matches!(required_scope, RequiredLifetimeScope::Declaration(declaration)
-            if program.lifetime_declaration_owner(owner)
-                == program.lifetime_declaration_owner(declaration))
-    {
+    let declared_owner = match required_scope {
+        RequiredLifetimeScope::Declaration(declaration) => {
+            let declaration = program.lifetime_declaration_owner(declaration);
+            declaration.is_valid().then_some(declaration)
+        }
+        RequiredLifetimeScope::Operand => None,
+    };
+    if owner.is_valid() && declared_owner != Some(program.lifetime_declaration_owner(owner)) {
         return;
     }
     if matches!(required_scope, RequiredLifetimeScope::Declaration(_))

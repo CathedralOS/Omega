@@ -388,7 +388,7 @@ impl ExpressionTable {
         if let Some(mut authority) = self.index_expression_authority(root).cloned() {
             if let Some(operation) = &mut authority.operation {
                 if let Some(application) = &mut operation.application {
-                    self.remap_static_argument_symbols(application, symbols.execution());
+                    self.remap_static_argument_symbols(application, symbols.authored());
                 }
                 for symbol in [
                     &mut operation.provider,
@@ -461,7 +461,11 @@ impl ExpressionTable {
                     binding.selected = remapped(binding.selected, symbols);
                 }
                 call.visit_static_arguments_mut(|argument| {
-                    self.remap_static_argument_symbols(argument, symbols.execution())
+                    // Static operands describe declarations and their tuples,
+                    // including while no source application is retained yet.
+                    // The target and selected-machine roster independently
+                    // rebase executable entries.
+                    self.remap_static_argument_symbols(argument, symbols.authored())
                 });
                 *self.expression_mut(root) = ExpressionNode::Call(call);
             }

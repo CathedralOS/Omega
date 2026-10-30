@@ -281,7 +281,7 @@ impl TypedTreeTables {
                     let mut arguments = std::mem::take(&mut current.machine_arguments);
                     for argument in &mut arguments {
                         self.expression_table
-                            .remap_static_argument_symbols(argument, symbols.execution());
+                            .remap_static_argument_symbols(argument, symbols.authored());
                     }
                     let StatementNode::Call(current) =
                         self.statement_table.statements.get_mut(handle)
