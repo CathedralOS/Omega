@@ -1,0 +1,22 @@
+// CASE-CONSTRAINTS generic case-data coverage through the migrated data-level
+// `requires` form: `T == i32` refutes on `Value<bool>`, so `Integer` is an
+// impossible case on this instance and a match covering only `Boolean` is
+// already exhaustive -- no `_` arm needed.
+data Value<T>
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+data Main { v: Value<bool>; }
+machine entry_start() {
+    data Main { v: Value<bool>; }
+    machine Work::work(main: &mut Main) {
+        main.v = Value::Boolean { value: true };
+        transition main.v {
+            Value::Boolean { value } -> done()
+        }
+        machine done() {}
+    }
+}
