@@ -78,11 +78,14 @@ impl ContextualCleanupFacts {
                 && establishment.state == state
                 && establishment.source == source
                 && establishment.destination.root == root
-                && self
-                    .segments
-                    .span_or_empty(establishment.destination.segments)
-                    == path
             {
+                let Some(destination) = self.segments.span(establishment.destination.segments)
+                else {
+                    return false;
+                };
+                if destination != path {
+                    continue;
+                }
                 if !establishment.prior_value_transferred {
                     return false;
                 }

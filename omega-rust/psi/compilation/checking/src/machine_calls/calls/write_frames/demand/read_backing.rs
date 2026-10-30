@@ -125,16 +125,7 @@ impl CallFrameResolver<'_> {
         })();
         paths
             .iter()
-            .map(|path| {
-                let backing = completed.as_ref()?.read_backing(self.program, path)?;
-                let mut paths = backing.values;
-                for binding in backing.bindings {
-                    if !paths.contains(&binding) {
-                        paths.push(binding);
-                    }
-                }
-                Some(paths)
-            })
+            .map(|path| completed.as_ref()?.invalidation_paths(self.program, path))
             .collect()
     }
 

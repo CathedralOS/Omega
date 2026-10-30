@@ -477,7 +477,7 @@ impl CurrentScalarValues<'_> {
             };
             let paths = captured
                 .iter()
-                .map(|field| source_path(&field.path))
+                .map(|field| self.scalar_dependency_path(&field.path))
                 .collect::<Vec<_>>();
             let dependencies =
                 frames.captured_reference_read_paths(self.machine, self.state, expression, &paths);
@@ -491,6 +491,24 @@ impl CurrentScalarValues<'_> {
                 .collect();
         }
         captured
+    }
+
+    /// A dependency follows the saved selector, not a later value of its source
+    /// binding. Unknown selectors remain conservative collection demands; only
+    /// an independently exact captured integer can select a stored pointer slot.
+    fn scalar_dependency_path(&self, path: &[ScalarProjection]) -> Vec<facts::PlaceSegment> {
+        let mut source = source_path(path);
+        for (step, projection) in source.iter_mut().zip(path) {
+            if let ScalarProjection::Element { selector, .. } = projection
+                && let Some(index) = self
+                    .exact_length(selector)
+                    .and_then(|value| value.to_u64())
+                    .and_then(|value| usize::try_from(value).ok())
+            {
+                *step = facts::PlaceSegment::FixedIndex { index };
+            }
+        }
+        source
     }
 
     pub(super) fn replace_scalar_fields(

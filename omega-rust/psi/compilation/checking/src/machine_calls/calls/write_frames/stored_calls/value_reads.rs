@@ -51,6 +51,53 @@ impl CompletedValueReads {
         program: &dyn crate::CheckingInput,
         path: &[PlaceSegment],
     ) -> Option<frames::demand::CapturedStorageReadBacking> {
+        let (first, sources) = self.sources_at_boundary(program, path)?;
+        let mut reads = Vec::new();
+        for source in sources {
+            let cursor = self.referee_cursor(program, &path[..first])?;
+            reads.extend(read_projection::complete_contents(
+                program,
+                source,
+                cursor,
+                &path[first..],
+                &self.after.stored,
+            )?);
+        }
+        read_backing::from_reads(reads, Vec::new())
+    }
+
+    /// Existing scalar observations need a complete invalidation footprint,
+    /// not a new exact read identity. An unknown element in the final owned
+    /// span may widen that footprint; it cannot supply a later pointer load.
+    pub(in crate::machine_calls::calls::write_frames) fn invalidation_paths(
+        &self,
+        program: &dyn crate::CheckingInput,
+        path: &[PlaceSegment],
+    ) -> Option<Vec<String>> {
+        let (first, sources) = self.sources_at_boundary(program, path)?;
+        let mut paths = Vec::new();
+        for source in sources {
+            let cursor = self.referee_cursor(program, &path[..first])?;
+            for dependency in read_projection::contents_invalidation_paths(
+                program,
+                source,
+                cursor,
+                &path[first..],
+                &self.after.stored,
+            )? {
+                if !paths.contains(&dependency) {
+                    paths.push(dependency);
+                }
+            }
+        }
+        Some(paths)
+    }
+
+    fn sources_at_boundary(
+        &self,
+        program: &dyn crate::CheckingInput,
+        path: &[PlaceSegment],
+    ) -> Option<(usize, Vec<SlotSource>)> {
         let reference = self.reference;
         let mut cursor = StorageProjectionCursor::new(program, reference);
         let mut first = None;
@@ -67,13 +114,11 @@ impl CompletedValueReads {
             }
         }
         let first = first?;
-        let mut reads = Vec::new();
-        let mut selected = false;
+        let mut sources = Vec::new();
         for leaf in &self.returned.references {
             if leaf.local_segments != path[..first] {
                 continue;
             }
-            selected = true;
             if leaf.may_select
                 || !leaf.lifetime_dependencies.is_empty()
                 || !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(access) if access.is_readable())
@@ -90,24 +135,22 @@ impl CompletedValueReads {
                 },
                 ReferenceSource::Symbolic(_) => return None,
             };
-            // Recreate only declaration geometry for each alternative. This does
-            // not choose an origin or recapture an already completed descriptor.
-            let mut cursor = StorageProjectionCursor::new(program, reference);
-            for segment in &path[..first] {
-                cursor.advance(segment)?;
-            }
-            cursor.enter_referee()?;
-            reads.extend(read_projection::complete_contents(
-                program,
-                source,
-                cursor,
-                &path[first..],
-                &self.after.stored,
-            )?);
+            sources.push(source);
         }
-        if !selected {
-            return None;
+        (!sources.is_empty()).then_some((first, sources))
+    }
+
+    fn referee_cursor<'program>(
+        &self,
+        program: &'program dyn crate::CheckingInput,
+        prefix: &[PlaceSegment],
+    ) -> Option<StorageProjectionCursor<'program>> {
+        // Recreate declaration geometry, never the completed descriptor value.
+        let mut cursor = StorageProjectionCursor::new(program, self.reference);
+        for segment in prefix {
+            cursor.advance(segment)?;
         }
-        read_backing::from_reads(reads, Vec::new())
+        cursor.enter_referee()?;
+        Some(cursor)
     }
 }
