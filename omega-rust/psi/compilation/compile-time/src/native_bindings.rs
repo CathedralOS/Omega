@@ -150,6 +150,7 @@ pub struct NativeSameStackDemand {
     pub bytes: u64,
     pub producer: language_semantics::declaration_selection::NativeBindingProducer,
     pub source_occurrence_digest: [u8; 32],
+    /// Original producer-map coordinate, not a receiving Product occurrence.
     pub source_span: source::SourceSpan,
     pub event_ordinal: usize,
 }
@@ -164,6 +165,8 @@ pub struct NativeBindingSelection {
     pub producer: language_semantics::declaration_selection::NativeBindingProducer,
     pub source_occurrence_digest: [u8; 32],
     pub supplier_package: PackageKeyIdentity,
+    /// Receiving coordinate for diagnostics. Original Build custody is retained
+    /// by producer/source_occurrence_digest, even when that author is erased.
     pub source_span: source::SourceSpan,
 }
 
@@ -287,7 +290,7 @@ pub fn collect(
                 bytes,
                 producer: footprint.declaration.producer.clone(),
                 source_occurrence_digest: footprint.declaration.source_occurrence_digest,
-                source_span: footprint.source_span,
+                source_span: footprint.declaration.request.source_span,
                 event_ordinal: footprint.event_ordinal,
             });
         }
