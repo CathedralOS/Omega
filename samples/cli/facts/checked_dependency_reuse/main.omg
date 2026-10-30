@@ -1,0 +1,10 @@
+// The caller observes the dependency's checked result, 7.
+// Expected exit: 0
+use dependency;
+
+machine main() crashes Trap {
+    let observed: u64 = seven();
+    transition observed == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

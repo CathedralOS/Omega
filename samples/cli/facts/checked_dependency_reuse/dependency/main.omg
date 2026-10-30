@@ -1,0 +1,3 @@
+public machine seven() -> u64 {
+    7
+}

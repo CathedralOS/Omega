@@ -100,6 +100,11 @@ impl FactContexts {
     /// Publish current pages and index once before actual sibling fan-out.
     /// Later appends stay local; a subsequent seal retains existing selections
     /// and their complete encounter order rather than rebuilding from page order.
+    /// Both owners read one sealed declaration index.
+    pub fn shares_sealed_index(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.baseline, &other.baseline)
+    }
+
     pub fn share_pages(&mut self) {
         self.contexts.share_pages();
         if self.groups.is_empty() && self.extensions.iter().all(Vec::is_empty) {

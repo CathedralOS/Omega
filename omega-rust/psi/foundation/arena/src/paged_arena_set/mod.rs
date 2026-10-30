@@ -360,6 +360,12 @@ impl<T: Default> PagedArenaSet<T> {
             .unwrap_or(&mut [])
     }
 
+    /// The first page is one shared allocation, not a copied declaration payload.
+    pub fn shares_first_page(&self, other: &Self) -> bool {
+        self.first_generation == other.first_generation
+            && self.first_page.shares_allocation(&other.first_page)
+    }
+
     pub fn len(&self) -> usize {
         self.active_count
     }

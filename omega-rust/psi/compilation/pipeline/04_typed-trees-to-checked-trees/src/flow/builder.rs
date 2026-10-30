@@ -137,6 +137,7 @@ fn build_groups<'plans>(
                 || (inputs.baseline.clone(), new_build()),
                 |(worker_semantic, build), group| {
                     worker_semantic.clone_from(inputs.baseline);
+                    facts::note_declaration_page_fork(worker_semantic, inputs.baseline);
                     build_group(inputs, worker_semantic, build, group);
                     (
                         build.take_output_pages(),

@@ -189,6 +189,29 @@ enum EffectAdmission {
     AfterOwnership,
 }
 
+static DEPENDENCY_ENTAILMENT_REUSED: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+static DEPENDENCY_ENTAILMENT_JUDGED: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Dependency-body entailment events: `(reused judgment, judged from source)`.
+/// A reused row did not run the body's source entailment again.
+pub fn dependency_entailment_totals() -> (u64, u64) {
+    (
+        DEPENDENCY_ENTAILMENT_REUSED.load(std::sync::atomic::Ordering::Relaxed),
+        DEPENDENCY_ENTAILMENT_JUDGED.load(std::sync::atomic::Ordering::Relaxed),
+    )
+}
+
+fn record_dependency_entailment(reused: bool) {
+    let counter = if reused {
+        &DEPENDENCY_ENTAILMENT_REUSED
+    } else {
+        &DEPENDENCY_ENTAILMENT_JUDGED
+    };
+    counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 fn validate<'program>(
     program: &'program dyn crate::CheckingInput,
     opaque_properties: OpaquePropertyValidation<'_>,
@@ -563,6 +586,7 @@ fn validate<'program>(
             let _entail_guard = phase_profile::guard("05.d.2.a.2a.contract_entailment");
             if let Some(proven) = body_index.reuse(program, machine, machine_index) {
                 phase_profile::count("05.d.2.a.2a.contract_entailment.reused", 1);
+                record_dependency_entailment(true);
                 if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody {
                     let judged =
                         if crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
@@ -577,6 +601,7 @@ fn validate<'program>(
             } else {
                 if body_index.active_observation() {
                     phase_profile::count("05.d.2.a.2a.contract_entailment.judged", 1);
+                    record_dependency_entailment(false);
                 }
                 let mut machine_diagnostics = Vec::new();
                 let mut proven = ProvenContractExpressions::default();

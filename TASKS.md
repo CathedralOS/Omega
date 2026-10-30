@@ -474,10 +474,6 @@ retired-syntax deletions to completion.
   through compiler-private checked package reuse bound to exact source,
   dependency, and compiler identities (`std` is checked once at package review
   and reused in dependents at the same precision).
-  - Share immutable declaration pages and their fact-context index across
-    independent flow groups while keeping local facts, fixed-point joins, and
-    unknown-input fallback per-group; require matching typed input and complete
-    preparation admission for whole-program reuse.
   - Keep frozen dependency bodies available to `CallFrameResolver`
     (returned-reference origins and binding stability), denotational admission
     (observation freedom), and `return_ranges::infer_return_interval` (captured

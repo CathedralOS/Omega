@@ -17,6 +17,18 @@ mod constant_entries;
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
+static WHOLE_PROGRAM_REUSE_HITS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Exact typed-input and preparation-admission matches. A different program misses.
+pub fn whole_program_reuse_hits() -> u64 {
+    WHOLE_PROGRAM_REUSE_HITS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn record_whole_program_reuse() {
+    WHOLE_PROGRAM_REUSE_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Evaluated source permissions and representation custody for this invocation.
 /// These are not provider selections or execution authority.
 #[derive(Default)]
@@ -129,6 +141,7 @@ impl CheckRequest<'_> {
         });
         let outcome = if let Some(prior) = matching {
             phase_profile::count("05.b.retained_match.hit", 1);
+            record_whole_program_reuse();
             let outcome =
                 typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?;
             build_time_evaluation::admit_placement_lifecycle_plans(
