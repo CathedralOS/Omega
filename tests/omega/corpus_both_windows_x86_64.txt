@@ -4125,6 +4125,8 @@ pass/facts/nested_machine_invocation/parameter built 5511ms exit:0 interpreter-e
 pass/facts/nested_machine_invocation/selected_helper built 3759ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/shadowing built 3675ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/target_body built 3673ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
+pass/facts/nested_machine_joint_rank_borrowed_descriptor_field_exit built 1895ms exit:0 interpreter-exit:0 interpreter:agrees @a88a8b63956f
+pass/facts/nested_machine_joint_rank_borrowed_value_call_result_exit built 1883ms exit:0 interpreter-exit:0 interpreter:agrees @a88a8b63956f
 pass/facts/nested_nine_level_record_field_bound_through_call_result_exit built 3058ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nested_nine_level_record_field_bound_through_const_name_exit built 2998ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nested_nine_level_record_field_bound_through_field_exit built 2847ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
