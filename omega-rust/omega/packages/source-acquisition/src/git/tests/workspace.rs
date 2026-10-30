@@ -1,7 +1,7 @@
 use super::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionPlanner,
     GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, SourceResolver,
-    create_git_source, local_git_request, make_tree_owner_writable, resolve_git_workspace_member,
+    create_git_source, local_git_request, remove_fixture, resolve_git_workspace_member,
     run_test_git, temp_root, test_system_git_executor,
 };
 use crate::PrimaryGitChoices;
@@ -133,7 +133,5 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
     assert_eq!(source.selected_member(), Some(&member));
 
     drop(storage);
-    let _ = std::fs::remove_dir_all(&repository);
-    make_tree_owner_writable(&storage_base);
-    let _ = std::fs::remove_dir_all(&storage_base);
+    remove_fixture(&repository, &storage_base);
 }

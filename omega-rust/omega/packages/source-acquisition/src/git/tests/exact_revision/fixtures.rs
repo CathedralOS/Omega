@@ -1,6 +1,6 @@
 use super::super::{
     GitCommitId, GitSourceRequest, GitTreeId, PathBuf, SourceResolver,
-    create_git_source_with_format, git_cache_identity, make_tree_owner_writable, run_test_git,
+    create_git_source_with_format, git_cache_identity, remove_fixture, run_test_git,
     run_test_git_with_input, temp_root, test_system_git_executor,
 };
 use super::{
@@ -131,8 +131,6 @@ impl Fixture {
 
 impl Drop for Fixture {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.repository);
-        make_tree_owner_writable(&self.storage_base);
-        let _ = std::fs::remove_dir_all(&self.storage_base);
+        remove_fixture(&self.repository, &self.storage_base);
     }
 }
