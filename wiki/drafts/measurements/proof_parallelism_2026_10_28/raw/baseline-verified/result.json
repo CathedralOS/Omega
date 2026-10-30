@@ -1,0 +1,20 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+    "run",
+    "--both",
+    "--keep",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 16.258234799999627,
+  "exit_code": 0,
+  "producer": "baseline",
+  "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+  "mode": "off",
+  "workers": 0,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "guest_stdout_sha256": "0e1e29e8d6ab7c2f123f8146b8ac62be6c828a67bf5541548734962b013fa5a6",
+  "guest_stdout_bytes": 463,
+  "terminal_stdout_agrees": true,
+  "retained_image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8"
+}

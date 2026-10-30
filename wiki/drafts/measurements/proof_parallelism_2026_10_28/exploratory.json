@@ -1,0 +1,1378 @@
+{
+  "classification": "Excluded: shared-cache runs and rejected setup attempts; not used for worker timing conclusions",
+  "shared_cache_observations": {
+    "attribution": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\attribution\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 12.152073199991719,
+      "exit_code": 0,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.1596570999972755,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": true,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "checking_jobs": []
+    },
+    "baseline-1": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\baseline-1\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 15.173213899994153,
+      "exit_code": 0,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.4312913000030676,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "checking_jobs": []
+    },
+    "baseline-2": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\baseline-2\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 13.159319900005357,
+      "exit_code": 0,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.13625120000506286,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "checking_jobs": []
+    },
+    "baseline-verified": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "run",
+        "--both",
+        "--keep",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 16.258234799999627,
+      "exit_code": 0,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "checking_jobs": []
+    },
+    "baseline-warm": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\baseline-warm\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 11.606744000004255,
+      "exit_code": 0,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.19975960000010673,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "checking_jobs": []
+    },
+    "candidate-verified": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "run",
+        "--both",
+        "--keep",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 7.518663399998331,
+      "exit_code": 0,
+      "cpu_seconds": 7.296875,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "cache_mode": "shared user cache",
+      "checking_jobs": []
+    },
+    "candidate-warm": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\candidate-warm\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 17.66311900000437,
+      "exit_code": 0,
+      "cpu_seconds": 23.265625,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.20947030000388622,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": []
+    },
+    "matched-baseline-1": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\matched-baseline-1\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 12.974876599997515,
+      "exit_code": 0,
+      "cpu_seconds": 12.140625,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.16368409999995492,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "checking_jobs": []
+    },
+    "matched-baseline-2": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\matched-baseline-2\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 22.126285699996515,
+      "exit_code": 0,
+      "cpu_seconds": 27.8125,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.1372745999979088,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "f918f6395d68d55428e572edcb3ca0832881e1aa29904c0a8c4fca35ed61d681",
+      "checking_jobs": []
+    },
+    "off-2": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\off-2\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 20.489814400003524,
+      "exit_code": 0,
+      "cpu_seconds": 25.875,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.2055852000048617,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": []
+    },
+    "off-a": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\off-a\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 19.429792400012957,
+      "exit_code": 0,
+      "cpu_seconds": 26.046875,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.19770889999927022,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": []
+    },
+    "workers-1-a": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-1-a\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 25.504170300002443,
+      "exit_code": 0,
+      "cpu_seconds": 23.796875,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.26474210000014864,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "timing",
+      "workers": 1,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": [
+        {
+          "identity": "1",
+          "mode": "timing",
+          "validation_ns": 20188400,
+          "pre_batch_ns": 6057400,
+          "batch_ns": 13507700,
+          "merge_ns": 47800,
+          "post_merge_ns": 575500,
+          "workers": 1,
+          "machine_count": 101,
+          "idle_ns": 110200,
+          "one_active_ns": 13397500,
+          "overlapping_ns": 0,
+          "maximum_active": 1,
+          "summed_machine_ns": 13397500,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 4036800
+            },
+            {
+              "name": "Build::request_git",
+              "wall_ns": 458900
+            },
+            {
+              "name": "build_selection_target",
+              "wall_ns": 441900
+            },
+            {
+              "name": "Build::request_dependency",
+              "wall_ns": 429600
+            },
+            {
+              "name": "build_selection_independent",
+              "wall_ns": 417200
+            },
+            {
+              "name": "control_flow_cleanup",
+              "wall_ns": 383200
+            },
+            {
+              "name": "BuildOutput::complete",
+              "wall_ns": 250600
+            },
+            {
+              "name": "selected_incoming_wrapping_remainder_minus_one_zero_materialization",
+              "wall_ns": 181500
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "2",
+          "mode": "timing",
+          "validation_ns": 2351532600,
+          "pre_batch_ns": 1134853500,
+          "batch_ns": 1148534100,
+          "merge_ns": 1519000,
+          "post_merge_ns": 66626000,
+          "workers": 1,
+          "machine_count": 1920,
+          "idle_ns": 8119300,
+          "one_active_ns": 1140414800,
+          "overlapping_ns": 0,
+          "maximum_active": 1,
+          "summed_machine_ns": 1140414800,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "writing",
+              "wall_ns": 29734100
+            },
+            {
+              "name": "CombatSystem::fight",
+              "wall_ns": 29199200
+            },
+            {
+              "name": "rat_close_triangle_split",
+              "wall_ns": 24527200
+            },
+            {
+              "name": "split_vacant_extent",
+              "wall_ns": 23014900
+            },
+            {
+              "name": "dispatch_command",
+              "wall_ns": 21711100
+            },
+            {
+              "name": "append_item_at",
+              "wall_ns": 20138600
+            },
+            {
+              "name": "build_physical",
+              "wall_ns": 19787100
+            },
+            {
+              "name": "MazeBuilder::carve_room",
+              "wall_ns": 16876200
+            }
+          ],
+          "most_repeated": []
+        }
+      ]
+    },
+    "workers-1-b": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-1-b\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 21.579717300002812,
+      "exit_code": 0,
+      "cpu_seconds": 21.453125,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.2580530999985058,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "timing",
+      "workers": 1,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": [
+        {
+          "identity": "1",
+          "mode": "timing",
+          "validation_ns": 20191300,
+          "pre_batch_ns": 7717800,
+          "batch_ns": 12084000,
+          "merge_ns": 37700,
+          "post_merge_ns": 351800,
+          "workers": 1,
+          "machine_count": 101,
+          "idle_ns": 88200,
+          "one_active_ns": 11995800,
+          "overlapping_ns": 0,
+          "maximum_active": 1,
+          "summed_machine_ns": 11995800,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 3599200
+            },
+            {
+              "name": "Build::request_git",
+              "wall_ns": 407100
+            },
+            {
+              "name": "build_selection_target",
+              "wall_ns": 362500
+            },
+            {
+              "name": "Build::request_dependency",
+              "wall_ns": 357000
+            },
+            {
+              "name": "build_selection_independent",
+              "wall_ns": 352300
+            },
+            {
+              "name": "control_flow_cleanup",
+              "wall_ns": 351700
+            },
+            {
+              "name": "BuildOutput::complete",
+              "wall_ns": 236800
+            },
+            {
+              "name": "build",
+              "wall_ns": 169000
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "2",
+          "mode": "timing",
+          "validation_ns": 1535550800,
+          "pre_batch_ns": 657958300,
+          "batch_ns": 844916900,
+          "merge_ns": 1255300,
+          "post_merge_ns": 31420300,
+          "workers": 1,
+          "machine_count": 1920,
+          "idle_ns": 1118000,
+          "one_active_ns": 843798900,
+          "overlapping_ns": 0,
+          "maximum_active": 1,
+          "summed_machine_ns": 843798900,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "rat_close_triangle_split",
+              "wall_ns": 19835100
+            },
+            {
+              "name": "CombatSystem::fight",
+              "wall_ns": 19660200
+            },
+            {
+              "name": "poly",
+              "wall_ns": 18666500
+            },
+            {
+              "name": "dispatch_command",
+              "wall_ns": 17336900
+            },
+            {
+              "name": "split_vacant_extent",
+              "wall_ns": 17017700
+            },
+            {
+              "name": "rat_gap_triangle_scaled",
+              "wall_ns": 11474600
+            },
+            {
+              "name": "abs_f64",
+              "wall_ns": 11230500
+            },
+            {
+              "name": "build_physical",
+              "wall_ns": 9591000
+            }
+          ],
+          "most_repeated": []
+        }
+      ]
+    },
+    "workers-32-a": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-32-a\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 17.236047899990808,
+      "exit_code": 0,
+      "cpu_seconds": 23.546875,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.18310019999626093,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "timing",
+      "workers": 32,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": [
+        {
+          "identity": "1",
+          "mode": "timing",
+          "validation_ns": 17289600,
+          "pre_batch_ns": 10371500,
+          "batch_ns": 6252700,
+          "merge_ns": 102500,
+          "post_merge_ns": 562900,
+          "workers": 32,
+          "machine_count": 101,
+          "idle_ns": 178000,
+          "one_active_ns": 3450500,
+          "overlapping_ns": 2624200,
+          "maximum_active": 32,
+          "summed_machine_ns": 65423800,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 6005500
+            },
+            {
+              "name": "selected_copied_call_operand_fold_v1",
+              "wall_ns": 1899000
+            },
+            {
+              "name": "selected_incoming_wrapping_remainder_one_zero_materialization",
+              "wall_ns": 1808700
+            },
+            {
+              "name": "selected_incoming_u12_exact_add_immediate",
+              "wall_ns": 1712300
+            },
+            {
+              "name": "Build::request_git",
+              "wall_ns": 1677000
+            },
+            {
+              "name": "build_selection_independent",
+              "wall_ns": 1658400
+            },
+            {
+              "name": "selected_constant_branch_fold_v1",
+              "wall_ns": 1609300
+            },
+            {
+              "name": "Build::request_dependency",
+              "wall_ns": 1533000
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "2",
+          "mode": "timing",
+          "validation_ns": 445010900,
+          "pre_batch_ns": 377950200,
+          "batch_ns": 40366400,
+          "merge_ns": 712000,
+          "post_merge_ns": 25982300,
+          "workers": 32,
+          "machine_count": 1920,
+          "idle_ns": 211900,
+          "one_active_ns": 753300,
+          "overlapping_ns": 39401200,
+          "maximum_active": 32,
+          "summed_machine_ns": 1074141200,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "CombatSystem::fight",
+              "wall_ns": 21504400
+            },
+            {
+              "name": "split_vacant_extent",
+              "wall_ns": 20210800
+            },
+            {
+              "name": "dispatch_command",
+              "wall_ns": 20064700
+            },
+            {
+              "name": "rat_close_triangle_split",
+              "wall_ns": 17586100
+            },
+            {
+              "name": "build_physical",
+              "wall_ns": 16066900
+            },
+            {
+              "name": "rat_gap_triangle_scaled",
+              "wall_ns": 14810800
+            },
+            {
+              "name": "Room::append_exit",
+              "wall_ns": 11664500
+            },
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 10973800
+            }
+          ],
+          "most_repeated": []
+        }
+      ]
+    },
+    "workers-32-b": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-32-b\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 17.776073100001668,
+      "exit_code": 0,
+      "cpu_seconds": 24.046875,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.1020066999917617,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "timing",
+      "workers": 32,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": [
+        {
+          "identity": "1",
+          "mode": "timing",
+          "validation_ns": 12390700,
+          "pre_batch_ns": 6525500,
+          "batch_ns": 5428500,
+          "merge_ns": 54500,
+          "post_merge_ns": 382200,
+          "workers": 32,
+          "machine_count": 101,
+          "idle_ns": 102200,
+          "one_active_ns": 3605400,
+          "overlapping_ns": 1720900,
+          "maximum_active": 32,
+          "summed_machine_ns": 51051800,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 5158700
+            },
+            {
+              "name": "selected_incoming_u12_exact_add_immediate",
+              "wall_ns": 1189200
+            },
+            {
+              "name": "aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1",
+              "wall_ns": 1082300
+            },
+            {
+              "name": "aarch64_elide_same_view_copy_i64_before_compare_i64_left_operand_v1",
+              "wall_ns": 1060300
+            },
+            {
+              "name": "selected_incoming_literal_copy_materialization",
+              "wall_ns": 1054900
+            },
+            {
+              "name": "checked_tree_product_pruning",
+              "wall_ns": 1042100
+            },
+            {
+              "name": "selected_incoming_bitwise_and_ones_identity_copy",
+              "wall_ns": 1039500
+            },
+            {
+              "name": "selected_redundant_compare_removal_v1",
+              "wall_ns": 1029800
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "2",
+          "mode": "timing",
+          "validation_ns": 374260300,
+          "pre_batch_ns": 300742600,
+          "batch_ns": 46253500,
+          "merge_ns": 1054800,
+          "post_merge_ns": 26209400,
+          "workers": 32,
+          "machine_count": 1920,
+          "idle_ns": 336300,
+          "one_active_ns": 548500,
+          "overlapping_ns": 45368700,
+          "maximum_active": 32,
+          "summed_machine_ns": 1112716900,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "rat_close_triangle_split",
+              "wall_ns": 21889400
+            },
+            {
+              "name": "split_vacant_extent",
+              "wall_ns": 21853400
+            },
+            {
+              "name": "CombatSystem::fight",
+              "wall_ns": 18809600
+            },
+            {
+              "name": "dispatch_command",
+              "wall_ns": 18149000
+            },
+            {
+              "name": "rat_gap_triangle_scaled",
+              "wall_ns": 15915800
+            },
+            {
+              "name": "build_physical",
+              "wall_ns": 15339200
+            },
+            {
+              "name": "poly",
+              "wall_ns": 15044000
+            },
+            {
+              "name": "PlayerSystem::take_damage",
+              "wall_ns": 12562000
+            }
+          ],
+          "most_repeated": []
+        }
+      ]
+    },
+    "workers-8-a": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-8-a\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 17.92181709999568,
+      "exit_code": 0,
+      "cpu_seconds": 21.28125,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.10421270001097582,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "timing",
+      "workers": 8,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": [
+        {
+          "identity": "1",
+          "mode": "timing",
+          "validation_ns": 14978500,
+          "pre_batch_ns": 8441200,
+          "batch_ns": 6058200,
+          "merge_ns": 56400,
+          "post_merge_ns": 422700,
+          "workers": 8,
+          "machine_count": 101,
+          "idle_ns": 97600,
+          "one_active_ns": 3692600,
+          "overlapping_ns": 2268000,
+          "maximum_active": 8,
+          "summed_machine_ns": 20939700,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 5208600
+            },
+            {
+              "name": "Build::request_git",
+              "wall_ns": 1239300
+            },
+            {
+              "name": "selected_incoming_u12_exact_add_immediate",
+              "wall_ns": 937000
+            },
+            {
+              "name": "selected_incoming_bitwise_and_ones_identity_copy",
+              "wall_ns": 935400
+            },
+            {
+              "name": "aarch64_elide_same_view_copy_i64_before_compare_i64_left_operand_v1",
+              "wall_ns": 929900
+            },
+            {
+              "name": "Build::request_dependency",
+              "wall_ns": 798900
+            },
+            {
+              "name": "build_selection_target",
+              "wall_ns": 435400
+            },
+            {
+              "name": "BuildSource::read",
+              "wall_ns": 335100
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "2",
+          "mode": "timing",
+          "validation_ns": 487722000,
+          "pre_batch_ns": 364808700,
+          "batch_ns": 87871600,
+          "merge_ns": 839000,
+          "post_merge_ns": 34202700,
+          "workers": 8,
+          "machine_count": 1920,
+          "idle_ns": 132200,
+          "one_active_ns": 957100,
+          "overlapping_ns": 86782300,
+          "maximum_active": 8,
+          "summed_machine_ns": 669958200,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "split_vacant_extent",
+              "wall_ns": 19411900
+            },
+            {
+              "name": "CombatSystem::fight",
+              "wall_ns": 18204900
+            },
+            {
+              "name": "rat_close_triangle_split",
+              "wall_ns": 14622800
+            },
+            {
+              "name": "dispatch_command",
+              "wall_ns": 13738600
+            },
+            {
+              "name": "rat_gap_triangle_scaled",
+              "wall_ns": 9059400
+            },
+            {
+              "name": "build_physical",
+              "wall_ns": 8704300
+            },
+            {
+              "name": "mul_le_cancel_right",
+              "wall_ns": 8102500
+            },
+            {
+              "name": "level_up",
+              "wall_ns": 8002100
+            }
+          ],
+          "most_repeated": []
+        }
+      ]
+    },
+    "workers-8-b": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-8-b\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 20.779010499987635,
+      "exit_code": 0,
+      "cpu_seconds": 24.578125,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.10103109999909066,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "timing",
+      "workers": 8,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": [
+        {
+          "identity": "1",
+          "mode": "timing",
+          "validation_ns": 10800200,
+          "pre_batch_ns": 5309600,
+          "batch_ns": 5127600,
+          "merge_ns": 40600,
+          "post_merge_ns": 322400,
+          "workers": 8,
+          "machine_count": 101,
+          "idle_ns": 64700,
+          "one_active_ns": 2968200,
+          "overlapping_ns": 2094700,
+          "maximum_active": 8,
+          "summed_machine_ns": 19221000,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 3972500
+            },
+            {
+              "name": "selected_incoming_bitwise_and_ones_identity_copy",
+              "wall_ns": 782700
+            },
+            {
+              "name": "selected_incoming_u12_exact_add_immediate",
+              "wall_ns": 780000
+            },
+            {
+              "name": "aarch64_elide_same_view_copy_i64_before_compare_i64_left_operand_v1",
+              "wall_ns": 779500
+            },
+            {
+              "name": "aarch64_select_shortest_movn_seeded_i64_materialization_v1",
+              "wall_ns": 777700
+            },
+            {
+              "name": "Build::request_git",
+              "wall_ns": 773100
+            },
+            {
+              "name": "Build::request_dependency",
+              "wall_ns": 708600
+            },
+            {
+              "name": "build_selection_target",
+              "wall_ns": 341400
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "2",
+          "mode": "timing",
+          "validation_ns": 549001500,
+          "pre_batch_ns": 374534300,
+          "batch_ns": 136459900,
+          "merge_ns": 877300,
+          "post_merge_ns": 37130000,
+          "workers": 8,
+          "machine_count": 1920,
+          "idle_ns": 120700,
+          "one_active_ns": 9101100,
+          "overlapping_ns": 127238100,
+          "maximum_active": 8,
+          "summed_machine_ns": 904372900,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "rat_close_triangle_split",
+              "wall_ns": 33182500
+            },
+            {
+              "name": "dispatch_command",
+              "wall_ns": 23474300
+            },
+            {
+              "name": "CombatSystem::fight",
+              "wall_ns": 22419000
+            },
+            {
+              "name": "mul_le_cancel_right",
+              "wall_ns": 22130300
+            },
+            {
+              "name": "split_vacant_extent",
+              "wall_ns": 20087600
+            },
+            {
+              "name": "rat_gap_triangle_scaled",
+              "wall_ns": 14080100
+            },
+            {
+              "name": "build_physical",
+              "wall_ns": 13707900
+            },
+            {
+              "name": "PlayerSystem::take_damage",
+              "wall_ns": 12402900
+            }
+          ],
+          "most_repeated": []
+        }
+      ]
+    },
+    "workers-8-c": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-8-c\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 20.077260999998543,
+      "exit_code": 0,
+      "cpu_seconds": 23.75,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.2832624000002397,
+      "producer": "candidate",
+      "compiler_sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "mode": "timing",
+      "workers": 8,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "68f73f860bd5760a95d12d0a1ba73b44dba1484b4315ce21200110fdc9a63135",
+      "checking_jobs": [
+        {
+          "identity": "1",
+          "mode": "timing",
+          "validation_ns": 14253700,
+          "pre_batch_ns": 7858300,
+          "batch_ns": 5784400,
+          "merge_ns": 106700,
+          "post_merge_ns": 504300,
+          "workers": 8,
+          "machine_count": 101,
+          "idle_ns": 121800,
+          "one_active_ns": 3072200,
+          "overlapping_ns": 2590400,
+          "maximum_active": 8,
+          "summed_machine_ns": 23040200,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 5023100
+            },
+            {
+              "name": "proof_check_elision",
+              "wall_ns": 1100800
+            },
+            {
+              "name": "selected_incoming_u12_load8_indexed_offset",
+              "wall_ns": 1100600
+            },
+            {
+              "name": "aarch64_elide_same_view_copy_i64_before_compare_zero_v1",
+              "wall_ns": 1096600
+            },
+            {
+              "name": "selected_incoming_wrapping_add_zero_identity_copy",
+              "wall_ns": 1092900
+            },
+            {
+              "name": "BuildOutput::complete",
+              "wall_ns": 625100
+            },
+            {
+              "name": "Build::request_git",
+              "wall_ns": 580100
+            },
+            {
+              "name": "build",
+              "wall_ns": 530000
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "2",
+          "mode": "timing",
+          "validation_ns": 14169300,
+          "pre_batch_ns": 6592900,
+          "batch_ns": 7104600,
+          "merge_ns": 79900,
+          "post_merge_ns": 391900,
+          "workers": 8,
+          "machine_count": 101,
+          "idle_ns": 88600,
+          "one_active_ns": 4999100,
+          "overlapping_ns": 2016900,
+          "maximum_active": 8,
+          "summed_machine_ns": 20594200,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "Optimizations::enable",
+              "wall_ns": 5881200
+            },
+            {
+              "name": "Build::request_git",
+              "wall_ns": 841700
+            },
+            {
+              "name": "Build::request_dependency",
+              "wall_ns": 680200
+            },
+            {
+              "name": "BuildOutput::complete",
+              "wall_ns": 479000
+            },
+            {
+              "name": "selected_incoming_u12_exact_add_immediate",
+              "wall_ns": 397600
+            },
+            {
+              "name": "build_exclusion_physical_code",
+              "wall_ns": 370000
+            },
+            {
+              "name": "selected_incoming_bitwise_and_ones_identity_copy",
+              "wall_ns": 348800
+            },
+            {
+              "name": "aarch64_select_shortest_movn_seeded_i64_materialization_v1",
+              "wall_ns": 261100
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "3",
+          "mode": "timing",
+          "validation_ns": 1686000,
+          "pre_batch_ns": 1516800,
+          "batch_ns": 121200,
+          "merge_ns": 7600,
+          "post_merge_ns": 40400,
+          "workers": 8,
+          "machine_count": 7,
+          "idle_ns": 53800,
+          "one_active_ns": 12800,
+          "overlapping_ns": 54600,
+          "maximum_active": 7,
+          "summed_machine_ns": 259900,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "@const-qualification-ZERO-0",
+              "wall_ns": 47500
+            },
+            {
+              "name": "@const-qualification-UNIX_EPOCH-4",
+              "wall_ns": 47200
+            },
+            {
+              "name": "@const-qualification-MAX-5",
+              "wall_ns": 47200
+            },
+            {
+              "name": "@const-qualification-MAX-3",
+              "wall_ns": 34600
+            },
+            {
+              "name": "@const-qualification-MIN-6",
+              "wall_ns": 29000
+            },
+            {
+              "name": "@const-qualification-MAX-1",
+              "wall_ns": 27400
+            },
+            {
+              "name": "@const-qualification-EPOCH-2",
+              "wall_ns": 27000
+            }
+          ],
+          "most_repeated": []
+        },
+        {
+          "identity": "4",
+          "mode": "timing",
+          "validation_ns": 520215300,
+          "pre_batch_ns": 392681400,
+          "batch_ns": 98779800,
+          "merge_ns": 796900,
+          "post_merge_ns": 27957200,
+          "workers": 8,
+          "machine_count": 1920,
+          "idle_ns": 134700,
+          "one_active_ns": 2779200,
+          "overlapping_ns": 95865900,
+          "maximum_active": 8,
+          "summed_machine_ns": 744534400,
+          "expression_visits": 0,
+          "distinct_expression_body_pairs": 0,
+          "distinct_context_pairs": 0,
+          "repeated_context_visits": 0,
+          "longest_machines": [
+            {
+              "name": "CombatSystem::fight",
+              "wall_ns": 24039600
+            },
+            {
+              "name": "dispatch_command",
+              "wall_ns": 20642500
+            },
+            {
+              "name": "rat_close_triangle_split",
+              "wall_ns": 17828000
+            },
+            {
+              "name": "split_vacant_extent",
+              "wall_ns": 13034700
+            },
+            {
+              "name": "rat_gap_triangle_scaled",
+              "wall_ns": 11591100
+            },
+            {
+              "name": "PlayerSystem::take_damage",
+              "wall_ns": 10660900
+            },
+            {
+              "name": "Room::append_exit",
+              "wall_ns": 10350800
+            },
+            {
+              "name": "accept_physical",
+              "wall_ns": 9314400
+            }
+          ],
+          "most_repeated": []
+        }
+      ]
+    }
+  },
+  "rejected_runs": {
+    "baseline-acceptance": {
+      "observation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "--target",
+          "windows_x86_64",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+        ],
+        "wall_seconds": 13.607720700005302,
+        "exit_code": 200
+      },
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `dungeon_crawler_cli` with 1 diagnostic(s)\n  error: target root slot `windows_x86_64::ProgramEntry` takes boundary schema `WindowsX86_64Application` from a dependency's `targets/windows_x86_64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it\n"
+    },
+    "baseline-accepted": {
+      "observation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "--target",
+          "windows_x86_64",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+        ],
+        "wall_seconds": 30.272179400009918,
+        "exit_code": 0
+      },
+      "stderr": "compiled for target `windows_x86_64` OK (C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-1458924-0)\nbuild dir kept: C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-1458924-0\n"
+    },
+    "off-1": {
+      "observation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+          "--timings",
+          "--target",
+          "windows_x86_64",
+          "--build-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\off-1\\native",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+        ],
+        "wall_seconds": 2.061683300009463,
+        "exit_code": 1,
+        "cpu_seconds": 1.375
+      },
+      "stderr": "   856.435 ms  total elapsed\ncannot compile admitted project: checked compilation failed for package `dungeon_crawler_cli` with 1 diagnostic(s)\n  error: accepted package `dungeon_crawler_cli` compiler identity changed; run `omega update` for fresh review before compiling\n"
+    },
+    "workers-1-c": {
+      "observation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\candidate\\omega.exe",
+          "--timings",
+          "--target",
+          "windows_x86_64",
+          "--build-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\workers-1-c\\native",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+        ],
+        "wall_seconds": 7.9784303000051295,
+        "exit_code": 0,
+        "cpu_seconds": 7.53125
+      },
+      "stderr": "    25.646 ms  prepare: project -> prepared sources\n  6081.389 ms  compile: sources -> requested product\n    66.028 ms  publish: retained product -> published product\n    22.472 ms  Stage 05: TypedTrees -> CheckedTrees\n    81.443 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)\n   344.431 ms  Step: settle: CheckedTrees -> SelectedExecution\n  3643.119 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact\n  3597.922 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi\n     0.003 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine\n    10.015 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi\n     3.585 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt\n    31.307 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact\n  7570.752 ms  total elapsed\n"
+    }
+  },
+  "cpu_timer_calibration": {
+    "command": [
+      "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+      "-c",
+      "import time; end=time.process_time()+0.2\nwhile time.process_time()<end: pass"
+    ],
+    "wall_seconds": 0.3878816999931587,
+    "exit_code": 0,
+    "cpu_seconds": 0.359375
+  }
+}

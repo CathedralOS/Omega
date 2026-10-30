@@ -59,7 +59,7 @@ pub use build_time_evaluation::provider_declarations::{
     TargetProviderDefaults,
 };
 pub use intrinsic_requirements::{
-    IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
+    CheckedNumericProviders, IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
@@ -71,9 +71,8 @@ pub use provider_planning::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance,
     bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
     project_checked_provider_instances, same_semantic_name, satisfies_plan_name,
-    select_derived_provider_plans, selected_provider_plan_facts,
+    select_derived_provider_plans, selected_checked_operator_body, selected_provider_plan_facts,
     selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
-    specialized_provider_machines,
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,

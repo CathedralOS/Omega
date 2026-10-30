@@ -1,0 +1,60 @@
+{
+  "source_equivalent_checkpoint": "cddd308a3897564867c96dee274ac333b9902879",
+  "original_build_base": "d9c92de878a42e495f45fdf49ba228d64294f4aa",
+  "semantic_base": "456c5e984452a45d977295e254b3ca9ae3cc7750",
+  "source_file": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs",
+  "source_sha256": "74077c5efa605a5219e5abda4cf975dab17079ea461e24e3bcbea233974febeb",
+  "original_patch_sha256": "81b05c0ab783734063366a9e25fae0dfb9f0ebcd5def1d06353c574a9c7f09a7",
+  "producer_inputs": [
+    "omega-rust",
+    "source",
+    "tools",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml"
+  ],
+  "compiler": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\omega.exe",
+  "native": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\graph-phase-cpu\\qualified-native.exe",
+  "preparation_result": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\lazy-clean-final-both\\result.json",
+  "terminal_stdout": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\lazy-clean-final-both\\terminal.stdout",
+  "expected_stdout": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\wiki\\drafts\\measurements\\proof_parallelism_2026_10_28\\lazy_reference_graph\\raw\\lazy-original-cold-0\\runtime\\stdout.txt",
+  "provenance": "The preserved compiler was built on the original base with the exact captured patch. Complete producer Git inputs equal that source snapshot; this clean checkpoint names those same source bytes, not a new compiler build.",
+  "artifacts": [
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\omega.exe",
+      "sha256": "379a5b851627c37fa53e6bd4f1fb8e6a7b75178c0cb18628b94c94faec0e5c8f"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\omega.lock",
+      "sha256": "72f1ca47c4baa1952d525227a4f53de414dca86a22e076001684aaec6099b854"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\graph-phase-cpu\\qualified-native.exe",
+      "sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\lazy-clean-final-both\\result.json",
+      "sha256": "eb3012e84fb22271b9374f97fd7866b1fb8440f98bd43e68c9bcf2be753bccf4"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\lazy-clean-final-both\\terminal.stdout",
+      "sha256": "0e1e29e8d6ab7c2f123f8146b8ac62be6c828a67bf5541548734962b013fa5a6"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\wiki\\drafts\\measurements\\proof_parallelism_2026_10_28\\lazy_reference_graph\\raw\\lazy-original-cold-0\\runtime\\stdout.txt",
+      "sha256": "0e1e29e8d6ab7c2f123f8146b8ac62be6c828a67bf5541548734962b013fa5a6"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\wiki\\drafts\\measurements\\proof_parallelism_2026_10_28\\lazy_reference_graph\\candidate-source.json",
+      "sha256": "044e8a8c7601fc09c59225e13ba717325142609dab5686fb190efd3736f38cfa"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\wiki\\drafts\\measurements\\proof_parallelism_2026_10_28\\lazy_reference_graph\\candidate.patch",
+      "sha256": "81b05c0ab783734063366a9e25fae0dfb9f0ebcd5def1d06353c574a9c7f09a7"
+    },
+    {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\wiki\\drafts\\measurements\\proof_parallelism_2026_10_28\\lazy_reference_graph\\build.log.gz",
+      "sha256": "084fc973119fb03c59959d7707ec6d231ebf5bc9f86480a7e830203d7ef867f6"
+    }
+  ]
+}

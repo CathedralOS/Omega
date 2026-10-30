@@ -120,6 +120,14 @@ realization never starts another Psi production. Product constant applications
 and their checked conditions cross this boundary in canonical Terminal Psi.
 Selected realization completes them without copying or rewriting checked source;
 selected providers cannot inject completion roles into checked source.
+Psi retains each const argument's complete expression, lexical owner and result
+carrier. Type and body copying carry that relationship through exact occurrence
+maps; substituted array fields refer to the same retained extent. Preparation
+creates ordinary evaluation entries from closed expression inputs, including
+closed expressions inside generic owners, without dropping the template's
+checking obligations. Canonical publication consumes those entries, never the
+first nested helper as a substitute for the complete expression. Selected
+execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
@@ -846,6 +854,20 @@ Checked qualification evidence names its source declaration and exact boundary
 requirement, not a selected provider's receipt number. Provider grant binding
 borrows that evidence and returns selected plans and grants separately; it never
 rewrites or clones checked Psi to stamp target-specific authority into facts.
+Psi prepares each authorized contract issuer's export identity once before
+sharing the checking baseline with flow workers. Admitted fact occurrences carry
+that stable issuer handle; the inventory alone creates no obligation. Omega's
+source-free grant policy consumes those occurrences, including uncalled bodies at
+the Check stop, and preserves declaring-owner preference and ambiguous-grant
+refusal without rescanning typed traits or signatures.
+
+Psi retains checked operator declaration eligibility separately from closed
+application body candidates. Open or dormant declarations do not root bodies or
+establish executable coverage. Omega admission and checked dispatch join selected
+plans to that inventory through one source-free choice operation, preserving
+provider/package identity, effective target context, scope and application
+coordinates. Neither consumer rediscovers specialization or source satisfaction;
+the exact application's existing body span supplies its executable alternatives.
 
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
@@ -895,6 +917,21 @@ native provider admission. Checked source retains no separate FMA association
 list: an operation in an unselected target body creates no deployment demand
 for the selected body. Exact profile and feature admission remain required for
 each realized FMA, and its ordinary target-operation record carries that custody.
+Normal Product operator/requirement admission
+borrows the checked external catalog and its exact source-to-nominal correspondence;
+it does not rescan typed numeric meaning or satisfaction edges. That catalog is
+prepared before selected plan binding, so malformed declarations may precede plan
+or qualification diagnostics; both remain pre-execution refusals. Early Build's
+typed-only comparison path remains separate until it owns checked declarations.
+Product boundary-provider admission also consumes Psi's complete requirement
+inventory and occurrence applicability. Checking records slot/package identity,
+the distinct dormant-operator versus direct-call eligibility, and whether a use
+belongs to a generic machine; admission no longer reconstructs those facts from
+typed declarations. Requirement rows exist without implementations or uses.
+Product root pruning projects direct-call rows and template applicability with
+the machine roster while preserving independent operator declarations. The
+checked-tree bridge remains: portable publication and moving the complete
+admission operation into `provider-selection` are not closed by this step.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare

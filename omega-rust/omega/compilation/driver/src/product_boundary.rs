@@ -626,6 +626,77 @@ fn installation_reach_settlement_consumes_prepared_rows() {
 }
 
 #[test]
+fn checked_operator_choice_consumes_retained_candidates() {
+    let admission = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    let dispatch = include_str!(
+        "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
+    );
+    for consumer in [admission, dispatch] {
+        assert!(consumer.contains("selected_checked_operator_body"));
+        for forbidden in [
+            "specialized_provider_machines",
+            "machine_specializations",
+            "machine_trait_conformances",
+            "resolve_satisfied_checked_operator",
+            "resolve_specialized_checked_operator",
+        ] {
+            assert!(
+                !consumer.contains(forbidden),
+                "operator body choice reconstructs {forbidden}"
+            );
+        }
+    }
+    assert!(admission.contains("boundary_declarations"));
+    assert!(admission.contains("boundary_body_candidates"));
+    assert!(admission.contains(".span(application.body_candidates)"));
+    let policy = include_str!("../../realization/provider-selection/src/checked_bodies.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "checked-body policy reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn qualification_grants_consume_prepared_issuer_evidence() {
+    let binding = include_str!("../../realization/provider-planning/src/provider_planning.rs");
+    assert!(binding.contains(".admitted_qualification_issuers()"));
+    let policy = include_str!("../../realization/provider-selection/src/qualification_grants.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "grant policy reopens {forbidden}"
+        );
+    }
+    let preparation = include_str!(
+        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts.rs"
+    );
+    let issuers = preparation
+        .find("qualification_evidence::prepare_issuers(")
+        .unwrap();
+    let occurrences = preparation
+        .find("append_contract_semantic_facts(program")
+        .unwrap();
+    assert!(
+        issuers < occurrences,
+        "issuer identities must precede occurrence production"
+    );
+}
+
+#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation/terminal.rs");
     assert!(projection.contains(".native_provider_sources"));
@@ -965,6 +1036,49 @@ fn selected_execution_does_not_copy_checked_programs() {
     ] {
         assert!(!source.contains("Arc::make_mut"));
     }
+}
+
+#[test]
+fn selected_numeric_admission_consumes_retained_declarations() {
+    let evidence = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    assert!(evidence.contains("numeric_providers.require_selected("));
+    assert!(!evidence.contains(".execution_identity(typed)"));
+    assert!(!evidence.contains(".intrinsic_realization_matches(typed,"));
+    let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(preparation.contains("correspondence: external_providers.correspondence()"));
+    assert!(
+        preparation.find(".require_owner(").unwrap()
+            < preparation
+                .find("bind_selected_provider_plan_facts(")
+                .unwrap()
+    );
+}
+
+#[test]
+fn selected_boundary_admission_reads_checked_classification() {
+    let source = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    // Source-only selection adapters below this entrance still serve early
+    // interpretation. Product admission must not call back into typed source.
+    let admission = source.split("pub fn selected_use_plan").next().unwrap();
+    for forbidden in [
+        "typed:",
+        "typed.",
+        "IntrinsicRequirement::",
+        "schema_binds_exact_",
+        "use_site_is_generic_template(",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "Product admission reconstructs {forbidden}"
+        );
+    }
+    assert!(admission.contains("provider_requirements"));
+    assert!(admission.contains("operator_use.is_generic_template"));
+    assert!(admission.contains("selected_checked_operator_body(check_facts, application, plan)"));
 }
 
 #[test]

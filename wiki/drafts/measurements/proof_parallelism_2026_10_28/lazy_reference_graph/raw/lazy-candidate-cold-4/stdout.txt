@@ -1,0 +1,1 @@
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\proof-profile-20261028\build\proof-profile\lazy-candidate-cold-4\native\omega-program.exe

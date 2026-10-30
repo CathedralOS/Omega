@@ -102,6 +102,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
         for access in accesses.span_or_empty(span) {
             let place = CapturedPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: access.root,
                 segments: segments.span_or_empty(access.segments).to_vec(),
             };

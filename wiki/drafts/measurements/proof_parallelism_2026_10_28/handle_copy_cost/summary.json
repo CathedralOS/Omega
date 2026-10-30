@@ -1,0 +1,149 @@
+{
+  "handles-original-a": {
+    "mode": "off",
+    "producer": "payload",
+    "wall_seconds": 28.36312789999647,
+    "cpu_seconds": 33.640625,
+    "source_replay_ms": 1982.5688,
+    "peak_working_set_bytes": 1912434688,
+    "peak_commit_bytes": 3492040704
+  },
+  "handles-off-a": {
+    "mode": "off",
+    "producer": "handle-cost",
+    "wall_seconds": 27.17712589999428,
+    "cpu_seconds": 33.640625,
+    "source_replay_ms": 2282.7895,
+    "peak_working_set_bytes": 2018758656,
+    "peak_commit_bytes": 3408039936
+  },
+  "handles-timed-a": {
+    "mode": "fine",
+    "producer": "handle-cost",
+    "wall_seconds": 27.432054099997913,
+    "cpu_seconds": 34.3125,
+    "source_replay_ms": 2074.2243,
+    "peak_working_set_bytes": 2028437504,
+    "peak_commit_bytes": 3429707776,
+    "inclusive_ms": {
+      "source": 2074.1223,
+      "replay": 2072.3023,
+      "meet": 422.2317,
+      "retain_snapshot": 311.9214,
+      "cow_shared": 18.8737,
+      "cow_unique": 0.396,
+      "snapshot_filter": 230.8978
+    },
+    "exclusive_ms": {
+      "source": 1.82,
+      "replay": 1650.0706,
+      "meet": 110.3103,
+      "retain_snapshot": 61.7539,
+      "cow_shared": 18.8737,
+      "cow_unique": 0.396,
+      "snapshot_filter": 230.8978
+    },
+    "calibration_interval_ns_per_scope": 32.325,
+    "calibration_gross_ns_per_scope": 73.365,
+    "copy_fraction_of_source_percent": 0.9099608060720431,
+    "copy_fraction_of_compile_percent": 0.06880162867570837
+  },
+  "handles-off-b": {
+    "mode": "off",
+    "producer": "handle-cost",
+    "wall_seconds": 24.068327599998156,
+    "cpu_seconds": 30.59375,
+    "source_replay_ms": 1777.905,
+    "peak_working_set_bytes": 2148610048,
+    "peak_commit_bytes": 3532591104
+  },
+  "handles-timed-b": {
+    "mode": "fine",
+    "producer": "handle-cost",
+    "wall_seconds": 22.466759400005685,
+    "cpu_seconds": 28.46875,
+    "source_replay_ms": 1818.6877,
+    "peak_working_set_bytes": 2144587776,
+    "peak_commit_bytes": 3489886208,
+    "inclusive_ms": {
+      "source": 1818.6104,
+      "replay": 1817.1684,
+      "meet": 361.7209,
+      "retain_snapshot": 271.9866,
+      "cow_shared": 16.8693,
+      "cow_unique": 0.3546,
+      "snapshot_filter": 203.4029
+    },
+    "exclusive_ms": {
+      "source": 1.442,
+      "replay": 1455.4475,
+      "meet": 89.7343,
+      "retain_snapshot": 51.3598,
+      "cow_shared": 16.8693,
+      "cow_unique": 0.3546,
+      "snapshot_filter": 203.4029
+    },
+    "calibration_interval_ns_per_scope": 25.43,
+    "calibration_gross_ns_per_scope": 56.145,
+    "copy_fraction_of_source_percent": 0.9275928478139134,
+    "copy_fraction_of_compile_percent": 0.07508559512145634
+  },
+  "handles-original-b": {
+    "mode": "off",
+    "producer": "payload",
+    "wall_seconds": 23.216453400003957,
+    "cpu_seconds": 29.34375,
+    "source_replay_ms": 1959.7347,
+    "peak_working_set_bytes": 2125144064,
+    "peak_commit_bytes": 3459334144
+  },
+  "handles-timed-c": {
+    "mode": "fine",
+    "producer": "handle-cost",
+    "wall_seconds": 24.446016599998984,
+    "cpu_seconds": 31.921875,
+    "source_replay_ms": 2021.5883,
+    "peak_working_set_bytes": 2026504192,
+    "peak_commit_bytes": 3404910592,
+    "inclusive_ms": {
+      "source": 2021.5138,
+      "replay": 2019.8188,
+      "meet": 379.9879,
+      "retain_snapshot": 279.8812,
+      "cow_shared": 18.2358,
+      "cow_unique": 0.3436,
+      "snapshot_filter": 207.1141
+    },
+    "exclusive_ms": {
+      "source": 1.695,
+      "replay": 1639.8309,
+      "meet": 100.1067,
+      "retain_snapshot": 54.1877,
+      "cow_shared": 18.2358,
+      "cow_unique": 0.3436,
+      "snapshot_filter": 207.1141
+    },
+    "calibration_interval_ns_per_scope": 30.41,
+    "calibration_gross_ns_per_scope": 67.675,
+    "copy_fraction_of_source_percent": 0.9020863473699758,
+    "copy_fraction_of_compile_percent": 0.07459620231134408
+  },
+  "handles-original-c": {
+    "mode": "off",
+    "producer": "payload",
+    "wall_seconds": 23.59805530000449,
+    "cpu_seconds": 31.1875,
+    "source_replay_ms": 2031.9642,
+    "peak_working_set_bytes": 1880686592,
+    "peak_commit_bytes": 3476144128
+  },
+  "handles-off-c": {
+    "mode": "off",
+    "producer": "handle-cost",
+    "wall_seconds": 23.15800009999657,
+    "cpu_seconds": 30.71875,
+    "source_replay_ms": 1745.821,
+    "peak_working_set_bytes": 2112942080,
+    "peak_commit_bytes": 3524132864
+  }
+}

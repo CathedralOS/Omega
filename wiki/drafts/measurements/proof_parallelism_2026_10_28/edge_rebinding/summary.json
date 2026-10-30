@@ -1,0 +1,74 @@
+[
+  {
+    "pair": "a",
+    "base": {
+      "wall_seconds": 19.098292399998172,
+      "cpu_seconds": 26.375,
+      "source_replay_ms": 1512.8835,
+      "history_drop_ms": 15.7629,
+      "peak_working_set_bytes": 1915916288
+    },
+    "candidate": {
+      "wall_seconds": 20.587769999998272,
+      "cpu_seconds": 26.453125,
+      "source_replay_ms": 1371.0461,
+      "history_drop_ms": 27.1319,
+      "peak_working_set_bytes": 2110480384
+    },
+    "replay_change_percent": -9.375302196104318
+  },
+  {
+    "pair": "b",
+    "base": {
+      "wall_seconds": 18.998743499992997,
+      "cpu_seconds": 26.4375,
+      "source_replay_ms": 1486.1703,
+      "history_drop_ms": 15.6713,
+      "peak_working_set_bytes": 2143375360
+    },
+    "candidate": {
+      "wall_seconds": 18.650405100008356,
+      "cpu_seconds": 25.515625,
+      "source_replay_ms": 1472.8,
+      "history_drop_ms": 35.9433,
+      "peak_working_set_bytes": 2122727424
+    },
+    "replay_change_percent": -0.8996479071072816
+  },
+  {
+    "pair": "c",
+    "base": {
+      "wall_seconds": 18.812088000006042,
+      "cpu_seconds": 24.8125,
+      "source_replay_ms": 1399.5168,
+      "history_drop_ms": 13.4377,
+      "peak_working_set_bytes": 2137300992
+    },
+    "candidate": {
+      "wall_seconds": 18.975137799992808,
+      "cpu_seconds": 25.9375,
+      "source_replay_ms": 1515.459,
+      "history_drop_ms": 34.9298,
+      "peak_working_set_bytes": 2091192320
+    },
+    "replay_change_percent": 8.28444503131367
+  },
+  {
+    "pair": "d",
+    "base": {
+      "wall_seconds": 21.979154899992864,
+      "cpu_seconds": 27.96875,
+      "source_replay_ms": 1406.1425,
+      "history_drop_ms": 13.7832,
+      "peak_working_set_bytes": 2088325120
+    },
+    "candidate": {
+      "wall_seconds": 18.36119759999565,
+      "cpu_seconds": 25.09375,
+      "source_replay_ms": 1589.1064,
+      "history_drop_ms": 31.3578,
+      "peak_working_set_bytes": 1912315904
+    },
+    "replay_change_percent": 13.011760899055403
+  }
+]

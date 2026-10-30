@@ -1,0 +1,9 @@
+{
+  "executable": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\corpus_runner.exe",
+  "sha256": "b3f8181ce30217d2681c4d2dcf0ed241641fa915efc4866c56dac928559e03ae",
+  "build_profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "build_artifact": "P:\\build\\proof-profile\\compiler\\debug\\build\\compiler\\d1819d93a7429366\\out\\corpus_runner-d1819d93a7429366.exe"
+}

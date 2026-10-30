@@ -1,0 +1,5 @@
+{
+  "process_id": 906196,
+  "reason": "Stopped owned extended replay after noninvasive stack capture identified invocation inference and a six-node model reproduced vector-order oscillation; no successful original-control outcome claimed",
+  "sample": "main-preparation-stack.json"
+}

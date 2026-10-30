@@ -1,10 +1,10 @@
 {
   "schema": "omega-benchmark-record/2",
-  "recorded_utc": "2026-10-30T00:10:43Z",
+  "recorded_utc": "2026-10-30T04:54:04Z",
   "subject": {
     "name": "prime_counter",
     "root": "samples/cli/arithmetic/prime_counter/main.omg",
-    "source_revision": "f8f4b83177c969d3bdc95256f8ab28be98bdefad"
+    "source_revision": "9faf48f97ab27e2be5dce33d3901826be50c066c"
   },
   "key": {
     "target": "windows_x86_64",
@@ -29,8 +29,8 @@
     "logical_cpus": 32,
     "python": "3.15.1",
     "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
-    "omega_binary": "build\\prime-preparation\\candidate\\omega.exe",
-    "omega_binary_sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf",
+    "omega_binary": "build\\prime-preparation-3\\candidate\\omega.exe",
+    "omega_binary_sha256": "867ba61e15155d1d490c25b8234eeaf9431365bbfa8a43ff7aa82870f1232571",
     "omega_version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)",
     "omega_profile": "unknown"
   },
@@ -38,7 +38,7 @@
     "protocol": "omega-benchmark-process-v1/fresh-build-dir",
     "source_clean": true,
     "input_sha256": "bc39c6f22c06587337742b3c74f14550d59aebe1267ef3bdd14cab56c84ab3be",
-    "dependency_lock_sha256": "dfc876169328a5072d4e9e0af26f861c9c49f84d5e92ab4215476aec61e2e01e",
+    "dependency_lock_sha256": "839d975975e4f6fb6f58f15405cee626847737273f19a0f2fc5735f74215331a",
     "dependency_lock_stable": true,
     "machine_id": "8ab77c7698c9e3d6218b31cb3050314a3417fd802ad2850fe36d406dd064c58c",
     "compiler_profile": {
@@ -54,42 +54,42 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        129220.57340000174
+        49982.101200002944
       ],
-      "median_ms": 129220.57340000174,
-      "min_ms": 129220.57340000174
+      "median_ms": 49982.101200002944,
+      "min_ms": 49982.101200002944
     },
     "compile_time_ms": {
       "status": "measured",
       "unit": "ms",
       "samples": [
-        5107.1179999999,
-        934.8711999991792,
-        961.1390999998548
+        8816.682400007267,
+        1727.555499994196,
+        1813.2189000025392
       ],
-      "median_ms": 961.1390999998548,
-      "min_ms": 934.8711999991792,
+      "median_ms": 1813.2189000025392,
+      "min_ms": 1727.555499994196,
       "stage_timings_last_sample_ms": {
-        "prepare: project -> prepared sources": 23.585,
-        "compile: sources -> requested product": 261.22,
-        "publish: retained product -> published product": 17.767,
-        "Stage 05: TypedTrees -> CheckedTrees": 6.976,
-        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 69.249,
-        "Step: settle: CheckedTrees -> SelectedExecution": 59.475,
-        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 65.677,
-        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 64.846,
-        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.001,
-        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.235,
-        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.076,
-        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.441,
-        "total elapsed": 870.954
+        "prepare: project -> prepared sources": 43.069,
+        "compile: sources -> requested product": 649.677,
+        "publish: retained product -> published product": 22.994,
+        "Stage 05: TypedTrees -> CheckedTrees": 12.173,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 147.004,
+        "Step: settle: CheckedTrees -> SelectedExecution": 133.197,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 205.17,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 204.003,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.002,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.333,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.095,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.449,
+        "total elapsed": 1637.614
       }
     },
     "peak_memory_bytes": {
       "status": "measured",
       "unit": "bytes",
-      "compile_max_rss": 2429493248,
-      "run_max_rss": 1179648
+      "compile_max_rss": 2272559104,
+      "run_max_rss": 1212416
     },
     "code_size_bytes": {
       "status": "measured",
@@ -106,18 +106,18 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        74.9883000025875,
-        58.23019999661483,
-        57.45790000219131,
-        57.586900002206676,
-        56.882800003222656,
-        55.94369999744231,
-        57.684499995957594,
-        59.63099999644328,
-        58.92560000211233
+        257.5838000047952,
+        305.62620000273455,
+        95.2324999962002,
+        92.29629999026656,
+        144.65740000014193,
+        90.60429999954067,
+        480.0110000069253,
+        142.35400001052767,
+        130.60519999999087
       ],
-      "median_ms": 57.684499995957594,
-      "min_ms": 55.94369999744231,
+      "median_ms": 142.35400001052767,
+      "min_ms": 90.60429999954067,
       "exit_codes": [
         8,
         8,
@@ -135,10 +135,10 @@
     }
   },
   "notes": [
-    "Producer Rust inputs match 12e446dac0026ed89e85cf7d2517e3b7311fdb42, release opt-level 3. Workload updates only required blocking acknowledgements.",
-    "Preparation starts without a project lock, with existing host source/file caches. Includes update, review acceptance, resume; excludes timed compile samples. Runtime includes process startup."
+    "Preparation uses a fresh private LOCALAPPDATA cache and no project lock; includes update, review acceptance and resume. Compile samples use that prepared cache. File caches and host load are uncontrolled.",
+    "Retained producer Rust inputs exactly match 9faf48f97ab27e2be5dce33d3901826be50c066c, release opt-level 3. Prime sources and bounds are unchanged. Runtime includes startup; project LOC excludes std."
   ],
   "observation_warnings": [
-    "Preparation still costs 129 s; measured separately"
+    "Cold package review: 50 s; compile samples use the accepted cache"
   ]
 }

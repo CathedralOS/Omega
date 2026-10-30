@@ -1,0 +1,54 @@
+{
+  "global_query_rows": 182,
+  "global_query_metrics": {
+    "append_cow": 789,
+    "append_ns": 42548100,
+    "appended_output_rows": 1464095,
+    "canonical_ns": 122119500,
+    "contained_output_rows": 1683730,
+    "contained_requests": 6941,
+    "containment_ns": 75074700,
+    "cow_row_handles": 1495380,
+    "edge_retirement_ns": 100689400,
+    "operation_retirement_ns": 162449700,
+    "requested_input_rows": 3142008,
+    "requests": 7742,
+    "retire_ambient_cow": 12,
+    "retire_shared_cow": 12,
+    "returned_output_rows": 3147825,
+    "temporary_result_drop_ns": 8157700,
+    "transform_calls": 7742,
+    "transform_ns": 220963200
+  },
+  "global_cleanup_metrics": {
+    "destroy_ns": 12200,
+    "entries": 0
+  },
+  "source_windows": 418,
+  "query_rows": 173,
+  "cleanup_rows": 176,
+  "query_metrics": {
+    "append_cow": 756,
+    "append_ns": 42495500,
+    "appended_output_rows": 1462923,
+    "canonical_ns": 121938900,
+    "containment_ns": 75039100,
+    "cow_row_handles": 1493955,
+    "edge_retirement_ns": 100538500,
+    "requested_input_rows": 3140756,
+    "requests": 7683,
+    "returned_output_rows": 3146452,
+    "transform_calls": 7683,
+    "transform_ns": 220788500,
+    "contained_output_rows": 1683529,
+    "contained_requests": 6921,
+    "temporary_result_drop_ns": 8155600,
+    "operation_retirement_ns": 162335500,
+    "retire_ambient_cow": 6,
+    "retire_shared_cow": 6
+  },
+  "cleanup_metrics": {
+    "destroy_ns": 11800,
+    "entries": 0
+  }
+}

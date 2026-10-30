@@ -1,0 +1,29 @@
+{
+  "base": "88a0a52d5ea0a7d86df92724e31299ce7e4ccf5f",
+  "producers": {
+    "baseline": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "diagnostic": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\integer-premise-preparation\\diagnostic\\omega.exe",
+      "sha256": "939cd33c33f9b88082e478f81c5e9df97c06f8df023a3947d0a649486c267ff0",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "controls": {
+    "tests\\omega\\pass\\calls\\runtime_numeric_operand_order_exit\\build.omg": "6fd974fd8880bee344acc5dfa233ad321dfd6d85d6893ec7990a8a5026761171",
+    "tests\\omega\\pass\\calls\\runtime_numeric_operand_order_exit\\expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests\\omega\\pass\\calls\\runtime_numeric_operand_order_exit\\main.omg": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  "patches": {
+    "diagnostic.patch": "67a4c7ebecdef00e39d83574cdab42fc56a6dea8833f5a2cb83055d2dbe35702"
+  }
+}

@@ -358,6 +358,7 @@ pub fn at_snapshot(
                     capture: value,
                     reference: control.operands.get(value).type_reference,
                     projection,
+                    slot: Some(source.clone()),
                 });
             }
             if values.len() == 1 {

@@ -186,11 +186,9 @@ impl OperationFrame<'_, '_> {
                 "mutable scalar value refinements require invariant-window custody",
             );
         }
-        let machine = crate::terminal_identities::lookup_machine_id_with(
-            self.calls.machine_ids,
-            self.machine,
-            "local refinement lost its machine identity",
-        )?;
+        // Fused helpers retain their source namespace above, but their blocks
+        // and arrival obligations belong to the actual emitted machine.
+        let machine = self.calls.terminal_machine;
         self.values.push(value);
         self.evaluation.require_value_refinements(
             identities,

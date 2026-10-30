@@ -1,0 +1,78 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
+index 7d72e6c3191..8661e5762b3 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
+@@ -2057,6 +2057,8 @@ impl<'program> StructuralJudge<'program> {
+         application: &StructuralTerm,
+         depth: usize,
+     ) -> Option<StructuralTerm> {
++        let _unfold = phase_profile::guard("05.unfold.total");
++        let setup = phase_profile::guard("05.unfold.setup");
+         let StructuralTerm::Application {
+             target,
+             selections,
+@@ -2145,6 +2147,7 @@ impl<'program> StructuralJudge<'program> {
+         specification.specification_terms = true;
+         let specification = specification.resolving_application(application)?;
+ 
++        drop(setup);
+         let mut environment = environment;
+         let statements = program.statement_table.statements(state.statement_nodes);
+         for (index, statement) in statements.iter().enumerate() {
+@@ -2158,6 +2161,7 @@ impl<'program> StructuralJudge<'program> {
+                 continue; // exhaustiveness carrier, not shape
+             }
+             if let Some(local) = statement.as_local_data() {
++                let _local = phase_profile::guard("05.unfold.local");
+                 let term = specification.callee_term(
+                     local.initial_value,
+                     &environment,
+@@ -2184,6 +2188,7 @@ impl<'program> StructuralJudge<'program> {
+             // transition. An earlier expression is not a return and cannot
+             // bypass subsequent statements or their effects.
+             if let Some(expression) = statement.as_expression() {
++                let _tail = phase_profile::guard("05.unfold.tail");
+                 return (index + 1 == statements.len())
+                     .then(|| {
+                         specification.callee_term(
+@@ -2206,6 +2211,7 @@ impl<'program> StructuralJudge<'program> {
+             let fires = match transition.guard {
+                 TransitionGuardNode::Always => true,
+                 TransitionGuardNode::When(guard) => {
++                    let _guard = phase_profile::guard("05.unfold.guard");
+                     if let Some((arm_data, arm_case)) =
+                         super::structural_terms::case_guard_classifier(
+                             program,
+@@ -2261,6 +2267,7 @@ impl<'program> StructuralJudge<'program> {
+                         // recursive unfolding. Non-case scalar guards use the
+                         // same captured environment and selected source meaning.
+                         // Unknown never chooses an arm or assumes the goal.
++                        let _scalar = phase_profile::guard("05.unfold.scalar_guard");
+                         match specification.judge_predicate_in_scope(
+                             (machine, state, state.return_type),
+                             guard,
+@@ -2277,6 +2284,7 @@ impl<'program> StructuralJudge<'program> {
+             if !fires {
+                 continue;
+             }
++            let _target = phase_profile::guard("05.unfold.target");
+             return match program.statement_table.transition_target(transition.target) {
+                 TransitionTargetNode::Value(value) => specification.callee_term(
+                     *value,
+@@ -2464,6 +2472,8 @@ impl<'program> StructuralJudge<'program> {
+         scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
+         depth: usize,
+     ) -> Option<StructuralTerm> {
++        let _term = phase_profile::guard("05.unfold.callee_term");
++        let preparation = phase_profile::guard("05.unfold.callee_prepare");
+         if depth >= 32 {
+             return None;
+         }
+@@ -2577,6 +2587,7 @@ impl<'program> StructuralJudge<'program> {
+                 },
+             );
+         }
++        drop(preparation);
+         match program.expression_table.expression(expression) {
+             ExpressionNode::Match(dispatch) => self.specification_match_term(
+                 expression,

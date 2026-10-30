@@ -1,0 +1,7 @@
+{
+  "base": "1c358b5fd09bb57a45081cc707c052fbe6c2dad3",
+  "semantic_base": "456c5e984452a45d977295e254b3ca9ae3cc7750",
+  "file": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs",
+  "source_sha256": "35b857ca81c184fef8d10fe229b76119a75cf761df439652a8d21e8da2b1bcb8",
+  "patch_sha256": "bc730fc2dfab9b9d9763cc4ab3eef3f8307359fbf1a987fcd2569170f937c5c2"
+}

@@ -1,0 +1,26 @@
+{
+  "counts": {
+    "source_windows": 418,
+    "ENTRY_PREVIOUS_DROP": 96,
+    "ENTRY_INIT": 96,
+    "query_results": 173,
+    "steps": 15219,
+    "edges": 17444
+  },
+  "source_contract_ns": 1418983600,
+  "parts_ns": {
+    "ENTRY_PREVIOUS_DROP": 3900,
+    "ENTRY_INIT": 12523600,
+    "setup": 20714800,
+    "clone": 65392000,
+    "close": 13953300,
+    "publish": 91801000,
+    "join": 306706000,
+    "observe": 2465700,
+    "retire": 152063800,
+    "transfer": 28202500,
+    "canonical": 32174000,
+    "edges_inclusive": 1069098100
+  },
+  "outside_disjoint_intervals_ns": 36345200
+}

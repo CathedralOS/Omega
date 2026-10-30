@@ -1,0 +1,10 @@
+{
+  "executable_sha256": "2785b56c8f0fcae174c8a19ef20757b0cd4351cfdafc85292bfbfcc46f332c41",
+  "lock_sha256": "223ddd56a36c2765f9929d5b40b070103d6ba1b16a437fe758e294ec472be4c8",
+  "build_profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "logical_processors": 32
+}

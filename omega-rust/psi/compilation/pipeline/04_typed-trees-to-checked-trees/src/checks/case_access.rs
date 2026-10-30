@@ -10,11 +10,30 @@ use diagnostics::Diagnostic;
 use facts::{PlaceRoot, PlaceSegment};
 use validation::CanonicalPlace;
 
+#[derive(Clone, Copy)]
+enum AccessProof {
+    Unchecked,
+    Checking,
+    Selected,
+    Rejected(&'static str),
+}
+
 pub(super) fn check(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Frozen access obligations can be shared by many backing alternatives.
+    // Validate exact incoming membership before reusing either a proof or its
+    // refusal reason; the checking state still rejects cyclic provenance.
+    let mut proofs: Vec<_> = facts
+        .flow
+        .control
+        .case_accesses
+        .iter()
+        .map(|(handle, _)| (handle, AccessProof::Unchecked))
+        .collect();
+    proofs.sort_unstable_by_key(|(handle, _)| (handle.generation(), handle.arena_index()));
     for (_, state) in facts.flow.control.states.iter() {
         for access in facts
             .flow
@@ -28,7 +47,7 @@ pub(super) fn check(
                 .operand_referents
                 .span_or_empty(access.places);
             let unavailable_subject = subjects.iter().find_map(|subject| {
-                subject_cases_are_selected(program, facts, access, subject, &mut Vec::new())
+                subject_cases_are_selected(program, facts, access, subject, &mut proofs)
                     .err()
                     .map(|reason| {
                         (
@@ -91,10 +110,10 @@ fn recorded_access_is_selected(
     facts: &CheckFacts,
     handle: Handle<FlowCaseAccessFact>,
     expected: &FlowOperandReferent,
-    ancestors: &mut Vec<Handle<FlowCaseAccessFact>>,
+    proofs: &mut [(Handle<FlowCaseAccessFact>, AccessProof)],
 ) -> Result<(), &'static str> {
     let control = &facts.flow.control;
-    if !control.case_accesses.is_valid(handle) || ancestors.contains(&handle) {
+    if !control.case_accesses.is_valid(handle) {
         return Err("the recorded source access is missing or cyclic");
     }
     let access = control.case_accesses.get(handle);
@@ -111,11 +130,28 @@ fn recorded_access_is_selected(
     {
         return Err("the recorded source access does not name this captured source");
     }
-    ancestors.push(handle);
+    // The roster contains this frozen arena's exact live generations. It is
+    // never indexed by a handle from another arena or an unchecked page slot.
+    let Ok(position) = proofs.binary_search_by_key(
+        &(handle.generation(), handle.arena_index()),
+        |(handle, _)| (handle.generation(), handle.arena_index()),
+    ) else {
+        return Err("the recorded source access has no live proof slot");
+    };
+    match proofs[position].1 {
+        AccessProof::Selected => return Ok(()),
+        AccessProof::Checking => return Err("the recorded source access is missing or cyclic"),
+        AccessProof::Rejected(reason) => return Err(reason),
+        AccessProof::Unchecked => {}
+    }
+    proofs[position].1 = AccessProof::Checking;
     let selected = subjects.iter().try_for_each(|subject| {
-        subject_cases_are_selected(program, facts, access, subject, ancestors)
+        subject_cases_are_selected(program, facts, access, subject, proofs)
     });
-    ancestors.pop();
+    proofs[position].1 = match selected {
+        Ok(()) => AccessProof::Selected,
+        Err(reason) => AccessProof::Rejected(reason),
+    };
     selected
 }
 
@@ -124,7 +160,7 @@ fn subject_cases_are_selected(
     facts: &CheckFacts,
     access: &FlowCaseAccessFact,
     subject: &FlowOperandReferent,
-    ancestors: &mut Vec<Handle<FlowCaseAccessFact>>,
+    proofs: &mut [(Handle<FlowCaseAccessFact>, AccessProof)],
 ) -> Result<(), &'static str> {
     let Some(place) = canonical_subject(facts, subject) else {
         return Err("the captured source has no canonical place");
@@ -202,13 +238,7 @@ fn subject_cases_are_selected(
         }
         let source = control.operand_referents.get(formation.source);
         if formation.source_access.is_valid() {
-            recorded_access_is_selected(
-                program,
-                facts,
-                formation.source_access,
-                source,
-                ancestors,
-            )?;
+            recorded_access_is_selected(program, facts, formation.source_access, source, proofs)?;
         } else {
             let Some(source_place) = canonical_subject(facts, source) else {
                 return Err("the historical source has no canonical place");

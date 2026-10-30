@@ -1,0 +1,950 @@
+{
+  "producer_revision": "8b519ca647cd3fb6c8d4259ff422cb8f6fefb978",
+  "profile": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+    "sha256": "520f60a8c0b1bbaae0ac6e42473665f6a030c87ec9158903b2d66ddd2d483b7b",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "classification": "runtime corruption falsifiers, not static reject twins or additional facts; both coherent corruptions satisfy old difference-only oracle",
+  "rows": [
+    {
+      "case": "root-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/root-zero",
+      "mutant_sha256": "fdfffa211f0f294d951f5b803591991fc30189aa7fae1fafe519bb76b5b288ed",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/root-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6401531249999999
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/root-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.4050995
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25838-0\n"
+    },
+    {
+      "case": "root-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/root-scaled",
+      "mutant_sha256": "00ed89b00806e27d0f91187a74581350c23c90dc17301bb893b4948b7c7e6b80",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/root-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.633255167
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/root-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.492092208
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25837-0\n"
+    },
+    {
+      "case": "local-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/local",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/local-zero",
+      "mutant_sha256": "b671f9800569f7e7d89ab7a59677f7481f0714ec51e9f8823678636e5602177c",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/local-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.2889449169999998
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/local-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.3596695000000008
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25857-0\n"
+    },
+    {
+      "case": "local-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/local",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/local-scaled",
+      "mutant_sha256": "f54fbfc716903f5bd31f5fe8f8809df98245eed8a292ad8968e089572a0c819a",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/local-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.3124947089999996
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/local-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.3530049580000005
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25858-0\n"
+    },
+    {
+      "case": "field-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/field",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/field-zero",
+      "mutant_sha256": "ae69c55f2cf0124eb94c2bd7047196147865992a440d130554d38be6553e9b47",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/field-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.3510630840000006
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/field-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.9446332499999999
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25866-0\n"
+    },
+    {
+      "case": "field-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/field",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/field-scaled",
+      "mutant_sha256": "0e2c0c3a46297ee9a1d9cf95324d04520eee430be29a1f305a67817a3e8998be",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/field-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.3836451249999993
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/field-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.7215569579999999
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25867-0\n"
+    },
+    {
+      "case": "parameter-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/parameter",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/parameter-zero",
+      "mutant_sha256": "e6e197c7fa0e8df7c97663238d209d0fad82ed379ff7af41182b4df73f45165a",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/parameter-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6297819999999987
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/parameter-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.7107793329999996
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25881-0\n"
+    },
+    {
+      "case": "parameter-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/parameter",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/parameter-scaled",
+      "mutant_sha256": "f9cb2f8db7955f2fe6c1bac1a6b431e1f13a44e7488cda0b4d477b58c28c8032",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/parameter-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6887753750000005
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/parameter-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.6502455840000003
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25882-0\n"
+    },
+    {
+      "case": "call_result-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/call_result",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/call_result-zero",
+      "mutant_sha256": "14aee6a65c74be4a948174ef183b02a5207d5b69b1901ce66236f48b2d40364a",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/call_result-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6359510000000004
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/call_result-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.750495291
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25892-0\n"
+    },
+    {
+      "case": "call_result-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/call_result",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/call_result-scaled",
+      "mutant_sha256": "3eb9e9a26f244873254c7bc4cf9e69249d05bff10753a6c19c0167b3583f6580",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/call_result-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6152657920000006
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/call_result-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.7889842500000004
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25893-0\n"
+    },
+    {
+      "case": "match_join-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/match_join",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/match_join-zero",
+      "mutant_sha256": "5aa7704360acb93be448878e5f08eed989510fbfe955e391a9c0a226006fdd1c",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/match_join-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.5874378329999992
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/match_join-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.6886518330000015
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25901-0\n"
+    },
+    {
+      "case": "match_join-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/match_join",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/match_join-scaled",
+      "mutant_sha256": "8c81b09013ddd1fef0d6b90c071fa661b4476ad48d9811e2ea56ce6dbfdc78f6",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/match_join-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6295550420000016
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/match_join-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.716922457999999
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25902-0\n"
+    },
+    {
+      "case": "const_name-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/const_name",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/const_name-zero",
+      "mutant_sha256": "e6a55ffb8fd46ebbe76e4c4ef182c34883f4b792ba0fccb8cd46ce7b09107463",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/const_name-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.5844148340000004
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/const_name-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.6106381250000013
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25907-0\n"
+    },
+    {
+      "case": "const_name-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/const_name",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/const_name-scaled",
+      "mutant_sha256": "7d1016f6f199198b0e52bc561ed109ea5ac002b9ff06e26ed182764e7ef83fe6",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/const_name-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.5846644590000025
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/const_name-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.6694811249999972
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25908-0\n"
+    },
+    {
+      "case": "other_state-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/other_state",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_state-zero",
+      "mutant_sha256": "151804d604378ab3bb2eadb4c36d14fa78df628822ccbdf07108c5a574059dab",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_state-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.5474094170000008
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_state-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.7400324160000018
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25914-0\n"
+    },
+    {
+      "case": "other_state-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/other_state",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_state-scaled",
+      "mutant_sha256": "144c2824f0d8ce500500aa0fde0e62c0529c825dac9f7b8d01a6762501e71de5",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_state-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.7070873330000005
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_state-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.6809930000000008
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25915-0\n"
+    },
+    {
+      "case": "other_machine-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/other_machine",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_machine-zero",
+      "mutant_sha256": "3f867bcee9130734a97614b72a7106e1fe9b1a21c6da373b1459f7d6ef456848",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_machine-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.7494858749999977
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_machine-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.7502483750000017
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25927-0\n"
+    },
+    {
+      "case": "other_machine-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/other_machine",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_machine-scaled",
+      "mutant_sha256": "57df8f0091a85fca225ffa6ae599342dcea49b18ed3c56d2a47795d635caf41e",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_machine-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6580451669999974
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/other_machine-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.7869440830000016
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25933-0\n"
+    },
+    {
+      "case": "target_body-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/target_body",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/target_body-zero",
+      "mutant_sha256": "4cb5125f2a8cda13bc42ad320753297ffc1766effe93a022972d97411c9565d9",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/target_body-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.673902082999998
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/target_body-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.700011416999999
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25943-0\n"
+    },
+    {
+      "case": "target_body-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/target_body",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/target_body-scaled",
+      "mutant_sha256": "d2e3a3ceee31c0d430d1aace745ab1bd98972fcd25b1776b1e69031eb08e8e99",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/target_body-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.7394356670000022
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/target_body-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.6670780839999964
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25944-0\n"
+    },
+    {
+      "case": "compositions-private_arrival_calls-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/compositions/private_arrival_calls",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-private_arrival_calls-zero",
+      "mutant_sha256": "b2bdd068abd512d257674697dbc92ccda5a811a15286a34c254a5bda402d1058",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-private_arrival_calls-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.3091872080000044
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-private_arrival_calls-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.770930958000001
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25954-0\n"
+    },
+    {
+      "case": "compositions-private_arrival_calls-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/compositions/private_arrival_calls",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-private_arrival_calls-scaled",
+      "mutant_sha256": "8c9e9e6784f03e48999fc99043850dd8663e172406e46ed3eb2d15d9581a464a",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-private_arrival_calls-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.3495109159999998
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-private_arrival_calls-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.639634375
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25955-0\n"
+    },
+    {
+      "case": "compositions-terminal_returns-zero",
+      "source": "samples/cli/facts/size_align_layout_geometry/compositions/terminal_returns",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-terminal_returns-zero",
+      "mutant_sha256": "061e736744952f4b45cb802a854eec5e3f9a67ba81585c77889982ba6b3c2ff8",
+      "change": {
+        "size_query_result": "0u64",
+        "alignment_query_result": "0u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-terminal_returns-zero",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6312335419999968
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-terminal_returns-zero/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.7129359999999991
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25964-0\n"
+    },
+    {
+      "case": "compositions-terminal_returns-scaled",
+      "source": "samples/cli/facts/size_align_layout_geometry/compositions/terminal_returns",
+      "mutant": "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-terminal_returns-scaled",
+      "mutant_sha256": "27ef5c45e22cd3d3e114c6ad8b210cbd389412956b0b72247e8c352262c74959",
+      "change": {
+        "size_query_result": "32u64",
+        "alignment_query_result": "16u64"
+      },
+      "commands": [
+        {
+          "phase": "prepare",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "update",
+            "--project",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-terminal_returns-scaled",
+            "--target",
+            "macos_arm64",
+            "--dangerously-accept-all"
+          ],
+          "returncode": 0,
+          "seconds": 1.6962921659999992
+        },
+        {
+          "phase": "both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer50/omega",
+            "run",
+            "--both",
+            "--keep",
+            "build/layout-storage-evidence/geometry-runtime-falsifiers50/compositions-terminal_returns-scaled/main.omg"
+          ],
+          "returncode": 255,
+          "seconds": 1.5715923340000018
+        }
+      ],
+      "observed": "native signal 5\ninterp crash: Trap (host presentation agrees)\nbuild dir kept: /var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-25966-0\n"
+    }
+  ]
+}

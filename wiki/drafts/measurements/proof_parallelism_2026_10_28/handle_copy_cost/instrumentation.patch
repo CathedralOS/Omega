@@ -1,0 +1,989 @@
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+index 118aa389c02..41427a30787 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+@@ -35,6 +35,7 @@ struct Residence {
+ /// Ordinary reference slots and byte/element view slots share one inventory;
+ /// an address to the carrier itself must remain an observation of its home.
+ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("residences", module.machines.len());
+     let copyable_types =
+         super::affine_cleanup::copyable_descriptor_type_ids(&module.structural_types);
+     if copyable_types.is_empty() {
+@@ -48,6 +49,11 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+     if machine_residences.iter().all(Vec::is_empty) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_residences",
++        machine_residences.iter().map(Vec::len).sum(),
++    );
++    let graph_started = probe.clock();
+     let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph(module);
+     let rules = module
+         .machines
+@@ -63,6 +69,8 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         .collect::<Vec<_>>();
+     let mut analysis =
+         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for ((machine, residences), rules) in module
+         .machines
+         .iter_mut()
+@@ -75,10 +83,16 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         let Some(mut rules) = rules else {
+             continue;
+         };
+-        let Some(flow) = analysis.residence_flow(machine.id, &mut rules) else {
++        probe.count("candidate_machines", 1);
++        let flow_started = probe.clock();
++        let flow = analysis.residence_flow(machine.id, &mut rules);
++        probe.elapsed("residence_flow_ns", flow_started);
++        probe.count("residence_flow_queries", 1);
++        let Some(flow) = flow else {
+             // Incomplete return/effect coverage is not a dead-lifetime proof.
+             continue;
+         };
++        let normal_started = probe.clock();
+         let normal = NormalEdges::new(
+             machine,
+             &module.structural_types,
+@@ -86,11 +100,15 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+             flow,
+             residences.len(),
+         )?;
++        probe.elapsed("normal_edges_ns", normal_started);
++        let solve_started = probe.clock();
+         let mut motions = Vec::<Motion>::new();
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let scheduled = normal.scheduled_flow(&motions);
+             let mut additions = Vec::new();
+             for residence in &residences {
++                probe.count("residence_plan_queries", 1);
+                 if let Some(motion) =
+                     plan_residence(machine, &normal, &scheduled, &rules, residence, &motions)?
+                 {
+@@ -111,10 +129,12 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+                 break;
+             }
+             for motion in additions {
++                probe.count("motion_updates", 1);
+                 motions.retain(|previous| previous.place != motion.place);
+                 motions.push(motion);
+             }
+         }
++        probe.elapsed("planning_ns", solve_started);
+         normal.install(machine, &residences, &motions);
+     }
+     Ok(())
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+index 7d5d3ec78c0..11f3fb56b75 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+@@ -20,11 +20,13 @@ use semantic_vocabulary::StructuralPlaceKind;
+ use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
+ 
+ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
++    let mut probe = crate::reconciliation_probe::Probe::new("places", module.machines.len());
+     for machine in &mut module.machines {
+         let mut declared: Option<BTreeSet<_>> = None;
+         let mut additions = Vec::new();
+         for block in &machine.blocks {
+             for operation in &block.operations {
++                probe.count("operations_scanned", 1);
+                 if !matches!(
+                     operation.kind,
+                     terminal_psi::structural_leaf_copy_pair_pattern!()
+@@ -34,6 +36,7 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 let Some(result) = operation.result.structural() else {
+                     continue;
+                 };
++                probe.count("leaf_copy_results", 1);
+                 let declared = declared.get_or_insert_with(|| {
+                     machine
+                         .structural_places
+@@ -53,8 +56,10 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 });
+             }
+         }
++        probe.count("declarations_added", additions.len());
+         machine.structural_places.extend(additions);
+         if !machine.structural_places.is_sorted_by_key(|place| place.id) {
++            probe.count("place_rosters_sorted", 1);
+             machine.structural_places.sort_by_key(|place| place.id);
+         }
+     }
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+index 80a49bf885b..7000c16e876 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+@@ -53,6 +53,7 @@
+ pub(crate) use optimization::digest_encoder;
+ mod machine_lowering;
+ mod program_roots;
++mod reconciliation_probe;
+ pub use program_roots::TerminalProgramRoots;
+ 
+ // The plan families `machine_dispatch` selects between, in their dependency
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+index 36057700012..bbc05965eaf 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+@@ -22,9 +22,12 @@ use terminal_psi::{OperationKind, OperationResult, TerminalModule};
+ use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
+ 
+ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let _copy_batch=terminal_semantics::descriptor_results::replay_probe::Batch::begin(module.machines.len());
++    let mut probe = crate::reconciliation_probe::Probe::new("memberships", module.machines.len());
+     if module.structural_domains.is_empty() {
+         return Ok(());
+     }
++    let discovery_started = probe.clock();
+     let memberships = membership_reachability::MembershipReachability::new(
+         &module.structural_types,
+         module
+@@ -51,40 +54,58 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+     if !candidate_machines.iter().any(|&has| has) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_machines",
++        candidate_machines.iter().filter(|&&has| has).count(),
++    );
++    probe.elapsed("discovery_ns", discovery_started);
++    let graph_started = probe.clock();
+     let types = module.structural_types.clone();
+     let graph = descriptors::terminal_graph(module);
+     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
+         if !has_candidate {
+             continue;
+         }
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let mut copies = Vec::new();
+             let reference_memberships = terminal_semantics::ReferenceResultMemberships::new(module);
++            probe.count("reference_context_constructions", 1);
+             {
+                 let machine = &module.machines[machine_index];
++                let history_started = probe.clock();
+                 let mut history = descriptors::PayloadMembershipHistory::new(
+                     &types,
+                     &module.structural_domains,
+                     &graph,
+                     machine,
+                 );
++                probe.elapsed("history_creation_ns", history_started);
+                 for (block_index, block) in machine.blocks.iter().enumerate() {
+                     for (ordinal, operation) in block.operations.iter().enumerate() {
++                        probe.count("operations_scanned", 1);
+                         let Some(result) = operation.result.structural() else {
+                             continue;
+                         };
+                         if !memberships.may_contain(result.structural_type) {
+                             continue;
+                         }
++                        probe.count("eligible_operations", 1);
+                         let position = (
+                             block.id,
+                             u32::try_from(ordinal).map_err(|_| {
+                                 LoweringError::Unsupported("membership operation ordinal overflow")
+                             })?,
+                         );
+-                        if let Ok(projected_qualifications) =
+-                            reference_memberships.for_operation(machine, operation)
++                        let reference_started = probe.clock();
++                        let reference_result =
++                            reference_memberships.for_operation(machine, operation);
++                        probe.elapsed("reference_queries_ns", reference_started);
++                        probe.count("reference_queries", 1);
++                        if let Ok(projected_qualifications) = reference_result
+                             && !projected_qualifications.is_empty()
+                         {
+                             copies.push((
+@@ -99,17 +120,21 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 },
+                             ));
+                         }
+-                        if let Some(contract) = view_memberships::retained(
++                        let view_started = probe.clock();
++                        let view_contract = view_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+                             position,
+                             &mut analysis,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("view_queries_ns", view_started);
++                        if let Some(contract) = view_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+-                        if let Some(contract) = operand_memberships::retained(
++                        let operand_started = probe.clock();
++                        let operand_contract = operand_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+@@ -117,12 +142,16 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                             &mut analysis,
+                             &mut history,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("operand_queries_ns", operand_started);
++                        if let Some(contract) = operand_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+                         // Every value transfer observes its source at this operation,
+                         // including copies emitted directly by control-flow edges.
+                         // Declaration-time metadata alone can miss preceding stores.
++                        let source_started = probe.clock();
++                        let copy_source=terminal_semantics::descriptor_results::replay_probe::Source::begin(machine.id.get(),block_index,ordinal);
+                         let selected_source = match &operation.kind {
+                             OperationKind::MoveStructuralValue { source } => {
+                                 Some((source.place, source.path.as_slice()))
+@@ -161,33 +190,46 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 ));
+                             }
+                         }
++                        drop(copy_source);
++                        probe.elapsed("source_contract_queries_ns", source_started);
+                         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
+                         else {
+                             continue;
+                         };
+-                        let Some(root) = descriptors::terminal_payload_contract(machine, *source)
+-                        else {
++                        let root_started = probe.clock();
++                        let root = descriptors::terminal_payload_contract(machine, *source);
++                        probe.elapsed("leaf_root_lookup_ns", root_started);
++                        let Some(root) = root else {
+                             continue;
+                         };
+-                        let Some(query) = descriptors::descriptor_contents_query(
++                        let query_started = probe.clock();
++                        let query = descriptors::descriptor_contents_query(
+                             &types,
+                             *source,
+                             root.carrier,
+                             path,
+                             None,
+-                        ) else {
++                        );
++                        probe.elapsed("leaf_query_formation_ns", query_started);
++                        let Some(query) = query else {
+                             continue;
+                         };
+-                        let Some(targets) = analysis.payload_targets(machine.id, position, &query)
+-                        else {
++                        probe.count("payload_target_queries", 1);
++                        let targets_started = probe.clock();
++                        let targets = analysis.payload_targets(machine.id, position, &query);
++                        probe.elapsed("payload_target_queries_ns", targets_started);
++                        let Some(targets) = targets else {
+                             continue;
+                         };
+-                        let Some(contract) = descriptors::payload_memberships(
++                        let memberships_started = probe.clock();
++                        let contract = descriptors::payload_memberships(
+                             &types,
+                             &module.structural_domains,
+                             targets,
+                             |place| descriptors::terminal_payload_contract(machine, place),
+-                        ) else {
++                        );
++                        probe.elapsed("payload_contract_queries_ns", memberships_started);
++                        let Some(contract) = contract else {
+                             continue;
+                         };
+                         if contract.carrier == result.structural_type
+@@ -198,9 +240,16 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                         }
+                     }
+                 }
++                let drop_started = probe.clock();
++                drop(history);
++                probe.elapsed("history_drop_ns", drop_started);
+             }
++            let reference_drop_started = probe.clock();
+             drop(reference_memberships);
++            probe.elapsed("reference_context_drop_ns", reference_drop_started);
++            let merge_started = probe.clock();
+             let mut changed = false;
++            probe.count("proposed_updates", copies.len());
+             let machine = &mut module.machines[machine_index];
+             for (block, operation, contract) in copies {
+                 let OperationResult::Structural(result) =
+@@ -214,11 +263,25 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                     contract.projected_qualifications,
+                 );
+             }
++            probe.elapsed("merge_ns", merge_started);
+             if !changed {
+                 break;
+             }
++            probe.count("changing_rounds", 1);
+         }
+     }
++    let drop_started = probe.clock();
++    drop(analysis);
++    probe.elapsed("analysis_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(graph);
++    probe.elapsed("graph_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(types);
++    probe.elapsed("types_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(memberships);
++    probe.elapsed("reachability_drop_ns", drop_started);
+     Ok(())
+ }
+ 
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
+index eb9c0bf433c..59c997842e1 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
+@@ -26,6 +26,7 @@ mod contents;
+ mod payload_entry;
+ pub(crate) use payload_entry::prove as prove_payload_predicate;
+ mod payload_history;
++pub mod replay_probe;
+ pub(crate) use payload_history::completed_payload_contract;
+ mod payload_predicates;
+ mod payload_reachability;
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 44565c76071..c870dc00ab9 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -3,6 +3,8 @@
+ //! reachable control-flow joins intersect evidence. Descriptor replay resolves
+ //! backing separately. Neither replay grants access, custody or an origin route.
+ 
++use super::replay_probe::{Label, Metric, Scope};
++
+ mod entry_snapshots;
+ 
+ use super::contents::select_payload_memberships;
+@@ -77,6 +79,7 @@ impl State {
+     }
+ 
+     fn meet(&mut self, mut arrival: State) -> bool {
++        let _copy_meet = Scope::coarse(Label::Meet);
+         let previous_shared = std::mem::take(&mut self.shared_requirements);
+         let mut shared = previous_shared.clone();
+         retain_common_snapshot(&mut shared, &arrival.shared_requirements);
+@@ -558,6 +561,7 @@ fn payload_contract_at_cut(
+     cached: &mut Option<CachedHistory>,
+     cut: PayloadMembershipCut,
+ ) -> Result<PayloadMembershipContract, &'static str> {
++    let _copy_replay = Scope::coarse(Label::Replay);
+     let mut failure = "descriptor machine is absent";
+     let result = (|| {
+         let machine = descriptor?;
+@@ -1220,6 +1224,9 @@ fn retain_common_snapshot(
+     retained: &mut Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
+     incoming: &[Arc<semantic_vocabulary::Proposition>],
+ ) -> bool {
++    let mut snapshot = Scope::fine(Label::RetainSnapshot);
++    snapshot.add(Metric::A, retained.len());
++    snapshot.add(Metric::B, incoming.len());
+     let mut remaining = incoming.iter().peekable();
+     let unchanged = retained.iter().all(|premise| {
+         while remaining
+@@ -1233,9 +1240,31 @@ fn retain_common_snapshot(
+             .is_some_and(|candidate| *candidate == premise)
+     });
+     if unchanged {
++        snapshot.add(Metric::Same, 1);
+         return false;
+     }
+-    retain_common_premises(Arc::make_mut(retained), incoming)
++    let kind = if snapshot.active() && Arc::strong_count(retained) > 1 {
++        Label::CowShared
++    } else if snapshot.active() && Arc::weak_count(retained) > 0 {
++        Label::CowWeak
++    } else {
++        Label::CowUnique
++    };
++    let mut copying = Scope::fine(kind);
++    copying.add(Metric::A, retained.len());
++    if kind == Label::CowShared {
++        copying.add(Metric::Cloned, retained.len());
++        copying.add(Metric::Detached, 1);
++    }
++    let retained = Arc::make_mut(retained);
++    drop(copying);
++    let mut filtering = Scope::fine(Label::SnapshotFilter);
++    let previous = retained.len();
++    filtering.add(Metric::A, previous);
++    let changed = retain_common_premises(retained, incoming);
++    drop(filtering);
++    snapshot.add(Metric::Removed, previous - retained.len());
++    changed
+ }
+ 
+ /// Preserve a published allocation when normalization would change no row.
+--- /dev/null
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs
+@@ -0,0 +1,87 @@
++//! Temporary, read-only attribution for the Dungeon reconciliation experiment.
++//! Local counters avoid a lock per operation; detailed counts are a separate run.
++
++use std::collections::BTreeMap;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++pub(crate) struct Probe {
++    operation: &'static str,
++    machines: usize,
++    started: Option<Instant>,
++    counting: bool,
++    values: BTreeMap<&'static str, u64>,
++}
++
++impl Probe {
++    pub(crate) fn new(operation: &'static str, machines: usize) -> Self {
++        static MODE: OnceLock<String> = OnceLock::new();
++        let mode = MODE.get_or_init(|| std::env::var("OMEGA_RECONCILE_PROBE").unwrap_or_default());
++        Self {
++            operation,
++            machines,
++            started: matches!(mode.as_str(), "timing" | "counts").then(Instant::now),
++            counting: mode == "counts",
++            values: BTreeMap::new(),
++        }
++    }
++
++    pub(crate) fn count(&mut self, name: &'static str, amount: usize) {
++        if self.counting {
++            *self.values.entry(name).or_default() += amount as u64;
++        }
++    }
++
++    pub(crate) fn clock(&self) -> Option<Instant> {
++        self.started.map(|_| Instant::now())
++    }
++
++    pub(crate) fn elapsed(&mut self, name: &'static str, started: Option<Instant>) {
++        if let Some(started) = started {
++            *self.values.entry(name).or_default() +=
++                u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
++        }
++    }
++}
++
++impl Drop for Probe {
++    fn drop(&mut self) {
++        let Some(started) = self.started else {
++            return;
++        };
++        let elapsed = started.elapsed().as_nanos();
++        let values = self
++            .values
++            .iter()
++            .map(|(name, value)| format!("\t{name}={value}"))
++            .collect::<String>();
++        eprintln!(
++            "RECONCILE\t{}\t{}\t{}{}",
++            self.operation, self.machines, elapsed, values
++        );
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn counts_are_local_and_disabled_without_counting() {
++        let mut probe = Probe {
++            operation: "calibration",
++            machines: 0,
++            started: None,
++            counting: false,
++            values: BTreeMap::new(),
++        };
++        probe.count("visits", 2);
++        assert!(probe.values.is_empty());
++        probe.counting = true;
++        probe.count("visits", 2);
++        probe.count("visits", 3);
++        assert_eq!(probe.values["visits"], 5);
++        probe.elapsed("time_ns", None);
++        assert!(!probe.values.contains_key("time_ns"));
++    }
++}
+--- /dev/null
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/replay_probe.rs
+@@ -0,0 +1,464 @@
++//! Temporary query-scoped attribution. No semantic objects or locks are retained.
++//! Exclusive wall spans partition each source root; counts run without timers.
++use std::cell::RefCell;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum Mode {
++    Off,
++    Coarse,
++    Fine,
++    Counts,
++}
++impl Mode {
++    fn name(self) -> &'static str {
++        match self {
++            Self::Off => "off",
++            Self::Coarse => "coarse",
++            Self::Fine => "fine",
++            Self::Counts => "counts",
++        }
++    }
++    fn timed(self) -> bool {
++        matches!(self, Self::Coarse | Self::Fine)
++    }
++}
++fn mode() -> Mode {
++    static MODE: OnceLock<Mode> = OnceLock::new();
++    *MODE.get_or_init(
++        || match std::env::var("OMEGA_REPLAY_SCAN_PROFILE").as_deref() {
++            Ok("coarse") => Mode::Coarse,
++            Ok("fine") => Mode::Fine,
++            Ok("counts") => Mode::Counts,
++            _ => Mode::Off,
++        },
++    )
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++#[repr(usize)]
++pub(super) enum Label {
++    Source,
++    Replay,
++    Position,
++    Edge,
++    Meet,
++    RetainSnapshot,
++    CowShared,
++    CowUnique,
++    CowWeak,
++    SnapshotFilter,
++    Count,
++}
++const LABELS: [&str; Label::Count as usize] = [
++    "source",
++    "replay",
++    "position",
++    "edge",
++    "meet",
++    "retain_snapshot",
++    "cow_shared",
++    "cow_unique",
++    "cow_weak",
++    "snapshot_filter",
++];
++#[derive(Clone, Copy)]
++#[repr(usize)]
++pub(super) enum Metric {
++    A,
++    B,
++    C,
++    Visited,
++    Compared,
++    Advanced,
++    Cloned,
++    Removed,
++    Detached,
++    Changed,
++    Rosters,
++    Shrinks,
++    Same,
++    Alias,
++    Count,
++}
++const METRICS: [&str; Metric::Count as usize] = [
++    "rows_a", "rows_b", "rows_c", "visited", "compared", "advanced", "cloned", "removed",
++    "detached", "changed", "rosters", "shrinks", "same", "alias",
++];
++#[derive(Clone, Copy, Default)]
++struct Entry {
++    calls: u64,
++    inclusive: u128,
++    exclusive: u128,
++    work: [u64; Metric::Count as usize],
++    minimum: u128,
++    maximum: u128,
++    histogram: [u64; 16],
++}
++const LIMITS: [u128; 15] = [
++    100, 250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 1000000, 4000000,
++    16000000,
++];
++struct Frame {
++    label: Label,
++    started: Instant,
++    children: u128,
++}
++struct Query {
++    machine: u64,
++    block: usize,
++    operation: usize,
++    ns: u128,
++    steps: u64,
++    edges: u64,
++    meets: u64,
++    replayed: bool,
++}
++struct Record {
++    mode: Mode,
++    machines: usize,
++    active: bool,
++    stack: Vec<Frame>,
++    entries: [Entry; Label::Count as usize],
++    queries: Vec<Query>,
++}
++impl Record {
++    fn new(mode: Mode, machines: usize) -> Self {
++        Self {
++            mode,
++            machines,
++            active: false,
++            stack: Vec::with_capacity(16),
++            entries: [Entry::default(); Label::Count as usize],
++            queries: Vec::new(),
++        }
++    }
++    fn finish_timed(&mut self, label: Label, elapsed: u128) {
++        let frame = self.stack.pop().expect("profile scope owns its frame");
++        assert_eq!(frame.label, label);
++        let entry = &mut self.entries[label as usize];
++        entry.calls += 1;
++        entry.inclusive += elapsed;
++        entry.minimum = if entry.calls == 1 {
++            elapsed
++        } else {
++            entry.minimum.min(elapsed)
++        };
++        entry.maximum = entry.maximum.max(elapsed);
++        let bin = LIMITS
++            .iter()
++            .position(|limit| elapsed <= *limit)
++            .unwrap_or(15);
++        entry.histogram[bin] += 1;
++        entry.exclusive += elapsed
++            .checked_sub(frame.children)
++            .expect("nested wall intervals do not overlap");
++        if let Some(parent) = self.stack.last_mut() {
++            parent.children += elapsed;
++        }
++    }
++}
++thread_local! { static STATE: RefCell<Option<Record>> = const { RefCell::new(None) }; }
++
++pub struct Batch(bool);
++impl Batch {
++    pub fn begin(machines: usize) -> Self {
++        let mode = mode();
++        if mode == Mode::Off {
++            return Self(false);
++        }
++        if mode.timed() {
++            static CALIBRATED: OnceLock<()> = OnceLock::new();
++            CALIBRATED.get_or_init(calibrate);
++        }
++        Self(STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            if slot.is_some() {
++                return false;
++            }
++            *slot = Some(Record::new(mode, machines));
++            true
++        }))
++    }
++}
++impl Drop for Batch {
++    fn drop(&mut self) {
++        if !self.0 {
++            return;
++        }
++        let Some(mut record) = STATE.with(|slot| slot.borrow_mut().take()) else {
++            return;
++        };
++        assert!(!record.active && record.stack.is_empty());
++        let root = record.entries[Label::Source as usize];
++        if record.mode.timed() {
++            assert_eq!(
++                record.entries.iter().map(|e| e.exclusive).sum::<u128>(),
++                root.inclusive
++            );
++        }
++        eprintln!(
++            "SCAN_BATCH\t{}\t{}\troots={}\treplays={}\twall_ns={}",
++            record.mode.name(),
++            record.machines,
++            record.queries.len(),
++            record.queries.iter().filter(|q| q.replayed).count(),
++            root.inclusive
++        );
++        for (name, entry) in LABELS.iter().zip(record.entries) {
++            if entry.calls == 0 {
++                continue;
++            }
++            let counters = METRICS
++                .iter()
++                .zip(entry.work)
++                .map(|(key, value)| format!("\t{key}={value}"))
++                .collect::<String>();
++            eprintln!(
++                "SCAN\t{}\t{}\t{}\tcalls={}\tinclusive_ns={}\texclusive_ns={}{}",
++                record.mode.name(),
++                record.machines,
++                name,
++                entry.calls,
++                entry.inclusive,
++                entry.exclusive,
++                counters
++            );
++            if record.mode.timed() {
++                let bins = entry
++                    .histogram
++                    .iter()
++                    .enumerate()
++                    .map(|(i, count)| format!("\tb{}={}", i, count))
++                    .collect::<String>();
++                eprintln!(
++                    "COPY_HIST\t{}\t{}\t{}\tmin_ns={}\tmax_ns={}{}",
++                    record.mode.name(),
++                    record.machines,
++                    name,
++                    entry.minimum,
++                    entry.maximum,
++                    bins
++                );
++            }
++        }
++        record
++            .queries
++            .sort_by_key(|q| std::cmp::Reverse((q.ns, q.edges)));
++        for query in record.queries.iter().filter(|q| q.replayed).take(8) {
++            eprintln!(
++                "SCAN_QUERY\t{}\t{}\tmachine={}\tblock={}\toperation={}\twall_ns={}\tsteps={}\tedges={}\tmeets={}",
++                record.mode.name(),
++                record.machines,
++                query.machine,
++                query.block,
++                query.operation,
++                query.ns,
++                query.steps,
++                query.edges,
++                query.meets
++            );
++        }
++    }
++}
++
++pub struct Source {
++    active: bool,
++    machine: u64,
++    block: usize,
++    operation: usize,
++    previous: [u64; 4],
++}
++impl Source {
++    pub fn begin(machine: u64, block: usize, operation: usize) -> Self {
++        let mut result = Self {
++            active: false,
++            machine,
++            block,
++            operation,
++            previous: [0; 4],
++        };
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let Some(record) = slot.as_mut().filter(|record| !record.active) else {
++                return;
++            };
++            result.previous = [Label::Replay, Label::Position, Label::Edge, Label::Meet]
++                .map(|label| record.entries[label as usize].calls);
++            record.active = true;
++            result.active = true;
++            if record.mode.timed() {
++                record.stack.push(Frame {
++                    label: Label::Source,
++                    started: Instant::now(),
++                    children: 0,
++                });
++            }
++        });
++        result
++    }
++}
++impl Drop for Source {
++    fn drop(&mut self) {
++        if !self.active {
++            return;
++        }
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let record = slot.as_mut().unwrap();
++            let elapsed = if record.mode.timed() {
++                assert_eq!(record.stack.len(), 1);
++                let elapsed = record.stack.last().unwrap().started.elapsed().as_nanos();
++                record.finish_timed(Label::Source, elapsed);
++                elapsed
++            } else {
++                record.entries[Label::Source as usize].calls += 1;
++                0
++            };
++            let current = [Label::Replay, Label::Position, Label::Edge, Label::Meet]
++                .map(|label| record.entries[label as usize].calls);
++            record.queries.push(Query {
++                machine: self.machine,
++                block: self.block,
++                operation: self.operation,
++                ns: elapsed,
++                steps: current[1] - self.previous[1],
++                edges: current[2] - self.previous[2],
++                meets: current[3] - self.previous[3],
++                replayed: current[0] > self.previous[0],
++            });
++            record.active = false;
++        });
++    }
++}
++
++pub(super) struct Scope {
++    label: Label,
++    timed: bool,
++    counting: bool,
++    work: [u64; Metric::Count as usize],
++}
++impl Scope {
++    pub(super) fn coarse(label: Label) -> Self {
++        Self::new(label, false)
++    }
++    pub(super) fn fine(label: Label) -> Self {
++        Self::new(label, true)
++    }
++    fn new(label: Label, detail: bool) -> Self {
++        let mut result = Self {
++            label,
++            timed: false,
++            counting: false,
++            work: [0; Metric::Count as usize],
++        };
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let Some(record) = slot.as_mut().filter(|record| record.active) else {
++                return;
++            };
++            result.counting = record.mode == Mode::Counts;
++            result.timed = record.mode.timed() && (!detail || record.mode == Mode::Fine);
++            if result.timed {
++                record.stack.push(Frame {
++                    label,
++                    started: Instant::now(),
++                    children: 0,
++                });
++            }
++        });
++        result
++    }
++    pub(super) fn active(&self) -> bool {
++        self.timed || self.counting
++    }
++    pub(super) fn counting(&self) -> bool {
++        self.counting
++    }
++    #[inline]
++    pub(super) fn add(&mut self, metric: Metric, value: usize) {
++        if self.counting {
++            self.work[metric as usize] += value as u64;
++        }
++    }
++}
++impl Drop for Scope {
++    fn drop(&mut self) {
++        if !self.timed && !self.counting {
++            return;
++        }
++        STATE.with(|slot| {
++            let mut slot = slot.borrow_mut();
++            let record = slot.as_mut().expect("source scope owns profile state");
++            if self.timed {
++                let elapsed = record.stack.last().unwrap().started.elapsed().as_nanos();
++                record.finish_timed(self.label, elapsed);
++            }
++            if self.counting {
++                let entry = &mut record.entries[self.label as usize];
++                entry.calls += 1;
++                for (total, value) in entry.work.iter_mut().zip(self.work) {
++                    *total += value;
++                }
++            }
++        });
++    }
++}
++
++fn calibrate() {
++    const ITERATIONS: usize = 20000;
++    STATE.with(|slot| {
++        assert!(slot.borrow().is_none());
++        let mut record = Record::new(Mode::Fine, 0);
++        record.active = true;
++        *slot.borrow_mut() = Some(record);
++    });
++    let started = Instant::now();
++    for _ in 0..ITERATIONS {
++        drop(Scope::fine(Label::CowShared));
++    }
++    let gross = started.elapsed().as_nanos();
++    let record = STATE.with(|slot| slot.borrow_mut().take().unwrap());
++    assert!(record.stack.is_empty());
++    let entry = record.entries[Label::CowShared as usize];
++    assert_eq!(entry.calls, ITERATIONS as u64);
++    eprintln!(
++        "COPY_CALIBRATION\titerations={}\twall_ns={}\tinterval_ns={}\tmin_ns={}\tmax_ns={}",
++        ITERATIONS, gross, entry.inclusive, entry.minimum, entry.maximum
++    );
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn payload_profile_exclusive_spans_partition_nested_time() {
++        let mut record = Record::new(Mode::Fine, 0);
++        for label in [Label::Source, Label::Meet, Label::RetainSnapshot] {
++            record.stack.push(Frame {
++                label,
++                started: Instant::now(),
++                children: 0,
++            });
++        }
++        record.finish_timed(Label::RetainSnapshot, 20);
++        record.finish_timed(Label::Meet, 50);
++        record.finish_timed(Label::Source, 80);
++        assert_eq!(
++            record
++                .entries
++                .iter()
++                .map(|entry| entry.exclusive)
++                .sum::<u128>(),
++            80
++        );
++        assert_eq!(record.entries[Label::Meet as usize].exclusive, 30);
++        assert_eq!(record.entries[Label::Source as usize].exclusive, 30);
++        assert!(record.stack.is_empty());
++        let entry = record.entries[Label::RetainSnapshot as usize];
++        assert_eq!((entry.minimum, entry.maximum), (20, 20));
++        assert_eq!(entry.histogram.iter().sum::<u64>(), entry.calls);
++        assert_eq!(entry.histogram[0], 1);
++    }
++}

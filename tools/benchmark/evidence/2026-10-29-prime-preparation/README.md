@@ -79,7 +79,7 @@ The recorder instead executes its emitted EXE directly.
 | Runtime oracle | All nine native exits are 8 |
 | Image | 9,728 bytes in all three compile samples |
 
-The [normal benchmark record](../../records/prime_counter__windows_x86_64__default.json)
+The [frozen benchmark record](benchmark-record.json)
 keeps all samples, verified producer settings and lock/source identity. The
 [separate host-mode run](prime-both.txt) reports `native exit 8` and
 `interp exit: 8`. Its [invocation record](prime-both.json) retains the producer

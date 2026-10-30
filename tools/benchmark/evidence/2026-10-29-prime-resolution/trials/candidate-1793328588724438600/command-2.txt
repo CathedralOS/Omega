@@ -1,0 +1,6 @@
+prime_counter: counting primes up to 20 by trial division
+result: the prime count, 8 for the primes below 21 (the exit code)
+[press Enter to close]
+native exit 8
+interp exit: 8
+build dir kept: C:\Users\User\AppData\Local\Temp\omega-probe-1200212-0

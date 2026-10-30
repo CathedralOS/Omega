@@ -1,0 +1,47 @@
+[
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\resolution\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\resolution-runtime_numeric_operand_order_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 3,
+    "seconds": 261.94074000000546,
+    "transcript": "cases\\resolution-runtime_numeric_operand_order_exit\\00.txt",
+    "producer_sha256": "9efeba2bd357b670ba18e74415d9180062ad331f0999d8804b97b0008da2cec4"
+  },
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\resolution\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\resolution-runtime_numeric_operand_order_exit\\input"
+    ],
+    "exit": 0,
+    "seconds": 7.590361000002304,
+    "transcript": "cases\\resolution-runtime_numeric_operand_order_exit\\01.txt",
+    "producer_sha256": "9efeba2bd357b670ba18e74415d9180062ad331f0999d8804b97b0008da2cec4"
+  },
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\resolution\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\resolution-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 11.496773300001223,
+    "transcript": "cases\\resolution-runtime_numeric_operand_order_exit\\02.txt",
+    "producer_sha256": "9efeba2bd357b670ba18e74415d9180062ad331f0999d8804b97b0008da2cec4"
+  }
+]

@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: specification_result_without_guarantees [fbd2fc6ee221]: no prior revision to compare.
+Standalone candidate source: specification_result_without_guarantees [fbd2fc6ee221]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\remaining-first-checking\cases\formation-replay-A-pass\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\remaining-first-checking\cases\formation-replay-A-pass\input\build\package-manager\review-windows_x86_64.txt

@@ -1,0 +1,20 @@
+{
+  "counts": {
+    "source_windows": 418,
+    "ENTRY_PREVIOUS_DROP": 96,
+    "ENTRY_INIT": 96,
+    "query_results": 173
+  },
+  "source_contract_ns": 2348064000,
+  "parts_ns": {
+    "ENTRY_PREVIOUS_DROP": 5600,
+    "ENTRY_INIT": 18858200,
+    "setup": 29214700,
+    "clone": 109493500,
+    "close": 20726100,
+    "publish": 141080600,
+    "join": 472329600,
+    "observe": 4691600
+  },
+  "unattributed_ns": 1551664100
+}

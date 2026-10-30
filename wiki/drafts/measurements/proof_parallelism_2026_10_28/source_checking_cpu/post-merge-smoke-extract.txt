@@ -1,0 +1,72 @@
+regression (ubuntu-24.04)	Check smoke report refusal paths	﻿2026-10-30T04:18:10.8733464Z ##[group]Run python tools/tests/test_compiler_pilot.py -v
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:10.8734004Z [36;1mpython tools/tests/test_compiler_pilot.py -v[0m
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3300012Z test_cleanup_cannot_lose_a_transport_or_intended_rejection (__main__.CompilerPilotTests.test_cleanup_cannot_lose_a_transport_or_intended_rejection) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3356206Z test_complete_runtime_and_rejections_pass (__main__.CompilerPilotTests.test_complete_runtime_and_rejections_pass) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3376366Z test_exact_fixture_ids_split_runtime_and_rejection_rosters (__main__.CompilerPilotTests.test_exact_fixture_ids_split_runtime_and_rejection_rosters) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3425740Z test_failed_retained_cohort_does_not_hide_later_measurements_or_turn_green (__main__.CompilerPilotTests.test_failed_retained_cohort_does_not_hide_later_measurements_or_turn_green) ... retained foreign: shared: native timeout
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3455540Z test_golden_movement_is_not_a_failed_oracle (__main__.CompilerPilotTests.test_golden_movement_is_not_a_failed_oracle) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3575349Z compiler-pilot: checking and rejection controls
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3590979Z test_rejection_only_run_never_launches_an_empty_runtime_filter (__main__.CompilerPilotTests.test_rejection_only_run_never_launches_an_empty_runtime_filter) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.3596888Z test_wrong_source_or_failed_gate_refuses (__main__.CompilerPilotTests.test_wrong_source_or_failed_gate_refuses) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.7016833Z test_additional_producer_needs_its_own_positive_and_reject_pins (__main__.OwnedForeignCohortTests.test_additional_producer_needs_its_own_positive_and_reject_pins) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.7064208Z foreign records: nested: {'name': 'nested', 'scope': 'full-cohorts', 'positive': ('positive',), 'negative': ('negative',), 'passed': True}
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.7065890Z foreign records: arrays: {'name': 'arrays', 'scope': 'full-cohorts', 'positive': ('positive',), 'negative': ('negative',), 'passed': True}
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.7163816Z foreign records: nested: {'name': 'nested', 'scope': 'full-cohorts', 'positive': ('positive',), 'negative': ('negative',), 'passed': False, 'error': 'native timeout'}
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.7165659Z foreign records: arrays: {'name': 'arrays', 'scope': 'full-cohorts', 'positive': ('positive',), 'negative': ('negative',), 'passed': True}
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.7177512Z test_failed_cohort_never_hides_later_measurements_or_turns_green (__main__.OwnedForeignCohortTests.test_failed_cohort_never_hides_later_measurements_or_turns_green) ... ok
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.7214322Z foreign records: scalar-backing: {'name': 'scalar-backing', 'scope': 'full-cohorts', 'positive': ('positive',), 'negative': ('negative',), 'passed': True}
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.8197761Z foreign records: nested: {'name': 'nested', 'scope': 'selected-corpus-fixtures', 'positive': ('positive',), 'negative': ('negative',), 'passed': True}
+regression (ubuntu-24.04)	Check smoke report refusal paths	2026-10-30T04:18:11.8225375Z foreign records: nested: {'name': 'nested', 'scope': 'selected-corpus-fixtures', 'positive': ('positive',), 'negative': ('negative',), 'passed': False, 'error': 'selected corpus fixtures failed (exit 1)'}
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	﻿2026-10-30T04:18:11.8512635Z ##[group]Run python tools/ci/compiler_pilot.py
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8513396Z [36;1mpython tools/ci/compiler_pilot.py[0m
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8535550Z shell: /usr/bin/bash -e {0}
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8535850Z env:
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8536100Z   CARGO_BUILD_JOBS: 2
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8536335Z   CARGO_TARGET_DIR: /tmp/ot
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8536581Z   CARGO_INCREMENTAL: 0
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8536844Z   CARGO_UNSTABLE_CHECKSUM_FRESHNESS: true
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8537161Z   CARGO_BUILD_FINGERPRINT: content
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8537426Z   OMEGA_CORPUS_JOBS: 2
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8537653Z   RUST_MIN_STACK: 67108864
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8537960Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8538420Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8538864Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8539256Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8539663Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8540134Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:11.8540464Z ##[endgroup]
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:13.2981107Z info: syncing channel updates for nightly-2026-09-04-x86_64-unknown-linux-gnu
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:13.7315324Z info: latest update on 2026-09-04 for version 1.100.0-nightly (a69a63265 2026-09-03)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:13.7319691Z info: downloading 5 components
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:23.0546730Z warn: the missing active toolchain `nightly-2026-09-04-x86_64-unknown-linux-gnu` has been auto-installed
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:23.0547477Z warn: this might cause rustup commands to take longer time to finish than expected
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:23.0548132Z info: you may opt out with `RUSTUP_AUTO_INSTALL=0` or `rustup set auto-install disable`
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:18:23.0792483Z compiler-pilot: prepare optimized compiler
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:29:50.4422232Z compiler-pilot: authenticate optimized producer
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:29:52.2666908Z compiler-pilot: checking and rejection controls
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:29:52.9413412Z corpus_runner: 20340 prior timings loaded
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:23.0323526Z corpus_runner: 7/7 done, 0 compile(s) in flight
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8540117Z corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 20340 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8542096Z ~ pass/control_flow/borrowed_state_argument: 7993ms -> 19403ms (>=2x slowdown)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8542805Z ~ pass/write_only/state_forwarded_scalar_store_exit: 5500ms -> 11875ms (>=2x slowdown)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8544535Z corpus_gate: perf context — the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now — treat perf_faster moves as noise
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8546487Z corpus_gate: 0 structural move(s), 2 perf move(s) — 7 fixtures ({'checked': 3, 'rejected': 4}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; verdicts {'perf_slower': 2}
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8547599Z corpus_gate: no structured diffs to classify
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8548425Z corpus_gate: golden provenance: 7 rows stamped, 0 legacy (unstamped), 3 revision distance(s) unavailable
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8549175Z corpus_gate: measured at jobs=2, golden jobs=2
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8549887Z corpus_gate: 297 pass/run row(s) pinned without a success and 35 fail row(s) pinned as a success (280 carry regressed-from)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8550734Z corpus_gate:   list them with --list-pinned-regressions
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:24.8668138Z compiler-pilot: native and Terminal execution
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:25.5321522Z corpus_runner: 8980 prior timings loaded
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:52.8646966Z corpus_runner: 3/3 done, 0 compile(s) in flight
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6848292Z ~ pass/control_flow/borrowed_state_argument: 7012ms -> 16790ms (>=2x slowdown)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6849580Z ~ pass/control_flow/runtime_owned_state_parallel_swap_exit: 5773ms -> 16733ms (>=2x slowdown)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6850309Z ~ pass/write_only/state_forwarded_scalar_store_exit: 4806ms -> 10508ms (>=2x slowdown)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6851625Z corpus_gate: perf context — worker counts differ (golden jobs=1, this run jobs=2) — record and diff at the same OMEGA_CORPUS_JOBS before trusting perf moves
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6853365Z corpus_gate: perf context — this run started on a busy machine (pre-run load 2.24 on 4 cpus); fixtures only look slower — treat perf_slower moves as noise
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6855227Z corpus_gate: 0 structural move(s), 3 perf move(s) — 3 fixtures ({'built': 3}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 3 (exit codes {'5': 1, '70': 2}), 0 with stdout differing from expected; verdicts {'perf_slower': 3}
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6856450Z corpus_gate: no structured diffs to classify
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6857075Z corpus_gate: golden provenance: 3 rows stamped, 0 legacy (unstamped), 1 revision distance(s) unavailable
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6857704Z corpus_gate: measured at jobs=2, golden jobs=1
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6858375Z corpus_gate: 315 pass/run row(s) pinned without a success and 0 fail row(s) pinned as a success (49 carry regressed-from)
+regression (ubuntu-24.04)	Execute native and Terminal smoke with rejection controls	2026-10-30T04:30:53.6859085Z corpus_gate:   list them with --list-pinned-regressions
