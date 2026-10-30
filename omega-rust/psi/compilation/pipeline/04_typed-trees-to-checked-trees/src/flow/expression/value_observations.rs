@@ -310,6 +310,12 @@ impl Execution<'_, '_, '_> {
         // aggregate children need the captured context's nested member facts.
         let is_aggregate = primitive.is_none();
         if is_aggregate
+            // Raw canonical geometry does not authenticate a selected index
+            // operation. Only builtin coordinates may reuse stored facts;
+            // selected operations retain their own completed result namespace.
+            && validation::value_has_builtin_coordinates(
+                self.program, self.machine, self.state, evaluated.capture.expression,
+            )
             && let Some(source) = self.completed_value_place(evaluated.capture.expression)
         {
             // Aggregate children can themselves be constructions or moved
