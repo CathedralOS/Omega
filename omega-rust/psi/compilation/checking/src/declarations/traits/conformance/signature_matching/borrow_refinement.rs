@@ -18,7 +18,7 @@ pub(super) fn validate(
     state: &State,
     actual_parameters: &[StateParameter],
     actual_type_parameters: &[TypeParameter],
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     let binders = program
         .state_signature_type_parameters(requirement)
         .iter()

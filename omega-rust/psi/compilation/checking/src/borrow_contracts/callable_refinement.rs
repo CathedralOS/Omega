@@ -136,7 +136,7 @@ pub fn validate_callable_borrow_refinement(
     program: &dyn crate::CheckingInput,
     required: CallableBorrowContract<'_>,
     actual: CallableBorrowContract<'_>,
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     let symbolic_parameters = program
         .data_type_parameters
         .iter()
@@ -206,7 +206,7 @@ pub fn validate_callable_borrow_refinement(
                         &leaf.owner_path,
                     )
             }) else {
-                return Err("callable input has a different carried region frontier");
+                return Err("callable input has a different carried region frontier".to_owned());
             };
             if let Some(required_region) = &required_leaf.lifetime
                 && actual_leaf.lifetime.as_ref() != Some(required_region)
@@ -216,7 +216,8 @@ pub fn validate_callable_borrow_refinement(
                         "fresh invocation region is replaced by a captured or different region"
                     }
                     _ => "callable input does not preserve its captured region identity",
-                });
+                }
+                .to_owned());
             }
         }
     }
@@ -257,7 +258,7 @@ pub fn validate_callable_borrow_refinement(
             &application.elided,
             &output_elisions,
         )?;
-        return Err(error);
+        return Err(error.to_owned());
     }
     super::region_correspondence::validate(
         program,

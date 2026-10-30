@@ -199,9 +199,9 @@ pub(super) fn infer_inputs(
     required_regions: &CallableRegions,
     actual_regions: &CallableRegions,
     actual_inputs: &[Vec<CarriedLifetime>],
-) -> Result<InputRegionApplication, &'static str> {
+) -> Result<InputRegionApplication, String> {
     if required.parameters.len() != actual.parameters.len() {
-        return Err("callable input arity does not match its requirement");
+        return Err("callable input arity does not match its requirement".to_owned());
     }
     let mut applications = vec![InputRegionApplication::default()];
     for (ordinal, (required_parameter, actual_parameter)) in required
@@ -210,7 +210,7 @@ pub(super) fn infer_inputs(
         .zip(actual.parameters)
         .enumerate()
     {
-        let mut failure = "callable input does not preserve its region identity";
+        let mut failure = format!("callable input {ordinal} does not preserve its region identity");
         let mut constrain = |application: &mut InputRegionApplication,
                              actual_scope: RegionScope<'_>,
                              required_scope: RegionScope<'_>,
@@ -221,11 +221,17 @@ pub(super) fn infer_inputs(
                 return true;
             };
             let Some(required) = required_scope.regions.identity(program, required) else {
+                failure = format!(
+                    "callable required input {ordinal} region '{required} has no declaration custody"
+                );
                 return false;
             };
             let actual = match actual {
                 Some(name) => {
                     let Some(region) = actual_scope.regions.identity(program, name) else {
+                        failure = format!(
+                            "callable actual input {ordinal} region '{name} has no declaration custody"
+                        );
                         return false;
                     };
                     Some(region)
@@ -255,7 +261,7 @@ pub(super) fn infer_inputs(
             // conflicting inferred binders cannot merge captured storage with
             // that invocation either. Nonphysical operands carry identity but
             // never acquire a physical loan diagnostic.
-            failure = if matches!(actual, Some(RegionIdentity::Captured(_, _)))
+            let reason = if matches!(actual, Some(RegionIdentity::Captured(_, _)))
                 && matches!(required, RegionIdentity::Fresh(_))
             {
                 "fresh invocation lifetime telescope is not universally refined"
@@ -269,6 +275,12 @@ pub(super) fn infer_inputs(
             } else {
                 "callable type does not preserve its region identity"
             };
+            failure = format!(
+                "{reason} at input {ordinal}: actual {}, required {}",
+                super::carried_lifetimes::describe_region(program, instantiated.as_ref()),
+                super::carried_lifetimes::describe_region(program, Some(&required))
+            );
+
             false
         };
         if !type_reference_region_applications(
@@ -288,19 +300,26 @@ pub(super) fn infer_inputs(
     // A domain alternative may look ambiguous before a later input fixes a
     // binder. Results consume this application; they never choose among it.
     let mut completed = Vec::new();
-    let mut failure = "callable input regions do not determine one application";
+    let mut failure = "callable input regions do not determine one application".to_owned();
     for mut application in applications {
         match application.finish(actual_regions.fresh_count, required_regions.fresh_count) {
             Ok(()) if !completed.contains(&application) => completed.push(application),
             Ok(()) => {}
-            Err(reason) => failure = reason,
+            Err(reason) => {
+                failure = format!(
+                    "{reason}: actual fresh telescope {}, required {}; {}",
+                    actual_regions.fresh_count,
+                    required_regions.fresh_count,
+                    application.describe(program)
+                )
+            }
         }
     }
     if completed.len() != 1 {
         return Err(if completed.is_empty() {
             failure
         } else {
-            "callable input regions do not determine one application"
+            "callable input regions do not determine one application".to_owned()
         });
     }
     completed.pop().ok_or(failure)
@@ -314,9 +333,10 @@ pub(super) fn validate(
     actual_regions: &CallableRegions,
     input_elisions: &[(usize, TypeReferenceHandle, RegionIdentity)],
     output_elisions: &[(TypeReferenceHandle, RegionIdentity)],
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     let required_scope = contract_scope(required, required_regions);
     let actual_scope = contract_scope(actual, actual_regions);
+    let mut mismatch = String::new();
     let mut matches = |_: &mut (),
                        actual_scope: RegionScope<'_>,
                        required_scope: RegionScope<'_>,
@@ -326,18 +346,27 @@ pub(super) fn validate(
         let Some(required) = required else {
             return true;
         };
-        required_scope
-            .regions
-            .identity(program, required)
-            .zip(match actual {
-                Some(actual) => actual_scope.regions.identity(program, actual),
-                None => actual_scope
-                    .output_elisions
-                    .iter()
-                    .find(|(output, _)| *output == reference)
-                    .map(|(_, region)| region.clone()),
-            })
-            .is_some_and(|(required, actual)| required == actual)
+        let required = required_scope.regions.identity(program, required);
+        let actual = match actual {
+            Some(actual) => actual_scope.regions.identity(program, actual),
+            None => actual_scope
+                .output_elisions
+                .iter()
+                .find(|(output, _)| *output == reference)
+                .map(|(_, region)| region.clone()),
+        };
+        let agrees = required
+            .as_ref()
+            .zip(actual.as_ref())
+            .is_some_and(|(required, actual)| required == actual);
+        if !agrees {
+            mismatch = format!(
+                "actual {}, required {}",
+                super::carried_lifetimes::describe_region(program, actual.as_ref()),
+                super::carried_lifetimes::describe_region(program, required.as_ref())
+            );
+        }
+        agrees
     };
     for (ordinal, (required, actual)) in required
         .parameters
@@ -368,7 +397,9 @@ pub(super) fn validate(
             &mut (),
             &mut matches,
         ) {
-            return Err("callable type does not preserve its region identity");
+            return Err(format!(
+                "callable type does not preserve its region identity at input {ordinal}: {mismatch}"
+            ));
         }
     }
     if !type_reference_regions_match(
@@ -383,7 +414,9 @@ pub(super) fn validate(
         &mut (),
         &mut matches,
     ) {
-        return Err("callable type does not preserve its region identity");
+        return Err(format!(
+            "callable type does not preserve its region identity at result: {mismatch}"
+        ));
     }
     Ok(())
 }

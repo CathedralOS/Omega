@@ -398,7 +398,7 @@ fn validate_callable_regions(
     applied: Option<&AppliedMachineCallable<'_>>,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     binder_bindings: &[BinderBinding],
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     use crate::borrow_contracts::{CallableBorrowContract, CallableLifetimeApplication};
     let binders = binder_bindings
         .iter()

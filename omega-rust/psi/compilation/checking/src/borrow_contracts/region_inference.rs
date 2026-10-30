@@ -111,6 +111,25 @@ impl InputRegionApplication {
         Ok(())
     }
 
+    pub(super) fn describe(&self, program: &dyn crate::CheckingInput) -> String {
+        self.fresh
+            .iter()
+            .map(|(ordinal, region)| {
+                format!(
+                    "binder {ordinal} -> {}",
+                    super::carried_lifetimes::describe_region(program, Some(region))
+                )
+            })
+            .chain(self.elided.iter().map(|(parameter, _, region)| {
+                format!(
+                    "elided input {parameter} -> {}",
+                    super::carried_lifetimes::describe_region(program, Some(region))
+                )
+            }))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
     pub(super) fn apply(&self, region: &mut RegionIdentity) {
         if let RegionIdentity::Fresh(ordinal) = region
             && let Some((_, target)) = self.fresh.iter().find(|(source, _)| source == ordinal)

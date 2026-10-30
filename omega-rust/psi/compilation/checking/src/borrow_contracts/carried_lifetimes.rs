@@ -41,6 +41,33 @@ pub(super) enum RegionIdentity {
     Captured(SymbolHandle, usize),
 }
 
+pub(super) fn describe_region(
+    program: &dyn crate::CheckingInput,
+    region: Option<&RegionIdentity>,
+) -> String {
+    match region {
+        None => "elided region".to_owned(),
+        Some(RegionIdentity::Fresh(ordinal)) => format!("fresh invocation region {ordinal}"),
+        Some(RegionIdentity::Declared(name)) => format!("unresolved region '{name}"),
+        Some(RegionIdentity::Captured(declaration, ordinal)) => {
+            let parameter = typed_trees::type_identity::LifetimeParameterIdentity {
+                declaration: *declaration,
+                ordinal: *ordinal,
+            };
+            let name = typed_trees::type_identity::lifetime_parameter_name(
+                program.typed_program(),
+                parameter,
+            )
+            .map(|name| name.as_str())
+            .unwrap_or("<unknown>");
+            format!(
+                "captured region '{name} ({ordinal}) of `{}`",
+                program.symbols.display_path(*declaration, "::")
+            )
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeclarationLifetimeFrontier {
     Complete { has_borrows: bool },
