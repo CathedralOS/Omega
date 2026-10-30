@@ -1,0 +1,1 @@
+field `inner` is not `copy`

@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "const_replay_code_argument_call_missing_equality");
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

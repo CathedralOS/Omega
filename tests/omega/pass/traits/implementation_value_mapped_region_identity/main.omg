@@ -1,0 +1,6 @@
+trait Tag {}
+Choice<'held, const Index: u64> satisfies Tag {}
+data Holder<Implementation satisfies Tag> [copy] { value: u64; }
+machine forward<'storage, const N: u64>(value: Holder<Choice<'storage, N>>) -> Holder<Choice<'storage, N>> { value }
+machine observed<'environment, 'storage, const N: u64>(value: Holder<Choice<'environment, N>>) -> Holder<Choice<'environment, N>> { forward<N>(value) }
+machine main() {}

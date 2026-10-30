@@ -1,0 +1,6 @@
+const ZERO: u64 = 0u64;
+trait Tag {}
+Choice<'held, const N: u64> satisfies Tag {}
+data Holder<Implementation satisfies Tag> [copy] { value: u64; }
+machine probe<'a, 'b>(value: Holder<Choice<'a, ZERO>>) -> Holder<Choice<'b, ZERO>> { value }
+machine main() {}
