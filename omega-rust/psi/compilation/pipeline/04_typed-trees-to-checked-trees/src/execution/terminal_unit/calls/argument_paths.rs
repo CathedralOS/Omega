@@ -431,6 +431,9 @@ pub(crate) fn projected_argument_path(
         }
         count
     };
+    // Case selection keeps the same carrier. Remember crossings already
+    // consumed there; a real field/element projection starts a new carrier.
+    let mut consumed_carrier_crossings = inherited_crossings;
     let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
         // Parameters already denote their borrowed storage. Below that root,
@@ -443,6 +446,7 @@ pub(crate) fn projected_argument_path(
             && matches!(
                 segment,
                 facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
                     | facts::PlaceSegment::FixedIndex { .. }
                     | facts::PlaceSegment::Index { .. }
             )
@@ -461,14 +465,13 @@ pub(crate) fn projected_argument_path(
                 crossings += 1;
                 reference = shell.referee;
             }
-            let inherited = place.segments[..position]
-                .iter()
-                .all(|prefix| matches!(prefix, facts::PlaceSegment::Case { .. }))
-                .then_some(inherited_crossings)
-                .unwrap_or(0);
-            for _ in 0..crossings.saturating_sub(inherited) {
+            for _ in 0..crossings.saturating_sub(consumed_carrier_crossings) {
                 path.push(CheckedUnitStructuralPathSegment::Referent);
             }
+            consumed_carrier_crossings = crossings;
+        }
+        if !matches!(segment, facts::PlaceSegment::Case { .. }) {
+            consumed_carrier_crossings = 0;
         }
         match segment {
             facts::PlaceSegment::Field { symbol } => {
