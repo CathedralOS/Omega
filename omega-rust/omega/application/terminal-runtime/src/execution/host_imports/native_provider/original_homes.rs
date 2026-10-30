@@ -370,8 +370,9 @@ impl NativeContext {
             .ok_or_else(|| rejection("original native allocation is absent"))?;
         let mut base = None;
         for field in &view.fields {
-            let mut path = loan.referent().to_vec();
-            path.extend_from_slice(&field.path);
+            let path = loan.scalar_path(&field.path).ok_or_else(|| {
+                rejection("native view scalar has no authenticated original path")
+            })?;
             let cell = original
                 .cells
                 .get(&path)
