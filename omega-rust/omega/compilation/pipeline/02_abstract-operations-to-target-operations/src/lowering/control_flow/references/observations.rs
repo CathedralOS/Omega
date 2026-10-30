@@ -186,7 +186,14 @@ fn sources_at_storage<'snapshot>(
     // A requested occurrence is authoritative, including unknown contents.
     // Other observations must not revive a replaced or unresolved direct row.
     if let Some(observed) = snapshot.get(location) {
-        return Some(observed.origins.as_ref()?.iter().collect());
+        return Some(
+            observed
+                .origins
+                .as_ref()
+                .filter(|origins| !origins.is_empty())?
+                .iter()
+                .collect(),
+        );
     }
     let mut sources = Vec::new();
     for observed in snapshot
@@ -195,7 +202,13 @@ fn sources_at_storage<'snapshot>(
     {
         // Every exact alias participates. One unknown observation withholds
         // the whole answer; none is not an empty or type-seeded descriptor.
-        sources.extend(observed.origins.as_ref()?.iter());
+        sources.extend(
+            observed
+                .origins
+                .as_ref()
+                .filter(|origins| !origins.is_empty())?
+                .iter(),
+        );
     }
     (!sources.is_empty()).then_some(sources)
 }
