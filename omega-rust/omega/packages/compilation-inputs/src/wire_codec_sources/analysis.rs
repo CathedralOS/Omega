@@ -164,7 +164,7 @@ impl RecordShape {
     /// observing every other field through the existing valid destination.
     /// A whole-aggregate operand cannot be replaced by one of its leaves: that
     /// needs an actual prospective aggregate, never its stale prior value.
-    pub(super) fn store_facts(&self, field: &str, prefix: &str) -> StoreFacts {
+    pub(super) fn store_facts(&self, field: &str, prefix: &str, destination: &str) -> StoreFacts {
         let mut facts = Vec::new();
         for predicate in self.predicates.as_ref().map_err(|_| ())? {
             let mut edits = Vec::new();
@@ -191,9 +191,11 @@ impl RecordShape {
                     return Err(());
                 } else {
                     let root = if read.logical_subject {
-                        format!("value.{prefix}").trim_end_matches('.').to_owned()
+                        format!("{destination}.{prefix}")
+                            .trim_end_matches('.')
+                            .to_owned()
                     } else {
-                        format!("value.{prefix}{}", read.path[0])
+                        format!("{destination}.{prefix}{}", read.path[0])
                     };
                     edits.push((read.root.clone(), Some(root)));
                 }

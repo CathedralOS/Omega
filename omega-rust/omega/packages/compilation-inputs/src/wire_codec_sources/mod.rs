@@ -64,6 +64,28 @@ use analysis::{
 };
 use emission::{emit_decode_machine, emit_encode_machine};
 
+/// Every private binding and helper name is outside the authored lexical
+/// environment. Choose against complete source bytes, so identifiers in calls,
+/// types, fields and predicate text need no spelling-based reclassification.
+struct CodecNames {
+    prefix: String,
+}
+
+impl CodecNames {
+    fn for_sources(sources: &SourceMap) -> Self {
+        for generation in 0usize.. {
+            let prefix = format!("__omega_wire_{generation}_");
+            if sources
+                .selected_files()
+                .all(|file| !file.source.contains(&prefix))
+            {
+                return Self { prefix };
+            }
+        }
+        unreachable!("finite source text cannot contain every generated prefix")
+    }
+}
+
 /// The assembled source text of every generated codec machine, or None when
 /// nothing call-directed is generatable this compile.
 pub(crate) fn generated_wire_codec_source(
@@ -145,6 +167,7 @@ pub(crate) fn generated_wire_codec_source(
         collect_call_sites(syntax_trees, machine, &schema_names, &records, &mut sites);
     }
 
+    let names = CodecNames::for_sources(sources);
     let mut emitted = String::new();
     for (schema_name, members) in &schemas {
         for operation in ["encode", "decode"] {
@@ -163,6 +186,7 @@ pub(crate) fn generated_wire_codec_source(
             }
             if operation == "encode" {
                 emit_encode_machine(
+                    &names,
                     &mut emitted,
                     syntax_trees,
                     sources,
@@ -175,6 +199,7 @@ pub(crate) fn generated_wire_codec_source(
                 );
             } else {
                 emit_decode_machine(
+                    &names,
                     &mut emitted,
                     syntax_trees,
                     sources,
