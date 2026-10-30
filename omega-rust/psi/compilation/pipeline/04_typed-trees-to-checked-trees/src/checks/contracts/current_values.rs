@@ -6,6 +6,15 @@ use crate::checks::current_scalar_values::CurrentScalarValues;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionTargetHandle};
 
+/// One exit frontier is prepared once, including an explicitly unavailable one.
+pub(crate) type ExitValueCache<'program> = Option<
+    Option<(
+        &'program typed_trees::machine::Machine,
+        CurrentScalarValues<'program>,
+        Option<ExpressionHandle>,
+    )>,
+>;
+
 /// Current-state proof only. The exit owner separately requires exact incoming
 /// origins for every immutable invocation formal named by the guarantee.
 pub(crate) fn proves_exit<'program>(
@@ -14,13 +23,7 @@ pub(crate) fn proves_exit<'program>(
     exit: &checked_trees::FlowExitFact,
     fact: &facts::Fact,
     frames: Option<&validation::CallFrameResolver<'program>>,
-    cached_exit_values: &mut Option<
-        Option<(
-            &'program typed_trees::machine::Machine,
-            CurrentScalarValues<'program>,
-            Option<ExpressionHandle>,
-        )>,
-    >,
+    cached_exit_values: &mut ExitValueCache<'program>,
 ) -> bool {
     let facts::FactPayload::ContractBooleanExpression {
         expression,
@@ -30,6 +33,29 @@ pub(crate) fn proves_exit<'program>(
     else {
         return false;
     };
+    proves_exit_expression(
+        program,
+        facts,
+        exit,
+        contract,
+        expression,
+        frames,
+        cached_exit_values,
+    )
+}
+
+/// A Boolean contract's atoms consume the same completed frontier as its whole
+/// proposition. Case and scalar conjuncts keep their independent proof owners;
+/// no conjunction is assumed merely to form a result-field observation.
+pub(crate) fn proves_exit_expression<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    exit: &checked_trees::FlowExitFact,
+    contract: arena::Handle<typed_trees::domain::ProofFact>,
+    expression: ExpressionHandle,
+    frames: Option<&validation::CallFrameResolver<'program>>,
+    cached_exit_values: &mut ExitValueCache<'program>,
+) -> bool {
     let Some((machine, values, returned)) = cached_exit_values
         .get_or_insert_with(|| {
             let (machine, state) =

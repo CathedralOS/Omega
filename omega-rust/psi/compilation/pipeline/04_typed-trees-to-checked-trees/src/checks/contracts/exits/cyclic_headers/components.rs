@@ -11,8 +11,8 @@
 //! follow the same rule. Within a component only its caller-state conjunction
 //! is assumed; externally only already proved predicates may be imported.
 
+use super::demands;
 use super::{AdmittedGuarantee, Arrival, Header};
-use super::{completions, demands};
 use crate::checks::termination::strongly_connected_components;
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
@@ -87,7 +87,6 @@ pub(super) fn admitted(
             }
         }
     }
-    completions::extend(program, facts, machine, &adjacency, &mut admitted);
     admitted
 }
 

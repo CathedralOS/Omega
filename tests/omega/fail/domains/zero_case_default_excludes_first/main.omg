@@ -1,0 +1,6 @@
+data Resolution requires self in Resolution::Named {
+    case Inferred;
+    case Named(length: u64);
+}
+data Holder { value: Resolution; }
+machine main() { let holder: Holder = Holder {}; }

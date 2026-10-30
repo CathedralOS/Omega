@@ -1,0 +1,39 @@
+// Expected exit: 0.
+data Resolution
+    requires self.stamp == 0u64
+        && (((self in Resolution::Named) && self.length <= 256u64)
+            || (self in Resolution::Inferred))
+{
+    stamp: u64;
+    case Named(length: u64);
+    case Inferred;
+}
+data Holder { before: u64; value: Resolution; after: u64; }
+machine main() crashes Trap {
+    let zero: Holder = Holder { before: 37u64, after: 91u64 };
+    let other: Resolution = Resolution::Inferred { stamp: 0u64 };
+    transition zero.before == 37u64 && zero.after == 91u64 && zero.value.stamp == 0u64 {
+        true -> inspect(&zero.value, &other)
+        false -> wrong()
+    }
+    machine inspect(value: &Resolution, other: &Resolution) crashes Trap {
+        transition value {
+            Resolution::Named { length, .. } -> check_length(length, other)
+            _ -> wrong()
+        }
+    }
+    machine check_length(length: u64, other: &Resolution) crashes Trap {
+        transition length == 0u64 {
+            true -> inspect_other(other)
+            false -> wrong()
+        }
+    }
+    machine inspect_other(value: &Resolution) crashes Trap {
+        transition value {
+            Resolution::Inferred -> done()
+            _ -> wrong()
+        }
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

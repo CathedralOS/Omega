@@ -497,6 +497,7 @@ impl CurrentScalarValues<'_> {
             state: self.state,
             lengths: &self.lengths,
             hypotheses: &self.hypotheses,
+            result_fields: None,
         };
         self.fields.retain(|field| {
             field.owner != owner

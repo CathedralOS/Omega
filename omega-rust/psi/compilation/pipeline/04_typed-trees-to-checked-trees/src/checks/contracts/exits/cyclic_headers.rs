@@ -72,6 +72,7 @@ pub(in crate::checks::contracts) struct CyclicHeaderInvariants {
 struct MachineHeaderInvariants {
     machine: SymbolHandle,
     admitted: Vec<AdmittedGuarantee>,
+    completions: Vec<(Handle<ProofFact>, bool)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,10 +109,11 @@ impl CyclicHeaderInvariants {
                 self.machines.push(MachineHeaderInvariants {
                     machine: exit.machine_symbol,
                     admitted: components::admitted(program, facts, exit.machine_symbol),
+                    completions: Vec::new(),
                 });
                 self.machines.len() - 1
             });
-        self.machines[position]
+        if self.machines[position]
             .admitted
             .contains(&AdmittedGuarantee {
                 state_symbol: exit.state_symbol,
@@ -119,6 +121,25 @@ impl CyclicHeaderInvariants {
                 transition_target: exit.transition_target,
                 contract,
             })
+        {
+            return true;
+        }
+        if let Some((_, proved)) = self.machines[position]
+            .completions
+            .iter()
+            .find(|(candidate, _)| *candidate == contract)
+        {
+            return *proved;
+        }
+        let proved = completions::proves(
+            program,
+            facts,
+            exit.machine_symbol,
+            contract,
+            &self.machines[position].admitted,
+        );
+        self.machines[position].completions.push((contract, proved));
+        proved
     }
 }
 

@@ -35,6 +35,7 @@ pub(super) fn proves<'program>(
     contexts: &[FactContextHandle],
     requirement: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
+    cached_exit_values: &mut super::super::current_values::ExitValueCache<'program>,
 ) -> bool {
     let FactPayload::ContractBooleanExpression {
         fact: contract,
@@ -115,7 +116,16 @@ pub(super) fn proves<'program>(
                                 || evaluator.proves_return_arithmetic(atom)
                                 || evaluator.proves_result_field_equality(atom)
                                 || evaluator.proves_result_collection_length(atom)
-                                || evaluator.write_transported_equality(atom))
+                                || evaluator.write_transported_equality(atom)
+                                || super::super::current_values::proves_exit_expression(
+                                    program,
+                                    facts,
+                                    exit,
+                                    contract,
+                                    atom,
+                                    call_frames,
+                                    cached_exit_values,
+                                ))
                             .then_some(true)
                             .or_else(|| evaluator.current_predicate(atom))
                         })

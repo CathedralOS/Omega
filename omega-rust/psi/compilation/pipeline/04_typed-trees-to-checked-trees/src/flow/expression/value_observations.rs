@@ -1,8 +1,8 @@
-//! Construction publishes value and case snapshots when each child finishes evaluating.
-//! Later siblings may write the child's former source; the established member
-//! already holds its own value. Normal calls invalidate this destination through
-//! their ordinary write frontier. Cleanup reads the surviving facts at its edge,
-//! never recovers an initializer or assumes a hook prerequisite.
+//! Completed owned values publish observations at their evaluation cut.
+//! Construction rebases the same observations onto each installed child, while
+//! ordinary moves retain them on the completed operand before its former home
+//! expires. Only owned projections are snapshots: reference contents stay live
+//! and retain their separate backing, permission and invalidation obligations.
 
 use super::{EvaluatedOperand, Execution};
 use arena::HandleSpan;
@@ -14,7 +14,7 @@ use facts::{
 use typed_trees::expression::ExpressionHandle;
 
 #[derive(Clone, PartialEq, Eq)]
-pub(super) enum ConstructedValue {
+pub(super) enum OwnedValueObservation {
     Scalar(ScalarValue),
     Case(symbols::SymbolHandle),
     Capture {
@@ -24,7 +24,53 @@ pub(super) enum ConstructedValue {
 }
 
 impl Execution<'_, '_, '_> {
-    pub(super) fn append_constructed_values(
+    /// A value read from storage has its own classifier even after an affine
+    /// move retires that home. Publish before recording reference-leaf owners;
+    /// they must name this completed value rather than a later source reread.
+    pub(super) fn publish_completed_owned_value(
+        &mut self,
+        evaluated: &mut EvaluatedOperand,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) {
+        let expression = evaluated.capture.expression;
+        let Some(source) = self.completed_value_place(expression) else {
+            return;
+        };
+        if source.root == facts::PlaceRoot::Expression(expression) && source.segments.is_empty() {
+            // Calls and constructions already own their completion facts.
+            return;
+        }
+        let values = self.captured_owned_value_observations(
+            &[],
+            evaluated.capture.type_reference,
+            evaluated,
+        );
+        if values.is_empty() {
+            return;
+        }
+        let previous = self
+            .context
+            .contexts
+            .constraint_refs
+            .span_or_empty(*constraints)
+            .len();
+        self.publish_owned_value_observations(expression, values, contexts, constraints);
+        // capture_operand may already have withdrawn source facts invalidated
+        // by child effects. Extend that filtered snapshot only with the newly
+        // published value facts, never restore the ambient unfiltered prefix.
+        let published = *constraints;
+        for handle in published.handles().skip(previous) {
+            let kind = self.context.contexts.constraint_refs.get(handle).kind;
+            crate::flow::append_constraint_ref(
+                &mut self.context.contexts.constraint_refs,
+                &mut evaluated.capture.constraints,
+                kind,
+            );
+        }
+    }
+
+    pub(super) fn append_owned_value_observations(
         &mut self,
         parent: ExpressionHandle,
         destination: &[PlaceSegment],
@@ -33,7 +79,8 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
-        let mut values = self.constructed_values(destination, type_reference, evaluated);
+        let mut values =
+            self.captured_owned_value_observations(destination, type_reference, evaluated);
         if validation::has_contents(
             self.program,
             type_reference,
@@ -43,7 +90,7 @@ impl Execution<'_, '_, '_> {
             path == destination
                 && matches!(
                     value,
-                    ConstructedValue::Scalar(_) | ConstructedValue::Capture { .. }
+                    OwnedValueObservation::Scalar(_) | OwnedValueObservation::Capture { .. }
                 )
         }) {
             let source = self.semantic.append_expression_place(parent);
@@ -52,7 +99,7 @@ impl Execution<'_, '_, '_> {
             }
             values.push((
                 destination.to_vec(),
-                ConstructedValue::Capture {
+                OwnedValueObservation::Capture {
                     source,
                     point: ProgramPoint::Statement {
                         machine_symbol: self.machine.symbol,
@@ -62,7 +109,7 @@ impl Execution<'_, '_, '_> {
                 },
             ));
         }
-        self.publish_constructed_values(parent, values, contexts, constraints);
+        self.publish_owned_value_observations(parent, values, contexts, constraints);
         self.append_completed_qualifications(
             parent,
             destination,
@@ -142,12 +189,12 @@ impl Execution<'_, '_, '_> {
 
     /// Snapshot only the completed owned value's observations. Match joins
     /// intersect these same snapshots; no arm or initializer is replayed.
-    pub(super) fn constructed_values(
+    pub(super) fn captured_owned_value_observations(
         &mut self,
         destination: &[PlaceSegment],
         type_reference: typed_trees::types::TypeReferenceHandle,
         evaluated: &EvaluatedOperand,
-    ) -> Vec<(Vec<PlaceSegment>, ConstructedValue)> {
+    ) -> Vec<(Vec<PlaceSegment>, OwnedValueObservation)> {
         // Only owned contents transport member values. A reference/slice
         // carrier retains live referents, not snapshots below its descriptor.
         // Nominal cleanup is a later disposition and does not change the
@@ -257,12 +304,18 @@ impl Execution<'_, '_, '_> {
                 )
             });
         if let Some(value) = scalar {
-            values.push((destination.to_vec(), ConstructedValue::Scalar(value)));
+            values.push((destination.to_vec(), OwnedValueObservation::Scalar(value)));
         }
         // Scalar children supplied their completed observation. Only
         // aggregate children need the captured context's nested member facts.
         let is_aggregate = primitive.is_none();
         if is_aggregate
+            // Raw canonical geometry does not authenticate a selected index
+            // operation. Only builtin coordinates may reuse stored facts;
+            // selected operations retain their own completed result namespace.
+            && validation::value_has_builtin_coordinates(
+                self.program, self.machine, self.state, evaluated.capture.expression,
+            )
             && let Some(source) = self.completed_value_place(evaluated.capture.expression)
         {
             // Aggregate children can themselves be constructions or moved
@@ -357,9 +410,9 @@ impl Execution<'_, '_, '_> {
                         FactPayload::CaseValue {
                             variant,
                             value: true,
-                        } => Some(ConstructedValue::Case(variant)),
+                        } => Some(OwnedValueObservation::Case(variant)),
                         FactPayload::AssignedValueCapture { source, point } => {
-                            Some(ConstructedValue::Capture { source, point })
+                            Some(OwnedValueObservation::Capture { source, point })
                         }
                         _ => (crate::checks::contracts::boolean_value_at_place(
                             self.program,
@@ -384,7 +437,7 @@ impl Execution<'_, '_, '_> {
                                 &place,
                             )
                         }))
-                        .map(ConstructedValue::Scalar),
+                        .map(OwnedValueObservation::Scalar),
                     };
                     let Some(value) = value else {
                         continue;
@@ -396,33 +449,33 @@ impl Execution<'_, '_, '_> {
         values
     }
 
-    pub(super) fn publish_constructed_values(
+    pub(super) fn publish_owned_value_observations(
         &mut self,
         parent: ExpressionHandle,
-        values: Vec<(Vec<PlaceSegment>, ConstructedValue)>,
+        values: Vec<(Vec<PlaceSegment>, OwnedValueObservation)>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
         for (path, value) in values {
             let payload = match value {
-                ConstructedValue::Scalar(value) => FactPayload::AssignedScalarValue {
+                OwnedValueObservation::Scalar(value) => FactPayload::AssignedScalarValue {
                     value: self.semantic.scalar_values.append(value),
                 },
-                ConstructedValue::Case(variant) => FactPayload::CaseValue {
+                OwnedValueObservation::Case(variant) => FactPayload::CaseValue {
                     variant,
                     value: true,
                 },
-                ConstructedValue::Capture { source, point } => {
+                OwnedValueObservation::Capture { source, point } => {
                     FactPayload::AssignedValueCapture { source, point }
                 }
             };
-            self.append_constructed_observation(parent, &path, payload, contexts, constraints);
+            self.append_value_observation(parent, &path, payload, contexts, constraints);
         }
     }
 
     /// Each observation has its own lifetime. A nested case does not lose its
     /// tag merely because a sibling scalar or its own payload was replaced.
-    pub(super) fn append_constructed_observation(
+    pub(super) fn append_value_observation(
         &mut self,
         parent: ExpressionHandle,
         path: &[PlaceSegment],

@@ -2348,6 +2348,9 @@ fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 10500ms 
 	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
 fail/calls/computed_zero_requires_argument_rejected rejected 961ms expected @a92f16431042
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false (`0 != 0`)
+fail/calls/const_boundary_rejects_other_bound rejected 742ms expected @101f66e2f97e
+	cannot prove requires contract for call bound from forward: value <= Other (needs fact `value <= Other` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from forward at statement 0: result <= Available
 fail/calls/constructed_argument_wrong_nominal_type rejected 712ms expected @a92f16431042
 	argument `value` for state `entry` expects `Required<i32>`, got `struct literal`
 	argument `value` for state `read::entry` expects the `Required<i32>` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
@@ -2937,6 +2940,19 @@ fail/contracts/cyclic_descriptor_result_shorter_window rejected 900ms expected @
 fail/contracts/cyclic_descriptor_result_swapped_fields rejected 735ms expected @683f7a2f2406
 	cannot prove ensures contract for exit from retain_view at statement 1: result.bytes.len == selected.bytes.len
 	cannot prove ensures contract for exit from retain_view at statement 1: result.sibling.len == selected.sibling.len
+fail/contracts/cyclic_terminal_bad_result rejected 1037ms expected @e73e8464a94b
+	cannot prove ensures contract for exit from first at statement 1: result <= 256
+	cannot prove ensures contract for exit from second at statement 1: result <= 256
+	cannot prove ensures contract for exit from second at statement 2: result <= 256
+fail/contracts/cyclic_terminal_changed_input rejected 1037ms expected @e73e8464a94b
+	cannot prove ensures contract for exit from first at statement 1: result <= limit
+	cannot prove ensures contract for exit from second at statement 1: result <= limit
+fail/contracts/cyclic_terminal_missing_premise rejected 1527ms expected @e73e8464a94b
+	cannot prove requires contract for call second from first: position < 256 (needs fact `position < 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/cyclic_terminal_mutated_result rejected 1369ms expected @e73e8464a94b
+	cannot prove ensures contract for exit from first at statement 1: result <= 256
+	cannot prove ensures contract for exit from second at statement 2: result <= 256
+	cannot prove ensures contract for exit from second at statement 3: result <= 256
 fail/contracts/ensures_named_parameter_arithmetic_wrong rejected 2347ms expected @a92f16431042
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining > 0
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining - 1 < 8
@@ -4509,6 +4525,12 @@ fail/domains/write_only_stored_reference_requires_qualification rejected 1702ms 
 	construction of `Holder` field `cell` is not proven in domain `Cell::Before` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/domains/zero_array_active_payload_unestablished rejected 1696ms expected @a92f16431042
 	cannot prove default-domain field requirement for call consume from main::entry: parameter frames[1]::Ready.value requires u64::PositiveSmall
+fail/domains/zero_case_default_common rejected 538ms expected @cb9658535ae4
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/domains/zero_case_default_excludes_first rejected 572ms expected @cb9658535ae4
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/domains/zero_case_default_payload rejected 559ms expected @cb9658535ae4
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/domains/zero_case_tag_replaced_rejected rejected 1979ms expected @a92f16431042
 	cannot prove requires contract for call require_empty from main: frames[1] == constructor:79:package:469ede43cef7447a076709d7fcff29b91c2f6384f8c4a3aee2eaa2650c26d034::Frame10:name:Empty (needs fact `frames[1] == Frame::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/zero_field_call_requires_establishment rejected 877ms expected @a92f16431042
@@ -7226,6 +7248,14 @@ fail/facts/closed_integer_bound_through_parameter_rejected rejected 969ms expect
 	cannot prove assignment value `6` satisfies bounded target `value` in `establish.entry`; expected 0..=5
 fail/facts/closed_integer_bound_through_target_body_rejected rejected 970ms expected @a92f16431042
 	cannot prove assignment value `6` satisfies bounded target `value` in `establish.entry`; expected 0..=5
+fail/facts/completed_operand_producer_later_operand_write_rejected rejected 852ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/completed_operand_producer_reset_eight_rejected rejected 787ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 2: result == Payload::Pending && result.value.count <= 7
+fail/facts/completed_operand_reseated_reference_origin_rejected rejected 794ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 4: result == Payload::Pending && result.value.count <= 7
+fail/facts/completed_operand_selected_aggregate_index_wrong_case_rejected rejected 795ms expected @80af9f60f917+wt
+	cannot prove requires contract for call consume from main: entry(shared items, 0) == constructor:81:package:5b75e0870e53f26f8b312c2fe54e7df17adb0e503901cd212b2d357bf062fcec::Payload12:name:Pending (needs fact `picked == Payload::Pending` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/compound_guard_call_association_alias_write_compile rejected 2578ms expected @598688c61fee
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_different_call_result_compile rejected 2299ms expected @a92f16431042
@@ -12498,6 +12528,24 @@ fail/facts/nested_machine_joint_rank_preserving_subcycle_rejected rejected 764ms
 fail/facts/nested_machine_joint_rank_private_promise_rejected rejected 1024ms expected @34e571f3d5a1
 	terminating machine forward contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_call_result_rejected rejected 800ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_const_name_rejected rejected 814ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_field_rejected rejected 805ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_local_rejected rejected 800ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_match_join_rejected rejected 803ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_other_machine_rejected rejected 802ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_other_state_rejected rejected 798ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_parameter_rejected rejected 800ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_target_body_rejected rejected 793ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
 fail/facts/nested_machine_joint_rank_projected_mutated_copy_rejected rejected 730ms expected @82c75bb80584
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_projected_nested_record_rejected rejected 732ms expected @82c75bb80584
@@ -17288,6 +17336,27 @@ fail/facts/target_family_callback_guarantee/stronger_precondition rejected 929ms
 fail/facts/target_family_callback_guarantee/target_body rejected 896ms expected @eb23675fbe3f
 	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_open_const/call_result rejected 455ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/const_name rejected 469ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/field rejected 430ms expected @101f66e2f97e
+	data `Carrier` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/local rejected 450ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/match_join rejected 505ms expected @48daa479e121
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+	exact arithmetic in machine `main` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `main` state `entry` local `fallback_remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/target_family_open_const/other_machine rejected 446ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/other_state rejected 446ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/parameter rejected 481ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/target_body rejected 481ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
 fail/facts/target_layout_derived_constant_through_call_result_reject rejected 3663ms expected @a92f16431042
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_layout_derived_constant_through_const_name_reject rejected 4019ms expected @a92f16431042
@@ -23012,9 +23081,9 @@ fail/ranges/slice_bound_unbound_container_binder_rejected rejected 618ms unexpec
 	machine `nested_window` state `entry` local `view` may read, but the source supplies only write-only authority
 fail/ranges/subject_guard_compound_index_mutated rejected 2432ms expected @a92f16431042
 	cannot prove index `main.b * 20 + main.a` is within length 200
-fail/ranges/sum_payload_non_case_guard_unproven rejected 2866ms expected @a92f16431042
-	machine `Main::main` state `main` statement 2: cannot prove selected case for payload access
-	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty) in state `main`
+fail/ranges/sum_payload_non_case_guard_unproven rejected 7189ms expected @daa14c70b1c0+wt
+	machine `Main::main` state `main` statement 3: cannot prove selected case for payload access `main.p.v`: captured source `main.p::One.v` has no live case evidence: the current source does not select its required case
+	cannot prove requires contract for call use_v from Main::main: 0 <= main.p.v && main.p.v <= 50 (needs fact `0 <= x && x <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/recast/address_model_does_not_bound_offset rejected 621ms expected @a92f16431042
 	machine `read` state `inspect`: cannot bound the recast offset `offset` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
 fail/recast/boolean_view_requires_byte_region_representation rejected 617ms expected @a92f16431042
@@ -25176,6 +25245,7 @@ pass/calls/completed_effectful_result_requirement_exit checked 1934ms check-targ
 pass/calls/computed_binding_argument_exit checked 1961ms check-target:macos_arm64 @a92f16431042
 pass/calls/computed_case_subject_slice_operands_exit checked 7137ms check-target:macos_arm64 @a92f16431042
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 6340ms check-target:macos_arm64 @a92f16431042
+pass/calls/const_boundary_uses_exact_bound checked 1121ms @101f66e2f97e
 pass/calls/constant_result_requires_argument_accepted checked 6328ms check-target:macos_arm64 @a92f16431042
 pass/calls/converted_call_value_private_arrival_exit checked 1309ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/calls/copy_projection_from_borrowed_receiver checked 7265ms check-target:macos_arm64 @a92f16431042
@@ -25798,7 +25868,7 @@ pass/contracts/terminal_contract checked 1865ms @683f7a2f2406
 pass/control_flow/affine_call_result_state_transfer_exit checked 8511ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/affine_record_state_cycle_exit checked 7450ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/arm_literal_argument_forward_compile checked 1815ms @a92f16431042
-pass/control_flow/arm_pattern_rest_optout_exit checked 8728ms check-target:macos_arm64 @a92f16431042
+pass/control_flow/arm_pattern_rest_optout_exit checked 7618ms check-target:macos_arm64 @daa14c70b1c0+wt
 pass/control_flow/arm_payload_forward_compile checked 1830ms @a92f16431042
 pass/control_flow/arm_subject_reuse_forward_compile checked 1836ms @a92f16431042
 pass/control_flow/bool_comparison_subject_dispatch_compile checked 1810ms @a92f16431042
@@ -25815,7 +25885,7 @@ pass/control_flow/case_arm_payload_receiver_call checked 9113ms check-target:mac
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 10607ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/case_dispatch_unread_structural_payload_exit checked 10273ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/case_guard_wildcard_fallthrough_compile checked 1777ms @a92f16431042
-pass/control_flow/case_pattern_rename_waive_exit checked 8578ms check-target:macos_arm64 @a92f16431042
+pass/control_flow/case_pattern_rename_waive_exit checked 7573ms check-target:macos_arm64 @daa14c70b1c0+wt
 pass/control_flow/composite_state_parameter checked 8646ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/computed_float_array_field_store_exit checked 8737ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/conditional_unit_completion_exit checked 9718ms check-target:macos_arm64 @a92f16431042
@@ -27314,6 +27384,8 @@ pass/facts/closed_integer_bound_through_other_machine_exit checked 3171ms check-
 pass/facts/closed_integer_bound_through_other_state_exit checked 3186ms check-target:macos_arm64 @a92f16431042
 pass/facts/closed_integer_bound_through_parameter_exit checked 3187ms check-target:macos_arm64 @a92f16431042
 pass/facts/closed_integer_bound_through_target_body_exit checked 2785ms check-target:macos_arm64 @a92f16431042
+pass/facts/completed_operand_saved_reference_origin_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/completed_operand_selected_aggregate_index_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
 pass/facts/compound_guard_through_call_result_compile checked 1840ms @a92f16431042
 pass/facts/compound_guard_through_const_name_compile checked 1809ms @a92f16431042
 pass/facts/compound_guard_through_distinct_match_calls_compile checked 2281ms @598688c61fee
@@ -29425,6 +29497,15 @@ pass/facts/nested_machine_joint_rank_other_machine_exit checked 8698ms check-tar
 pass/facts/nested_machine_joint_rank_other_state_exit checked 8602ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_parameter_exit checked 962ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_private_promise_exit checked 2240ms check-target:macos_arm64 @34e571f3d5a1
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_call_result_exit checked 1130ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_const_name_exit checked 1129ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_field_exit checked 1109ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_local_exit checked 1109ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_match_join_exit checked 1164ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_other_machine_exit checked 1085ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_other_state_exit checked 1132ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_parameter_exit checked 1053ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_target_body_exit checked 1120ms check-target:macos_arm64 @80af9f60f917+wt
 pass/facts/nested_machine_joint_rank_projected_mutated_copy_exit checked 1216ms check-target:macos_arm64 @82c75bb80584
 pass/facts/nested_machine_joint_rank_projected_nested_record_exit checked 1216ms check-target:macos_arm64 @82c75bb80584
 pass/facts/nested_machine_joint_rank_projected_value_call_result_exit checked 1025ms check-target:macos_arm64 @82c75bb80584
@@ -31392,6 +31473,15 @@ pass/facts/target_family_callback_guarantee/parameter checked 3169ms check-targe
 pass/facts/target_family_callback_guarantee/sibling_helper checked 3059ms check-target:macos_arm64 @eb23675fbe3f
 pass/facts/target_family_callback_guarantee/target_body checked 3025ms check-target:macos_arm64 @eb23675fbe3f
 pass/facts/target_family_callback_guarantee/target_values checked 3057ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_open_const/call_result checked 1152ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/const_name checked 1060ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/field checked 1082ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/local checked 1120ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/match_join checked 1163ms check-target:macos_arm64 @48daa479e121
+pass/facts/target_family_open_const/other_machine checked 1110ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/other_state checked 1058ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/parameter checked 1151ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/target_body checked 1398ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @101f66e2f97e
 pass/facts/target_layout_derived_constant_through_call_result_exit checked 4481ms check-target:macos_arm64 @a92f16431042
 pass/facts/target_layout_derived_constant_through_const_name_exit checked 4981ms check-target:macos_arm64 @a92f16431042
 pass/facts/target_layout_derived_constant_through_field_exit checked 4998ms check-target:macos_arm64 @a92f16431042
@@ -33988,8 +34078,7 @@ pass/ranges/runtime_subject_guard_compound_read_exit checked 6352ms check-target
 pass/ranges/subject_field_where_fact_index_bound checked 1714ms @a92f16431042
 pass/ranges/subject_guard_compound_index_successor checked 1766ms @a92f16431042
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 1539ms @a92f16431042
-pass/ranges/sum_payload_range_arith_narrowed_exit rejected 5321ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove default-domain field requirement for call main from Main::main$entry_context::entry: parameter main.c::Dim.amount requires i32::Ten
+pass/ranges/sum_payload_range_arith_narrowed_exit checked 7573ms check-target:macos_arm64 @daa14c70b1c0+wt
 pass/recast/address_model_preserves_state_bounds checked 1804ms check-target:macos_arm64 @a92f16431042
 pass/recast/atomic_qualification_view_exit checked 3077ms check-target:macos_arm64 @a92f16431042
 pass/recast/bool_byte_view_compile checked 2118ms @a92f16431042
@@ -34986,6 +35075,8 @@ run/calls/static_boundary_terminal_arguments checked 3374ms check-target:macos_a
 run/calls/table_report_call_survival checked 7943ms check-target:macos_arm64 @a92f16431042
 run/contained_health_loop_command_branch checked 7113ms check-target:macos_arm64 @a92f16431042
 run/contracts/captured_bound_unused_mutation checked 3799ms check-target:macos_arm64 @a92f16431042
+run/contracts/cyclic_terminal_result_producers checked 2330ms check-target:macos_arm64 @e73e8464a94b
+run/contracts/nested_cyclic_copy_bound checked 2320ms check-target:macos_arm64 @e73e8464a94b
 run/contracts/qualified_result_forwarding_exit checked 6344ms check-target:macos_arm64 @a92f16431042
 run/contracts/target_family_forwarded_result checked 1780ms check-target:linux_x86_64 @a92f16431042
 run/core/content_reunion rejected 3720ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
@@ -35063,6 +35154,8 @@ run/domains/structural_qualification_cast_transitions checked 2500ms check-targe
 run/domains/structural_qualification_cast_values checked 2533ms check-target:macos_arm64 @a92f16431042
 run/domains/structural_qualification_nested_values checked 3019ms check-target:macos_arm64 @a92f16431042
 run/domains/vacuous_tag_call_arguments checked 2784ms check-target:macos_arm64 @a92f16431042
+run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
+run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2530ms check-target:macos_arm64 @a92f16431042
 run/dyn_finite_family_correlated checked 10113ms check-target:linux_x86_64 @a92f16431042
 run/dyn_finite_family_owned_carrier checked 10041ms check-target:linux_x86_64 @a92f16431042

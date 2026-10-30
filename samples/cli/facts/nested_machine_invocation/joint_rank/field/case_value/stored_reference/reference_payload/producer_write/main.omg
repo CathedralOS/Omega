@@ -1,0 +1,75 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Leaf { count: u64; stamp: u64; }
+data Payload { guard: u64; case Pending(value: &mut Leaf); case Empty; }
+data Remaining { canary: u64; child: &mut Payload; }
+machine input(value: &mut Leaf, select: bool) -> Payload
+ensures (result in Payload::Pending) && result.value.count <= 7;
+{
+    value.count = match select { true -> 7 false -> 0 };
+    Payload::Pending { guard: 827, value: value }
+}
+data Envelope { prefix: u64; value: Payload; }
+machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
+terminates;
+terminates by remaining.child.value.count;
+requires remaining.child in Payload::Pending, remaining.child.value.count <= 7;
+{
+    transition remaining.child.value.count > 0 {
+        true -> forward(remaining, counter)
+        false -> finish(remaining.canary)
+    }
+    machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
+    requires pending.child in Payload::Pending, pending.child.value.count > 0 && pending.child.value.count <= 7;
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        pending.child.value.count = pending.child.value.count - 1;
+        transition { _ -> count(counter, pending) }
+    }
+    machine finish(canary: u64) crashes Trap {
+        transition canary == 641 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine invoke(counter: &mut u64, payload: &mut Payload) crashes Trap
+requires payload in Payload::Pending, payload.value.count <= 7;
+{
+    let mut remaining: Remaining = Remaining { canary: 641, child: payload };
+    count(counter, &mut remaining);
+    transition remaining.canary == 641 && remaining.child.value.count == 0 && remaining.child.guard == 827 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine perform_payload(counter: &mut u64, value: &mut Leaf, select: bool) crashes Trap
+{
+    let mut envelope: Envelope = Envelope { prefix: 207, value: input(value, select) };
+    invoke(counter, &mut envelope.value);
+    transition envelope.prefix == 207 && envelope.value.value.count == 0 && envelope.value.guard == 827 && envelope.value.value.stamp == 413 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine perform(counter: &mut u64, select: bool) crashes Trap {
+    let mut value: Leaf = Leaf { count: 55, stamp: 413 };
+    perform_payload(counter, &mut value, select);
+    transition value.count == 0 && value.stamp == 413 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut counted: u64 = 3;
+    perform(&mut counted, true);
+    let matched: bool = counted == 10;
+    perform(&mut counted, false);
+    transition matched && counted == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
