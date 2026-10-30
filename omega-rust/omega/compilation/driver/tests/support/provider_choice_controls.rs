@@ -42,6 +42,7 @@ pub(super) fn prepare(
         source::DependencyScope::Product,
     );
     let inventory = TargetProviderInventoryRequest {
+        origins: checked.execution().provider_source.inventory().origins(),
         context,
         defaults: checked.provider_defaults(),
         settlement: checked.providers(),

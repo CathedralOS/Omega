@@ -376,75 +376,28 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
 /// Limit selection to executable demands and explicitly authored choices.
 /// Merely declaring an implementation does not install its boundary slots.
 fn demanded_provider_plans(
-    checked: &checked_trees::CheckedTrees,
+    uses: &std::collections::HashSet<symbols::SymbolHandle>,
     candidates: &[crate::DerivedProviderPlan],
     defaults: &[ProviderSelection],
     requested: &[ProviderSelection],
 ) -> Vec<crate::DerivedProviderPlan> {
-    // Satisfaction declares a candidate, not a request to install it. Use the
-    // source owner's callable-use inventory, not all nominal references: a
-    // conformance row necessarily mentions its requirement without calling it.
-    let mut uses =
-        checked_trees::typed_trees::references::collect_program_references(&checked.typed)
-            .callable_uses
-            .into_iter()
-            .map(|symbol| {
-                checked
-                    .typed
-                    .closed_requirement_application(symbol)
-                    .map_or(symbol, |application| application.template)
-            })
-            .collect::<std::collections::HashSet<_>>();
-    let requirement_template = |symbol| {
-        checked
-            .typed
-            .closed_requirement_application(symbol)
-            .map_or(symbol, |application| application.template)
-    };
-    uses.extend(
-        checked
-            .facts
-            .operators
-            .boundary_applications
-            .iter()
-            .map(|application| requirement_template(application.requirement_symbol)),
-    );
-    uses.extend(
-        checked
-            .facts
-            .operators
-            .symbolic_boundary_applications
-            .iter()
-            .map(|application| requirement_template(application.requirement_symbol)),
-    );
-    // Boundary requirements satisfied by the program's own selections are
-    // demands even when no callable names them: stored-descriptor slice
-    // operations mint `Slice::index`/`Slice::range` reaches that surface only
-    // in the checker's closed-requirement inventory.
-    uses.extend(
-        checked
-            .facts
-            .provider_closed_requirements
-            .iter()
-            .map(|row| row.template),
-    );
+    let choices = defaults
+        .iter()
+        .chain(requested)
+        .map(|choice| {
+            crate::provider_planning::selection_declarations::project_declaration(choice, &Ok, ())
+        })
+        .collect::<Vec<_>>();
     candidates
         .iter()
         .filter(|candidate| {
-            candidate
-                .provenance
-                .row_requirements
-                .iter()
-                .any(|requirement| uses.contains(requirement))
-                || defaults.iter().chain(requested).any(|selection| {
-                    candidate.plan.rows.iter().any(|row| {
-                        selection.subject.selects_schema(
-                            candidate.provenance.schema.symbol(),
-                            candidate.plan.identity_text(row.requirement_identity),
-                            candidate.plan.schema.root_application_identity(),
-                        )
-                    })
-                })
+            provider_selection::is_candidate_demanded(
+                &candidate.plan,
+                &Ok(candidate.provenance.schema.symbol()),
+                &candidate.provenance.row_requirements,
+                uses,
+                &choices,
+            )
         })
         .cloned()
         .collect()
@@ -454,6 +407,7 @@ fn demanded_provider_plans(
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
+    provider_uses: &std::collections::HashSet<symbols::SymbolHandle>,
     settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -505,7 +459,7 @@ pub fn settle_checked_providers(
     evaluated_via_bindings.retain_extended_identities(identities.build())?;
     let selected_provider_plans = crate::select_derived_provider_plans(
         &demanded_provider_plans(
-            checked,
+            provider_uses,
             &derived_provider_plans,
             target_provider_defaults,
             build_provider_selections,

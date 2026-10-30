@@ -54,6 +54,7 @@ impl AuthoredTargetProviders {
 /// Source-side preparation for the full publication target roster. Unavailable
 /// targets retain their refusal; they cannot invalidate another target's artifact.
 pub struct TargetProviderInventoryRequest<'program> {
+    pub origins: &'program [crate::SelectedTargetMachineOrigin],
     pub context: ProviderPlanningContext<'program>,
     pub defaults: &'program [crate::TargetProviderDefaults],
     pub settlement: &'program crate::ProviderSettlement,
@@ -75,7 +76,7 @@ impl TargetProviderInventoryRequest<'_> {
         if retained.target == Some(profile) {
             return Ok(Arc::clone(retained));
         }
-        let declarations = super::settle_provider_defaults(self.context, self.defaults, profile);
+        let declarations = super::settle_provider_defaults(self.origins, self.defaults, profile);
         AuthoredTargetProviders::derive(
             self.context,
             &self.settlement.boundary_calling_plan_realizations,
