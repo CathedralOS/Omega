@@ -541,10 +541,13 @@ impl TerminalExecution<'_> {
                     if !self.structural_byte_storage.contains_key(&home) {
                         self.structural_byte_storage.insert(
                             home,
-                            ByteSequenceView::new(ByteSequenceStorage::zeroed(
-                                length,
+                            crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
+                                crate::structural_inputs::byte_arrays::array_path_type(
+                                    &self.program.structural_types(), value.structural_type, leaf.path(),
+                                ).ok_or_else(malformed)?,
+                                ByteSequenceView::new(ByteSequenceStorage::zeroed(length, self.account.as_ref())?),
                                 self.account.as_ref(),
-                            )?),
+                            ),
                         )?;
                     }
                 }
@@ -1641,7 +1644,7 @@ impl TerminalExecution<'_> {
                 let mut elements = Vec::new();
                 value
                     .visit_scalar_leaves(self, &argument, |_, _, scalar| {
-                        elements.push(scalar);
+                        elements.push(crate::scalar_storage::ScalarCell::Local(scalar));
                         Ok(())
                     })?
                     .ok_or_else(malformed)?;
@@ -1944,13 +1947,11 @@ impl TerminalExecution<'_> {
                 _ => return Err(malformed()),
             })
             .map_err(|_| malformed())?;
-            let bytes = bytes
-                .bytes()
-                .get(offset..offset.checked_add(size).ok_or_else(malformed)?)
-                .ok_or_else(malformed)?;
+            let end = offset.checked_add(size).ok_or_else(malformed)?;
+            let window = bytes.read_window(offset, end)?;
             let mut value = 0u128;
-            for (position, byte) in bytes.iter().enumerate() {
-                value |= u128::from(*byte) << (8 * position);
+            for position in 0..size {
+                value |= u128::from(window.read(position)?) << (8 * position);
             }
             let scalar = match member.scalar_type {
                 ScalarType::Boolean => crate::primitive_storage::encoding::boolean_bits(value)?,

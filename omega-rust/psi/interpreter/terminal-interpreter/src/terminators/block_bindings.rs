@@ -918,7 +918,9 @@ impl TerminalExecution<'_> {
                 // exact geometry; do not replay a byte-only predicate theory.
                 self.validate_scalar_array_contents_qualifications(
                     parameter.structural_type,
-                    elements,
+                    elements
+                        .iter()
+                        .map(crate::scalar_storage::ScalarCell::scalar_type),
                     &parameter.qualifications,
                 )?;
                 captured.absorb_qualifications(&parameter.qualifications);

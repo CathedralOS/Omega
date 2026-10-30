@@ -19,3 +19,17 @@ host adapters supply them.
 The authored `/tmp/omega_journal_dir` is rooted, not relative to the working
 directory. A Windows runner must explicitly provision a writable `\tmp` on
 its current drive. The library must not silently reinterpret that path.
+
+The [host re-cast rung](host_recast/main.omg) isolates the bounded original
+backing required by Darwin filesystem metadata writes. It passes a 144-byte
+window starting eight bytes into a larger array through a checked foreign
+call twice. A preceding shared whole-array comparison establishes the canaries
+in that same native residence without lending them mutably. Its oracle checks that both returned addresses are nonzero and
+identical, and checks the first, interior and last bytes and both adjacent
+canaries. Between calls, an ordinary guest array copy retains byte 17 while
+an in-place write changes the original byte to 29; the next native call must
+write through that same original home. The [reject twin](host_recast/invalid/main.omg) shortens only that
+window to 143 bytes and must fail the same minimum-length contract. This
+macOS host witness uses the existing native binding surface while the
+Build-owned binding migration remains open. It establishes original-cell
+transport, not filesystem service supply or the parent task's completion.

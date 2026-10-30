@@ -60,6 +60,12 @@ pub struct TerminalOriginalStorageRequest {
     pub(crate) argument_path: Vec<CanonicalStructuralPathSegment>,
     pub(crate) view_type: StructuralTypeId,
     pub(crate) references: Vec<TerminalOriginalReferenceValue>,
+    pub(crate) scalar_projection: Option<
+        Vec<(
+            Vec<CanonicalStructuralPathSegment>,
+            Vec<CanonicalStructuralPathSegment>,
+        )>,
+    >,
 }
 impl TerminalOriginalStorageRequest {
     pub fn root(&self) -> TerminalOriginalStorageRoot {
@@ -90,6 +96,7 @@ impl TerminalOriginalStorageRequest {
         TerminalOriginalStorageLoan {
             root: self.root,
             referent: self.referent.clone(),
+            scalar_projection: self.scalar_projection.clone(),
         }
     }
     pub fn values(&self) -> &[TerminalOriginalScalarValue] {
@@ -103,6 +110,12 @@ impl TerminalOriginalStorageRequest {
 pub struct TerminalOriginalStorageLoan {
     pub(crate) root: TerminalOriginalStorageRoot,
     pub(crate) referent: Vec<CanonicalStructuralPathSegment>,
+    pub(crate) scalar_projection: Option<
+        Vec<(
+            Vec<CanonicalStructuralPathSegment>,
+            Vec<CanonicalStructuralPathSegment>,
+        )>,
+    >,
 }
 impl TerminalOriginalStorageLoan {
     pub fn root(&self) -> TerminalOriginalStorageRoot {
@@ -110,6 +123,24 @@ impl TerminalOriginalStorageLoan {
     }
     pub fn referent(&self) -> &[CanonicalStructuralPathSegment] {
         &self.referent
+    }
+
+    /// Resolve a logical view leaf using the exact core-captured endpoint.
+    /// A re-view cannot expose siblings merely because its root owns them.
+    pub fn scalar_path(
+        &self,
+        view_path: &[CanonicalStructuralPathSegment],
+    ) -> Option<Vec<CanonicalStructuralPathSegment>> {
+        if let Some(projection) = &self.scalar_projection {
+            let position = projection
+                .binary_search_by(|(path, _)| path.as_slice().cmp(view_path))
+                .ok()?;
+            Some(projection[position].1.clone())
+        } else {
+            let mut path = self.referent.clone();
+            path.extend_from_slice(view_path);
+            Some(path)
+        }
     }
 }
 

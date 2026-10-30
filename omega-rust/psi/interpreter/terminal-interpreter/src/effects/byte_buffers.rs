@@ -265,6 +265,20 @@ impl BoundaryArguments {
         self.storage_inputs.commit(execution)
     }
 
+    pub(crate) fn prepare_original_storage(
+        &mut self,
+        execution: &mut TerminalExecution,
+        handler: &mut impl crate::effects::TerminalEffectHandler,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<(), TerminalInterpretError> {
+        self.storage_inputs.prepare_original_storage(
+            execution,
+            handler,
+            boundary,
+            &mut self.local_identity_cursor,
+        )
+    }
+
     /// After input validation, publish the staged allocation cursor before a
     /// host scalar-case result allocates its original home. Input writeback
     /// remains deferred; resetting this cursor after result publication would
@@ -350,26 +364,19 @@ impl TerminalExecution<'_> {
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
             {
-                if resolved
-                    .aggregate_backings
-                    .get(argument_index)
-                    .is_some_and(Option::is_some)
-                {
-                    // Host replacement still requires an exact backing-cell
-                    // projection. Logical ingress alone cannot name its fields.
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "aggregate re-view host storage needs its backing field projection",
-                    ));
-                }
-                resolved.storage_inputs.capture_fields(
-                    self,
-                    parameter,
-                    argument,
-                    &resolved.values[argument_index],
-                    resolved.element_views[argument_index].as_ref(),
-                    argument_index,
-                    normal_qualifications,
-                )?;
+                resolved
+                    .storage_inputs
+                    .capture_fields(
+                        self,
+                        parameter,
+                        argument,
+                        &resolved.values[argument_index],
+                        resolved.element_views[argument_index].as_ref(),
+                        resolved.aggregate_backings[argument_index].as_ref(),
+                        argument_index,
+                        normal_qualifications,
+                    )
+                    .map_err(|error| error.in_argument_preparation("capture host storage cells"))?;
             }
         }
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {

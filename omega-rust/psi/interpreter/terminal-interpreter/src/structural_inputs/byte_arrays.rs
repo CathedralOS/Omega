@@ -201,7 +201,16 @@ impl TerminalExecution<'_> {
                 }
             }
             if self.structural_byte_storage.contains_key(&array)
-                || storage.insert(array, bytes)?.is_some()
+                || storage
+                    .insert(
+                        array,
+                        storage::StructuralByteArrayStorage::new(
+                            array_type,
+                            bytes,
+                            self.account.as_ref(),
+                        ),
+                    )?
+                    .is_some()
             {
                 return Err(malformed());
             }
@@ -288,7 +297,7 @@ impl TerminalExecution<'_> {
                 self.program.structural_types().values(),
                 structural_type,
             )?
-            .1 != u64::try_from(array.elements().len()).ok()?
+            .1 != u64::try_from(array.len()).ok()?
         {
             return None;
         }

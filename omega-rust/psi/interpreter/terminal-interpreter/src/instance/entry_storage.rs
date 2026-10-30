@@ -67,6 +67,7 @@ impl TerminalInstance<'_, '_> {
                     *place,
                     value,
                     None,
+                    None,
                     StructuralAccess::SharedBorrow,
                     std::slice::from_ref(&leaf),
                     &[],
@@ -117,9 +118,7 @@ impl TerminalInstance<'_, '_> {
                     .structural_byte_storage
                     .get(destination)
                     .ok_or(TerminalEntryStorageError::OpaqueContents)?;
-                Ok(TerminalEntryStorageValue::Bytes(
-                    crate::TerminalByteRead::contiguous(bytes.bytes()),
-                ))
+                Ok(TerminalEntryStorageValue::Bytes(bytes.read_view()?))
             }
             StorageLeafKind::Opaque { .. } => Err(TerminalEntryStorageError::OpaqueContents),
         }
