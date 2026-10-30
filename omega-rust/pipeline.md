@@ -930,8 +930,19 @@ belongs to a generic machine; admission no longer reconstructs those facts from
 typed declarations. Requirement rows exist without implementations or uses.
 Product root pruning projects direct-call rows and template applicability with
 the machine roster while preserving independent operator declarations. The
-checked-tree bridge remains: portable publication and moving the complete
-admission operation into `provider-selection` are not closed by this step.
+checked-tree bridge remains: source admission still owns complete-inventory
+applicability and plan cardinality, including unused declarations and dead
+concrete uses. Those cannot be replaced by emitted-operation demand.
+`provider-selection/boundary_applications.rs` owns the canonical executable
+application operation: exact selected-row/provenance joins, checked body choice
+and numeric execution admission. Stage 00 constructs operation-bound physical
+coverage from that result. Source and canonical admission share numeric
+satisfaction and callable/package/target selection; source eligibility additionally
+checks Product, provider application and lifetime coordinates, while canonical
+admission checks nominal requirement and closed application. Neither fabricates
+the other's metadata. Unused invocation-local declarations are not forced into
+portable publication. Moving the remaining complete source-admission adapter
+behind the Psi facade is still unfinished.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare

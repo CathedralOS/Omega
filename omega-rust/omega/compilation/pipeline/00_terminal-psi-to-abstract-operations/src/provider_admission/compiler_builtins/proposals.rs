@@ -7,22 +7,14 @@
 //! its selected plan and Terminal boundary. The consuming lowerer admits it
 //! through its local target catalog.
 
-use super::external_satisfaction::{reconcile_numeric_meaning, selected_execution};
+use super::external_satisfaction::reconcile_numeric_meaning;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
-use effects::provider_plan::{ProviderPlan, ServiceSchema};
+use effects::provider_plan::ServiceSchema;
+use provider_selection::selected_external_execution;
 use std::collections::BTreeSet;
 
-/// The source-free part of one retained provider review. The complete plan is
-/// compared before its row-aligned execution identities can supply a proposal.
-pub struct CompilerIntrinsicPlanProvenance<'a> {
-    pub plan: &'a ProviderPlan,
-    /// The contract classification authenticated before projecting a direct
-    /// callable's selection coordinate. Ordinary plans use their own schema.
-    pub semantic_schema: &'a ServiceSchema,
-    pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
-    pub row_numeric_realizations: &'a [Option<String>],
-}
+pub use provider_selection::CompilerIntrinsicPlanProvenance;
 
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
@@ -131,7 +123,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
-        let identity = match selected_execution(
+        let identity = match selected_external_execution(
             external_providers,
             identities,
             &boundary.owner,
