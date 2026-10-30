@@ -645,6 +645,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
+            operand_resolutions: None,
         };
         let mut denied = Vec::with_capacity(values.len());
         for (reference, value, excluded) in values {

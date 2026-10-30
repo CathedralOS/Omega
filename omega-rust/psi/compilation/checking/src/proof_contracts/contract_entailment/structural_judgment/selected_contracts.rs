@@ -289,7 +289,7 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralTerm> {
-        let resolving = self.clone().resolving_application(value)?;
+        let resolving = self.clone().resolving_application(value, depth)?;
         let carrier = resolving.selected_application_carrier(value, depth);
         if self.published_contract_tracing() && carrier.is_none() {
             eprintln!(
