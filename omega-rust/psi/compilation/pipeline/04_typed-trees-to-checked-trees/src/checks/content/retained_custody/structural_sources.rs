@@ -27,6 +27,7 @@ pub(super) struct ContentSource {
 pub(super) enum SourceSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),
+    FixedIndex(u64),
     Elements(Option<usize>),
 }
 
@@ -35,7 +36,7 @@ pub(super) fn parameter_sources(
     parameter: &StateParameter,
     contracts: &[&SignatureContract],
 ) -> (Vec<ContentSource>, bool) {
-    let (mut sources, complete) = domain_sources(program, parameter.type_reference);
+    let (mut sources, mut complete) = domain_sources(program, parameter.type_reference);
     for contract in contracts
         .iter()
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
@@ -44,18 +45,49 @@ pub(super) fn parameter_sources(
             if let Some(membership) = fact.as_membership()
                 && membership.domain_symbol.is_valid()
                 && membership.semantic_domain.is_valid()
-                && program
-                    .expression_table
-                    .names_parameter(membership.value, parameter)
+                && let Some(place) =
+                    validation::canonical_place_from_expression(program, membership.value)
+                && place.root == facts::PlaceRoot::Symbol(parameter.symbol)
             {
+                // A requires membership is the same input obligation as a
+                // qualified parameter or field. Keep its exact subject; omitting
+                // a nested requirement would mistake transferred content for an
+                // empty entry frontier. Runtime selectors cannot stand for a
+                // universally qualified array and remain incomplete here.
+                let path = place
+                    .segments
+                    .iter()
+                    .map(|segment| match segment {
+                        facts::PlaceSegment::Field { symbol } => {
+                            Some(SourceSegment::Field(*symbol))
+                        }
+                        facts::PlaceSegment::Case { variant } => {
+                            Some(SourceSegment::Case(*variant))
+                        }
+                        facts::PlaceSegment::FixedIndex { index } => {
+                            u64::try_from(*index).ok().map(SourceSegment::FixedIndex)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>();
+                let Some(path) = path else {
+                    complete = false;
+                    continue;
+                };
                 let source = ContentSource {
                     domain: DomainApplication {
                         symbol: membership.domain_symbol,
                         semantic_domain: membership.semantic_domain,
                     },
-                    borrowed: super::direct_reference(program, parameter.type_reference).is_some(),
-                    nested: false,
-                    path: Vec::new(),
+                    borrowed: super::direct_reference(program, parameter.type_reference).is_some()
+                        || validation::owned_projection_type_reference(
+                            program,
+                            parameter.type_reference,
+                            &place.segments,
+                        )
+                        .is_none(),
+                    nested: !path.is_empty(),
+                    path,
                 };
                 crate::collections::push_unique(&mut sources, source);
             }

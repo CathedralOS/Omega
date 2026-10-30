@@ -356,32 +356,46 @@ impl BoundaryMachineDeclaration {
         // Native and interpreter host dispatch share this source-free judgment;
         // it grants no new conservation or issuance evidence.
         let consumes_qualification = |required: StructuralDomainId| {
-            self.structural_parameters.iter().any(|parameter| {
-                parameter.access == crate::StructuralAccess::Owned
-                    && parameter
-                        .qualifications
-                        .iter()
-                        .chain(
-                            parameter
-                                .projected_qualifications
-                                .iter()
-                                .filter(|row| {
-                                    !row.path.contains(&crate::StructuralPathSegment::Referent)
-                                })
-                                .map(|row| &row.domain),
-                        )
-                        .any(|domain| {
-                            domains
-                                .iter()
-                                .find(|declaration| declaration.id == *domain)
-                                .and_then(|declaration| {
-                                    declaration.required_domain_closure(domains)
-                                })
-                                .is_some_and(|closure| {
-                                    closure.iter().any(|node| node.id == required)
-                                })
-                        })
-            })
+            self.structural_parameters
+                .iter()
+                .enumerate()
+                .any(|(position, parameter)| {
+                    parameter.access == crate::StructuralAccess::Owned
+                        && parameter
+                            .qualifications
+                            .iter()
+                            .chain(
+                                parameter
+                                    .projected_qualifications
+                                    .iter()
+                                    .filter(|row| {
+                                        !row.path.contains(&crate::StructuralPathSegment::Referent)
+                                    })
+                                    .map(|row| &row.domain),
+                            )
+                            .chain(
+                                self.requires
+                                    .iter()
+                                    .filter(|row| {
+                                        usize::try_from(row.argument_index).ok() == Some(position)
+                                            && !row
+                                                .path
+                                                .contains(&crate::StructuralPathSegment::Referent)
+                                    })
+                                    .map(|row| &row.domain),
+                            )
+                            .any(|domain| {
+                                domains
+                                    .iter()
+                                    .find(|declaration| declaration.id == *domain)
+                                    .and_then(|declaration| {
+                                        declaration.required_domain_closure(domains)
+                                    })
+                                    .is_some_and(|closure| {
+                                        closure.iter().any(|node| node.id == required)
+                                    })
+                            })
+                })
         };
         result
             .qualifications

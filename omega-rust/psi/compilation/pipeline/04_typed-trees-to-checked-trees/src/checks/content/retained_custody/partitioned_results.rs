@@ -227,6 +227,9 @@ fn path_matches(path: &[SourceSegment], concrete: &[ContentPlaceSegment]) -> boo
                 (SourceSegment::Case(symbol), ContentPlaceSegment::Case(case)) => {
                     *symbol == case.symbol
                 }
+                (SourceSegment::FixedIndex(declared), ContentPlaceSegment::FixedIndex(actual)) => {
+                    declared == actual
+                }
                 (
                     SourceSegment::Elements(Some(length)),
                     ContentPlaceSegment::FixedIndex(element),
