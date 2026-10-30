@@ -69,6 +69,18 @@ baseline overflowed; five repaired positives and six reject controls passed.
 Mixed overlapping timing ranges establish no general speedup.
 [Evidence and source identities](operand_order_overflow_2026_10_29/README.md).
 
+## Windows cache ancestry traversal - 2026-10-29
+
+Retained locally on `4fba237cd10`: walk each ancestor from its freshly validated
+parent handle instead of reopening every prefix from the drive. Keep no-follow,
+classification/opened-identity checks and before/after validation. With shallower
+isolated caches, warm compile medians improve 13.1%/19.7%/15.5% on stack32/length/
+dispatch, with non-overlapping ranges; first compile improves 7.4% on stack32
+and remains inconclusive on length/dispatch. All 94 compile/native pairs, two
+native replays, two static rejects and ten focused custody tests pass. One
+initial diagnostic native timeout and one fixture-setup failure remain recorded.
+[Full evidence, scope and next question](source_resolution_remaining_2026_10_29/README.md).
+
 ## Additional source-resolution evidence - 2026-10-29
 
 The independently measured root-selection experiment found 15.3%/24.2% lower
