@@ -547,15 +547,6 @@ pub struct CheckingMemos {
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<ContentConservationInputs>>,
-    /// Exact ordered roots to a complete target roster. Rows are retained
-    /// as positions in this immutable program's target-layout storage, not
-    /// borrowed strings or a selected deployment target.
-    pub(crate) layout_target_rosters: Mutex<
-        symbols::SymbolKeyMap<
-            Vec<typed_trees::types::TypeReferenceHandle>,
-            Result<Vec<Option<usize>>, ()>,
-        >,
-    >,
     /// Concrete body inference consumes exact captured integer intervals, not
     /// caller places. Recipe-bearing arguments use ordinary inference. Retain
     /// the complete result recipe and negative results; immutable actuals and

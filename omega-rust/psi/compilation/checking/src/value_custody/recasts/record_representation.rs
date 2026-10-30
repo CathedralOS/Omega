@@ -1,7 +1,6 @@
 use super::scalar_representation::{
     MutableScalarRepresentationFacts, mutable_scalar_representation_facts,
-    mutable_scalar_representation_facts_equivalent, narrow_by_field_representation_bounds,
-    scalar_representation_facts_imply,
+    narrow_by_field_representation_bounds, scalar_representation_facts_imply,
 };
 use std::collections::HashSet;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -1012,31 +1011,81 @@ fn checked_align_up(value: usize, alignment: usize) -> Option<usize> {
     }
 }
 
-/// Layout equivalence shared by the record-representation comparisons:
-/// same size/alignment and positionally equal leaves, with the caller's
-/// facts predicate applied per leaf pair.
-fn record_layouts_match(
+/// Borrowed backing must satisfy the target's alignment. Representation facts
+/// compare encoded storage below, independently of the scalar partition used
+/// to describe those bytes.
+fn compatible_backing_geometry(
+    source: &MutableRecordRepresentation,
+    target: &MutableRecordRepresentation,
+) -> bool {
+    source.size == target.size && target.align != 0 && source.align % target.align == 0
+}
+
+/// An unrestricted encoded leaf can observe any initialized bits in its range.
+/// Atomic access, domains, bool validity and narrowed integer/float predicates
+/// remain obligations; none follows merely from the presence of backing bytes.
+fn leaf_accepts_all_bits(leaf: &MutableRecordLeaf) -> bool {
+    if leaf.facts.atomic || !leaf.facts.domains.is_empty() || !leaf.byte_projection {
+        return false;
+    }
+    let bits = match leaf.size.checked_mul(8) {
+        Some(bits @ 1..=64) => bits,
+        _ => return false,
+    };
+    let maximum = u64::MAX >> (64 - bits);
+    matches!(&leaf.facts.values,
+        super::scalar_representation::ScalarRepresentationSet::ExactBitPatterns(patterns)
+        if patterns.as_slice() == [(0, maximum)])
+}
+
+fn representation_values_imply(
     program: &dyn crate::CheckingInput,
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
-    leaf_facts: impl Fn(
-        &dyn crate::CheckingInput,
-        &MutableScalarRepresentationFacts,
-        &MutableScalarRepresentationFacts,
-    ) -> bool,
 ) -> bool {
-    source.size == target.size
-        && source.align == target.align
-        && source.leaves.len() == target.leaves.len()
-        && source
+    target.leaves.iter().all(|target| {
+        // Both inventories are already sorted by physical offset. Reuse that
+        // association rather than rebuilding a byte map or expanding bit sets.
+        let position = source
             .leaves
-            .iter()
-            .zip(&target.leaves)
-            .all(|(source, target)| {
-                source.offset == target.offset
-                    && source.size == target.size
-                    && leaf_facts(program, &source.facts, &target.facts)
-            })
+            .partition_point(|source| source.offset <= target.offset);
+        let Some(mut position) = position.checked_sub(1) else {
+            return false;
+        };
+        let source_leaf = &source.leaves[position];
+        if source_leaf.offset == target.offset
+            && source_leaf.size == target.size
+            && source_leaf.byte_projection == target.byte_projection
+            && scalar_representation_facts_imply(program, &source_leaf.facts, &target.facts)
+        {
+            return true;
+        }
+        if !leaf_accepts_all_bits(target) {
+            return false;
+        }
+        let Some(end) = target.offset.checked_add(target.size) else {
+            return false;
+        };
+        let mut covered = target.offset;
+        while covered < end {
+            let Some(source) = source.leaves.get(position) else {
+                return false;
+            };
+            let Some(source_end) = source.offset.checked_add(source.size) else {
+                return false;
+            };
+            if source.offset > covered
+                || source_end <= covered
+                || source.facts.atomic
+                || !source.byte_projection
+            {
+                return false;
+            }
+            covered = source_end.min(end);
+            position += 1;
+        }
+        true
+    })
 }
 
 pub(super) fn mutable_record_representations_equivalent(
@@ -1044,12 +1093,9 @@ pub(super) fn mutable_record_representations_equivalent(
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
-    record_layouts_match(
-        program,
-        source,
-        target,
-        mutable_scalar_representation_facts_equivalent,
-    )
+    compatible_backing_geometry(source, target)
+        && representation_values_imply(program, source, target)
+        && representation_values_imply(program, target, source)
 }
 
 /// Whether an admitted re-view writes exactly the source's valid encoded bytes.
@@ -1143,5 +1189,107 @@ pub(super) fn record_representation_implies(
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
-    record_layouts_match(program, source, target, scalar_representation_facts_imply)
+    compatible_backing_geometry(source, target)
+        && representation_values_imply(program, source, target)
+}
+
+#[cfg(test)]
+mod representation_implication_tests {
+    use super::super::scalar_representation::ScalarRepresentationSet;
+    use super::*;
+    use typed_trees::types::PrimitiveType;
+
+    fn leaf(offset: usize, size: usize, values: (u64, u64)) -> MutableRecordLeaf {
+        MutableRecordLeaf {
+            offset,
+            size,
+            facts: MutableScalarRepresentationFacts {
+                atomic: false,
+                domains: Vec::new(),
+                values: ScalarRepresentationSet::ExactBitPatterns(vec![values]),
+            },
+            path: Vec::new(),
+            primitive: PrimitiveType::U64,
+            stored_integer: None,
+            byte_projection: true,
+            arrays: Vec::new(),
+        }
+    }
+
+    fn bytes(count: usize) -> MutableRecordRepresentation {
+        MutableRecordRepresentation {
+            size: count,
+            align: 1,
+            leaves: (0..count).map(|offset| leaf(offset, 1, (0, 255))).collect(),
+        }
+    }
+
+    #[test]
+    fn established_words_allow_byte_observation_but_not_arbitrary_restoration() {
+        let program = typed_trees::TypedTrees::default();
+        let mut source = MutableRecordRepresentation {
+            size: 16,
+            align: 8,
+            leaves: vec![leaf(0, 8, (0, u64::MAX)), leaf(8, 8, (42, 42))],
+        };
+        assert!(record_representation_implies(&program, &source, &bytes(16)));
+        assert!(!mutable_record_representations_equivalent(
+            &program,
+            &source,
+            &bytes(16)
+        ));
+        source.leaves[1].facts.values =
+            ScalarRepresentationSet::ExactBitPatterns(vec![(0, u64::MAX)]);
+        assert!(mutable_record_representations_equivalent(
+            &program,
+            &source,
+            &bytes(16)
+        ));
+        assert!(!record_representation_implies(
+            &program,
+            &bytes(16),
+            &source
+        ));
+    }
+
+    #[test]
+    fn regrouping_initialized_storage_preserves_alignment_and_validity() {
+        let program = typed_trees::TypedTrees::default();
+        let source = MutableRecordRepresentation {
+            size: 4,
+            align: 4,
+            leaves: vec![leaf(0, 2, (0, 65535)), leaf(2, 2, (0, 65535))],
+        };
+        let mut target = MutableRecordRepresentation {
+            size: 4,
+            align: 4,
+            leaves: vec![leaf(0, 4, (0, u64::from(u32::MAX)))],
+        };
+        assert!(mutable_record_representations_equivalent(
+            &program, &source, &target
+        ));
+        target.leaves[0].facts.values = ScalarRepresentationSet::ExactBitPatterns(vec![(0, 1)]);
+        assert!(!record_representation_implies(&program, &source, &target));
+    }
+
+    #[test]
+    fn padding_atomic_protocol_and_fragmented_encodings_are_not_raw_observations() {
+        let program = typed_trees::TypedTrees::default();
+        let padded = MutableRecordRepresentation {
+            size: 3,
+            align: 1,
+            leaves: vec![leaf(0, 1, (0, 255)), leaf(2, 1, (0, 255))],
+        };
+        assert!(!record_representation_implies(&program, &padded, &bytes(3)));
+        let mut source = MutableRecordRepresentation {
+            size: 8,
+            align: 8,
+            leaves: vec![leaf(0, 8, (0, u64::MAX))],
+        };
+        source.leaves[0].facts.atomic = true;
+        assert!(!record_representation_implies(&program, &source, &bytes(8)));
+        source.leaves[0].facts.atomic = false;
+        source.leaves[0].byte_projection = false;
+        assert!(!record_representation_implies(&program, &source, &bytes(8)));
+    }
 }

@@ -30,7 +30,7 @@ pub(crate) fn check_product_source(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
-    let layout_scopes = layout_target_scopes(build)?;
+    let layout_scopes = layout_target_scopes(&typed, build)?;
     let source_admission = psi_compiler::SourceAdmission {
         layout_scopes: &layout_scopes,
         completion: match package_inputs.and_then(|inputs| {
@@ -145,8 +145,24 @@ pub(crate) fn check_product_source(
 /// Build entries and authored provider choices delimit deployment applicability.
 /// Layout facts come from the explicit target catalog, never the build host.
 fn layout_target_scopes(
+    typed: &typed_trees::TypedTrees,
     build: &compilation_products::BuildConfig,
 ) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {
+    if !typed_trees::references::collect_program_type_occurrences(typed)
+        .into_iter()
+        .any(|occurrence| {
+            typed
+                .layout_storage_arguments(occurrence.reference)
+                .is_some_and(|storage| {
+                    typed
+                        .closed_data_field_definition(storage.semantic_type)
+                        .is_some()
+                        && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
+                })
+        })
+    {
+        return Ok(Vec::new());
+    }
     let mut scopes: Vec<build_time_evaluation::FixedLayoutTargetScope> = Vec::new();
     for binding in &build.root_bindings {
         let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
