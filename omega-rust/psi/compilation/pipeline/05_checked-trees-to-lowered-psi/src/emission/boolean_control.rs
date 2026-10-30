@@ -252,6 +252,19 @@ pub(crate) struct LoweredBooleanDecisionTarget {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// The identity of the guard block reserved at `block_index`. Reserved blocks
+/// are dense from `first_block_identity`, so the index is the whole offset.
+fn reserved_guard_block(first_block_identity: u64, block_index: usize) -> BlockId {
+    block_id(
+        first_block_identity
+            .checked_add(
+                u64::try_from(block_index)
+                    .expect("reserved guard block count fits a semantic identity"),
+            )
+            .expect("reserved guard block identity advances"),
+    )
+}
+
 /// A fresh block a case edge enters with exactly `parameters`, jumping on to
 /// `target` with its arguments. The arguments are values of the dispatching
 /// block's namespace, which dominates this one.
@@ -263,14 +276,7 @@ fn reserve_case_entry(
     blocks: &mut Vec<Option<Block>>,
 ) -> LoweredBooleanDecisionTarget {
     let block_index = blocks.len();
-    let block = block_id(
-        first_block_identity
-            .checked_add(
-                u64::try_from(block_index)
-                    .expect("reserved guard block count fits a semantic identity"),
-            )
-            .expect("reserved guard block identity advances"),
-    );
+    let block = reserved_guard_block(first_block_identity, block_index);
     let edge = mint(next_edge_identity, edge_id);
     blocks.push(Some(Block::plain(
         block,
@@ -339,14 +345,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
             when_false,
         } => {
             let block_index = blocks.len();
-            let block = block_id(
-                first_block_identity
-                    .checked_add(
-                        u64::try_from(block_index)
-                            .expect("reserved guard block count fits a semantic identity"),
-                    )
-                    .expect("reserved guard block identity advances"),
-            );
+            let block = reserved_guard_block(first_block_identity, block_index);
             blocks.push(None);
             let operation_start = all_operations.len();
             let condition =
@@ -396,14 +395,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
             when_false,
         } => {
             let block_index = blocks.len();
-            let block = block_id(
-                first_block_identity
-                    .checked_add(
-                        u64::try_from(block_index)
-                            .expect("reserved guard block count fits a semantic identity"),
-                    )
-                    .expect("reserved guard block identity advances"),
-            );
+            let block = reserved_guard_block(first_block_identity, block_index);
             blocks.push(None);
             // A case edge binds exactly its case's payload as the target
             // block's parameters: the selected block receives the payload and
