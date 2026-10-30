@@ -1,10 +1,9 @@
 use super::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionPlanner,
-    GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, SourceResolver,
-    create_git_source, local_git_request, remove_fixture, resolve_git_workspace_member,
-    run_test_git, temp_root, test_system_git_executor,
+    GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, create_git_source,
+    fixture_storage, local_git_request, remove_fixture, resolve_git_workspace_member, run_test_git,
+    temp_root,
 };
-use crate::PrimaryGitChoices;
 struct FixedWorkspacePlanner {
     member: SourceRelativePath,
 }
@@ -71,19 +70,7 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
     let storage_base = temp_root("workspace-projection-resolution-storage");
     std::fs::create_dir_all(&storage_base).expect("create storage base");
     let request = local_git_request(&repository, "HEAD");
-    let primary_git = test_system_git_executor(request.execution_transport())
-        .expect("select fixture Git")
-        .execution_backend
-        .executable()
-        .to_path_buf();
-    let storage = SourceResolver::for_hardened_base(
-        &storage_base,
-        PrimaryGitChoices {
-            explicit_git: Some(primary_git.as_ref()),
-            ..PrimaryGitChoices::default()
-        },
-    )
-    .expect("retain resolver storage");
+    let storage = fixture_storage(&storage_base, &request);
     let member = SourceRelativePath::parse("packages/member").expect("member path");
     let mut planner = FixedWorkspacePlanner {
         member: member.clone(),

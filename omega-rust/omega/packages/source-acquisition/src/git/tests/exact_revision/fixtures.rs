@@ -1,13 +1,12 @@
 use super::super::{
     GitCommitId, GitSourceRequest, GitTreeId, PathBuf, SourceResolver,
-    create_git_source_with_format, git_cache_identity, remove_fixture, run_test_git,
-    run_test_git_with_input, temp_root, test_system_git_executor,
+    create_git_source_with_format, fixture_storage, git_cache_identity, remove_fixture,
+    run_test_git, run_test_git_with_input, temp_root,
 };
 use super::{
     GitExactRevisionAcquisition, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
     local_git_request, resolve_git_source_at_revision_in_lane,
 };
-use crate::PrimaryGitChoices;
 pub(super) struct Fixture {
     pub(super) repository: PathBuf,
     storage_base: PathBuf,
@@ -27,19 +26,7 @@ impl Fixture {
         let tree = run_test_git_with_input(&repository, ["rev-parse", "HEAD^{tree}"], b"");
         let request = local_git_request(&repository, "HEAD");
         let storage_base = temp_root(name);
-        let executable = test_system_git_executor(request.execution_transport())
-            .unwrap()
-            .execution_backend
-            .executable()
-            .to_path_buf();
-        let storage = SourceResolver::for_hardened_base(
-            &storage_base,
-            PrimaryGitChoices {
-                explicit_git: Some(executable.as_ref()),
-                ..PrimaryGitChoices::default()
-            },
-        )
-        .unwrap();
+        let storage = fixture_storage(&storage_base, &request);
         Self {
             repository,
             storage_base,
