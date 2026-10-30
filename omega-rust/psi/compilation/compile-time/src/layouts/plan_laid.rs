@@ -83,13 +83,24 @@ pub fn evaluate_fixed_layout_applications(
                 }
             }
             let reached = applications.invocation_reachability(&scope.target, &providers, &roots);
+            // Checking retains a complete named-map declaration, including
+            // sibling row descriptions. Those dependencies still supply nested
+            // data fields and constant types, but describing a sibling does not
+            // invoke its executable body or its physical layout applications.
+            let dormant_bodies = DeclarationSelection::from_symbols(
+                typed
+                    .machines()
+                    .iter()
+                    .filter(|machine| !reached.machines.contains(&machine.symbol))
+                    .map(|machine| machine.symbol),
+            );
             crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
                 typed,
                 &reached.machines,
                 &[],
             )
             .work()
-            .clone()
+            .excluding(&dormant_bodies)
         } else {
             DeclarationSelection::from_program(typed)
         };
