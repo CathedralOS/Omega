@@ -267,6 +267,18 @@ fn binds_catalog_provenance(
     assert_eq!(catalog.catalog().selected_keys, keys);
 }
 
+/// One alternative's encoded effects inside a catalog a test is corrupting:
+/// the declaration is addressed by its key and semantic, the alternative by
+/// its ordinal.
+fn encoded_mut<'a>(
+    catalog: &'a mut MachineEffectCatalog,
+    key: RegisterConstraintKey,
+    semantic: MachineSemanticKind,
+    index: usize,
+) -> &'a mut MachineEncodedEffects {
+    &mut declaration_mut(catalog, key, semantic).alternatives[index].encoded
+}
+
 /// One encoded rule may take an architectural fault: its encoded trap surface
 /// admits a fault whatever trap policy its declaration states.
 fn assert_faulting_trap(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {

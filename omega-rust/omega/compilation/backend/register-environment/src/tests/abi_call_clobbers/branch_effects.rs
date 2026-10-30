@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
-    binds_catalog_provenance, declaration_mut, flags_view, named_view, produced_effects,
-    scalar_abi_cases, validate_effects,
+    binds_catalog_provenance, declaration_mut, encoded_mut, flags_view, named_view,
+    produced_effects, scalar_abi_cases, validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -296,9 +296,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // control-flow barrier class: the conditional forms reject the
             // unconditional encoding, and Jump rejects the conditional one.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .control = if contract.conditional {
+            encoded_mut(&mut corrupted, key, semantic, 0).control = if contract.conditional {
                 MachineEncodedControlEffect::UnconditionalRelativeBranchV1
             } else {
                 MachineEncodedControlEffect::ConditionalRelativeBranchV1
@@ -311,9 +309,8 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // A return encoding is inside the barrier class but outside the
             // branch shape.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .control = MachineEncodedControlEffect::ReturnFromActivationStackV1;
+            encoded_mut(&mut corrupted, key, semantic, 0).control =
+                MachineEncodedControlEffect::ReturnFromActivationStackV1;
             reject_encoded!(
                 corrupted,
                 "{key:?} borrowed return control shape must reject"
@@ -327,9 +324,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 MachineEncodedControlEffect::HostedExitOrTrapV1,
             ] {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .control = control;
+                encoded_mut(&mut corrupted, key, semantic, 0).control = control;
                 reject_encoded!(
                     corrupted,
                     "{key:?} foreign control shape {control:?} must reject"
@@ -339,9 +334,8 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // Understating the architectural fault stays inside the admitted
             // fallthrough trap surface, so only canonical ISA replay rejects it.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .trap = MachineEncodedTrapBehavior::NeverV1;
+            encoded_mut(&mut corrupted, key, semantic, 0).trap =
+                MachineEncodedTrapBehavior::NeverV1;
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
                 Err(EffectRejection::SemanticMismatch),
@@ -350,39 +344,34 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
 
             // A hosted trap shape is outside the admitted branch surface.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .trap = MachineEncodedTrapBehavior::HostedReadFailureV1;
+            encoded_mut(&mut corrupted, key, semantic, 0).trap =
+                MachineEncodedTrapBehavior::HostedReadFailureV1;
             reject_encoded!(corrupted, "{key:?} hosted trap shape must reject");
 
             // A branch cannot grow a memory footprint or a stack lifecycle.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .memory = MachineEncodedMemoryEffect::ReadPointerV1 {
-                pointer_operand: 0,
-                byte_count: 8,
-            };
+            encoded_mut(&mut corrupted, key, semantic, 0).memory =
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: 8,
+                };
             reject_encoded!(corrupted, "{key:?} forged memory footprint must reject");
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .stack = MachineEncodedStackEffect::PopBytesV1 {
-                stack_pointer: stack_pointer.id,
-                byte_count: 8,
-            };
+            encoded_mut(&mut corrupted, key, semantic, 0).stack =
+                MachineEncodedStackEffect::PopBytesV1 {
+                    stack_pointer: stack_pointer.id,
+                    byte_count: 8,
+                };
             reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
             // The operand-free row admits no encoded operand custody.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .external_operand_reads
                 .push(0);
             reject_encoded!(corrupted, "{key:?} forged operand read must reject");
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .external_operand_writes
                 .push(0);
             reject_encoded!(corrupted, "{key:?} forged operand write must reject");
@@ -393,21 +382,18 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // definition on either row.
             if contract.conditional {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, 0)
                     .implicit_unit_uses
                     .retain(|unit| !flags.units.contains(unit));
                 reject_encoded!(corrupted, "{key:?} lost condition-code use must reject");
             }
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_uses
                 .retain(|unit| !program_counter.units.contains(unit));
             reject_encoded!(corrupted, "{key:?} lost program-counter use must reject");
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_defs
                 .retain(|unit| !program_counter.units.contains(unit));
             reject_encoded!(
@@ -419,14 +405,12 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // a foreign implicit unit, or any clobber on a row that declares
             // none.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_uses
                 .push(stack_pointer.units[0]);
             reject_encoded!(corrupted, "{key:?} forged stack-pointer use must reject");
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_defs
                 .push(stack_pointer.units[0]);
             reject_encoded!(
@@ -434,8 +418,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} forged stack-pointer definition must reject"
             );
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_clobbers
                 .push(flags.units[0]);
             reject_encoded!(corrupted, "{key:?} forged clobber must reject");

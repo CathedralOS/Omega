@@ -1,6 +1,6 @@
 use super::{
     Architecture, BTreeSet, RegisterConstraintKey, assert_faulting_trap, assert_storage_free,
-    baseline_target_register_environment, convention_for, declaration_mut, named_view,
+    baseline_target_register_environment, convention_for, encoded_mut, named_view,
     produced_effects, scalar_abi_cases, validated_effects,
 };
 use register_model::RegisterOperandAccess;
@@ -267,8 +267,7 @@ fn every_selected_call_rule_rejects_encoded_clobber_loss_on_every_target() {
         let catalog = produced_effects(case, environment.constraints());
         for (key, semantic) in selected_call_rules(&environment) {
             let mut corrupted = catalog.clone();
-            let encoded =
-                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
+            let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             assert!(
                 !encoded.implicit_unit_clobbers.is_empty(),
                 "{key:?} declares no caller-saved clobbers"

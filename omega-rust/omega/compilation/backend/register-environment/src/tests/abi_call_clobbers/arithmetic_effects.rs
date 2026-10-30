@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_storage_free, baseline_target_register_environment, binds_catalog_provenance,
-    declaration_mut, flags_view, named_view, produced_effects, scalar_abi_cases, units_for_names,
-    validate_effects,
+    declaration_mut, encoded_mut, flags_view, named_view, produced_effects, scalar_abi_cases,
+    units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
@@ -913,9 +913,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     MachineEncodedControlEffect::HostedExitOrTrapV1,
                 ] {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
-                        .control = control;
+                    encoded_mut(&mut corrupted, key, semantic, index).control = control;
                     reject_encoded!(
                         corrupted,
                         "{key:?} foreign control shape {control:?} must reject"
@@ -925,29 +923,25 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // An arithmetic rule cannot grow a memory footprint or a
                 // stack lifecycle.
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .memory = MachineEncodedMemoryEffect::ReadPointerV1 {
-                    pointer_operand: 0,
-                    byte_count: 8,
-                };
+                encoded_mut(&mut corrupted, key, semantic, index).memory =
+                    MachineEncodedMemoryEffect::ReadPointerV1 {
+                        pointer_operand: 0,
+                        byte_count: 8,
+                    };
                 reject_encoded!(corrupted, "{key:?} forged memory footprint must reject");
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .stack = MachineEncodedStackEffect::PopBytesV1 {
-                    stack_pointer: stack_pointer.id,
-                    byte_count: 8,
-                };
+                encoded_mut(&mut corrupted, key, semantic, index).stack =
+                    MachineEncodedStackEffect::PopBytesV1 {
+                        stack_pointer: stack_pointer.id,
+                        byte_count: 8,
+                    };
                 reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
                 // Trap drift stays inside the admitted fallthrough surface
                 // for both admitted values, so only canonical ISA replay
                 // rejects it; a hosted trap shape is outside that surface.
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .trap = if contract.faulting {
+                encoded_mut(&mut corrupted, key, semantic, index).trap = if contract.faulting {
                     MachineEncodedTrapBehavior::NeverV1
                 } else {
                     MachineEncodedTrapBehavior::MayArchitecturalFaultV1
@@ -958,9 +952,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} encoded trap drift must reject"
                 );
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
+                encoded_mut(&mut corrupted, key, semantic, index).trap =
+                    MachineEncodedTrapBehavior::HostedWriteFailureV1;
                 reject_encoded!(corrupted, "{key:?} hosted trap shape must reject");
 
                 // Encoded operand custody: losing a declared read or write
@@ -1005,9 +998,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     reject_encoded!(corrupted, "{key:?} invented operand read must reject");
                 }
                 let mut corrupted = catalog.clone();
-                let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .external_operand_reads;
+                let reads =
+                    &mut encoded_mut(&mut corrupted, key, semantic, index).external_operand_reads;
                 reads.push(row.operands.len() as u16);
                 reject_encoded!(corrupted, "{key:?} out-of-row operand read must reject");
                 if let Some(write_operand) = row
@@ -1053,35 +1045,30 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // fails structural admission, and so does losing a declared
                 // one — the encoded lists restate the row exactly.
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, index)
                     .implicit_unit_uses
                     .push(stack_pointer.units[0]);
                 reject_encoded!(corrupted, "{key:?} forged implicit use must reject");
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, index)
                     .implicit_unit_defs
                     .push(stack_pointer.units[0]);
                 reject_encoded!(corrupted, "{key:?} forged implicit definition must reject");
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, index)
                     .implicit_unit_clobbers
                     .push(stack_pointer.units[0]);
                 reject_encoded!(corrupted, "{key:?} forged implicit clobber must reject");
                 if contract.flags == FlagsCustody::Use {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
+                    encoded_mut(&mut corrupted, key, semantic, index)
                         .implicit_unit_uses
                         .retain(|unit| !flags.units.contains(unit));
                     reject_encoded!(corrupted, "{key:?} lost condition-code use must reject");
                 }
                 if contract.flags == FlagsCustody::Def {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
+                    encoded_mut(&mut corrupted, key, semantic, index)
                         .implicit_unit_defs
                         .retain(|unit| !flags.units.contains(unit));
                     reject_encoded!(
@@ -1091,8 +1078,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 }
                 if contract.flags == FlagsCustody::Clobber || !contract.extra_clobbers.is_empty() {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
+                    encoded_mut(&mut corrupted, key, semantic, index)
                         .implicit_unit_clobbers
                         .remove(0);
                     reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");

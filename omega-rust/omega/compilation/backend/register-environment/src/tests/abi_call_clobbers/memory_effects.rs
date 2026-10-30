@@ -1,7 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, binds_catalog_provenance, declaration_mut, flags_view,
-    named_view, produced_effects, scalar_abi_cases, validate_effects, validated_effects,
+    baseline_target_register_environment, binds_catalog_provenance, declaration_mut, encoded_mut,
+    flags_view, named_view, produced_effects, scalar_abi_cases, validate_effects,
+    validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
@@ -648,13 +649,12 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // access encoded as none (or none encoded as a pointer write)
             // fails structural admission.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .memory = if contract.memory == MachineMemoryEffect::NoneV1 {
-                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-            } else {
-                MachineEncodedMemoryEffect::NoneV1
-            };
+            encoded_mut(&mut corrupted, key, semantic, 0).memory =
+                if contract.memory == MachineMemoryEffect::NoneV1 {
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+                } else {
+                    MachineEncodedMemoryEffect::NoneV1
+                };
             reject_encoded!(
                 corrupted,
                 "{key:?} memory-footprint substitution must reject"
@@ -705,9 +705,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             };
             if let Some(drifted) = drifted {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .memory = drifted;
+                encoded_mut(&mut corrupted, key, semantic, 0).memory = drifted;
                 reject_encoded!(corrupted, "{key:?} drifted footprint must reject");
             }
 
@@ -716,9 +714,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // a pure rule survives the fallthrough shape and needs canonical
             // ISA replay.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .trap = if contract.faulting {
+            encoded_mut(&mut corrupted, key, semantic, 0).trap = if contract.faulting {
                 MachineEncodedTrapBehavior::NeverV1
             } else {
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1
@@ -739,28 +735,25 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A memory rule encoded as a conditional branch fails the
             // control/barrier join.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .control = MachineEncodedControlEffect::ConditionalRelativeBranchV1;
+            encoded_mut(&mut corrupted, key, semantic, 0).control =
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1;
             reject_encoded!(corrupted, "{key:?} branch-encoded memory rule must reject");
 
             // A stack lifecycle cannot be forged onto a memory rule: no
             // admitted shape joins a byte pop with these semantics.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .stack = MachineEncodedStackEffect::PopBytesV1 {
-                stack_pointer,
-                byte_count: 8,
-            };
+            encoded_mut(&mut corrupted, key, semantic, 0).stack =
+                MachineEncodedStackEffect::PopBytesV1 {
+                    stack_pointer,
+                    byte_count: 8,
+                };
             reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
             // Dropping encoded stack-pointer custody understates the row's
             // contracted uses and fails structural admission.
             if contract.uses_stack_pointer {
                 let mut corrupted = catalog.clone();
-                let encoded =
-                    &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
+                let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
                 assert!(
                     !encoded.implicit_unit_uses.is_empty(),
                     "{key:?} declares no stack-pointer use"
@@ -774,8 +767,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // structural admission.
             if !row.clobbers.is_empty() {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, 0)
                     .implicit_unit_clobbers
                     .remove(0);
                 reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");
@@ -784,8 +776,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A forged implicit definition outside the row's empty def set
             // fails structural admission before canonical replay runs.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_defs
                 .push(foreign_unit);
             reject_encoded!(corrupted, "{key:?} forged implicit def must reject");
@@ -795,9 +786,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // every memory rule.
             if let Some(&dropped) = contract.writes.last() {
                 let mut corrupted = catalog.clone();
-                let writes = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .external_operand_writes;
+                let writes =
+                    &mut encoded_mut(&mut corrupted, key, semantic, 0).external_operand_writes;
                 writes.retain(|write| *write != dropped);
                 reject_encoded!(corrupted, "{key:?} lost operand write must reject");
             }
@@ -807,9 +797,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // rows no longer admit the smaller set either.
             if let Some(&dropped) = contract.reads.last() {
                 let mut corrupted = catalog.clone();
-                let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .external_operand_reads;
+                let reads =
+                    &mut encoded_mut(&mut corrupted, key, semantic, 0).external_operand_reads;
                 reads.retain(|read| *read != dropped);
                 reject_encoded!(corrupted, "{key:?} lost operand read must reject");
             }
