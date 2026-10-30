@@ -27,11 +27,7 @@ impl LiveValues<'_, '_> {
     /// Each active semantic context, resolved against the plan's arena.
     fn active_contexts(&self) -> impl Iterator<Item = &facts::FactContext> + '_ {
         self.context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(self.active)
-            .iter()
-            .map(|reference| self.semantic.contexts.get(reference.context))
+            .semantic_context_views(self.semantic, self.active)
     }
 }
 

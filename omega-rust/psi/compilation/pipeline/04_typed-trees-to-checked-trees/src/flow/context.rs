@@ -296,6 +296,19 @@ pub(super) struct FlowBuildContext<'plans> {
 }
 
 impl<'plans> FlowBuildContext<'plans> {
+    /// Each active semantic context, resolved against the plan's arena.
+    pub(super) fn semantic_context_views<'a>(
+        &'a self,
+        semantic: &'a facts::FactPlan,
+        active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+    ) -> impl Iterator<Item = &'a facts::FactContext> + 'a {
+        self.contexts
+            .semantic_context_refs
+            .span_or_empty(active)
+            .iter()
+            .map(|reference| semantic.contexts.get(reference.context))
+    }
+
     pub(super) fn stored_reference_effects(
         &mut self,
         machine: &typed_trees::machine::Machine,
