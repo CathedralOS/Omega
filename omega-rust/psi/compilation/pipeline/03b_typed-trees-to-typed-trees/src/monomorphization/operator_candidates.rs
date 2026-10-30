@@ -164,7 +164,7 @@ pub(crate) fn specialize_operator_candidates(
         saved_calls::replay(&mut source, program, &template_machine);
         let mut concrete = Vec::<(SpecializationKey, Candidate)>::new();
         for application in applications {
-            let application = copy_application_types(program, &mut source, &application);
+            let application = copy_application_types(program, &mut source, &application)?;
             let candidate = match selected_operator_candidate_for_application(
                 &source,
                 &template,
@@ -297,31 +297,41 @@ fn copy_application_types(
     program: &dyn ::validation::CheckingInput,
     source: &mut TypedTrees,
     application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
-) -> Vec<typed_trees::operator::ClosedOperatorApplicationArgument> {
+) -> Result<
+    Vec<typed_trees::operator::ClosedOperatorApplicationArgument>,
+    super::body_cloning::TypeCopyError,
+> {
     application
         .iter()
-        .map(|argument| match argument {
-            typed_trees::operator::ClosedOperatorApplicationArgument::Type {
-                binder_symbol,
-                type_reference,
-            } => typed_trees::operator::ClosedOperatorApplicationArgument::Type {
-                binder_symbol: *binder_symbol,
-                type_reference: copy_type_reference(Some(program), source, *type_reference, &[]),
-            },
-            typed_trees::operator::ClosedOperatorApplicationArgument::Const {
-                binder_symbol,
-                declared_carrier,
-                value,
-            } => typed_trees::operator::ClosedOperatorApplicationArgument::Const {
-                binder_symbol: *binder_symbol,
-                declared_carrier: copy_type_reference(
-                    Some(program),
-                    source,
-                    *declared_carrier,
-                    &[],
-                ),
-                value: value.clone(),
-            },
+        .map(|argument| {
+            Ok(match argument {
+                typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                    binder_symbol,
+                    type_reference,
+                } => typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                    binder_symbol: *binder_symbol,
+                    type_reference: copy_type_reference(
+                        Some(program),
+                        source,
+                        *type_reference,
+                        &[],
+                    )?,
+                },
+                typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                    binder_symbol,
+                    declared_carrier,
+                    value,
+                } => typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                    binder_symbol: *binder_symbol,
+                    declared_carrier: copy_type_reference(
+                        Some(program),
+                        source,
+                        *declared_carrier,
+                        &[],
+                    )?,
+                    value: value.clone(),
+                },
+            })
         })
         .collect()
 }
