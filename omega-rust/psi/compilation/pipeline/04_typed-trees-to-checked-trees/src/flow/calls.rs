@@ -686,6 +686,20 @@ fn append_call_parameter_domain_facts<'plans>(
     }
 }
 
+/// The selected signature's own contract roster, when the call names exactly
+/// one; the caller supplies the roster to use when it names none.
+fn selected_signature_contracts<'a>(
+    program: &'a dyn ::validation::CheckingInput,
+    selected: Option<&typed_trees::signature::StateSignature>,
+) -> Option<Vec<&'a typed_trees::signature::SignatureContract>> {
+    selected.map(|signature| {
+        program
+            .state_signature_contracts(signature)
+            .iter()
+            .collect()
+    })
+}
+
 /// The signature contracts a callable's ensures/requires clauses live on: its
 /// state contracts, the entry machine's contracts when the callable is an
 /// entry state, and the trait signature's contracts when the callable is a
@@ -765,13 +779,7 @@ pub(crate) fn call_result_qualification_identities(
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| validation::call_target_parameters(program, target));
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts(program, target));
     let qualification_contract =
         validation::CallQualificationContract::prepare(program, target, selected);
@@ -806,13 +814,7 @@ pub(in crate::flow) fn call_result_qualification_identities_indexed<'plans>(
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, target));
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
     if !return_type.is_valid() {
         return Vec::new();
@@ -945,13 +947,7 @@ pub(crate) fn call_parameter_qualification_identities(
     else {
         return Vec::new();
     };
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts(program, target));
     let qualification_contract =
         validation::CallQualificationContract::prepare(program, target, selected);
@@ -973,13 +969,7 @@ fn call_parameter_qualification_identities_indexed<'plans>(
     else {
         return Vec::new();
     };
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
     let qualification_contract =
         validation::CallQualificationContract::prepare(program, target, selected);
