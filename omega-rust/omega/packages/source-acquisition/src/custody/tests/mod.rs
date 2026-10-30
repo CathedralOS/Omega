@@ -32,5 +32,3 @@ mod repository_integrity;
 mod snapshots;
 #[cfg(unix)]
 mod traversal;
-#[cfg(windows)]
-mod windows_ancestry;

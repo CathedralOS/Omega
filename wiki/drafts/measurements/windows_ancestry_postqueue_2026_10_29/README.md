@@ -56,3 +56,25 @@ remain on every timed image; the previous PR's failed cohort is not reused.
 
 Claim registration timed out with an uncertain push; subsequent successful
 registry readback confirmed active ticket `1b8d1fda901d42359c3709d995b45cfa`.
+
+## Result: not promoted
+
+The current screen missed its predeclared two-subject gate. Median complete
+Windows compile times were length 824.3 → 597.6 ms (27.5% lower), dispatch
+760.9 → 669.6 ms (12.0%), and stack32 1235.6 → 1067.6 ms (13.6%). Dispatch's
+four block effects were +25.4%, −16.4%, +15.6%, +28.7%; its candidate range
+overlapped the baseline and included valid slow observations. All are retained.
+The old historical percentage is not a substitute for this mixed result.
+
+All 60 compiles produced the pinned image and executed with exit 0. Three
+focused Windows custody tests, the affected release Clippy check and touched
+formatting passed. The conditional nine-place, malformed-cache, lookup,
+junction and confirmation checks did not run because the screen gate failed.
+This is a completed screen, not full qualification of the candidate.
+
+[Unrounded timings, resources and decision](summary.json) and
+[source, build, qualification receipt and raw observations](evidence.json.gz)
+retain the exact candidate and all evidence. Restore its four Rust files to
+the pre-experiment checkpoint and park this unpublished mechanism. The next
+question is the complete invocation's remaining setup/unattributed cost,
+before choosing a small backend subscan that cannot meet the whole-run goal.
