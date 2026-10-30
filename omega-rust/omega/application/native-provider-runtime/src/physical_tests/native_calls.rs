@@ -427,6 +427,23 @@ fn darwin_guest_errno_survives_worker_housekeeping() {
                 .unwrap(),
         );
     }
+    let view_product = product(
+        libraries[0].to_str().unwrap(),
+        "_errno_copy_view",
+        vec![ValueShape::integer(16, 8)],
+        Some(word),
+        7,
+    );
+    let view_adapter = process
+        .install(
+            &view_product,
+            &[crate::NativeParameterStorage::OriginalByteView],
+        )
+        .unwrap();
+    let view_home = process.create_home(8, 1).unwrap();
+    process
+        .write_home(view_home, 0, &[23, 23, 0, 0, 0, 0, 37, 37])
+        .unwrap();
     let observed = process.create_home(8, 4).unwrap();
     process
         .write_home(observed, 4, &0x1234_5678_u32.to_le_bytes())
@@ -457,6 +474,24 @@ fn darwin_guest_errno_survives_worker_housekeeping() {
             u32::from_le_bytes(bytes[4..].try_into().unwrap()),
             0x1234_5678
         );
+        let copied = process
+            .call(
+                view_adapter,
+                &[NativeArgument::ByteView {
+                    home: view_home,
+                    offset: 2,
+                    length: 4,
+                }],
+            )
+            .unwrap();
+        assert_eq!(u64::from_le_bytes(copied.try_into().unwrap()), 4);
+        process.read_home(view_home, 0, &mut bytes).unwrap();
+        assert_eq!(&bytes[..2], &[23, 23]);
+        assert_eq!(
+            i32::from_le_bytes(bytes[2..6].try_into().unwrap()),
+            expected
+        );
+        assert_eq!(&bytes[6..], &[37, 37]);
     };
     copy_errno(&mut process, 0);
     let failed = process

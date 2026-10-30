@@ -7,7 +7,7 @@ use crate::{
     channel,
     native_code::{LoadedFrame, NativeValue},
     shared_backing::SharedBacking,
-    wire::{self, Cursor, Geometry, Packet, invalid},
+    wire::{self, BorrowGeometry, Cursor, Geometry, Packet, invalid},
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -222,7 +222,7 @@ impl Worker {
             let mut value = NativeValue::zeroed(geometry.extent, geometry.alignment)?;
             match (cursor.byte()?, geometry.referent) {
                 (0, None) => value.initialize(cursor.bytes()?)?,
-                (1, Some((extent, alignment))) => {
+                (1, Some(BorrowGeometry::Fixed { extent, alignment })) => {
                     let id = cursor.number()?;
                     let offset = cursor.usize()?;
                     let home = self
@@ -231,6 +231,20 @@ impl Worker {
                         .ok_or_else(|| invalid("native loan names no mapped original home"))?;
                     let pointer = home.pointer(offset, extent, alignment)?;
                     value.initialize(&(pointer as u64).to_le_bytes())?;
+                }
+                (2, Some(BorrowGeometry::ByteView)) => {
+                    let id = cursor.number()?;
+                    let offset = cursor.usize()?;
+                    let length = cursor.usize()?;
+                    let home = self
+                        .homes
+                        .get(&id)
+                        .ok_or_else(|| invalid("native byte view names no original home"))?;
+                    let pointer = home.pointer(offset, length, 1)?;
+                    let mut pair = [0; 16];
+                    pair[..8].copy_from_slice(&(pointer as u64).to_le_bytes());
+                    pair[8..].copy_from_slice(&(length as u64).to_le_bytes());
+                    value.initialize(&pair)?;
                 }
                 _ => {
                     return Err(invalid(
