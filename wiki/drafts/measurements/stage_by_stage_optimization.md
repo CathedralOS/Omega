@@ -1,5 +1,17 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Body unfolding: scalar guard preparation - 2026-10-29
+
+The unfolding timer is dominated by integer proof preparation for scalar guards;
+body setup and term construction are small. Reusing exact operand resolutions
+within one immutable integer query measured A 116.64/117.01 s versus B
+105.23/106.77 s for fresh preparation, 9.26% lower mean with separated ranges.
+Rejected below the predefined 10% threshold and removed from production source.
+Four native images match; five actual host comparisons and one focused refusal
+pass. Broader tests were skipped after the failed screen. Next: measure repeated
+integer premise preparation under exact guard contexts.
+[Evidence and limits](body_unfolding_2026_10_29/README.md).
+
 ## Remaining first-time checking: empty-equation query - 2026-10-30
 
 Rejected on fixed `0ac181bf065`: skip unproductive non-Boolean specification
