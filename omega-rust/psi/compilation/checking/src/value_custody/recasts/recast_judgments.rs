@@ -106,13 +106,10 @@ fn judge_scalar_recast_alternative(
     // permission. Keep the exact source/view/receiving axes at admission.
     let writable_view = view_access.is_exclusive();
     if view_access != receiving_access {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: recast borrow polarity must agree -- use `&x as &T` for a shared \
                  view or `&mut x as &mut T` for a writable view; `&write x as &write T` retains write-only access"
-            ))
-            .with_source_span(source_span),
-        );
+        )));
         return;
     }
 
@@ -127,13 +124,10 @@ fn judge_scalar_recast_alternative(
             _ => None,
         });
     if source_borrow_access.is_some_and(|source| source != view_access) {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: recast borrow polarity must agree -- use `&x as &T` for a shared \
                  view or `&mut x as &mut T` for a writable view; `&write x as &write T` retains write-only access"
-            ))
-            .with_source_span(source_span),
-        );
+        )));
         return;
     }
 
@@ -159,12 +153,9 @@ fn judge_scalar_recast_alternative(
         let target_name = target_placed
             .map(|view| view.data_name.as_str())
             .unwrap_or("non-placed storage");
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: placed-view recast from `{source_name}` to `{target_name}` is unavailable; retain the underlying qualified extent borrow and explicitly admit the intended placement"
-            ))
-            .with_source_span(source_span),
-        );
+        )));
         return;
     }
 
@@ -179,9 +170,9 @@ fn judge_scalar_recast_alternative(
         super::qualification_views::qualification_view_compatible(program, source, let_referee)
     });
     if qualification_compatible == Some(false) {
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance",
-            )).with_source_span(source_span));
+        )));
         return;
     }
     if qualification_compatible == Some(true)
@@ -218,9 +209,9 @@ fn judge_scalar_recast_alternative(
                 ),
         };
         if let Some(reason) = refusal {
-            diagnostics.push(Diagnostic::error(format!(
+            diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: writable qualification erasure cannot preserve lender validity: {reason}"
-            )).with_source_span(source_span));
+            )));
             return;
         }
     }
@@ -275,14 +266,14 @@ fn judge_scalar_recast_alternative(
             if program.normalized_type_identity(let_referee)
                 != program.normalized_type_identity(cast.target_type)
             {
-                diagnostics.push(
-                    Diagnostic::error(format!(
+                diagnostics.push(recast_refusal(
+                    source_span,
+                    format!(
                         "{context}: the let's declared type must restate the recast target \
                          `&{}{target_name}`",
                         view_access.borrow_modifier(),
-                    ))
-                    .with_source_span(source_span),
-                );
+                    ),
+                ));
                 return;
             }
             let interior = byte_region_footprint(
@@ -300,14 +291,13 @@ fn judge_scalar_recast_alternative(
                 if writable_view
                     && !byte_region_allows_arbitrary_writes(program, machine, state, source)
                 {
-                    diagnostics.push(Diagnostic::error(format!(
+                    diagnostics.push(recast_refusal(source_span, format!(
                         "{context}: a mutable byte-region recast must preserve the source element's representation facts in BOTH directions"
-                    )).with_source_span(source_span));
+                    )));
                     return;
                 }
                 if !direct_record_view_type_is_fact_free(program, cast.target_type) {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
+                    diagnostics.push(recast_refusal(source_span, format!(
                             "{context}: byte-region recast target `{target_name}` must be recursively \
                              fact-free; unchecked bytes cannot establish constrained fields, bool, \
                              or record invariants{}",
@@ -316,9 +306,7 @@ fn judge_scalar_recast_alternative(
                             } else {
                                 ""
                             },
-                        ))
-                        .with_source_span(source_span),
-                    );
+                    )));
                     return;
                 }
                 return;
@@ -343,8 +331,9 @@ fn judge_scalar_recast_alternative(
                 if compatible {
                     return;
                 }
-                diagnostics.push(
-                    Diagnostic::error(format!(
+                diagnostics.push(recast_refusal(
+                    source_span,
+                    format!(
                         "{context}: {} aggregate aliases require identical layout geometry and {}; \
                          the source and target `{target_name}` are not representation-compatible",
                         if writable_view { "mutable" } else { "shared" },
@@ -353,20 +342,16 @@ fn judge_scalar_recast_alternative(
                         } else {
                             "source leaf facts implying every target leaf fact"
                         },
-                    ))
-                    .with_source_span(source_span),
-                );
+                    ),
+                ));
                 return;
             }
         }
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: recast target `{target_name}` is not a scalar primitive or an \
                  eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes \
                  land with the byte-view rung"
-            ))
-            .with_source_span(source_span),
-        );
+        )));
         return;
     }
     let Some(target) = exact_scalar_representation_type(program, cast.target_type) else {
@@ -376,13 +361,10 @@ fn judge_scalar_recast_alternative(
         crate::value_custody::places::unwrapped_type_reference(program, let_referee)
             .and_then(|unwrapped| exact_scalar_representation_type(program, unwrapped));
     if let_primitive != Some(target) {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: the let's declared type must restate the recast target `&{target_name}` \
                  (the stated shape is the single source of truth for reads through the view)"
-            ))
-            .with_source_span(source_span),
-        );
+        )));
         return;
     }
 
@@ -404,9 +386,9 @@ fn judge_scalar_recast_alternative(
     }
     if let ByteRegionFootprint::Contained = interior {
         if writable_view && !byte_region_allows_arbitrary_writes(program, machine, state, source) {
-            diagnostics.push(Diagnostic::error(format!(
+            diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: a mutable byte-region recast must preserve the source element's representation facts in BOTH directions"
-            )).with_source_span(source_span));
+            )));
             return;
         }
         let target_facts = mutable_scalar_representation_facts(program, let_referee);
@@ -423,8 +405,9 @@ fn judge_scalar_recast_alternative(
             }
         });
         if !compatible {
-            diagnostics.push(
-                Diagnostic::error(format!(
+            diagnostics.push(recast_refusal(
+                source_span,
+                format!(
                     "{context}: a {} recast {}; a raw byte region cannot establish the target's \
                      representation facts",
                     if writable_view { "mutable" } else { "shared" },
@@ -433,9 +416,8 @@ fn judge_scalar_recast_alternative(
                     } else {
                         "may weaken established facts but cannot strengthen them"
                     },
-                ))
-                .with_source_span(source_span),
-            );
+                ),
+            ));
             return;
         }
         return;
@@ -443,14 +425,14 @@ fn judge_scalar_recast_alternative(
     let source_primitive = source_type
         .and_then(|type_reference| exact_scalar_representation_type(program, type_reference));
     let Some(source_primitive) = source_primitive else {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!(
                 "{context}: a recast re-views a PLACE's bytes -- the source must be a borrowed \
                  scalar place (`&x as &{target_name}`); record sources and temporaries land \
                  with the byte-view rung"
-            ))
-            .with_source_span(source_span),
-        );
+            ),
+        ));
         return;
     };
     let (Some(source_size), Some(target_size)) = (
@@ -460,15 +442,15 @@ fn judge_scalar_recast_alternative(
         return;
     };
     if source_size != target_size {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!(
                 "{context}: a recast re-views the SAME bytes, so the shapes must agree on \
                  size (§5b rule 1) -- source `{}` is {source_size} bytes, target \
                  `{target_name}` is {target_size} bytes",
                 source_primitive.name()
-            ))
-            .with_source_span(source_span),
-        );
+            ),
+        ));
         return;
     }
 
@@ -510,12 +492,12 @@ fn judge_scalar_recast_alternative(
             .zip(target_atomic)
             .is_some_and(|(source, target)| source != target)
     {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!(
                 "{context}: a shared recast must preserve atomic observation and mutation authority"
-            ))
-            .with_source_span(source_span),
-        );
+            ),
+        ));
         return;
     }
     let shared_observation_compatible =
@@ -585,6 +567,12 @@ fn interior_offset_unproven_rejected(
     false
 }
 
+/// Report a recast refusal at the cast's own source coordinate. Every rung
+/// rejects against the same written cast, so the tag travels with the message.
+fn recast_refusal(source_span: source::SourceSpan, message: impl Into<String>) -> Diagnostic {
+    Diagnostic::error(message).with_source_span(source_span)
+}
+
 fn footprint_rejected(
     footprint: &ByteRegionFootprint,
     diagnostics: &mut Vec<Diagnostic>,
@@ -617,25 +605,23 @@ fn judge_slice_recast(
     if program.normalized_type_identity(let_referee)
         != program.normalized_type_identity(cast.target_type)
     {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!(
                 "{context}: the let's declared type must restate the recast target \
                  `&{}{target_label}`",
                 view_access.borrow_modifier(),
-            ))
-            .with_source_span(source_span),
-        );
+            ),
+        ));
         return;
     }
 
     let source = strip_mutable(program, cast.value);
     let Some(element_representation) = type_representation(program, element_type) else {
-        diagnostics.push(
-            Diagnostic::error(format!(
-                "{context}: slice target `{target_label}` needs a fixed-layout element type"
-            ))
-            .with_source_span(source_span),
-        );
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!("{context}: slice target `{target_label}` needs a fixed-layout element type"),
+        ));
         return;
     };
 
@@ -656,24 +642,24 @@ fn judge_slice_recast(
         let target_fact_free =
             record_view_type_is_fact_free(program, element_type, &mut HashSet::new());
         if !target_tiled || !target_fact_free {
-            diagnostics.push(
-                Diagnostic::error(format!(
+            diagnostics.push(recast_refusal(
+                source_span,
+                format!(
                     "{context}: interior slice recast `{target_label}` requires a recursively \
                      fact-free element whose scalar leaves exactly tile its byte stride; raw \
                      storage cannot establish element facts or implicit padding"
-                ))
-                .with_source_span(source_span),
-            );
+                ),
+            ));
             return;
         }
         if offset > region_length {
-            diagnostics.push(
-                Diagnostic::error(format!(
+            diagnostics.push(recast_refusal(
+                source_span,
+                format!(
                     "{context}: interior slice recast starts at byte {offset}, past the \
                      {region_length}-byte source region"
-                ))
-                .with_source_span(source_span),
-            );
+                ),
+            ));
             return;
         }
         let exact_offset = exact_interior_byte_region_offset(program, machine, state, source);
@@ -683,15 +669,15 @@ fn judge_slice_recast(
                 || element_representation.size == 0
                 || !(remaining as usize).is_multiple_of(element_representation.size)
             {
-                diagnostics.push(
-                    Diagnostic::error(format!(
+                diagnostics.push(recast_refusal(
+                    source_span,
+                    format!(
                         "{context}: interior slice target `{target_label}` does not exactly tile \
                          the {remaining} bytes remaining at offset {exact_offset} with {}-byte \
                          elements",
                         element_representation.size,
-                    ))
-                    .with_source_span(source_span),
-                );
+                    ),
+                ));
             }
         } else if element_representation.size != 1 {
             // Congruent runtime offsets admit without an exact value: when
@@ -713,16 +699,13 @@ fn judge_slice_recast(
                         )
                 );
             if !congruent {
-                diagnostics.push(
-                    Diagnostic::error(format!(
+                diagnostics.push(recast_refusal(source_span, format!(
                         "{context}: cannot prove exact tiling for interior slice `{target_label}`: \
                          the runtime byte offset may leave a remainder for {}-byte elements; use a \
                          statically exact offset or validate the dynamic region before establishing \
                          the typed slice",
                         element_representation.size,
-                    ))
-                    .with_source_span(source_span),
-                );
+                )));
             }
         }
         return;
@@ -734,35 +717,33 @@ fn judge_slice_recast(
         Some(state),
         source,
     ) else {
-        diagnostics.push(
-            Diagnostic::error(format!(
-                "{context}: a slice recast re-views a fixed-layout PLACE's complete bytes"
-            ))
-            .with_source_span(source_span),
-        );
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!("{context}: a slice recast re-views a fixed-layout PLACE's complete bytes"),
+        ));
         return;
     };
     let Some(source_representation) = type_representation(program, source_type) else {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!(
                 "{context}: slice recast source `{}` has no fixed representation",
                 program.display_type_reference(source_type)
-            ))
-            .with_source_span(source_span),
-        );
+            ),
+        ));
         return;
     };
     if element_representation.size == 0
         || source_representation.size % element_representation.size != 0
     {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!(
                 "{context}: slice target `{target_label}` does not exactly tile the source's {} \
                  bytes with {}-byte elements",
                 source_representation.size, element_representation.size,
-            ))
-            .with_source_span(source_span),
-        );
+            ),
+        ));
         return;
     }
 
@@ -772,12 +753,10 @@ fn judge_slice_recast(
         element_count,
         element_representation.size,
     ) else {
-        diagnostics.push(
-            Diagnostic::error(format!(
-                "{context}: slice target `{target_label}` representation overflows"
-            ))
-            .with_source_span(source_span),
-        );
+        diagnostics.push(recast_refusal(
+            source_span,
+            format!("{context}: slice target `{target_label}` representation overflows"),
+        ));
         return;
     };
 
@@ -805,8 +784,7 @@ fn judge_slice_recast(
         record_representation_implies(program, &source_representation, &target_representation)
     };
     if !compatible {
-        diagnostics.push(
-            Diagnostic::error(format!(
+        diagnostics.push(recast_refusal(source_span, format!(
                 "{context}: slice recast `{target_label}` does not preserve exact byte tiling and {}; \
                  raw storage cannot establish element facts",
                 if writable_view {
@@ -814,9 +792,7 @@ fn judge_slice_recast(
                 } else {
                     "source-to-target fact implication"
                 },
-            ))
-            .with_source_span(source_span),
-        );
+        )));
     }
 }
 
