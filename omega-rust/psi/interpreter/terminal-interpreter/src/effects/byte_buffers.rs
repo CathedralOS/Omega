@@ -364,16 +364,19 @@ impl TerminalExecution<'_> {
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
             {
-                resolved.storage_inputs.capture_fields(
-                    self,
-                    parameter,
-                    argument,
-                    &resolved.values[argument_index],
-                    resolved.element_views[argument_index].as_ref(),
-                    resolved.aggregate_backings[argument_index].as_ref(),
-                    argument_index,
-                    normal_qualifications,
-                )?;
+                resolved
+                    .storage_inputs
+                    .capture_fields(
+                        self,
+                        parameter,
+                        argument,
+                        &resolved.values[argument_index],
+                        resolved.element_views[argument_index].as_ref(),
+                        resolved.aggregate_backings[argument_index].as_ref(),
+                        argument_index,
+                        normal_qualifications,
+                    )
+                    .map_err(|error| error.in_argument_preparation("capture host storage cells"))?;
             }
         }
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {

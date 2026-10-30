@@ -591,7 +591,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_declaration.structural_parameters,
         )?;
         boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
-        boundary_arguments.prepare_original_storage(self, handler, boundary)?;
+        boundary_arguments
+            .prepare_original_storage(self, handler, boundary)
+            .map_err(|error| error.in_argument_preparation("realize original host storage"))?;
         // Complete ordinary storage/custody checking above before presenting
         // exact admitted abstract payloads to the host. Borrowed arguments keep
         // their original storage/descriptor route; an atom grants no loan.
@@ -718,7 +720,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
-        boundary_arguments.validate_writeback(self, boundary_declaration)?;
+        boundary_arguments
+            .validate_writeback(self, boundary_declaration)
+            .map_err(|error| error.in_argument_preparation("restore captured host storage"))?;
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }

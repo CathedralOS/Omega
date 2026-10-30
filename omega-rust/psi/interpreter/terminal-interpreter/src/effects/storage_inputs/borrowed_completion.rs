@@ -36,12 +36,11 @@ pub(super) fn stage(
             &binding.normal_qualifications,
         )?;
     }
-    let owner = StructuralRuntimePlace::from(&binding.referent);
     for scalar in &binding.scalars {
         if binding.access == StructuralAccess::MutableBorrow {
             execution.validate_scalar_loan_restoration(
                 &scalar.storage,
-                &owner,
+                &scalar.restoration_owner,
                 &binding.normal_qualifications,
             )?;
         }

@@ -199,6 +199,7 @@ pub(crate) struct PinnedScalar {
     pub shared: bool,
     pub original: TerminalScalarValue,
     pub restriction: Option<StructuralFieldType>,
+    pub restoration_owner: StructuralRuntimePlace,
 }
 
 pub(crate) fn describe(
@@ -585,19 +586,37 @@ pub(crate) fn capture(
                 ..
             } => {
                 let (storage, logical, shared) =
-                    scalar_storage(execution, referent, array_loan, aggregate, access, leaf)?;
+                    scalar_storage(execution, referent, array_loan, aggregate, access, leaf)
+                        .map_err(|error| {
+                            error.in_argument_preparation("project captured host scalar")
+                        })?;
                 if logical != *scalar {
                     return Err(malformed());
                 }
+                // A re-view's authenticated projection can use a different
+                // descriptor namespace from its physical cells. Preserve the
+                // actual source owner's memberships, not that presentation's
+                // incidental path. The captured endpoint/region still bounds
+                // access; this ancestor scope grants no additional cells.
+                let restoration_owner = aggregate
+                    .and_then(|_| {
+                        crate::effects::scalar_loans::scalar_qualification_owner(&storage)
+                    })
+                    .cloned()
+                    .unwrap_or_else(|| StructuralRuntimePlace::from(referent));
                 // Owned payload snapshots publish no replacement or loan. Their
                 // qualifications remain on the consumed argument; a read cannot
                 // weaken that owner or manufacture another qualified value.
                 if access == StructuralAccess::MutableBorrow {
-                    execution.validate_scalar_loan_restoration(
-                        &storage,
-                        &crate::values::StructuralRuntimePlace::from(referent),
-                        normal_qualifications,
-                    )?;
+                    execution
+                        .validate_scalar_loan_restoration(
+                            &storage,
+                            &restoration_owner,
+                            normal_qualifications,
+                        )
+                        .map_err(|error| {
+                            error.in_argument_preparation("preserve captured scalar source owner")
+                        })?;
                 }
                 let value = execution.read_primitive_storage(
                     source,
@@ -630,6 +649,7 @@ pub(crate) fn capture(
                     shared,
                     original: value,
                     restriction: original_restriction,
+                    restoration_owner,
                 });
                 TerminalStorageContents::Scalar {
                     value,
