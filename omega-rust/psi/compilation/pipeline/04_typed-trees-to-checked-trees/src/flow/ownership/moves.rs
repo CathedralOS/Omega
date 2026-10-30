@@ -144,9 +144,22 @@ pub(super) fn append_move_events_for_expression(
             // the argument's runtime contents. Every other reach keeps the
             // real move so the borrowed-window and shared-loan rejections
             // stand.
-            if (value_type
-                .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
-                && reference_slot_is_borrowed(program, state_symbol, statement_index, &place))
+            // Reusable reference observations are not owned descriptor
+            // transfers. Only a receiving use requesting that same reference
+            // carrier can consume its slot; numeric and predicate operands
+            // read through it. Explicit borrowing still owns its own capture.
+            let observes_reference = value_type.is_some_and(|reference| {
+                validation::reference_shell(program, reference).is_some()
+                    && (!expected_type.is_valid()
+                        || !validation::declared_carriers_match(program, reference, expected_type)
+                        || reference_slot_is_borrowed(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            &place,
+                        ))
+            });
+            if observes_reference
                 || observations::detached_borrowed_copy_admitted(
                     program,
                     state_symbol,
@@ -239,7 +252,7 @@ pub(super) fn append_move_events_for_expression(
             append_child!(binary.left, Default::default());
             append_child!(binary.right, Default::default());
         }
-        ExpressionNode::Cast(cast) => append_child!(cast.value, Default::default()),
+        ExpressionNode::Cast(cast) => append_child!(cast.value, cast.target_type),
         ExpressionNode::Unary(unary) => append_child!(unary.operand, Default::default()),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in program
