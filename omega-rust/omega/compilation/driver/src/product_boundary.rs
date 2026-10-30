@@ -2,6 +2,35 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn final_representation_admission_belongs_to_psi_checking() {
+    let coordinator = include_str!("checked/checking/source_checking.rs");
+    assert!(coordinator.contains("psi_compiler::ProductRepresentationInput"));
+    for forbidden in [
+        "rederive_opaque_representation_selections(",
+        "OpaqueDataPropertyReceipt::copy(",
+        "CheckedSemanticCopy",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
+    assert!(!checking.contains("pub opaque_properties:"));
+    assert!(!checking.contains("pub opaque_representations:"));
+    assert!(checking.contains("rederive_opaque_representation_selections("));
+    assert!(checking.contains("OpaqueDataPropertyReceipt::copy("));
+    let admission = checking
+        .find("self.admission.representations.admit(&program)")
+        .unwrap();
+    let completion = checking
+        .find("validation::source_completion::prepare_source_completion(")
+        .unwrap();
+    let reuse = checking.find("prior.judges_preparation_input(").unwrap();
+    assert!(admission < completion && completion < reuse);
+}
+
+#[test]
 fn product_policy_admission_has_one_source_owner() {
     let coordinator = include_str!("checked/checking/product_selections.rs");
     for forbidden in [
