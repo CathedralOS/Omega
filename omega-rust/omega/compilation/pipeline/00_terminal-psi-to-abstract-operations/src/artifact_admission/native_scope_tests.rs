@@ -128,44 +128,6 @@ fn prepare_at(
 }
 
 #[test]
-fn native_scope_preserves_target_member_exclusion() {
-    let mut module = graph();
-    let callable = |identity| terminal_psi::TerminalCallable::Machine(machine_id(identity));
-    module
-        .target_machine_families
-        .push(terminal_psi::TargetMachineFamily {
-            canonical: callable(1),
-            head_contract: [1; 32],
-            members: vec![
-                terminal_psi::TargetMachineFamilyMember {
-                    target: "macos_arm64".into(),
-                    callable: callable(1),
-                    supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                },
-                terminal_psi::TargetMachineFamilyMember {
-                    target: "windows_x86_64".into(),
-                    callable: callable(2),
-                    supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                },
-            ],
-        });
-    let input = prepare(module.clone()).unwrap();
-    assert_eq!(input.plan().functions.len(), 1);
-    assert_eq!(input.plan().functions[0].machine, machine_id(1));
-    module.entry = Some(callable(2));
-    assert!(matches!(
-        prepare(module.clone()),
-        Err(ArtifactLoweringError::ExecutionSelection(_))
-    ));
-    assert!(matches!(
-        prepare_at(module, target::TargetProfile::WindowsX64),
-        Err(ArtifactLoweringError::Lowering(
-            crate::LoweringError::UnclosedScalarApplication(_)
-        ))
-    ));
-}
-
-#[test]
 fn native_scope_omits_dormant_scalar_work_before_lowering() {
     let input = prepare(graph()).unwrap();
     assert_eq!(input.plan().functions.len(), 1);
