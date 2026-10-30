@@ -47,9 +47,11 @@ mod static_argument_scope;
 
 use constraint_validation::validate_type_constraints_node;
 pub(crate) use generic_arguments::{
-    AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
+    AppliedValueCarrier, check_closed_const_expression_in_carrier,
+    const_argument_matches_parameter, const_integer_value_fits_primitive,
     exact_const_carrier_is_eligible, validate_const_binder_carriers, validate_exact_const_identity,
-    validate_exact_const_identity_in_carrier, validate_exact_typed_structured_const_argument,
+    validate_exact_const_identity_in_carrier, validate_exact_const_value_encoding_in_carrier,
+    validate_exact_typed_structured_const_argument,
 };
 pub use generic_arguments::{check_closed_const_expression, normalize_closed_const_expression};
 use generic_arguments::{

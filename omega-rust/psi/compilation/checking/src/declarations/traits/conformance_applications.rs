@@ -287,7 +287,7 @@ fn close_selected_conformance(
     let mut type_arguments = Vec::new();
     let mut const_arguments = Vec::new();
     let mut machine_arguments = Vec::new();
-    for (parameter, argument) in parameters.iter().zip(supplied) {
+    for (position, (parameter, argument)) in parameters.iter().zip(supplied).enumerate() {
         match &parameter.kind {
             TypeParameterKind::Implementation => {
                 return Err(category_error(
@@ -310,11 +310,31 @@ fn close_selected_conformance(
             }
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => {
+                let mut prior_consts = const_arguments.iter();
+                let carrier_values = parameters[..position]
+                    .iter()
+                    .filter_map(|prior| {
+                        if !prior.kind.is_const_or_value() {
+                            return None;
+                        }
+                        match prior_consts.next()? {
+                            ClosedConformanceConstArgument::Evaluated { value, .. } => {
+                                Some((prior.symbol, value))
+                            }
+                            _ => None,
+                        }
+                    })
+                    .collect::<Vec<_>>();
                 let (argument, substitution_identity) = close_const_argument(
                     program,
                     declaration_name,
                     parameter.name.as_str(),
-                    *type_reference,
+                    crate::value_custody::type_references::AppliedValueCarrier::applied_operands(
+                        *type_reference,
+                        &parameters[..position],
+                        &supplied[..position],
+                        &carrier_values,
+                    ),
                     argument,
                 )?;
                 substitutions.push((parameter.symbol, substitution_identity));
@@ -484,9 +504,11 @@ fn close_const_argument(
     program: &dyn crate::CheckingInput,
     conformance: &str,
     parameter: &str,
-    parameter_carrier: TypeReferenceHandle,
+    carrier: crate::value_custody::type_references::AppliedValueCarrier<'_>,
     argument: &StaticMachineArgument,
 ) -> Result<(ClosedConformanceConstArgument, String), Diagnostic> {
+    let parameter_carrier = carrier.reference();
+    let resolved_carrier = carrier.resolved(program).reference();
     if let Some(literal) = argument.const_literal.as_ref() {
         let value = literal.decimal_value_i128().ok_or_else(|| {
             Diagnostic::error(format!(
@@ -496,7 +518,7 @@ fn close_const_argument(
         })?;
         let primitive = program
             .type_reference_table
-            .primitive_type(parameter_carrier)
+            .primitive_type(resolved_carrier)
             .filter(|primitive| primitive.accepts_integer_literal())
             .ok_or_else(|| {
                 Diagnostic::error(format!(
@@ -506,7 +528,7 @@ fn close_const_argument(
         let value = CanonicalConstIdentity::integer(primitive.name(), value);
         crate::validate_exact_const_value_encoding(
             program,
-            parameter_carrier,
+            resolved_carrier,
             value.encoding.as_str(),
         )
         .map_err(|reason| {
@@ -517,7 +539,7 @@ fn close_const_argument(
         return Ok((
             ClosedConformanceConstArgument::Evaluated {
                 parameter_carrier,
-                declared_carrier: parameter_carrier,
+                declared_carrier: resolved_carrier,
                 value,
             },
             literal.to_string(),
@@ -535,6 +557,48 @@ fn close_const_argument(
         {
             return Err(category_error(conformance, parameter, "const", argument));
         }
+        // Reuse the common Source formation/canonical-value owner. Open
+        // recipes remain descriptions, never an evaluated portable binding.
+        if typed_trees::domain::index_argument_is_closed(
+            program.typed_program(),
+            argument.type_reference,
+        ) {
+            let owner = program
+                .type_reference_table
+                .operand_lifetime_owner(argument.type_reference);
+            if !owner.is_valid() {
+                return Err(Diagnostic::error(format!(
+                    "conformance `{conformance}` Const parameter `{parameter}` has a closed expression without its supplying declaration",
+                )));
+            }
+            if let Some(value) =
+                crate::value_custody::type_references::check_closed_const_expression_in_carrier(
+                    program,
+                    owner,
+                    *expression,
+                    carrier,
+                )
+                .map_err(|errors| {
+                    Diagnostic::error(
+                        errors
+                            .iter()
+                            .map(|error| error.message.as_str())
+                            .collect::<Vec<_>>()
+                            .join("; "),
+                    )
+                })?
+            {
+                let identity = value.identity();
+                return Ok((
+                    ClosedConformanceConstArgument::Evaluated {
+                        parameter_carrier,
+                        declared_carrier: resolved_carrier,
+                        value: identity,
+                    },
+                    value.atom(),
+                ));
+            }
+        }
         // This is category/carrier closure, not arithmetic formation evidence.
         // The ordinary selected-expression checker still discharges each
         // operation under the supplying declaration's contracts.
@@ -542,7 +606,7 @@ fn close_const_argument(
             program,
             *expression,
             &TypeParameterKind::Const {
-                type_reference: parameter_carrier,
+                type_reference: resolved_carrier,
             },
             program
                 .type_reference_table
@@ -570,15 +634,15 @@ fn close_const_argument(
         && let [atom] = argument.path.as_ref()
         && let Some(value) = CanonicalConstValue::from_atom(atom.as_str())
     {
-        crate::value_custody::type_references::validate_exact_const_identity(
-            program, parameter_carrier, &value.identity(),
+        crate::value_custody::type_references::validate_exact_const_identity_in_carrier(
+            program, carrier, &value.identity(),
         ).map_err(|reason| Diagnostic::error(format!(
             "conformance `{conformance}` parameter `{parameter}` has an invalid canonical value: {reason}"
         )))?;
         return Ok((
             ClosedConformanceConstArgument::Evaluated {
                 parameter_carrier,
-                declared_carrier: parameter_carrier,
+                declared_carrier: resolved_carrier,
                 value: value.identity(),
             },
             value.atom(),
@@ -633,15 +697,24 @@ fn close_const_argument(
             argument.display_name(),
         )));
     };
-    for carrier in [declaration.declared_type, parameter_carrier] {
-        crate::validate_exact_const_value_encoding(program, carrier, encoding).map_err(
-            |reason| {
-                Diagnostic::error(format!(
-                    "conformance `{conformance}` parameter `{parameter}` names const `{}` whose canonical value does not replay against its exact carriers: {reason}",
-                    argument.display_name(),
-                ))
-            },
-        )?;
+    if !carrier.matches(program, declaration.declared_type) {
+        return Err(Diagnostic::error(format!(
+            "conformance `{conformance}` parameter `{parameter}` names const `{}` with a different declared carrier",
+            argument.display_name(),
+        )));
+    }
+    for checked_carrier in [
+        crate::value_custody::type_references::AppliedValueCarrier::ordinary(
+            declaration.declared_type,
+        ),
+        carrier,
+    ] {
+        crate::value_custody::type_references::validate_exact_const_value_encoding_in_carrier(
+            program, checked_carrier, encoding,
+        ).map_err(|reason| Diagnostic::error(format!(
+            "conformance `{conformance}` parameter `{parameter}` names const `{}` whose canonical value does not replay against its exact carriers: {reason}",
+            argument.display_name(),
+        )))?;
     }
     let value = CanonicalConstIdentity {
         type_name: program.normalized_type_identity_text(declaration.declared_type),

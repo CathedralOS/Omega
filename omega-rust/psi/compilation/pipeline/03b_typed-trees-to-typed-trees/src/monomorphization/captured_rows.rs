@@ -400,13 +400,20 @@ fn realize_capture(
                         // fresh expression recipe used by contract views.
                         let reference = match application.const_arguments.get(const_ordinal) {
                                 Some(typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
-                                    ..
+                                    value, ..
                                 }) => {
                                     // Use the shared static-operand namespace:
                                     // integers retain literal identity; aggregate
                                     // atoms retain the original carrier display.
-                                    let atom = super::const_arguments::spelling(program, argument)
-                                        .ok_or_else(|| vec![Diagnostic::error("evaluated map capture lost its canonical source operand")])?;
+                                    let canonical = language_semantics::const_value::CanonicalConstValue::new(
+                                        value.type_name.clone(), value.encoding.clone(), "",
+                                    );
+                                    let selected_value = typed_trees::expression::StaticMachineArgument {
+                                        path: vec![typed_trees::name::Identifier::generated(canonical.atom())].into_boxed_slice(),
+                                        ..Default::default()
+                                    };
+                                    let atom = super::const_arguments::spelling(program, &selected_value)
+                                        .ok_or_else(|| vec![Diagnostic::error("evaluated map capture lost its canonical value identity")])?;
                                     program.type_reference_table.insert(
                                         typed_trees::types::TypeReferenceNode::Named {
                                             symbol: SymbolHandle::invalid(),
