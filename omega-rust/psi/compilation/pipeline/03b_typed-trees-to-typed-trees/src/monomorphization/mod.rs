@@ -653,6 +653,11 @@ mod operator_candidates;
 use crate::monomorphization::selection::unique_complete_selections;
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
 
+/// One failure, as the errors these passes hand back carry it.
+pub(super) fn failed(message: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(message)]
+}
+
 /// Keep the failed occurrence's source context; the callee alone cannot identify
 /// which of several forwarded applications failed to close.
 fn incomplete_selection_diagnostic(

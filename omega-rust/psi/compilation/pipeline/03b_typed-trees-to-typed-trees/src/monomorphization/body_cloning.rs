@@ -6,7 +6,7 @@ use validation::collect_statement_expression_trees;
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, HandleSpan, StatementNode, SymbolHandle,
-    SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees, failed,
 };
 use crate::monomorphization::body_rewriting::{
     cloned_expression_roots, rebind_state_value_parameters,
@@ -889,11 +889,7 @@ pub(super) fn clone_single_specialized_machine(
             .collect::<Vec<_>>();
         let selecting = program
             .conformance_by_symbol(application.declaration)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "capture application lost its selecting declaration",
-                )]
-            })?;
+            .ok_or_else(|| failed("capture application lost its selecting declaration"))?;
         let scope = typed_trees::trait_definition::AppliedTraitScope::from_conformance_application(
             program,
             selecting,
@@ -904,11 +900,7 @@ pub(super) fn clone_single_specialized_machine(
                 lifetimes: &lifetimes,
             },
         )
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "capture application has no complete supplying scope",
-            )]
-        })?;
+        .ok_or_else(|| failed("capture application has no complete supplying scope"))?;
         let environment = scope.environment();
         let references = program
             .type_reference_table
