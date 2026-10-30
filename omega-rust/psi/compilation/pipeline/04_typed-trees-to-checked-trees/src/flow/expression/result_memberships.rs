@@ -100,16 +100,8 @@ impl Execution<'_, '_, '_> {
                 },
                 &dependencies,
             );
-            crate::flow::reference_spans::append_flow_reference(
-                &mut self.context.contexts.semantic_context_refs,
-                contexts,
-                FlowSemanticContextRef { context },
-            );
-            crate::flow::append_constraint_ref(
-                &mut self.context.contexts.constraint_refs,
-                constraints,
-                checked_trees::FlowConstraintKind::SemanticContext { context },
-            );
+            self.context
+                .append_semantic_context(contexts, constraints, context);
         }
         value.constraints = *constraints;
     }
