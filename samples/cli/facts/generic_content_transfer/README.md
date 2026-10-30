@@ -56,6 +56,22 @@ Its behavior remains a no-op, so this row claims no observable cleanup side effe
   are recorded with the migration qualification; bindings alone establish no
   other-host execution.
 
+## Recorded migration evidence
+
+The optimized producer at fixed base `e3d308817192` first ran the untouched row:
+all nine positives exited 0 in both engines, and all nine loss twins rejected
+for the conservation postcondition. After migration, the same verified producer
+ran all nine positives and loss twins again with those outcomes; its compiler,
+library and Cargo input closure is unchanged. The pinned Source comparison has
+18 observations and zero losses; nine pinned ARM64 native/Terminal executions
+agree at 0. A Terminal-only counterfactual keeps the original owned transfer
+but swaps the selected arm, and another corrupts its later scalar observation;
+both trap, while the unmodified join exits 0.
+
+Execution acceptance is macOS ARM64. An optional cross-target capture failed at
+an immutable artifact-path collision and supplies no execution evidence. The
+row does not claim other-host native or cross-target installation acceptance.
+
 ## Remaining parent acceptance
 
 The allocator still requires actual-backed vacancy, initialization, placed read,

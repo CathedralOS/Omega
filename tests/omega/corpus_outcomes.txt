@@ -9511,39 +9511,24 @@ fail/facts/generic_comparison_body_through_target_body_rejected rejected 2186ms 
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/generic_content_transfer_through_call_result_rejected rejected 4396ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_const_name_rejected rejected 4380ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_field_rejected rejected 4358ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_local_rejected rejected 4195ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_match_join_rejected rejected 4006ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_other_machine_rejected rejected 3429ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_other_state_rejected rejected 3484ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_parameter_rejected rejected 4207ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_target_body_rejected rejected 2599ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_call_result_rejected rejected 1054ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_const_name_rejected rejected 1084ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_field_rejected rejected 1125ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_local_rejected rejected 1049ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_match_join_rejected rejected 1092ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_other_machine_rejected rejected 1064ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_other_state_rejected rejected 1066ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_parameter_rejected rejected 1071ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_target_body_rejected rejected 1046ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 fail/facts/guarded_line_loan_through_call_result_rejected rejected 2591ms expected @a92f16431042
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -28194,15 +28179,15 @@ pass/facts/generic_comparison_body_through_other_machine_exit checked 2460ms che
 pass/facts/generic_comparison_body_through_other_state_exit checked 2444ms check-target:macos_arm64 @a92f16431042
 pass/facts/generic_comparison_body_through_parameter_exit checked 2409ms check-target:macos_arm64 @a92f16431042
 pass/facts/generic_comparison_body_through_target_body_exit checked 2279ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_call_result_exit checked 3764ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_const_name_exit checked 4077ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_field_exit checked 4011ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_local_exit checked 4033ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_match_join_exit checked 4069ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_other_machine_exit checked 3142ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_other_state_exit checked 2723ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_parameter_exit checked 2734ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_target_body_exit checked 2064ms check-target:macos_arm64 @a92f16431042
+pass/facts/generic_content_transfer_through_call_result_exit checked 1453ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_const_name_exit checked 1394ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_field_exit checked 1405ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_local_exit checked 1348ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_match_join_exit checked 1379ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_other_machine_exit checked 1305ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_other_state_exit checked 1385ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_parameter_exit checked 1307ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_target_body_exit checked 1435ms check-target:macos_arm64 @29b6d7aad7f6
 pass/facts/guarded_line_loan_through_call_result_exit checked 2416ms check-target:macos_arm64 @a92f16431042
 pass/facts/guarded_line_loan_through_const_name_exit checked 2390ms check-target:macos_arm64 @a92f16431042
 pass/facts/guarded_line_loan_through_field_exit checked 2390ms check-target:macos_arm64 @a92f16431042
