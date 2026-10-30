@@ -47,7 +47,7 @@ pub(super) fn public_bindings(
     // consume the source recipe retained on the invocation application.
     super::super::super::body_rewriting::normalize_const_arguments(program, owner, &mut arguments)
         .map_err(|message| vec![Diagnostic::error(message)])?;
-    super::super::invocation_bindings(program, &parameters, &arguments).map(Some)
+    super::super::invocation_bindings(program, owner, &parameters, &arguments).map(Some)
 }
 
 /// Recover the method's complete tuple from its own retained inference.

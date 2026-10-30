@@ -109,6 +109,13 @@ pub(crate) fn instantiate_requirement_applications(
             }
         };
         for invocation in tuples {
+            // A roster-only finite tuple has no caller; its declaration owns
+            // those static operands. Actual calls retain their supplying owner.
+            let lexical_owner = if invocation.owner.is_valid() {
+                invocation.owner
+            } else {
+                requirement
+            };
             let mut arguments = invocation.arguments;
             // Closed instances consume a derived tuple. Keep the occurrence's
             // authored recipes available to final formation checking.
@@ -139,7 +146,7 @@ pub(crate) fn instantiate_requirement_applications(
                     | typed_trees::data::TypeParameterKind::Const { .. }
                     | typed_trees::data::TypeParameterKind::Value { .. } => {
                         let actual = program
-                            .static_operand_type_reference(argument)
+                            .static_operand_type_reference_in_scope(argument, lexical_owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?;
                         open |= super::contextual_calls::operand_is_open(program, actual);
                     }
@@ -153,7 +160,7 @@ pub(crate) fn instantiate_requirement_applications(
             if open {
                 continue;
             }
-            let bindings = invocation_bindings(program, &parameters, &arguments)?;
+            let bindings = invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
             let application = program.expression_table.retain_static_machine_application(
                 requirement,
                 name.clone(),
@@ -162,11 +169,7 @@ pub(crate) fn instantiate_requirement_applications(
             let source = program
                 .expression_table
                 .static_machine_application_mut(application);
-            source.lexical_owner = if invocation.owner.is_valid() {
-                invocation.owner
-            } else {
-                requirement
-            };
+            source.lexical_owner = lexical_owner;
             source.binding_declaration = requirement;
             program
                 .expression_table
@@ -208,6 +211,7 @@ pub(crate) fn instantiate_requirement_applications(
 /// Openness prevents executable instantiation, not substitution in a contract.
 pub(crate) fn invocation_bindings(
     program: &mut TypedTrees,
+    lexical_owner: symbols::SymbolHandle,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Result<Vec<StaticMachineBinding>, Vec<Diagnostic>> {
@@ -220,7 +224,7 @@ pub(crate) fn invocation_bindings(
                 value: match &parameter.kind {
                     typed_trees::data::TypeParameterKind::Type => StaticMachineBindingValue::Type(
                         program
-                            .static_operand_type_reference(argument)
+                            .static_operand_type_reference_in_scope(argument, lexical_owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?,
                     ),
                     typed_trees::data::TypeParameterKind::Const { type_reference }
@@ -274,7 +278,7 @@ pub(crate) fn invocation_bindings(
                                 )
                             } else {
                                 program
-                                    .static_operand_type_reference(argument)
+                                    .static_operand_type_reference_in_scope(argument, lexical_owner)
                                     .map_err(|message| vec![Diagnostic::error(message)])?
                             };
                             StaticMachineBindingValue::Const(actual)

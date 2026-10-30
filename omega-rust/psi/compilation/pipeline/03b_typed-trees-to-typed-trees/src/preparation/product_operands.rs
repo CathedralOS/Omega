@@ -301,6 +301,7 @@ pub fn prepare_product_requirement_operand(
         .map_err(|reason| refuse(&reason))?;
         let bindings = crate::monomorphization::requirement_applications::invocation_bindings(
             lower.program,
+            author,
             &parameters,
             &supplied.arguments,
         )?;
