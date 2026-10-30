@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: selected_applied_synchronous_chain_exit [1c52fca7ae67]: no prior revision to compare.
+Standalone candidate source: selected_applied_synchronous_chain_exit [1c52fca7ae67]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\preparation-convergence\cases\candidate-selected_applied_synchronous_chain_exit\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\preparation-convergence\cases\candidate-selected_applied_synchronous_chain_exit\input\build\package-manager\review-windows_x86_64.txt
