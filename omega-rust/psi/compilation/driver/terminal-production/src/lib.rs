@@ -34,7 +34,7 @@ pub use build_requests::{
 };
 pub use checked_trees_to_lowered_psi::lower_task_activation_demands;
 pub use checked_trees_to_lowered_psi::{
-    ExternalProviderDeclarations, PreparedExternalProviderDeclarations,
+    ExternalProviderDeclarations, PreparedExternalProviderDeclarations, PreparedTerminalRoots,
     project_external_provider_declarations,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};

@@ -110,6 +110,11 @@ pub fn prepare_selected_execution(
         &selected_provider_plan_facts,
         settlement.boundary_calling_plan_realizations,
     )?;
+    let callback_roots = psi_terminal_production::PreparedTerminalRoots::prepare(
+        &program,
+        settlement.exact_toolchain_sources,
+        callback_roots,
+    );
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(

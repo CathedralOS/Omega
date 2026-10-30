@@ -972,6 +972,15 @@ calling-plan associations, retaining the whole selected-instance validation
 before per-use policy. Registration failures suppress only that occurrence's
 plan diagnostics; inactive declarations still owe their calling-plan obligations.
 Occurrence order and duplicate roots survive without exported indices.
+Psi closes the selected callback roots into one canonical declaration table
+before selected execution returns. The application companion carries exact
+declarations, not callback source symbols. Composition rejoins each complete
+owner/signature/contract/specialization to exactly one unoptimized body, lazily
+after the semantic entry and before the physical adapter. Unavailable declarations
+remain deferred so checking-only products need no emitted callback body. Diagnostic
+names and spans remain payload; Psi still projects ordinary callee/provider names
+and root-specific caller chains. This transient companion changes no portable
+schema and does not replace dormant source-use admission with emitted reachability.
 The surrounding selected-execution coordinator still consumes this source
 preparation and service declarations; shared checked-instance/adapter projection
 and the complete source-to-Terminal facade migration remain unfinished.
