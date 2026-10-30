@@ -1041,7 +1041,20 @@ impl<'base> ConstantSelection<'base> {
         });
         let definition = declarations
             .next()
-            .ok_or_else(|| "selected nominal carrier lost its declaration".to_owned())?;
+            .ok_or_else(|| {
+                let retained = syntax.root_items().filter_map(|item| match item {
+                    Item::Data(definition)
+                        if definition.name.as_str(syntax) == self.symbols.name(selected) =>
+                    {
+                        Some(format!("{:?}", definition.name.source_span()))
+                    }
+                    _ => None,
+                }).take(8).collect::<Vec<_>>();
+                format!(
+                    "selected nominal carrier lost its declaration: selected={selected:?}, header={span:?}, use={:?}, retained_headers=[{}]",
+                    name.source_span(), retained.join(", "),
+                )
+            })?;
         if declarations.next().is_some() {
             return Err("selected nominal carrier has ambiguous declaration custody".to_owned());
         }
