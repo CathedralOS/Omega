@@ -7,7 +7,7 @@
 //! ABI and provider-plan construction belong to Omega and are not dependencies.
 
 mod admission;
-mod application_dependencies;
+mod checking_applications;
 mod context;
 mod identities;
 mod named_applications;
@@ -17,10 +17,8 @@ mod selection;
 pub use retained_selections::{RetainedProviderApplication, RetainedProviderSelection};
 
 use crate::is_exact_toolchain_build_prelude_data;
-pub(crate) use application_dependencies::{
-    SourceProviderDependencies, source_application_dependencies,
-};
 use checked_trees::typed_trees::TypedTrees;
+pub(crate) use checking_applications::source_checking_applications;
 pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};

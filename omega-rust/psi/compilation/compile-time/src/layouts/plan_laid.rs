@@ -3,23 +3,23 @@ mod layout_installation;
 pub(crate) use layout_installation::compute_plan_laid_layouts_in;
 
 use diagnostics::Diagnostic;
-use typed_trees::{TypedTrees, references::DeclarationSelection};
+use typed_trees::TypedTrees;
 
-/// An explicit deployment scope from Build or the embedding library checker.
-/// None describes the reusable source surface. An empty deployment root roster
-/// instead exports the explicit provider members without inventing a host entry.
+/// An explicit Source checking scope, independent of Native settlement.
+/// Every supplied declaration and member is checked, including defaults and
+/// overrides. None retains the reusable Source surface; Some(empty) carries
+/// provider declarations or authored target bodies without inventing an entry.
 #[derive(Debug, Clone)]
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
-    pub roots: Option<Vec<symbols::SymbolHandle>>,
-    pub overrides: Vec<crate::provider_declarations::ProviderSelection>,
-    pub package_defaults: Vec<crate::provider_declarations::ProviderSelection>,
+    pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
+    pub provider_declarations: Vec<crate::provider_declarations::ProviderSelection>,
 }
 
-/// Close physical representation applications before the settled source judgment.
-/// Pure policy admission checks each selected execution closure independently;
-/// it neither folds source predicates nor supplies native provider authority.
+/// Close Source representation applications before the settled judgment.
+/// Each supplied application contributes its complete checking context, without
+/// choosing a Native provider or supplying installation authority.
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
@@ -58,87 +58,16 @@ pub fn evaluate_fixed_layout_applications(
     let operational = validation::infer_operational_may(typed);
     let mut targets = Vec::new();
     let mut inputs = Vec::new();
-    for scope in scopes {
-        let work = if let Some(roots) = &scope.roots {
-            let discovery = crate::provider_declarations::source_application_dependencies(
-                typed,
-                &scope.target,
-                roots,
-                &scope.overrides,
-                &scope.package_defaults,
-                &defaults,
-                &topology,
-                &operational,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let machines = match discovery {
-                crate::provider_declarations::SourceProviderDependencies::Complete { machines } => {
-                    machines
-                }
-                crate::provider_declarations::SourceProviderDependencies::Unresolved {
-                    machines,
-                    pending,
-                } => {
-                    // This is descriptive discovery, not a successful provider
-                    // settlement. Only independently definite calls contribute
-                    // physical work. Pending coordinates grant no geometry;
-                    // Native must replay the original declarations against its
-                    // realized schemas before storage or executable admission.
-                    for selection in pending {
-                        phase_profile::count(
-                            "05.fixed_layout.unresolved_candidates",
-                            selection.candidate_applications.len() as u64,
-                        );
-                        phase_profile::count(
-                            "05.fixed_layout.unresolved_choices",
-                            selection.errors.len() as u64,
-                        );
-                        phase_profile::count(
-                            "05.fixed_layout.unresolved_calls",
-                            selection.calls.len() as u64,
-                        );
-                    }
-                    machines
-                }
-            };
-            // Checking retains a complete named-map declaration, including
-            // sibling row descriptions. Those dependencies still supply nested
-            // data fields and constant types, but describing a sibling does not
-            // invoke its executable body or its physical layout applications.
-            let dormant_bodies = DeclarationSelection::from_symbols(
-                typed
-                    .machines()
-                    .iter()
-                    .filter(|machine| !machines.contains(&machine.symbol))
-                    .map(|machine| machine.symbol),
-            );
-            crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
-                typed,
-                &machines,
-                &[],
-            )
-            .work()
-            .excluding(&dormant_bodies)
-        } else {
-            DeclarationSelection::from_program(typed)
-        };
-        for occurrence in
-            typed_trees::references::collect_selected_program_type_occurrences(typed, &work)
-        {
-            let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
-                continue;
-            };
-            if typed
-                .closed_data_field_definition(storage.semantic_type)
-                .is_none()
-                || !typed_trees::domain::index_argument_is_closed(typed, storage.policy)
-            {
-                continue;
-            }
-            let facts = scope.facts.as_ref().ok_or_else(|| vec![Diagnostic::error(format!(
-                "fixed representation application `{}` requires unavailable representation facts for `{}`",
-                typed.display_type_reference(storage.application), scope.target,
-            ))])?;
+    let checking = crate::provider_declarations::source_checking_applications(
+        typed,
+        scopes,
+        &defaults,
+        &topology,
+        &operational,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    for (scope, work) in scopes.iter().zip(&checking) {
+        if let Some(facts) = &scope.facts {
             facts
                 .validate()
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -147,9 +76,28 @@ pub fn evaluate_fixed_layout_applications(
                     "fixed representation scope differs from its explicit target facts",
                 )]);
             }
+            // Explicit checking inputs exist independently of whether this
+            // scope happens to contain a closed consumer of an open recipe.
             if !targets.contains(facts) {
                 targets.push(facts.clone());
             }
+        }
+        for occurrence in
+            typed_trees::references::collect_selected_program_type_occurrences(typed, work)
+        {
+            let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
+                continue;
+            };
+            if typed
+                .closed_data_field_definition(storage.semantic_type)
+                .is_none()
+            {
+                continue;
+            }
+            let facts = scope.facts.as_ref().ok_or_else(|| vec![Diagnostic::error(format!(
+                "fixed representation application `{}` requires unavailable representation facts for `{}`",
+                typed.display_type_reference(storage.application), scope.target,
+            ))])?;
             let identity = typed.normalized_type_identity(storage.application);
             let application_identity = typed.type_identity_text(identity).ok_or_else(|| {
                 vec![Diagnostic::error(

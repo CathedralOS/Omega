@@ -99,21 +99,29 @@ pub fn layout_checking_targets(
     program: &dyn CheckingInput,
     roots: impl IntoIterator<Item = TypeReferenceHandle>,
 ) -> Result<Vec<Option<&str>>, ()> {
+    let alternatives = discover_layout_checking_targets(program, roots)?;
     if let Some(target) = program.layout_target() {
-        return Ok(vec![Some(target)]);
+        // An outer query guard selects geometry; it cannot establish that a
+        // participating application actually possesses that alternative.
+        return (alternatives == [None] || alternatives.contains(&Some(target)))
+            .then_some(vec![Some(target)])
+            .ok_or(());
     }
-    discover_layout_checking_targets(program, roots)
+    Ok(alternatives)
 }
 
 fn discover_layout_checking_targets(
     program: &dyn CheckingInput,
     roots: impl IntoIterator<Item = TypeReferenceHandle>,
 ) -> Result<Vec<Option<&str>>, ()> {
-    let mut pending: Vec<_> = roots.into_iter().collect();
+    // Operation roots may name borrowed storage. Once a record/array owns a
+    // field, however, a reference in that field stores only its descriptor;
+    // its pointee is not an inline representation dependency.
+    let mut pending: Vec<_> = roots.into_iter().map(|root| (root, true)).collect();
     let mut visited = Vec::new();
     let mut targets: Option<Vec<Option<&str>>> = None;
-    while let Some(reference) = pending.pop() {
-        if !reference.is_valid() || visited.contains(&reference) {
+    while let Some((reference, root_referent)) = pending.pop() {
+        if !reference.is_valid() || visited.contains(&(reference, root_referent)) {
             continue;
         }
         if !program
@@ -122,13 +130,24 @@ fn discover_layout_checking_targets(
         {
             return Err(());
         }
-        visited.push(reference);
+        visited.push((reference, root_referent));
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::Reference { referee, .. } => {
+                if root_referent {
+                    pending.push((*referee, true));
+                }
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                pending.push((*base_type, root_referent));
+            }
             TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            | TypeReferenceNode::Slice { element_type } => pending.push((*element_type, false)),
             _ => {
+                if program.layout_storage_arguments(reference).is_some()
+                    && program.plan_laid_layout_for_type(reference).is_none()
+                {
+                    return Err(());
+                }
                 let Some(data) =
                     crate::value_custody::places::data_definition_for_type(program, reference)
                 else {
@@ -157,12 +176,19 @@ fn discover_layout_checking_targets(
                     program
                         .data_member_fields(program.data_members(data))
                         .filter(|field| !field.relevance.is_erased())
-                        .map(|field| field.type_reference),
+                        .map(|field| (field.type_reference, false)),
                 );
             }
         }
     }
-    Ok(targets.unwrap_or_else(|| vec![None]))
+    let targets = targets.unwrap_or_else(|| vec![None]);
+    // A retained description without physical alternatives proves no layout
+    // relation. In particular an empty loop must never establish a recast.
+    if targets.is_empty() {
+        Err(())
+    } else {
+        Ok(targets)
+    }
 }
 
 /// The normalized constructor occurrence is the pending obligation. Walk exact

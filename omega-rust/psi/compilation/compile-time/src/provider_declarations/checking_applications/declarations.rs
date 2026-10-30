@@ -1,21 +1,14 @@
-//! Authored choice descriptions preserve tiers and complete static applications.
+//! Supplied declarations retain complete static subject and provider applications.
 use super::super::{ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject};
 use super::schemas::Key;
 use language_semantics::declaration_selection::ProductOperandRole;
-use language_semantics::declaration_selection::provider_choices::Declaration;
 use typed_trees::TypedTrees;
 
-pub(super) struct Choice<'source> {
+pub(super) struct Declaration<'source> {
     pub source: &'source ProviderSelection,
     provider: Key,
 }
-impl<'source> Choice<'source> {
-    pub fn is_family(&self) -> bool {
-        matches!(
-            self.source.subject,
-            ProviderSelectionSubject::BoundaryOperatorFamily(_)
-        )
-    }
+impl<'source> Declaration<'source> {
     pub fn new(program: &TypedTrees, source: &'source ProviderSelection) -> Result<Self, String> {
         validate_identity(program, &source.provider_type, ProductOperandRole::Provider)?;
         match &source.subject {
@@ -44,11 +37,8 @@ impl<'source> Choice<'source> {
         })
     }
 }
-impl Declaration<Key, Key> for Choice<'_> {
-    fn target(&self) -> Option<&str> {
-        self.source.target.map(|target| target.canonical_name())
-    }
-    fn slots(&self, available: &[Key]) -> Vec<Key> {
+impl Declaration<'_> {
+    pub fn slots(&self, available: &[Key]) -> Vec<Key> {
         match &self.source.subject {
             ProviderSelectionSubject::BoundaryTrait(identity)
             | ProviderSelectionSubject::BoundaryRequirement(identity) => {
@@ -70,19 +60,7 @@ impl Declaration<Key, Key> for Choice<'_> {
                 .collect(),
         }
     }
-    fn provider(&self) -> &Key {
-        &self.provider
-    }
-}
-
-impl Declaration<Key, Key> for &Choice<'_> {
-    fn target(&self) -> Option<&str> {
-        Declaration::target(*self)
-    }
-    fn slots(&self, available: &[Key]) -> Vec<Key> {
-        Declaration::slots(*self, available)
-    }
-    fn provider(&self) -> &Key {
+    pub fn provider(&self) -> &Key {
         &self.provider
     }
 }

@@ -145,8 +145,9 @@ pub(crate) fn check_product_source(
     })
 }
 
-/// Build entries and authored provider choices delimit deployment applicability.
-/// Layout facts come from the explicit target catalog, never the build host.
+/// Source geometry checks every declared body under its explicit target scope.
+/// Build contributes checking profiles, without pruning implementation bodies;
+/// reusable source receives the explicit target catalog, never the build host.
 fn layout_target_scopes(
     typed: &typed_trees::TypedTrees,
     build: &compilation_products::BuildConfig,
@@ -197,43 +198,53 @@ fn layout_target_scopes(
                 .filter(|profile| profile.layout_target_facts().is_some()),
         );
     }
-    let mut scopes = Vec::new();
-    for profile in profiles {
-        let mut roots = Vec::new();
-        if !reusable {
-            for binding in &build.root_bindings {
-                let (owner, _) = binding
-                    .slot
-                    .rsplit_once("::")
-                    .expect("root slots were validated above");
-                if target::TargetProfile::from_root_slot_owner(owner)
-                    .map_err(|error| vec![error])?
-                    == profile
-                    && !roots.contains(&binding.implementation_symbol)
-                {
-                    roots.push(binding.implementation_symbol);
-                }
+    // A body is checked even when no Build root or selected provider invokes
+    // it. Preserve its authored target context independently of deployment.
+    for machine in typed.machines() {
+        for target in [
+            typed.machine_authored_target(machine),
+            typed.source_target_context(machine),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let profile = target::TargetProfile::from_canonical_target_name(target)
+                .map_err(|error| vec![error])?;
+            if !profiles.contains(&profile) {
+                profiles.push(profile);
             }
         }
-        let selected =
-            |choices: &[build_time_evaluation::provider_declarations::ProviderSelection]| {
-                choices
-                    .iter()
-                    .filter(|choice| {
-                        !reusable
-                            && choice.target.is_none_or(|target| {
-                                target.canonical_name() == profile.target_name()
-                            })
-                    })
-                    .cloned()
-                    .collect()
-            };
+    }
+    let mut scopes = Vec::new();
+    for profile in profiles {
+        let mut entries = Vec::new();
+        for binding in &build.root_bindings {
+            let (owner, _) = binding
+                .slot
+                .rsplit_once("::")
+                .expect("root slots were validated above");
+            let declared =
+                target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
+            if declared == profile && !entries.contains(&binding.implementation_symbol) {
+                entries.push(binding.implementation_symbol);
+            }
+        }
+        // Every supplied declaration is a checking candidate. Root/package
+        // precedence and eventual invocation belong to provider settlement.
+        let providers = choices
+            .iter()
+            .filter(|choice| {
+                choice
+                    .target
+                    .is_none_or(|target| target.canonical_name() == profile.target_name())
+            })
+            .map(|choice| (*choice).clone())
+            .collect();
         scopes.push(build_time_evaluation::FixedLayoutTargetScope {
             target: profile.target_name().to_owned(),
             facts: profile.layout_target_facts(),
-            roots: (!reusable).then_some(roots),
-            overrides: selected(&build.provider_selections),
-            package_defaults: selected(&build.package_provider_selections),
+            entry_declarations: (!reusable).then_some(entries),
+            provider_declarations: providers,
         });
     }
     Ok(scopes)

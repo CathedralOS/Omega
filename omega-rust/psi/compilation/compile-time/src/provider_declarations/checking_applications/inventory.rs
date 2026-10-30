@@ -3,7 +3,6 @@ use super::super::{
     ProviderPlanningContext, prepared_named_provider_applications, prepared_named_provider_member,
 };
 use super::schemas::{Key, Schema, provider_key};
-use language_semantics::declaration_selection::provider_choices::Candidate as CandidateView;
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, trait_definition::AppliedTraitScope};
 
@@ -11,9 +10,27 @@ pub(super) struct Candidate {
     pub schema: Schema,
     pub provider: Key,
     pub rows: Vec<(SymbolHandle, SymbolHandle)>,
-    pub target: String,
 }
 impl Candidate {
+    /// Every supplied member owes its body contract, including all instances
+    /// already produced by the canonical finite/application completion owner.
+    pub fn extend_checking_roots(&self, program: &TypedTrees, roots: &mut Vec<SymbolHandle>) {
+        for &(_, member) in &self.rows {
+            if !roots.contains(&member) {
+                roots.push(member);
+            }
+            for machine in program.machines() {
+                if program
+                    .machine_instantiation_path(machine.symbol, member)
+                    .is_some()
+                    && !roots.contains(&machine.symbol)
+                {
+                    roots.push(machine.symbol);
+                }
+            }
+        }
+    }
+
     /// The selected whole map supplies the authored row; the ordinary
     /// requirement/specialization owner supplies its complete local telescope.
     /// An open template is never a substitute for a missing executable tuple.
@@ -42,73 +59,6 @@ impl Candidate {
         instances.next().is_none().then_some(instance.symbol)
     }
 }
-impl CandidateView for Candidate {
-    type Slot = Key;
-    type Provider = Key;
-    fn slot(&self) -> &Key {
-        &self.schema.key
-    }
-    fn provider(&self) -> &Key {
-        &self.provider
-    }
-    fn target(&self) -> &str {
-        &self.target
-    }
-    fn has_requirements(&self) -> bool {
-        !self.schema.methods.is_empty()
-    }
-    fn covers_requirements(&self) -> bool {
-        self.schema.methods.iter().all(|requirement| {
-            self.rows
-                .iter()
-                .filter(|(row, _)| row == requirement)
-                .count()
-                == 1
-        }) && self
-            .rows
-            .iter()
-            .all(|(row, _)| self.schema.methods.contains(row))
-    }
-    fn receiver_count(&self) -> usize {
-        self.schema.receivers.len()
-    }
-    fn supplies_receiver(&self, other: &Self) -> Option<bool> {
-        self.schema.supplies(&other.schema)
-    }
-    fn shares_receiver(&self, other: &Self) -> Option<bool> {
-        self.schema.overlaps(&other.schema)
-    }
-}
-
-impl CandidateView for &Candidate {
-    type Slot = Key;
-    type Provider = Key;
-    fn slot(&self) -> &Key {
-        &self.schema.key
-    }
-    fn provider(&self) -> &Key {
-        &self.provider
-    }
-    fn target(&self) -> &str {
-        &self.target
-    }
-    fn has_requirements(&self) -> bool {
-        CandidateView::has_requirements(*self)
-    }
-    fn covers_requirements(&self) -> bool {
-        CandidateView::covers_requirements(*self)
-    }
-    fn receiver_count(&self) -> usize {
-        self.schema.receivers.len()
-    }
-    fn supplies_receiver(&self, other: &Self) -> Option<bool> {
-        self.schema.supplies(&other.schema)
-    }
-    fn shares_receiver(&self, other: &Self) -> Option<bool> {
-        self.schema.overlaps(&other.schema)
-    }
-}
-
 /// The graph already owns exact family membership. No host profile or textual
 /// target prefix participates in this declaration projection.
 fn selected_member(
@@ -158,7 +108,6 @@ pub(super) fn prepare(
                 application.identity.clone(),
             ),
             rows,
-            target: target.to_owned(),
         });
     }
     // Attached satisfaction declarations group by their exact data owner and
@@ -203,7 +152,6 @@ pub(super) fn prepare(
                     schema,
                     provider,
                     rows: Vec::new(),
-                    target: target.to_owned(),
                 });
                 candidates.len() - 1
             });

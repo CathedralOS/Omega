@@ -127,11 +127,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 // still owe geometry after an exact implementation is supplied.
                 continue;
             }
-            let targets = if policy_is_closed {
-                applicable_targets(typed, domain, storage)
-            } else {
-                domain.layout_targets.clone()
-            };
+            let targets = applicable_targets(typed, domain, storage);
             // An empty deployment roster cannot prove universal geometry.
             // Leave the original physical obligation unavailable, so settled
             // consumers still refuse rather than treating no alternatives as
@@ -541,8 +537,20 @@ pub(crate) fn validate_layout_application_coverage(
     inputs: Option<&[crate::LayoutApplicationTargetInput]>,
 ) -> Result<(), Vec<Diagnostic>> {
     if let Some(inputs) = inputs {
+        // Open recipes can retain semantic meaning after the evaluator's
+        // exact StaticInputUnavailable outcome. Their physical consumers must
+        // still obtain a complete alternative from the strict query owner.
+        let open = typed_trees::references::collect_program_type_occurrences(typed)
+            .into_iter()
+            .filter_map(|occurrence| typed.layout_storage_arguments(occurrence.reference))
+            .filter(|storage| !typed_trees::domain::index_argument_is_closed(typed, storage.policy))
+            .map(|storage| typed.normalized_type_identity(storage.application))
+            .collect::<Vec<_>>();
         for input in inputs {
             let identity = typed.type_identity_by_text(&input.application_identity);
+            if identity.is_valid() && open.contains(&identity) {
+                continue;
+            }
             if !identity.is_valid()
                 || !typed.plan_laid_layouts.iter().any(|plan| {
                     typed.normalized_type_identity(plan.application) == identity
