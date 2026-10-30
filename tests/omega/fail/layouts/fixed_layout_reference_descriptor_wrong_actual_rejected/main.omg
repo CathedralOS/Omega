@@ -1,0 +1,39 @@
+// A fitting IntegerAt store in a record containing a reference descriptor
+// does not require the referenced LayoutStorage policy's unknown geometry.
+// Expected exit: 0
+use omega::language::core::layout;
+data Payload [copy] { value: u64; }
+PayloadLayout<const Marker: u64> satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+        let extent: u64 = match Marker == 11u64 { true -> 16u64, _ -> 8u64 };
+        Plan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: 8 }
+    }
+}
+data Envelope<T> [copy] { value: u64; pointer: &T; }
+EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt { offset: 0, stored_width: 8, interpretation: IntegerInterpretation::Unsigned } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
+        Plan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
+}
+machine update<const Marker: u64>(pointer: &LayoutStorage<Payload, PayloadLayout<Marker> >) -> u64 {
+    let mut record: LayoutStorage<Envelope<LayoutStorage<Payload, PayloadLayout<Marker> > >, EnvelopeLayout<LayoutStorage<Payload, PayloadLayout<Marker> > > >;
+    record.pointer = pointer;
+    record.value = 7u64;
+    record.value
+}
+machine main() crashes Trap {
+    let mut pointee: LayoutStorage<Payload, PayloadLayout<8u64> >;
+    pointee.value = 43u64;
+    let result: u64 = update<7u64>(&pointee);
+    transition result == 7u64 && pointee.value == 43u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

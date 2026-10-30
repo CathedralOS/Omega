@@ -1,0 +1,20 @@
+// Expected exit: 0
+use omega::language::core::layout;
+use omega::language::core::numeric_conversion;
+data Payload [copy] { first: u64; value: u64; }
+Policy satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
+        Plan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
+}
+machine unmentioned() -> u64 {
+        let mut storage: LayoutStorage<Payload, Policy>;
+        storage.first = 9u64;
+        storage.value = 7u64;
+        let bytes: &[u8; 16] = &storage as &[u8; 16];
+        widen_u8_to_u64(bytes[8])
+}
+machine main() {}
