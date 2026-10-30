@@ -24,7 +24,7 @@ use numerics::literals::FloatFormat;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::operator::{primitive_float_binary_semantics, resolve_named_expression_call};
+use typed_trees::operator::resolve_named_expression_call;
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 

@@ -19,7 +19,7 @@ mod prerequisites;
 pub use prerequisites::BuildExecutionProgress;
 pub(crate) use prerequisites::{BuildCompilationContext, BuildSourceInvocation};
 
-pub(super) struct PreparedBuildSourceInvocation {
+pub(in crate::checked) struct PreparedBuildSourceInvocation {
     execution_contract: package_compilation::build_execution::BuildExecutionContract,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,

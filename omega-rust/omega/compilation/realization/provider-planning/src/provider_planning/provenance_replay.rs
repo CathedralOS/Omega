@@ -85,9 +85,9 @@ pub struct DerivedProviderPlan {
     pub provenance: ProviderPlanProvenance,
 }
 
-/// One derivation of source-owned candidate intent. The caller lends exact
-/// admitted Build-native rows; this operation
-/// neither evaluates source nor reconstructs a forwarding machine.
+/// Derive source-owned candidates from exact scoped declarations and target
+/// coordinates. Native Build rows enter separately; this operation neither
+/// evaluates source nor reconstructs a forwarding machine.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,

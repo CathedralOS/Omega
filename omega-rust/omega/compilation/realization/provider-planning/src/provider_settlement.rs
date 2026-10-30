@@ -210,9 +210,8 @@ fn mint_toolchain_settled_plan(
     }))
 }
 
-/// Target defaults and declaration origins prepared before provider planning.
-/// Build admission resolves its retained declarations to these exact typed
-/// identities; settlement consumes them without depending on source filtering.
+/// Evaluated Build defaults selected for one target before provider planning.
+/// Their exact implementation identities retain ordinary declaration custody.
 pub struct SettledProviderDefaults {
     pub provider_defaults: Vec<ProviderSelection>,
 }
