@@ -75,14 +75,6 @@ ArmProbe satisfies SelectedProbe {
     }
 }
 
-
-
-
-
-
-
-
-
 machine main()
     reaches SelectedProbe, SelectedBodyCheck
     crashes Trap
