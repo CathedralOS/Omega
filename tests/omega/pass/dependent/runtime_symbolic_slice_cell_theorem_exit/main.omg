@@ -58,7 +58,9 @@ ensures result >= 1 && result <= 256
     transition { _ -> (observed + 1) }
 }
 
-data Rows where valid_values(&values) == true, ascending_values(&values) == true { values: [i32; 6]; }
+data Rows
+requires valid_values(&self.values) == true && ascending_values(&self.values) == true
+ { values: [i32; 6]; }
 data Main { rows: Rows; }
 machine Main::main(main: &mut Main) crashes Trap {
     main.rows.values[4] = 40;

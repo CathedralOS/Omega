@@ -455,6 +455,18 @@ mod tests {
         touches: 0,
     };
 
+    fn frame_slot(
+        view: super::RegisterViewId,
+        offset_bytes: u64,
+        size_bytes: u64,
+    ) -> Aarch64FrameSlot {
+        Aarch64FrameSlot {
+            view,
+            offset_bytes,
+            size_bytes,
+        }
+    }
+
     #[test]
     fn physical_frame_transfers_encode_exact_scalar_widths() {
         let model =
@@ -522,18 +534,7 @@ mod tests {
             &model,
             16,
             NO_PROBE,
-            &[
-                Aarch64FrameSlot {
-                    view: x19,
-                    offset_bytes: 0,
-                    size_bytes: 8,
-                },
-                Aarch64FrameSlot {
-                    view: x30,
-                    offset_bytes: 8,
-                    size_bytes: 8,
-                },
-            ],
+            &[frame_slot(x19, 0, 8), frame_slot(x30, 8, 8)],
         )
         .unwrap();
         assert_eq!(&prologue[..4], &0xd100_43ff_u32.to_le_bytes());
@@ -549,16 +550,7 @@ mod tests {
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
         let x19 = model.model().view_named("x19").unwrap().id;
         assert_eq!(
-            encode_aapcs64_frame_protocol(
-                &model,
-                8,
-                NO_PROBE,
-                &[Aarch64FrameSlot {
-                    view: x19,
-                    offset_bytes: 0,
-                    size_bytes: 8,
-                }],
-            ),
+            encode_aapcs64_frame_protocol(&model, 8, NO_PROBE, &[frame_slot(x19, 0, 8)],),
             Err(Aarch64FrameProtocolError::InvalidFrameSize)
         );
     }
@@ -589,17 +581,8 @@ mod tests {
             interval_bytes: 4_096,
             touches: 2,
         };
-        let (prologue, epilogue) = encode_aapcs64_frame_protocol(
-            &model,
-            8_192,
-            probe,
-            &[Aarch64FrameSlot {
-                view: x19,
-                offset_bytes: 0,
-                size_bytes: 8,
-            }],
-        )
-        .unwrap();
+        let (prologue, epilogue) =
+            encode_aapcs64_frame_protocol(&model, 8_192, probe, &[frame_slot(x19, 0, 8)]).unwrap();
         // sub sp,sp,#1,lsl#12 ; ldr xzr,[sp] ; sub sp,sp,#1,lsl#12 ; ldr xzr,[sp] ; save
         let chunk = [0xd140_07ff_u32.to_le_bytes(), 0xf940_03ff_u32.to_le_bytes()].concat();
         assert_eq!(&prologue[..8], &chunk);
@@ -642,11 +625,7 @@ mod tests {
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
         let slots =
             [("x19", 65_536), ("d8", 65_544), ("x30", 65_552)].map(|(name, offset_bytes)| {
-                Aarch64FrameSlot {
-                    view: model.model().view_named(name).unwrap().id,
-                    offset_bytes,
-                    size_bytes: 8,
-                }
+                frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
             });
         let (prologue, epilogue) = encode_aapcs64_frame_protocol(
             &model,
@@ -694,11 +673,7 @@ mod tests {
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
         // 32 MiB + 32: 2048 full Darwin granules and a 32-byte tail chunk.
         let slots = [("x19", 33_554_448), ("x30", 33_554_456)].map(|(name, offset_bytes)| {
-            Aarch64FrameSlot {
-                view: model.model().view_named(name).unwrap().id,
-                offset_bytes,
-                size_bytes: 8,
-            }
+            frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
         });
         let (prologue, epilogue) = encode_aapcs64_frame_protocol(
             &model,
@@ -759,18 +734,7 @@ mod tests {
             touches: 5,
             ..DARWIN_PROBE
         };
-        let slots = [
-            Aarch64FrameSlot {
-                view: x16,
-                offset_bytes: 0,
-                size_bytes: 8,
-            },
-            Aarch64FrameSlot {
-                view: x19,
-                offset_bytes: 65_536,
-                size_bytes: 8,
-            },
-        ];
+        let slots = [frame_slot(x16, 0, 8), frame_slot(x19, 65_536, 8)];
         let (prologue, epilogue) =
             encode_aapcs64_frame_protocol(&model, 65_552, probe, &slots).unwrap();
         // IP1 addresses the large save while IP0's value is preserved.
@@ -780,15 +744,7 @@ mod tests {
             &epilogue[..8],
             &[0x9140_43f1_u32.to_le_bytes(), 0xf940_0233_u32.to_le_bytes()].concat()
         );
-        let occupied = [
-            slots[0],
-            Aarch64FrameSlot {
-                view: x17,
-                offset_bytes: 8,
-                size_bytes: 8,
-            },
-            slots[1],
-        ];
+        let occupied = [slots[0], frame_slot(x17, 8, 8), slots[1]];
         assert_eq!(
             encode_aapcs64_frame_protocol(&model, 65_552, probe, &occupied),
             Err(Aarch64FrameProtocolError::NonCanonicalSlots),
@@ -801,11 +757,7 @@ mod tests {
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
         let x19 = model.model().view_named("x19").unwrap().id;
         let x30 = model.model().view_named("x30").unwrap().id;
-        let first = Aarch64FrameSlot {
-            view: x19,
-            offset_bytes: 65_536,
-            size_bytes: 8,
-        };
+        let first = frame_slot(x19, 65_536, 8);
         for (offset_bytes, size_bytes) in [(65_536, 8), (65_540, 8), (65_552, 8), (65_544, 4)] {
             assert_eq!(
                 encode_aapcs64_frame_protocol(
@@ -815,14 +767,7 @@ mod tests {
                         touches: 5,
                         ..DARWIN_PROBE
                     },
-                    &[
-                        first,
-                        Aarch64FrameSlot {
-                            view: x30,
-                            offset_bytes,
-                            size_bytes
-                        }
-                    ],
+                    &[first, frame_slot(x30, offset_bytes, size_bytes)],
                 ),
                 Err(Aarch64FrameProtocolError::NonCanonicalSlots),
                 "offset {offset_bytes}, size {size_bytes}",

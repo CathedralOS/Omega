@@ -5,8 +5,10 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::storage::ByteSequenceStorage;
+use crate::custody::fixed_index_step;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::execution::frame_field_mut;
 use crate::scalar_array::PackedScalarArrayValue;
 use crate::scalar_storage::{ScalarCell, TerminalScalarBacking};
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
@@ -367,19 +369,7 @@ impl TerminalExecution<'_> {
         let mut selected = structural_type;
         let mut offset = 0usize;
         for segment in &storage.referent.path {
-            let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment else {
-                return Err(malformed());
-            };
-            let terminal_psi::StructuralTypeShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Literal(length),
-            } = types.get(&selected).ok_or_else(malformed)?.shape
-            else {
-                return Err(malformed());
-            };
-            if *index >= length {
-                return Err(malformed());
-            }
+            let (element, index, _) = fixed_index_step(&types, selected, segment)?;
             let child_count = match types.get(&element).ok_or_else(malformed)?.shape {
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                 _ => {
@@ -471,14 +461,9 @@ impl TerminalExecution<'_> {
                     .checked_add(index)
                     .filter(|index| *index < end)
                     .ok_or_else(malformed)?;
-                let array = if depth == self.call_stack.len() {
-                    self.scalar_array_values.backing_mut(&place)
-                } else {
-                    self.call_stack
-                        .get_mut(depth)
-                        .and_then(|frame| frame.scalar_array_values.backing_mut(&place))
-                }
-                .ok_or_else(malformed)?;
+                let array = frame_field_mut!(self, depth, scalar_array_values)
+                    .backing_mut(&place)
+                    .ok_or_else(malformed)?;
                 let scalar_type =
                     IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
                 array.set_element(

@@ -471,6 +471,18 @@ impl Lowerer {
         })
     }
 
+    /// The declaration arena owning every lowered child type reference. Callers
+    /// reach it by name instead of respelling the four-hop field path.
+    pub(crate) fn declaration_child_type_references(
+        &mut self,
+    ) -> &mut arena::Arena<symbol_resolved_trees::types::TypeReference> {
+        &mut self
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+    }
+
     /// The finished trees: tables rebuilt from the lowered roots, with the
     /// interned semantic rows and domains built during lowering kept.
     pub(crate) fn into_trees(self) -> SymbolResolvedTrees {

@@ -431,21 +431,16 @@ impl Expansion<'_> {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 });
-            continuation = self.push(LoweredScalarBranchState {
-                structural_parameters: Vec::new(),
-                parameter_types: prefixes[ordinal].clone(),
-                erased_formal_types: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                bindings: Vec::new(),
-                structural_effects: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::Capture {
+            continuation = self.push(LoweredScalarBranchState::continuing(
+                prefixes[ordinal].clone(),
+                LoweredScalarBranchTerminator::Capture {
                     target: continuation,
                     arguments: super::parameters(&prefixes[ordinal]),
                     source: capture.source,
                     path: capture.path.clone(),
                     access: capture.access,
                 },
-            });
+            ));
         }
         Ok(continuation)
     }

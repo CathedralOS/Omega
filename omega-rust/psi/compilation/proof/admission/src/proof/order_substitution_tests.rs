@@ -4,6 +4,8 @@ use super::{
 };
 use crate::PrimitiveJudgment;
 use crate::proof::semantic_axiom_proof;
+use crate::proof_node;
+use crate::value_context;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType};
 
 fn fixture(
@@ -13,10 +15,7 @@ fn fixture(
 ) -> (PropositionContext, Vec<Proposition>, ProofNode) {
     let integer_type = IntegerType::new(IntegerSign::Signed, 16).unwrap();
     let scalar_type = ScalarType::Integer(integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-    )
-    .unwrap();
+    let context = value_context(scalar_type, 3);
     let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
     let literal =
         |integer| ScalarTerm::integer(integer_type, IntegerValue::Signed(integer)).unwrap();
@@ -34,10 +33,7 @@ fn fixture(
             Proposition::LessOrEqual(left, right)
         })
     };
-    let mut proof = ProofNode {
-        conclusion: order(literal(1), literal(2)),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
+    let mut proof = proof_node!(order(literal(1), literal(2)) => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
     let mut axioms = Vec::new();
     for endpoint in 0..2 {
         let scalar = value(endpoint as u64 + 1);

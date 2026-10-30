@@ -1,7 +1,7 @@
-use super::integer_signature;
+use super::{call_signature, integer_signature};
 use crate::plans::{
-    CallSignature, CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister,
-    ValueLocation, ValueShape, evaluate_call_plan, validate_call_plan,
+    CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister, ValueLocation,
+    ValueShape, evaluate_call_plan, validate_call_plan,
 };
 
 #[test]
@@ -34,14 +34,8 @@ fn zero_sized_parameters_retain_identity_without_consuming_abi_locations() {
         CallingPolicy::SystemVAMD64,
         CallingPolicy::Aapcs64,
     ] {
-        let plan = evaluate_call_plan(
-            policy,
-            &CallSignature {
-                parameters: vec![empty, scalar, empty],
-                result: None,
-            },
-        )
-        .expect("canonical empty values are erased from ABI placement");
+        let plan = evaluate_call_plan(policy, &call_signature(vec![empty, scalar, empty], None))
+            .expect("canonical empty values are erased from ABI placement");
         assert_eq!(plan.parameters.len(), 3);
         assert_eq!(plan.parameters[0].shape, empty);
         assert!(plan.parameters[0].locations.is_empty());
@@ -49,23 +43,16 @@ fn zero_sized_parameters_retain_identity_without_consuming_abi_locations() {
         assert!(!plan.parameters[1].locations.is_empty());
         assert_eq!(plan.parameters[2].shape, empty);
         assert!(plan.parameters[2].locations.is_empty());
-        validate_call_plan(
-            &plan,
-            &CallSignature {
-                parameters: vec![empty, scalar, empty],
-                result: None,
-            },
-        )
-        .unwrap();
+        validate_call_plan(&plan, &call_signature(vec![empty, scalar, empty], None)).unwrap();
     }
 }
 
 #[test]
 fn microsoft_x64_indirect_result_uses_rcx_and_shifts_parameters() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8); 4],
-        result: Some(ValueShape::integer(16, 8)),
-    };
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8); 4],
+        Some(ValueShape::integer(16, 8)),
+    );
     let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
         .expect("MS x64 indirect-result plan");
 
@@ -96,16 +83,16 @@ fn microsoft_x64_indirect_result_uses_rcx_and_shifts_parameters() {
 
 #[test]
 fn microsoft_x64_indirect_parameters_use_positional_pointer_slots() {
-    let signature = CallSignature {
-        parameters: vec![
+    let signature = call_signature(
+        vec![
             ValueShape::integer(16, 8),
             ValueShape::integer(8, 8),
             ValueShape::integer(8, 8),
             ValueShape::integer(8, 8),
             ValueShape::integer(16, 8),
         ],
-        result: None,
-    };
+        None,
+    );
     let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
         .expect("MS x64 indirect-parameter plan");
 
@@ -132,15 +119,15 @@ fn microsoft_x64_indirect_parameters_use_positional_pointer_slots() {
 
 #[test]
 fn system_v_and_aapcs_use_independent_float_register_banks() {
-    let signature = CallSignature {
-        parameters: vec![
+    let signature = call_signature(
+        vec![
             ValueShape::integer(8, 8),
             ValueShape::float(8),
             ValueShape::integer(8, 8),
             ValueShape::float(8),
         ],
-        result: None,
-    };
+        None,
+    );
     let sysv = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).expect("SysV");
     let aapcs = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS");
     assert!(matches!(
@@ -161,10 +148,10 @@ fn system_v_and_aapcs_use_independent_float_register_banks() {
 
 #[test]
 fn system_v_small_integer_aggregates_use_consecutive_registers_and_results() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(16, 8)],
-        result: Some(ValueShape::integer(12, 8)),
-    };
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8), ValueShape::integer(16, 8)],
+        Some(ValueShape::integer(12, 8)),
+    );
     let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
         .expect("SysV small aggregate plan");
 
@@ -186,13 +173,13 @@ fn system_v_small_integer_aggregates_use_consecutive_registers_and_results() {
 
 #[test]
 fn system_v_register_exhausted_aggregate_moves_wholly_to_stack_and_rolls_back() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8); 5]
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8); 5]
             .into_iter()
             .chain([ValueShape::integer(16, 8), ValueShape::integer(8, 8)])
             .collect(),
-        result: None,
-    };
+        None,
+    );
     let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
         .expect("SysV exhausted aggregate plan");
 
@@ -211,10 +198,7 @@ fn system_v_register_exhausted_aggregate_moves_wholly_to_stack_and_rolls_back() 
 
 #[test]
 fn aapcs_hfa_is_one_value_split_across_vector_registers() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::homogeneous_float_aggregate(8, 4)],
-        result: None,
-    };
+    let signature = call_signature(vec![ValueShape::homogeneous_float_aggregate(8, 4)], None);
     let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS HFA");
     assert_eq!(plan.parameters[0].locations.len(), 4);
     assert!(matches!(
@@ -229,10 +213,10 @@ fn aapcs_hfa_is_one_value_split_across_vector_registers() {
 
 #[test]
 fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(16, 16)],
-        result: Some(ValueShape::integer(12, 8)),
-    };
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8), ValueShape::integer(16, 16)],
+        Some(ValueShape::integer(12, 8)),
+    );
     let plan =
         evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS small aggregate plan");
 
@@ -254,13 +238,13 @@ fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
 
 #[test]
 fn aapcs_small_aggregate_moves_wholly_to_stack_when_x_registers_run_out() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8); 7]
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8); 7]
             .into_iter()
             .chain([ValueShape::integer(16, 8), ValueShape::integer(8, 8)])
             .collect(),
-        result: None,
-    };
+        None,
+    );
     let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
         .expect("AAPCS exhausted aggregate plan");
 
@@ -282,10 +266,10 @@ fn aapcs_small_aggregate_moves_wholly_to_stack_when_x_registers_run_out() {
 
 #[test]
 fn aapcs_large_aggregates_use_caller_copies_and_indirect_results() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(24, 8), ValueShape::integer(8, 8)],
-        result: Some(ValueShape::integer(32, 16)),
-    };
+    let signature = call_signature(
+        vec![ValueShape::integer(24, 8), ValueShape::integer(8, 8)],
+        Some(ValueShape::integer(32, 16)),
+    );
     let plan =
         evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS large aggregate plan");
 
@@ -318,13 +302,13 @@ fn aapcs_large_aggregates_use_caller_copies_and_indirect_results() {
 
 #[test]
 fn aapcs_large_aggregate_pointer_uses_stack_before_its_copy() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8); 8]
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8); 8]
             .into_iter()
             .chain([ValueShape::integer(24, 16)])
             .collect(),
-        result: None,
-    };
+        None,
+    );
     let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
         .expect("AAPCS stack-indirect aggregate plan");
 

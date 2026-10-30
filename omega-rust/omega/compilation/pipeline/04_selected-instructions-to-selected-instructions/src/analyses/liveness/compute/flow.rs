@@ -342,6 +342,16 @@ impl FunctionFlow {
         let mut work = (0..function.blocks.len()).rev().collect::<VecDeque<_>>();
         while let Some(block_index) = work.pop_front() {
             pending[block_index] = false;
+            let mut schedule_predecessors = |entry_changed: bool| {
+                if entry_changed {
+                    for predecessor in &predecessors[block_index] {
+                        if !pending[*predecessor] {
+                            pending[*predecessor] = true;
+                            work.push_back(*predecessor);
+                        }
+                    }
+                }
+            };
             if include_virtual {
                 next_exit_bits.fill(0);
                 let mut unit_exit_mask = 0u64;
@@ -417,14 +427,7 @@ impl FunctionFlow {
                     unit_exit_sets[block_index] = unit_exit;
                     changed
                 };
-                if entry_changed {
-                    for predecessor in &predecessors[block_index] {
-                        if !pending[*predecessor] {
-                            pending[*predecessor] = true;
-                            work.push_back(*predecessor);
-                        }
-                    }
-                }
+                schedule_predecessors(entry_changed);
             } else if can_use_unit_masks {
                 let mut unit_exit_mask = 0u64;
                 for edge in &flow.edges[block_index] {
@@ -437,14 +440,7 @@ impl FunctionFlow {
                 let entry_changed = state.unit_entry_mask != unit_entry_mask;
                 state.unit_entry_mask = unit_entry_mask;
                 state.unit_exit_mask = unit_exit_mask;
-                if entry_changed {
-                    for predecessor in &predecessors[block_index] {
-                        if !pending[*predecessor] {
-                            pending[*predecessor] = true;
-                            work.push_back(*predecessor);
-                        }
-                    }
-                }
+                schedule_predecessors(entry_changed);
             } else {
                 let mut unit_exit = BTreeSet::new();
                 for edge in &flow.edges[block_index] {
@@ -459,14 +455,7 @@ impl FunctionFlow {
                 let entry_changed = unit_entry_sets[block_index] != unit_entry;
                 unit_entry_sets[block_index] = unit_entry;
                 unit_exit_sets[block_index] = unit_exit;
-                if entry_changed {
-                    for predecessor in &predecessors[block_index] {
-                        if !pending[*predecessor] {
-                            pending[*predecessor] = true;
-                            work.push_back(*predecessor);
-                        }
-                    }
-                }
+                schedule_predecessors(entry_changed);
             }
         }
         for (block_index, state) in flow.blocks.iter_mut().enumerate() {

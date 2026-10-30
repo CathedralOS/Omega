@@ -9,7 +9,14 @@
 mod boundary_applications;
 mod boundary_review;
 mod callback_roots;
-pub use callback_roots::{CallbackRootCandidate, SelectedCallbackRow, select_callback_roots};
+mod provider_instances;
+pub use callback_roots::{
+    CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
+};
+pub use provider_instances::{
+    GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
+    ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, project_provider_instances,
+};
 mod selected_binding;
 pub use boundary_review::BoundaryProviderAdmission;
 pub use selected_binding::{

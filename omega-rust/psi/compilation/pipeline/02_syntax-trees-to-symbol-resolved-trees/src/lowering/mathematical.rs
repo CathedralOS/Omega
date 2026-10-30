@@ -10,6 +10,7 @@
 //! classification to make, not this stage's.
 
 use crate::lowering::data::lower_type_parameters;
+use crate::lowering::expression::expression_table;
 use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::name::lower_name;
 use crate::lowering::type_reference::lower_type_reference_handle;
@@ -121,12 +122,7 @@ fn lower_mathematical_type(
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
             MathematicalType::Application {
                 callee: lower_mathematical_type(lowerer, syntax, *callee)?,
-                arguments: lowerer
-                    .symbol_resolved_trees
-                    .tables
-                    .bodies
-                    .expressions
-                    .insert_expression_handles(arguments),
+                arguments: expression_table(lowerer).insert_expression_handles(arguments),
             }
         }
     };

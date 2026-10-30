@@ -48,15 +48,19 @@ impl MachineEmitter<'_> {
         );
     }
 
+    /// A machine with no `requires` clause.
+    fn plain_machine(&mut self, name: &str, extras: &str, body: &str) {
+        self.machine(name, extras, "", body);
+    }
+
     /// `machine name(declarations, extras) { transition { _ -> next(inner,
     /// extra_args) } }` — a named stage boundary hop. `extra_args` joins the
     /// shared arguments inside the parens.
     fn hop(&mut self, name: &str, extras: &str, next: &str, extra_args: &str) {
         let inner = self.call.trim_start_matches('(').trim_end_matches(')');
-        self.machine(
+        self.plain_machine(
             name,
             extras,
-            "",
             &format!("        transition {{ _ -> {next}({inner}{extra_args}) }}\n"),
         );
     }
@@ -69,9 +73,8 @@ impl MachineEmitter<'_> {
     fn enc_byte(&mut self, name: &str, byte: u8, next: &str) {
         let prefix = self.names.prefix.as_str();
         let put = format!("{name}_put");
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "        transition {prefix}at < {} {{\n            true -> {put}{}\n            _ -> {prefix}encode_overflow{}\n        }}\n",
@@ -117,9 +120,8 @@ impl MachineEmitter<'_> {
     /// value itself: `name` hosts the selector state, `next` follows either
     /// store.
     fn enc_bool_member(&mut self, name: &str, value: &str, next: &str) {
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "        transition {value} {{\n            true -> {name}_one{}\n            _ -> {name}_zero{}\n        }}\n",
@@ -138,22 +140,20 @@ impl MachineEmitter<'_> {
         let put = format!("{name}_put");
         let more = format!("{name}_more");
         let put_more = format!("{name}_put_more");
-        self.machine(
+        self.plain_machine(
             name,
             &format!("{prefix}bits: u64"),
-            "",
             &format!(
                 "        transition {prefix}bits < 128 {{\n            true -> {last}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits)\n            _ -> {more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits)\n        }}\n"
-            ),
+            )
         );
-        self.machine(
+        self.plain_machine(
             &last,
             &format!("{prefix}bits: u64"),
-            "",
             &format!(
                 "        let {prefix}byte: u8 = {prefix}bits as u8;\n        transition {prefix}at < {} {{\n            true -> {put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}byte)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
-            ),
+            )
         );
         self.machine(
             &put,
@@ -163,14 +163,13 @@ impl MachineEmitter<'_> {
                 "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1) }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &more,
             &format!("{prefix}bits: u64"),
-            "",
             &format!(
                 "        let {prefix}byte: u8 = (({prefix}bits & 127) | 128) as u8;\n        transition {prefix}at < {} {{\n            true -> {put_more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}byte, {prefix}bits)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
-            ),
+            )
         );
         self.machine(
             &put_more,
@@ -186,9 +185,8 @@ impl MachineEmitter<'_> {
     fn enc_varint(&mut self, name: &str, binding: &str, next: &str) {
         let prefix = self.names.prefix.as_str();
         let loop_state = format!("{name}_loop");
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "{binding}        transition {{ _ -> {loop_state}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits) }}\n"
@@ -206,21 +204,19 @@ impl MachineEmitter<'_> {
     fn enc_measure(&mut self, name: &str, binding: &str, next: &str) {
         let prefix = self.names.prefix.as_str();
         let loop_state = format!("{name}_loop");
-        self.machine(
+        self.plain_machine(
             name,
             &format!("{prefix}accumulator: u64 in Wrapping"),
-            "",
             &format!(
                 "{binding}        transition {{ _ -> {loop_state}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}accumulator, {prefix}bits) }}\n"
-            ),
+            )
         );
-        self.machine(
+        self.plain_machine(
             &loop_state,
             &format!("{prefix}accumulator: u64 in Wrapping, {prefix}bits: u64"),
-            "",
             &format!(
                 "        transition {prefix}bits < 128 {{\n            true -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}accumulator + 1)\n            _ -> {loop_state}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}accumulator + 1, {prefix}bits >> 7)\n        }}\n"
-            ),
+            )
         );
     }
 
@@ -237,30 +233,27 @@ impl MachineEmitter<'_> {
         // as a `view` local at the entry state: `i < view.len` is a
         // parameter-rooted term the contract namespace admits, and `view[i]`
         // proves in `put` without any member-path correspondence.
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "        let {prefix}view: &[u8] = {prefix}value.{field};\n        transition {{ _ -> {walk}({prefix}value, {prefix}out, {prefix}written, {prefix}at, 0, {prefix}view) }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &walk,
             &format!("{prefix}index: u64, {prefix}view: &[u8]"),
-            "",
             &format!(
                 "        transition {prefix}index < {prefix}view.len {{\n            true -> {bound}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}view)\n            _ -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at)\n        }}\n"
-            ),
+            )
         );
-        self.machine(
+        self.plain_machine(
             &bound,
             &format!("{prefix}index: u64, {prefix}view: &[u8]"),
-            "",
             &format!(
                 "        transition {prefix}at < {} && {prefix}index < {prefix}view.len {{\n            true -> {put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}view)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
-            ),
+            )
         );
         self.machine(
             &put,
@@ -352,9 +345,8 @@ impl MachineEmitter<'_> {
         // loops re-enter through them, so `bits < 128` alone decides.
         if seed_len {
             let seed = format!("{name}_seed");
-            self.machine(
+            self.plain_machine(
                 name,
-                "",
                 "",
                 &format!(
                     "        let {prefix}element_count: u64 = {len_expr};\n        transition {{ _ -> {seed}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}element_count) }}\n"
@@ -367,9 +359,8 @@ impl MachineEmitter<'_> {
                 &format!(", 0, 0, {prefix}element_count"),
             );
         } else {
-            self.machine(
+            self.plain_machine(
                 name,
-                "",
                 "",
                 &format!(
                     "        let {prefix}view: &[{}] = {member_expr};\n        transition {{ _ -> {measure_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, 0, 0, {prefix}view) }}\n",
@@ -377,13 +368,12 @@ impl MachineEmitter<'_> {
                 ),
             );
         }
-        self.machine(
+        self.plain_machine(
             &measure_entry,
             &format!("{prefix}index: u64, {prefix}accumulator: u64 in Wrapping{carry}"),
-            "",
             &format!(
                 "        transition {index_guard} {{\n            true -> {measure_elem}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}accumulator{carry_arg})\n            _ -> {length}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}accumulator)\n        }}\n"
-            ),
+            )
         );
         self.machine(
             &measure_elem,
@@ -402,13 +392,12 @@ impl MachineEmitter<'_> {
                 "        transition {prefix}bits < 128 && {loop_guard} {{\n            true -> {measure_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index + 1, {prefix}accumulator + 1{carry_arg})\n            _ -> {measure_varint}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}accumulator + 1, {prefix}bits >> 7{carry_arg})\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &length,
             &format!("{prefix}index: u64, {prefix}accumulator: u64 in Wrapping"),
-            "",
             &format!(
                 "        let {prefix}bits: u64 = {prefix}accumulator as u64;\n        transition {{ _ -> {length}_loop({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits) }}\n"
-            ),
+            )
         );
         // The byte-length varint: the canonical last/more loop with `i`
         // riding as an inert carry so the emit half starts over at 0.
@@ -418,23 +407,21 @@ impl MachineEmitter<'_> {
             let more = format!("{length}_loop_more");
             let put_more = format!("{length}_loop_put_more");
             let loop_name = format!("{length}_loop");
-            self.machine(
-                &loop_name,
-                &format!("{prefix}index: u64, {prefix}bits: u64"),
-                "",
-                &format!(
+            self.plain_machine(
+            &loop_name,
+            &format!("{prefix}index: u64, {prefix}bits: u64"),
+            &format!(
                     "        transition {prefix}bits < 128 {{\n            true -> {last}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits)\n            _ -> {more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits)\n        }}\n"
-                ),
-            );
-            self.machine(
-                &last,
-                &format!("{prefix}index: u64, {prefix}bits: u64"),
-                "",
-                &format!(
+                )
+        );
+            self.plain_machine(
+            &last,
+            &format!("{prefix}index: u64, {prefix}bits: u64"),
+            &format!(
                     "        let {prefix}byte: u8 = {prefix}bits as u8;\n        transition {prefix}at < {} {{\n            true -> {put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}byte)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                     self.limit, self.call
-                ),
-            );
+                )
+        );
             self.machine(
                 &put,
                 &format!("{prefix}index: u64, {prefix}byte: u8"),
@@ -443,15 +430,14 @@ impl MachineEmitter<'_> {
                     "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {emit_entry_target}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1, 0) }}\n"
                 ),
             );
-            self.machine(
-                &more,
-                &format!("{prefix}index: u64, {prefix}bits: u64"),
-                "",
-                &format!(
+            self.plain_machine(
+            &more,
+            &format!("{prefix}index: u64, {prefix}bits: u64"),
+            &format!(
                     "        let {prefix}byte: u8 = (({prefix}bits & 127) | 128) as u8;\n        transition {prefix}at < {} {{\n            true -> {put_more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}byte, {prefix}bits)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                     self.limit, self.call
-                ),
-            );
+                )
+        );
             self.machine(
                 &put_more,
                 &format!("{prefix}index: u64, {prefix}byte: u8, {prefix}bits: u64"),
@@ -465,32 +451,29 @@ impl MachineEmitter<'_> {
         // kind — `slen` for `FixedVec`, `view` for slices — so the
         // length-loop tail stays thin.
         if bound_expr.is_some() {
-            self.machine(
-                &emit_entry_target,
-                &format!("{prefix}index: u64"),
-                "",
-                &format!(
+            self.plain_machine(
+            &emit_entry_target,
+            &format!("{prefix}index: u64"),
+            &format!(
                     "        let {prefix}element_count: u64 = {len_expr};\n        transition {{ _ -> {emit_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}element_count) }}\n"
-                ),
-            );
+                )
+        );
         } else {
-            self.machine(
-                &emit_entry_target,
-                &format!("{prefix}index: u64"),
-                "",
-                &format!(
+            self.plain_machine(
+            &emit_entry_target,
+            &format!("{prefix}index: u64"),
+            &format!(
                     "        let {prefix}view: &[{}] = {member_expr};\n        transition {{ _ -> {emit_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}view) }}\n",
                     element.name()
-                ),
-            );
+                )
+        );
         }
-        self.machine(
+        self.plain_machine(
             &emit_entry,
             &format!("{prefix}index: u64{carry}"),
-            "",
             &format!(
                 "        transition {index_guard} {{\n            true -> {emit_elem}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index{carry_arg})\n            _ -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at)\n        }}\n"
-            ),
+            )
         );
         self.machine(
             &emit_elem,
@@ -598,13 +581,12 @@ impl MachineEmitter<'_> {
                 format!("{name}_subtag_{}_0", index + 1)
             }
         };
-        self.machine(
+        self.plain_machine(
             &length,
             &format!("{prefix}accumulator: u64 in Wrapping"),
-            "",
             &format!(
                 "        let {prefix}bits: u64 = {prefix}accumulator as u64;\n        transition {{ _ -> {length}_loop({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits) }}\n"
-            ),
+            )
         );
         self.enc_varint_loop(&format!("{length}_loop"), &first_sub);
         for (sub_index, sub) in sub_members.iter().enumerate() {
@@ -648,10 +630,9 @@ impl MachineEmitter<'_> {
         let check = format!("{name}_check");
         let oob = format!("{name}_oob");
         let inner = self.call.trim_start_matches('(').trim_end_matches(')');
-        self.machine(
+        self.plain_machine(
             name,
             carry,
-            "",
             &format!(
                 "        transition {prefix}at < {} {{\n            true -> {check}({inner}{carry_arg})\n            _ -> {oob}({inner}{carry_arg})\n        }}\n",
                 self.limit
@@ -665,10 +646,9 @@ impl MachineEmitter<'_> {
                 "        transition {prefix}buffer[{prefix}at] == {byte} {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad{carry_arg})\n            _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad + 1{carry_arg})\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &oob,
             carry,
-            "",
             &format!(
                 "        transition {{ _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}) }}\n"
             ),
@@ -699,26 +679,23 @@ impl MachineEmitter<'_> {
             carry,
             &format!(", {prefix}payload: u64 in Wrapping"),
         );
-        self.machine(
+        self.plain_machine(
             name,
             carry,
-            "",
             &format!(
                 "        transition {{ _ -> {start}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, 0 as u64 in Wrapping, 0 as u64 in Wrapping{carry_arg}) }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &start,
             &acc_shift,
-            "",
             &format!(
                 "        transition {prefix}shift > 63 {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}, {prefix}accumulator as u64)\n            _ -> {read}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift{carry_arg})\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &read,
             &acc_shift,
-            "",
             &format!(
                 "        transition {prefix}at < {} {{\n            true -> {byte}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift{carry_arg})\n            _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}, {prefix}accumulator as u64)\n        }}\n",
                 self.limit
@@ -732,26 +709,23 @@ impl MachineEmitter<'_> {
                 "        let {prefix}byte: u8 = {prefix}buffer[{prefix}at];\n        let {prefix}payload: u64 in Wrapping = ({prefix}byte & 127) as u64 in Wrapping;\n        let {prefix}next_accumulator: u64 in Wrapping = {prefix}accumulator | ({prefix}payload << {prefix}shift);\n        transition {prefix}byte < 128 {{\n            true -> {terminal}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad, {prefix}next_accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n            _ -> {continue_state}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad, {prefix}next_accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &terminal,
             &full,
-            "",
             &format!(
                 "        transition {prefix}payload == 0 && {prefix}shift > 0 {{\n            true -> {terminal_check}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, {prefix}accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n            _ -> {terminal_check}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &terminal_check,
             &full,
-            "",
             &format!(
                 "        transition {prefix}shift == 63 && {prefix}payload > 1 {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}, {prefix}accumulator as u64)\n            _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad{carry_arg}, {prefix}accumulator as u64)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &continue_state,
             &full,
-            "",
             &format!(
                 "        transition {prefix}shift == 63 && {prefix}payload > 1 {{\n            true -> {start}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, {prefix}accumulator, {prefix}shift + 7{carry_arg})\n            _ -> {start}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift + 7{carry_arg})\n        }}\n"
             ),
@@ -963,14 +937,13 @@ impl MachineEmitter<'_> {
             let store = format!("{name}_element_{index}_store");
             let length_state = format!("{name}_length_{index}");
             let after_element = format!("{name}_element_{}", index + 1);
-            self.machine(
-                &element_state,
-                &format!("{prefix}end: u64"),
-                "",
-                &format!(
+            self.plain_machine(
+            &element_state,
+            &format!("{prefix}end: u64"),
+            &format!(
                     "        transition {prefix}at < {prefix}end {{\n            true -> {read}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}end)\n            _ -> {length_state}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}end)\n        }}\n"
-                ),
-            );
+                )
+        );
             self.dec_varint(
                 &read,
                 &store,
@@ -992,14 +965,13 @@ impl MachineEmitter<'_> {
             } else {
                 format!("{name}_length_{index}")
             };
-            self.machine(
-                &length_state,
-                &format!("{prefix}end: u64"),
-                "",
-                &format!(
+            self.plain_machine(
+            &length_state,
+            &format!("{prefix}end: u64"),
+            &format!(
                     "        {prefix}value.{field}.length = {index};\n        transition {{ _ -> {close}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}end) }}\n"
-                ),
-            );
+                )
+        );
         }
         self.dec_close_window(name, next);
     }

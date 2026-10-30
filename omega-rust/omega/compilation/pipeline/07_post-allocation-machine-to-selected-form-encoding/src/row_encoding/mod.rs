@@ -397,7 +397,8 @@ fn encode_address_routed(
             selected_encoded_parts!(encoded)
         }
     };
-    validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
+    let footprint =
+        validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
     if encoded_effects != machine.alternative.encoded {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
@@ -405,13 +406,7 @@ fn encode_address_routed(
     Ok(SelectedFormEncodedRowDraft::encoded(
         SelectedFormEncodingState::Encoded,
         bytes,
-        SelectedFormDecodedFootprint {
-            register_reads: reads,
-            register_writes: writes,
-            implicit_defs: encoded_effects.implicit_unit_defs.clone(),
-            implicit_clobbers: encoded_effects.implicit_unit_clobbers.clone(),
-            encoded: encoded_effects,
-        },
+        footprint,
     ))
 }
 
@@ -472,7 +467,8 @@ fn encode_scalar(
             selected_encoded_parts!(encoded)
         }
     };
-    validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
+    let footprint =
+        validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
     if encoded_effects != machine.alternative.encoded {
         return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction));
     }
@@ -480,13 +476,7 @@ fn encode_scalar(
     Ok(SelectedFormEncodedRowDraft::encoded(
         SelectedFormEncodingState::Encoded,
         bytes,
-        SelectedFormDecodedFootprint {
-            register_reads: reads,
-            register_writes: writes,
-            implicit_defs: encoded_effects.implicit_unit_defs.clone(),
-            implicit_clobbers: encoded_effects.implicit_unit_clobbers.clone(),
-            encoded: encoded_effects,
-        },
+        footprint,
     ))
 }
 
@@ -534,19 +524,20 @@ fn validated_encoded_draft(
     ))
 }
 
-/// The footprint an ISA produced must be the one the declared effects name.
+/// The footprint an ISA produced must be the one the declared effects name:
+/// the draft carries that validated footprint, not the raw parts.
 fn validate_operand_footprint(
     instruction: SelectedInstructionId,
     machine: &PostAllocationMachineInstruction,
     encoded: &MachineEncodedEffects,
     reads: &[RegisterViewId],
     writes: &[RegisterViewId],
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
     let expected = decoded_footprint(machine, encoded)?;
     if expected.register_reads != reads || expected.register_writes != writes {
         return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction));
     }
-    Ok(())
+    Ok(expected)
 }
 
 use crate::validation::row::validate_size;

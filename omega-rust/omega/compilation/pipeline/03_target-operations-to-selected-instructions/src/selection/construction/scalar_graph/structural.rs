@@ -147,7 +147,7 @@ pub(super) fn scaled_element_index(
     length: ValueId,
     obligation: ObligationId,
     accepted_fact: AcceptedObligationFactIdentity,
-    operation: OperationId,
+    row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let view = builder.transport.element_view(place).copied();
     let stride_register = transport_register(builder, place, 0)?;
@@ -155,23 +155,13 @@ pub(super) fn scaled_element_index(
     builder.emit_materialize_i64(
         IntegerValue::Unsigned(u128::from(stride)),
         stride_register,
-        SelectedInstructionProvenance {
-            operations: vec![operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        obligation_provenance(row, &[index, length], &[obligation]),
     )?;
     builder.emit(
         SelectedInstructionKind::WrappingMultiplyI64,
         builder.constraints.keys.multiply_i64,
         &[index_register, stride_register, scaled_index],
-        SelectedInstructionProvenance {
-            operations: vec![operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        obligation_provenance(row, &[index, length], &[obligation]),
     )?;
     let physical_index = if let Some(view) = view {
         let offset = transport_register(builder, place, 0)?;
@@ -182,12 +172,7 @@ pub(super) fn scaled_element_index(
             },
             builder.constraints.keys.add_i64,
             &[view.byte_offset, scaled_index, offset],
-            SelectedInstructionProvenance {
-                operations: vec![operation],
-                values: vec![index, length, view.root_length],
-                obligations: vec![obligation],
-                ..Default::default()
-            },
+            obligation_provenance(row, &[index, length, view.root_length], &[obligation]),
         )?;
         offset
     } else {

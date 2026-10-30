@@ -141,7 +141,7 @@ fn element_view_read(
         length,
         obligation,
         accepted_fact,
-        row.operation,
+        row,
     )?;
     let output = builder.register(
         definition.value,

@@ -52,8 +52,6 @@ pub enum AbstractOptimizationError {
 
 failed_display!(AbstractOptimizationError, "abstract optimization failed");
 
-impl std::error::Error for AbstractOptimizationError {}
-
 /// The phase: build the verified unit, run the selected passes, publish.
 pub fn optimize_abstract_operations(
     input: VerifiedPsiOptimizationInput,

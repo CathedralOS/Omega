@@ -6,7 +6,7 @@
 //! qualification and custody checks succeed.
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::storage::ByteSequenceStorage;
-use crate::custody::resolve_single_structural_argument;
+use crate::custody::{fixed_index_step, resolve_single_structural_argument};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
@@ -46,25 +46,13 @@ impl<'execution> ConstructorValue<'execution> {
             // Select the actual source span before any receiving declaration
             // is consulted; neither a referent nor byte window owns this data.
             for segment in &argument.path {
-                let StructuralPathSegment::FixedIndex(index) = segment else {
-                    return Err(malformed());
-                };
-                let StructuralTypeShape::FixedArray {
-                    element,
-                    length: terminal_psi::ArrayExtent::Literal(length),
-                } = types.get(&structural_type).ok_or_else(malformed)?.shape
-                else {
-                    return Err(malformed());
-                };
-                if *index >= length {
-                    return Err(malformed());
-                }
+                let (element, index, length) = fixed_index_step(&types, structural_type, segment)?;
                 let length = usize::try_from(length).map_err(|_| malformed())?;
                 if elements.len() % length != 0 {
                     return Err(malformed());
                 }
                 let count = elements.len() / length;
-                let start = usize::try_from(*index)
+                let start = usize::try_from(index)
                     .map_err(|_| malformed())?
                     .checked_mul(count)
                     .ok_or_else(malformed)?;

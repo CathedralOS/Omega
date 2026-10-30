@@ -70,34 +70,19 @@ fn maximal_but_valid_layout_still_packs() {
     )
     .expect("a layout ending on the last aligned extent packs");
     assert_eq!(offsets(&storage, span), [0, usize::MAX - 15]);
-    assert_eq!(
-        layout,
-        TypeLayout {
-            size: usize::MAX - 7,
-            alignment: 8
-        }
-    );
+    assert_eq!(layout, crate::type_layout(usize::MAX - 7, 8));
 
     // A single unaligned field may occupy the whole addressable size.
     let mut storage = Arena::new();
     let (span, layout) = pack_fields(&mut storage, [planned("all", usize::MAX, 1)])
         .expect("a full-width byte array alone packs");
     assert_eq!(offsets(&storage, span), [0]);
-    assert_eq!(
-        layout,
-        TypeLayout {
-            size: usize::MAX,
-            alignment: 1
-        }
-    );
+    assert_eq!(layout, crate::type_layout(usize::MAX, 1));
 }
 
 #[test]
 fn plan_directed_placement_rejects_arity_mismatch_and_wrapping_fields() {
-    let layout = TypeLayout {
-        size: 16,
-        alignment: 8,
-    };
+    let layout = crate::type_layout(16, 8);
     let mut storage = Arena::new();
     let (span, placed) = place_fields_by_plan(
         &mut storage,

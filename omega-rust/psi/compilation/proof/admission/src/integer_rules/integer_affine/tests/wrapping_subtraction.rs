@@ -9,6 +9,7 @@
 //! that every missing, weaker or misplaced conjunct rejects.
 
 use super::{literal, unsigned_literal, value};
+use crate::affine_witness;
 use crate::integer_rules::integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
     IntegerAffineWitnessError, check_integer_affine_witness, integer_affine_wrapping_evidence,
@@ -59,12 +60,7 @@ fn subtraction_row(
     let form = check_integer_affine_witness(
         &context(integer_type, 2),
         &axioms,
-        &IntegerAffineWitness {
-            root: operand.clone(),
-            target: defined.clone(),
-            definition_axioms: vec![0],
-            literal_axioms: vec![None],
-        },
+        &affine_witness(operand.clone(), defined.clone(), vec![0], vec![None]),
     )
     .expect("a wrapping difference of a literal is one checked step");
     (operand, defined, form)
@@ -331,12 +327,7 @@ fn an_in_place_step_follows_the_chain_it_extends() {
     let form = check_integer_affine_witness(
         &context,
         &axioms,
-        &IntegerAffineWitness {
-            root: operand.clone(),
-            target: difference.clone(),
-            definition_axioms: vec![0],
-            literal_axioms: vec![None],
-        },
+        &affine_witness(operand.clone(), difference.clone(), vec![0], vec![None]),
     )
     .expect("an in-place step extends a cited chain");
     let upper = Proposition::LessOrEqual(operand.clone(), bound(10));
@@ -366,12 +357,12 @@ fn an_in_place_step_follows_the_chain_it_extends() {
         check_integer_affine_witness(
             &context,
             &axioms,
-            &IntegerAffineWitness {
-                root: operand.clone(),
-                target: subtract(integer_type, operand, bound(1)),
-                definition_axioms: vec![0],
-                literal_axioms: vec![None],
-            },
+            &affine_witness(
+                operand.clone(),
+                subtract(integer_type, operand, bound(1)),
+                vec![0],
+                vec![None]
+            ),
         ),
         Err(IntegerAffineWitnessError::TargetMismatch),
     );

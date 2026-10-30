@@ -179,13 +179,13 @@ fn walk_declared_origins(
     detail: OriginDetail,
 ) -> Option<StoredLocalOrigins> {
     let root_reference = reference;
-    let mut origins = StoredLocalOrigins {
+    let mut origins = StoredLocalOrigins::new(super::StoredOriginRecord {
         local_symbol: symbol,
         references: Vec::new(),
         cases: Vec::new(),
         moves: Vec::new(),
         symbolic: true,
-    };
+    });
     // This inventory transports aliases, not ordinary case values. A complete
     // reference-free shape contributes no loan identity, even when its arrays
     // contain many scalar cases. Reuse the capability proof (which excludes
@@ -309,7 +309,7 @@ fn walk_declared_origins(
                             origins.references.push(StoredWriteOrigin {
                                 lifetime_dependencies: Vec::new(),
                                 kind: super::StoredOriginKind::OpaqueRegion,
-                                local_symbol: origins.local_symbol,
+                                local_symbol: symbol,
                                 local_path: path,
                                 local_segments: segments,
                                 may_select: false,
@@ -333,7 +333,7 @@ fn walk_declared_origins(
                             origins.references.push(StoredWriteOrigin {
                                 lifetime_dependencies: Vec::new(),
                                 kind: super::StoredOriginKind::OpaqueRegion,
-                                local_symbol: origins.local_symbol,
+                                local_symbol: symbol,
                                 local_path: path,
                                 local_segments: segments,
                                 may_select: false,

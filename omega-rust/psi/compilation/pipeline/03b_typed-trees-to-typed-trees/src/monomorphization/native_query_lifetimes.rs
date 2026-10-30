@@ -1,19 +1,14 @@
 //! Preserve a query selection's erased region telescope through the same
 //! static application custody used by other nested machine selections.
 use super::{CallSite, Diagnostic, ExpressionNode, TypedTrees};
+use crate::expression_roots::append_statement_roots;
 
 pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut queries = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut expressions = Vec::new();
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                validation::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
-            }
+            append_statement_roots(program, state, &mut expressions);
             for expression in expressions {
                 if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
                     && let Some(query) = &call.native_code_layout

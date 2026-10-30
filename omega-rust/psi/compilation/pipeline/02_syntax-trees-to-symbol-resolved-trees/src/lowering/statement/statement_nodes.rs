@@ -1,5 +1,6 @@
 //! One-to-one lowering of statement nodes, transition guards and targets.
 
+use crate::lowering::expression::expression_table;
 use crate::lowering::expression::lower_private_expression_into_table;
 use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
@@ -177,19 +178,11 @@ pub(crate) fn lower_statement_node(
             // correct); only ref-param members, whose substitution is the bug.
             let mut hoisted = Vec::new();
             for offset in 0..arguments.count() {
-                let argument = lowerer
-                    .symbol_resolved_trees
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression_handles(arguments)[offset as usize];
+                let argument =
+                    expression_table(lowerer).expression_handles(arguments)[offset as usize];
                 if is_reference_struct_parameter_member(lowerer, argument) {
                     let temp = hoist_into_temp(lowerer, argument, &mut hoisted);
-                    lowerer
-                        .symbol_resolved_trees
-                        .tables
-                        .bodies
-                        .expressions
+                    expression_table(lowerer)
                         .set_expression_handle_at_offset(arguments, offset, temp);
                 }
             }
@@ -617,12 +610,7 @@ pub(crate) fn set_expression(
     handle: ExpressionHandle,
     node: ExpressionNode,
 ) {
-    *lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_mut(handle) = node;
+    *expression_table(lowerer).expression_mut(handle) = node;
 }
 
 pub(super) fn lower_statement_expression(
@@ -638,12 +626,7 @@ fn lower_statement_expressions(
     syntax_trees: &SyntaxTrees,
     expressions: HandleSpan<syntax::expression::ExpressionHandle>,
 ) -> Result<HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
-    let span = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .reserve_expression_handles(expressions.count());
+    let span = expression_table(lowerer).reserve_expression_handles(expressions.count());
 
     for (offset, expression) in syntax_trees
         .statements
@@ -652,18 +635,13 @@ fn lower_statement_expressions(
         .enumerate()
     {
         let expression = lower_private_expression_into_table(lowerer, syntax_trees, *expression)?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .bodies
-            .expressions
-            .set_expression_handle_at_offset(
-                span,
-                offset
-                    .try_into()
-                    .expect("expression handle span count overflow"),
-                expression,
-            );
+        expression_table(lowerer).set_expression_handle_at_offset(
+            span,
+            offset
+                .try_into()
+                .expect("expression handle span count overflow"),
+            expression,
+        );
     }
 
     Ok(span)
@@ -707,12 +685,8 @@ fn lower_transition_target_node(
             // reads and calls must not escape a selected arm. Guarded targets
             // retain their operands for arm-local normalization and checking.
             for offset in 0..if unconditional { arguments.count() } else { 0 } {
-                let argument = lowerer
-                    .symbol_resolved_trees
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression_handles(arguments)[offset as usize];
+                let argument =
+                    expression_table(lowerer).expression_handles(arguments)[offset as usize];
                 let rewritten = hoist_operand_indexed_reads(
                     lowerer,
                     argument,
@@ -720,11 +694,7 @@ fn lower_transition_target_node(
                     OperandHoisting::Computation,
                 );
                 if rewritten != argument {
-                    lowerer
-                        .symbol_resolved_trees
-                        .tables
-                        .bodies
-                        .expressions
+                    expression_table(lowerer)
                         .set_expression_handle_at_offset(arguments, offset, rewritten);
                 }
             }

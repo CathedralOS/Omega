@@ -318,39 +318,6 @@ pub(crate) fn realization_machine_identity(
         .unwrap_or_default()
 }
 
-/// The exact requirement a provider's retained satisfies edge installs on
-/// its plan row. An edge naming a generic token-machine template is
-/// satisfied by the provider instance's closed applications: the clause
-/// keeps the template's symbols while the retained specialization receipt
-/// and validated operator application select the closed requirement.
-/// Checking resolved that join once into `CheckedProviderClosedRequirement`
-/// facts; realization reads the recorded decision rather than replaying
-/// source-specialization evidence, and a template never aliases its closed
-/// requirement.
-pub(crate) fn satisfied_row_requirement<'typed>(
-    typed: &'typed TypedTrees,
-    check_facts: &'typed checked_trees::CheckFacts,
-    provider: &'typed checked_trees::typed_trees::machine::Machine,
-    requirement: &'typed checked_trees::typed_trees::machine::Machine,
-) -> Option<&'typed checked_trees::typed_trees::machine::Machine> {
-    if typed.machine_type_parameters(requirement).is_empty() {
-        return Some(requirement);
-    }
-    let mut applications = check_facts
-        .provider_closed_requirements
-        .iter()
-        .filter(|row| {
-            row.provider == provider.symbol
-                && row.selecting_declaration == provider.symbol
-                && row.template == requirement.symbol
-        });
-    let application = applications.next()?;
-    if applications.next().is_some() {
-        return None;
-    }
-    typed.machine(application.closed_requirement)
-}
-
 /// Whether two boundary names denote the same slot: equal, or one is the
 /// unqualified leaf of the other. External-root slot resolution matches
 /// retained selected plans with this same rule.

@@ -343,18 +343,10 @@ impl TerminalExecution<'_> {
             // containing owner proves this cached field holder retired. With
             // any current owner, malformed projection/namespace evidence must
             // refuse, never masquerade as an absent loan.
-            let containing_owner = self
-                .structural_values
-                .values()
-                .chain(
-                    self.call_stack
-                        .iter()
-                        .flat_map(|frame| frame.structural_values.values()),
-                )
-                .any(|owner| {
-                    owner.opaque_identity == field.parent.opaque_identity
-                        && field.parent.path.starts_with(&owner.path)
-                });
+            let containing_owner = self.live_structural_values().any(|owner| {
+                owner.opaque_identity == field.parent.opaque_identity
+                    && field.parent.path.starts_with(&owner.path)
+            });
             if !containing_owner {
                 continue;
             }

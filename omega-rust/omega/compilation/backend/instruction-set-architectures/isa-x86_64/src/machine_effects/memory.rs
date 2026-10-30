@@ -73,10 +73,7 @@ pub(super) fn declaration(
                     byte_count: u16::from(form.bytes),
                 }
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 7,
-                maximum_bytes: Some(9),
-            },
+            crate::encoder_resolved(7, Some(9)),
         ),
 
         MachineSemanticKind::CopyBytes => (
@@ -111,10 +108,7 @@ pub(super) fn declaration(
                 pointer_operand: 0,
                 codec_operand: 1,
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 16,
-                maximum_bytes: None,
-            },
+            crate::encoder_resolved(16, None),
         ),
         MachineSemanticKind::StoreEncodedScalar => (
             MachineMemoryEffect::WriteEncodedScalarV1,
@@ -125,10 +119,7 @@ pub(super) fn declaration(
                 pointer_operand: 0,
                 codec_operand: 1,
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 16,
-                maximum_bytes: None,
-            },
+            crate::encoder_resolved(16, None),
         ),
         MachineSemanticKind::ScanByteSequence => (
             MachineMemoryEffect::ScanByteSequenceV1,
@@ -139,10 +130,7 @@ pub(super) fn declaration(
                 base_pointer_operand: 0,
                 count_operand: 1,
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 16,
-                maximum_bytes: None,
-            },
+            crate::encoder_resolved(16, None),
         ),
         MachineSemanticKind::CompareByteSequences => (
             MachineMemoryEffect::CompareByteSequencesV1,
@@ -155,10 +143,7 @@ pub(super) fn declaration(
                 right_base_operand: 2,
                 right_count_operand: 3,
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 16,
-                maximum_bytes: None,
-            },
+            crate::encoder_resolved(16, None),
         ),
         MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
@@ -179,10 +164,10 @@ pub(super) fn declaration(
                     pointer_operand: 0,
                     byte_count,
                 },
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes: byte_count * 8 + (byte_count - 1) * 7,
-                    maximum_bytes: Some(byte_count * 9 + (byte_count - 1) * 7),
-                },
+                crate::encoder_resolved(
+                    byte_count * 8 + (byte_count - 1) * 7,
+                    Some(byte_count * 9 + (byte_count - 1) * 7),
+                ),
             )
         }
         MachineSemanticKind::StorePacked => (
@@ -191,10 +176,7 @@ pub(super) fn declaration(
             vec![0, 1],
             vec![2],
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 32,
-                maximum_bytes: Some(83),
-            },
+            crate::encoder_resolved(32, Some(83)),
         ),
         MachineSemanticKind::Store => (
             MachineMemoryEffect::WritePointerV1,
@@ -202,10 +184,7 @@ pub(super) fn declaration(
             vec![0, 1],
             vec![],
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 7,
-                maximum_bytes: Some(9),
-            },
+            crate::encoder_resolved(7, Some(9)),
         ),
         MachineSemanticKind::AddressOffset => (
             MachineMemoryEffect::NoneV1,
@@ -213,10 +192,7 @@ pub(super) fn declaration(
             vec![0],
             vec![1],
             MachineEncodedMemoryEffect::NoneV1,
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 7,
-                maximum_bytes: Some(8),
-            },
+            crate::encoder_resolved(7, Some(8)),
         ),
         MachineSemanticKind::Load8Indexed => (
             MachineMemoryEffect::ReadPointerV1,
@@ -243,10 +219,7 @@ pub(super) fn declaration(
                     2
                 },
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 8,
-                maximum_bytes: Some(9),
-            },
+            crate::encoder_resolved(8, Some(9)),
         ),
         MachineSemanticKind::Load32 | MachineSemanticKind::Load64 => (
             MachineMemoryEffect::ReadPointerV1,
@@ -261,10 +234,7 @@ pub(super) fn declaration(
                     8
                 },
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 7,
-                maximum_bytes: Some(8),
-            },
+            crate::encoder_resolved(7, Some(8)),
         ),
         MachineSemanticKind::Store64 => (
             MachineMemoryEffect::WriteFrameStorageV1,
@@ -275,10 +245,7 @@ pub(super) fn declaration(
                 stack_pointer,
                 byte_count: 8,
             },
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 15,
-                maximum_bytes: Some(31),
-            },
+            crate::encoder_resolved(15, Some(31)),
         ),
         MachineSemanticKind::FrameAddress => (
             MachineMemoryEffect::NoneV1,
@@ -286,10 +253,7 @@ pub(super) fn declaration(
             vec![],
             vec![0],
             MachineEncodedMemoryEffect::NoneV1,
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 8,
-                maximum_bytes: Some(23),
-            },
+            crate::encoder_resolved(8, Some(23)),
         ),
         MachineSemanticKind::CallUnit => (
             MachineMemoryEffect::NoneV1,

@@ -1,7 +1,7 @@
-use super::integer_signature;
+use super::{call_signature, integer_signature};
 use crate::plans::{
-    CallSignature, CallingPolicy, EntryControl, MachineRegister, RegisterSet, ValueLocation,
-    ValueShape, evaluate_call_plan, validate_call_plan,
+    CallingPolicy, EntryControl, MachineRegister, RegisterSet, ValueLocation, ValueShape,
+    evaluate_call_plan, validate_call_plan,
 };
 use target::Architecture;
 
@@ -140,16 +140,16 @@ fn syscall_two_word_formals_use_physical_slot_capacity() {
     ] {
         // A descriptor remains one formal; a scalar after it uses the next
         // physical slot, not the next formal ordinal. Empty values use no slot.
-        let mut signature = CallSignature {
-            parameters: vec![
+        let mut signature = call_signature(
+            vec![
                 ValueShape::integer(4, 4),
                 ValueShape::integer(0, 1),
                 ValueShape::integer(16, 8),
                 ValueShape::integer(8, 8),
                 ValueShape::integer(16, 8),
             ],
-            result: Some(ValueShape::integer(8, 8)),
-        };
+            Some(ValueShape::integer(8, 8)),
+        );
         let plan = evaluate_call_plan(policy, &signature).expect("six-word syscall plan");
         assert_eq!(plan.parameters.len(), 5);
         assert!(plan.parameters[1].locations.is_empty());
@@ -194,10 +194,7 @@ fn syscall_two_word_formals_use_physical_slot_capacity() {
             "floating formal rejects"
         );
 
-        let three_words = CallSignature {
-            parameters: vec![ValueShape::integer(17, 8)],
-            result: None,
-        };
+        let three_words = call_signature(vec![ValueShape::integer(17, 8)], None);
         let plan = evaluate_call_plan(policy, &three_words).expect("three physical words fit");
         assert_eq!(
             plan.parameters[0].locations,
@@ -208,10 +205,7 @@ fn syscall_two_word_formals_use_physical_slot_capacity() {
             ]
         );
         validate_call_plan(&plan, &three_words).expect("partial final word retains exact coverage");
-        let seven_words = CallSignature {
-            parameters: vec![ValueShape::integer(49, 8)],
-            result: None,
-        };
+        let seven_words = call_signature(vec![ValueShape::integer(49, 8)], None);
         assert!(
             evaluate_call_plan(policy, &seven_words).is_err(),
             "one formal cannot consume seven words"

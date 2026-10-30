@@ -1,8 +1,8 @@
 //! Establish and access the original primitive referent in the activation frame.
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionProvenance,
-    SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedMemoryAccessRole, VirtualRegisterId,
+    memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -238,10 +238,7 @@ pub(super) fn normalize_signed_load(
         crate::selection::scalar_call_abi::integer_carrier_normalization(definition.scalar_type),
         builder.constraints.keys.copy_i64,
         &[output, normalized],
-        SelectedInstructionProvenance {
-            values: vec![definition.value],
-            ..Default::default()
-        },
+        super::super::value_provenance(definition.value),
     )?;
     Ok(normalized)
 }

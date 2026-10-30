@@ -329,6 +329,15 @@ const CONVERSIONS: [(u32, fn(u8, u8) -> DecodedWord); 6] = [
 ];
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    macro_rules! source_destination {
+        ($name:ident) => {
+            Ok(DecodedWord::$name {
+                source: ((word >> 5) & 31) as u8,
+                destination: (word & 31) as u8,
+            })
+        };
+    }
+
     if let Some((operation, operand)) = super::register_access::decode(word) {
         return Ok(DecodedWord::RegisterAccess { operation, operand });
     }
@@ -426,10 +435,7 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         });
     }
     if word & 0xffff_fc00 == 0xda9f_0000 {
-        return Ok(DecodedWord::SelectMaximumUnlessEqual {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectMaximumUnlessEqual);
     }
     if word & 0xffe0_fc00 == 0x9ac0_0800 {
         return Ok(DecodedWord::UnsignedDivide {
@@ -467,10 +473,7 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         });
     }
     if word & 0xffff_fc00 == 0xda9f_3000 {
-        return Ok(DecodedWord::SelectMaximumOnCarry {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectMaximumOnCarry);
     }
     if word & 0xffe0_fc00 == 0xeb00_0000 && word & 31 != 31 {
         return Ok(DecodedWord::SubtractWithFlags {
@@ -480,10 +483,7 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         });
     }
     if word & 0xffff_fc00 == 0x9a9f_2000 {
-        return Ok(DecodedWord::SelectZeroOnBorrow {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectZeroOnBorrow);
     }
     if let Some((value, _)) = BOUND_WORDS
         .iter()
@@ -495,22 +495,13 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         });
     }
     if word & 0xffe0_fc00 == 0x9a80_0000 && (word >> 16) & 31 == word & 31 {
-        return Ok(DecodedWord::SelectOnEqual {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectOnEqual);
     }
     if word & 0xffe0_fc00 == 0x9a80_6000 && (word >> 16) & 31 == word & 31 {
-        return Ok(DecodedWord::SelectOnOverflow {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectOnOverflow);
     }
     if word & 0xffff_fc00 == 0x937f_fc00 {
-        return Ok(DecodedWord::ArithmeticShiftRight63 {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(ArithmeticShiftRight63);
     }
     if word & 0xffff_fc00 == 0xd240_f800 && (word >> 5) & 31 == word & 31 {
         return Ok(DecodedWord::ExclusiveOrI64Maximum {
@@ -523,28 +514,16 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         });
     }
     if word & 0xffe0_fc00 == 0x9a80_c000 && (word >> 16) & 31 == word & 31 {
-        return Ok(DecodedWord::SelectOnGreater {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectOnGreater);
     }
     if word & 0xffe0_fc00 == 0x9a80_b000 && (word >> 16) & 31 == word & 31 {
-        return Ok(DecodedWord::SelectOnLess {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectOnLess);
     }
     if word & 0xffe0_fc00 == 0x9a80_1000 && (word >> 16) & 31 == word & 31 {
-        return Ok(DecodedWord::SelectOnNotEqual {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectOnNotEqual);
     }
     if word & 0xffe0_fc00 == 0x9a80_8000 && (word >> 16) & 31 == word & 31 {
-        return Ok(DecodedWord::SelectOnHigher {
-            source: ((word >> 5) & 31) as u8,
-            destination: (word & 31) as u8,
-        });
+        return source_destination!(SelectOnHigher);
     }
     if word & 0xffff_0fe0 == 0x9a9f_07e0 {
         let condition = (((word >> 12) & 15) ^ 1) as u8;

@@ -66,11 +66,7 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
             }
             assert_non_return_refused(
                 &format!("{form:?}, mutation {mutation}"),
-                instruction,
-                kind,
-                &encoding,
-                &layout,
-                &changed,
+                (instruction, kind, &encoding, &layout, &changed),
             );
         }
     }

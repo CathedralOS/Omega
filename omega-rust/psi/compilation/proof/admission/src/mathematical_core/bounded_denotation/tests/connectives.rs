@@ -1,4 +1,5 @@
 use super::*;
+use crate::proof_node;
 
 /// Elaborate one `PredicateDenotation` node over the cited premise —
 /// `Truth` premises are discharged by the primitive judgment, every
@@ -10,10 +11,7 @@ fn predicate_denotation_elaboration(
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
     let (premise_proof, roster) = if matches!(premise, Proposition::Truth) {
         (
-            ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-            },
+            proof_node!(premise.clone() => ProofRule::Primitive(PrimitiveJudgment::Truth)),
             Vec::new(),
         )
     } else {

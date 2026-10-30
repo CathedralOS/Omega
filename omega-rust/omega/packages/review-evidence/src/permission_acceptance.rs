@@ -48,7 +48,8 @@ impl TerminalPermissionAcceptance {
         let evaluated = checked.build().config.assumed_bindings.len();
         let installed = checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings()
             .len();
         if evaluated == 0 || evaluated != installed {
@@ -103,7 +104,8 @@ impl TerminalPermissionAcceptance {
         }
         let (rows, _) = if checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings()
             .is_empty()
         {

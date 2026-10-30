@@ -60,9 +60,7 @@ pub fn data_predicates_admit_zero(
         false,
     );
     program
-        .proof_facts
-        .span_or_empty(definition.where_facts)
-        .iter()
+        .conjunctive_proof_facts(definition.where_facts)
         .all(|fact| {
             let Some(expression) = fact.as_expression() else {
                 return false;

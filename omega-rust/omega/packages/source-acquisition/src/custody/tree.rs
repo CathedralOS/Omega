@@ -337,6 +337,17 @@ pub(crate) fn verify_cache_custody(
     verify_cache_custody_from_open_root(root, root_directory, kind, byte_limit)
 }
 
+/// The entry-ceiling rejection every custody walk level reports for `root`.
+fn entry_ceiling_exceeded(kind: CacheCustodyKind, root: &Path) -> SourceResolveError {
+    cache_custody_invalid(
+        kind,
+        root,
+        format!(
+            "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
+        ),
+    )
+}
+
 pub(crate) fn verify_cache_custody_from_open_root(
     root: &Path,
     root_directory: CapabilityDirectory,
@@ -356,13 +367,7 @@ pub(crate) fn verify_cache_custody_from_open_root(
             cache_custody_invalid(kind, &path, "cache custody entry count overflowed")
         })?;
         if observed > CACHE_CUSTODY_ENTRY_LIMIT {
-            return Err(cache_custody_invalid(
-                kind,
-                root,
-                format!(
-                    "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
-                ),
-            ));
+            return Err(entry_ceiling_exceeded(kind, root));
         }
         let directory = open_cache_custody_directory(
             &root_directory,
@@ -389,13 +394,7 @@ pub(crate) fn verify_cache_custody_from_open_root(
             let name = child.file_name();
             let child_path = path.join(&name);
             if !cache_custody_has_capacity(observed, pending.len()) {
-                return Err(cache_custody_invalid(
-                    kind,
-                    root,
-                    format!(
-                        "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
-                    ),
-                ));
+                return Err(entry_ceiling_exceeded(kind, root));
             }
             let metadata = directory
                 .symlink_metadata(&name)
@@ -467,13 +466,7 @@ pub(crate) fn verify_cache_custody_from_open_root(
             if observed > CACHE_CUSTODY_ENTRY_LIMIT {
                 // The retained-entry check above should make this unreachable, but keep the
                 // ceiling explicit if traversal accounting changes.
-                return Err(cache_custody_invalid(
-                    kind,
-                    root,
-                    format!(
-                        "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
-                    ),
-                ));
+                return Err(entry_ceiling_exceeded(kind, root));
             }
         }
     }

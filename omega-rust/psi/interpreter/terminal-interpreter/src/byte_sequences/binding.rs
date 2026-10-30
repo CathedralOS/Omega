@@ -3,6 +3,7 @@
 use crate::byte_sequences::ByteSequenceView;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::execution::frame_field_mut;
 use crate::structural_inputs::byte_arrays;
 use crate::structural_inputs::byte_arrays::storage::ArrayStorage;
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -1026,15 +1027,7 @@ impl TerminalExecution<'_> {
         if let Some(changed) = changed {
             self.invalidate_stored_provenance(&changed);
         }
-        let values = if *depth == self.call_stack.len() {
-            &mut self.byte_sequence_values
-        } else {
-            &mut self
-                .call_stack
-                .get_mut(*depth)
-                .ok_or_else(malformed)?
-                .byte_sequence_values
-        };
+        let values = frame_field_mut!(self, *depth, byte_sequence_values);
         match values.get_mut(place) {
             Some(ByteSequenceBinding::Immutable(bytes)) => Ok(bytes),
             _ => Err(malformed()),

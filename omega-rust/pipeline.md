@@ -258,6 +258,24 @@ not a new language stage.
 
 ## Build and compiler ownership migration
 
+Provider settlement is complete only when target policy consumes canonical Psi
+declarations and explicit Build/package inputs, without reopening checked source.
+The remaining connected migration is:
+
+1. Publish candidate/default and requirement declaration inputs before target
+   choice; keep whole-plan, target and grant selection in Omega.
+2. Publish exact calling applications, signatures and checked contracts so
+   Build-sponsored completion and target ABI/materialization consume records.
+3. Move entry, selected-family reach and source-cycle obligations onto canonical
+   declaration/call evidence, including dormant obligations for rootless checks.
+4. Complete owner-bound service/qualification/role review and deferred constant
+   recipes, then remove selected-source policy from Terminal inventory discovery.
+
+Each step removes the replaced source-reading route across all its consumers;
+none is a separate implementation handoff. Native receiving admission remains
+source-free. Check and declaration review must still work without executable
+publication, and reviewed candidates never replace original compiler custody.
+
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
 implementation already has these boundaries. Build suspension and helper
@@ -418,6 +436,22 @@ review request their checked-source projection explicitly. Review derives it
 from original compiler custody, never from the supplied semantic candidate.
 The selected plans, Import application custody and exact owner identities stay
 unchanged; each completed instance roster recomputes its aggregate commitment.
+That source projection now has a declaration producer and a source-free policy
+consumer. Psi records exact inherited receiving-application candidates and
+generic specialization identities, preserving individual failures inside their
+candidate groups. `provider-planning/src/provider_instances.rs` supplies original
+plan/review renderings of Psi's checked identity handles, as well as original
+plan/row correspondence and exact adapter judgments; `provider-selection` owns
+candidate cardinality, template-row agreement, complete closed-instance coverage
+and attachment to the selected plans. Review still prepares from the original
+compiler program, not the candidate under review. These are invocation-local
+declarations, not another portable format or permission to execute a provider.
+`SelectedProviderSource` now owns the immutable checked program and complete
+selected-plan roster together. It prepares that declaration payload lazily once;
+callback, Check, review and reference consumers borrow it and run source-free
+selection at their original admission points. Empty callback rosters do not
+initialize it. Clones share preparation, equality ignores only derived cache
+state, and no caller can replace the program independently of its plans.
 
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider
@@ -973,9 +1007,16 @@ and refinement contracts, and checked entry-resource report axes. Dormant and
 symbolic uses remain present; unavailable declaration projection stays deferred.
 Calling declarations close through the product's authenticated owner/member
 correspondence, preserving exact empty-argument matching and duplicate counts
-without ABI publication. The source adapter still prepares selected-row body
-evidence and whole-selected-instance validation before per-use policy, but does
-not reconstruct use classifications or selected signatures. Registration failures
+without ABI publication. Source preparation freezes exact adapter results once
+per original selected plan/row. Trait and top-level instance expansion consume
+those same results at their original diagnostic sites, including repeated error
+reports. The returned callback-provider product owns projected instance metadata
+and borrows source-free plan/row custody only. Callback admission itself runs in
+`provider-selection` without checked source: use iteration, exact selected-row
+lookup, calling counts and entry policy share one visible loop. Full plan/row
+equality rejoins the projection's clone; report hashes or source pointers cannot
+replace it. Missing preparation refuses a nonempty use roster, while a completed
+empty selection remains valid. Registration failures
 suppress only that occurrence's plan diagnostics. Selected roots borrow the same
 identity table in occurrence order. The application carries exact declarations,
 not callback source symbols. Composition rejoins each complete

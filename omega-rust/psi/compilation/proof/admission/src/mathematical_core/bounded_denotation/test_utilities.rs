@@ -1,6 +1,6 @@
 use super::{BoundedDenotation, Denotation, Elaboration};
 use crate::proof::assumption_proof;
-use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
+use crate::{Budget, ProofNode, ProofRule, affine_witness, verify_bounded_certificate};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     PropositionError, ScalarTerm, ScalarType, ValueId,
@@ -109,12 +109,12 @@ pub(crate) fn direct_affine_proof(
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
             root_bound: Box::new(assumption_proof(premise.clone(), 0)),
-            witness: IntegerAffineWitness {
-                root: left.clone(),
-                target: operation(integer, left, right).unwrap(),
-                definition_axioms: Vec::new(),
-                literal_axioms: Vec::new(),
-            },
+            witness: affine_witness(
+                left.clone(),
+                operation(integer, left, right).unwrap(),
+                Vec::new(),
+                Vec::new(),
+            ),
         },
     }
 }

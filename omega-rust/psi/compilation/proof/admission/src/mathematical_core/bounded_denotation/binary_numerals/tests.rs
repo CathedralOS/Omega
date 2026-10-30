@@ -8,7 +8,7 @@ use super::super::{Elaboration, MathTermKey};
 use super::{Constructor, IntegerValue, Law, Proposition, ScalarTerm, Term};
 use crate::proof::assumption_proof;
 use crate::{
-    Budget, PrimitiveJudgment, ProofNode, ProofRule, certificate_assumption_closure,
+    Budget, PrimitiveJudgment, ProofNode, ProofRule, certificate_assumption_closure, proof_node,
     verify_bounded_certificate, verify_mathematical_certificate,
 };
 
@@ -169,10 +169,8 @@ fn large_closed_values_keep_exact_opaque_identity_without_a_new_capacity_limit()
     let mut terms = [huge, alternate];
     terms.sort();
     let goal = Proposition::IntegerMathEqual(terms[0].clone(), terms[1].clone());
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
+    let proof =
+        proof_node!(goal.clone() => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
     let denoted = verify_bounded_certificate(
         &PropositionContext::default(),
         &goal,

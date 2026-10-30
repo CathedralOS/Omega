@@ -57,27 +57,17 @@ pub(crate) use staging::{
     stage_optimized_live_ranges,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LiveRangeValidationReceipt {
-    pub(crate) identity: LiveRangeIdentity,
-    pub(crate) selected: SelectedInstructionPlanIdentity,
-    pub(crate) liveness: LivenessIdentity,
-    pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) fuel_schedule: FuelScheduleIdentity,
-    pub(crate) virtual_register_count: usize,
-    pub(crate) virtual_fragment_count: usize,
-}
-
-impl LiveRangeValidationReceipt {
-    receipt_accessor_rows!(LiveRangeValidationReceipt {
-        identity: LiveRangeIdentity,
-        selected: SelectedInstructionPlanIdentity,
-        liveness: LivenessIdentity,
-        virtual_register_count: usize,
-        virtual_fragment_count: usize,
-        optimization_unit: OptimizationUnitIdentity,
-        fuel_schedule: FuelScheduleIdentity,
-    });
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct LiveRangeValidationReceipt {
+        pub(crate) identity: LiveRangeIdentity,
+        pub(crate) selected: SelectedInstructionPlanIdentity,
+        pub(crate) liveness: LivenessIdentity,
+        pub(crate) optimization_unit: OptimizationUnitIdentity,
+        pub(crate) fuel_schedule: FuelScheduleIdentity,
+        pub(crate) virtual_register_count: usize,
+        pub(crate) virtual_fragment_count: usize,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

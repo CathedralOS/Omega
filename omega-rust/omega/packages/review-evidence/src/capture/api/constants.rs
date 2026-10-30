@@ -1,7 +1,5 @@
 use crate::capture::PackageReviewInput;
-use crate::capture::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns,
-};
+use crate::capture::semantics::declarations::owned_identity;
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::PackageReviewConstShape;
@@ -20,13 +18,9 @@ pub(crate) fn project_public_consts<'a>(
         .iter()
         .filter(|declaration| declaration.is_public)
     {
-        if !is_product_scope_instance(compilation, declaration.symbol)? {
+        let Some(identity) = owned_identity(compilation, package, declaration.symbol)? else {
             continue;
-        }
-        let identity = nominal_identity(compilation, declaration.symbol)?;
-        if !reviewed_package_owns(&identity, package)? {
-            continue;
-        }
+        };
         let Some(value) = declaration.evaluated_value.as_ref() else {
             return Err(vec![Diagnostic::error(format!(
                 "public const `{}` has no canonical declaration value",

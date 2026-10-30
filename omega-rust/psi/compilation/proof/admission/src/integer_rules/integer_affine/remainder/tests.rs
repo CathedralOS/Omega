@@ -2,6 +2,7 @@ use super::*;
 use crate::proof::assumption_proof;
 use crate::{
     ProofNode, ProofRule, accept_certificate, check_certificate, check_integer_affine_witness,
+    value_context,
 };
 use semantic_vocabulary::ValueId;
 
@@ -17,13 +18,7 @@ fn literal(number: u128, carrier: IntegerType) -> ScalarTerm {
 }
 
 fn context(carrier: IntegerType) -> PropositionContext {
-    PropositionContext::from_value_types((1..=4).map(|position| {
-        (
-            ValueId::new(position).unwrap(),
-            ScalarType::Integer(carrier),
-        )
-    }))
-    .unwrap()
+    value_context(ScalarType::Integer(carrier), 4)
 }
 
 fn proof(witness: IntegerAffineWitness, premise: Proposition) -> ProofNode {

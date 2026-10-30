@@ -1,9 +1,8 @@
 #[cfg(unix)]
 use super::open_absolute_directory_nofollow;
 use super::{
-    CacheCustodyKind, GIT_CACHE_SNAPSHOTS, LocalSourceLimits, PendingMaterializedSnapshot,
-    SourceResolveError, create_git_source, local_git_request, make_tree_owner_writable,
-    open_verified_git_repository, resolve_git_source_from_hardened_base, temp_root,
+    CacheCustodyKind, GIT_CACHE_SNAPSHOTS, PendingMaterializedSnapshot, SourceResolveError,
+    make_tree_owner_writable, open_verified_git_repository, primed_git_cache, temp_root,
     write_snapshot_file_from_open_root,
 };
 use std::path::Path;
@@ -56,11 +55,7 @@ fn materialized_snapshot_writes_and_cleanup_remain_bound_to_the_open_stage() {
     ignore = "Windows prevents replacement while the retained cache-entry handle is open"
 )]
 fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
-    let (repo, _) = create_git_source("retained-snapshot-bootstrap-source");
-    let cache = temp_root("retained-snapshot-bootstrap-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("retained-snapshot-bootstrap");
     let verified = open_verified_git_repository(&cache, &request);
     let snapshots_path = verified.entry_root.join(GIT_CACHE_SNAPSHOTS);
     make_tree_owner_writable(&snapshots_path);

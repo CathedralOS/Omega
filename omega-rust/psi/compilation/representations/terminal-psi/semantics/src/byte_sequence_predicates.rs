@@ -162,13 +162,13 @@ pub fn byte_predicate_carrier<'types>(
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     carrier: semantic_vocabulary::StructuralTypeId,
 ) -> bool {
-    let Some(declaration) = types.clone().find(|row| row.id == carrier) else {
+    let Some(declaration) = crate::structural_declaration(types.clone(), carrier) else {
         return false;
     };
     match declaration.shape {
         StructuralTypeShape::ByteSequence(_) => true,
         StructuralTypeShape::FixedArray { element, .. } => {
-            types.clone().find(|row| row.id == element).is_some_and(|row| {
+            crate::structural_declaration(types.clone(), element).is_some_and(|row| {
                 matches!(row.shape, StructuralTypeShape::PrimitiveScalar(
                     semantic_vocabulary::ScalarType::Integer(integer)
                 ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
@@ -891,10 +891,7 @@ pub fn scalar_array_qualifications_hold<'row>(
     let Some(StructuralTypeShape::FixedArray {
         element,
         length: terminal_psi::ArrayExtent::Literal(length),
-    }) = types
-        .clone()
-        .find(|row| row.id == carrier)
-        .map(|row| &row.shape)
+    }) = crate::structural_shape(types.clone(), carrier)
     else {
         return false;
     };
@@ -903,10 +900,7 @@ pub fn scalar_array_qualifications_hold<'row>(
             .expect("u8 is valid"),
     );
     if u64::try_from(elements.len()).ok() != Some(*length)
-        || types
-            .clone()
-            .find(|row| row.id == *element)
-            .map(|row| &row.shape)
+        || crate::structural_shape(types.clone(), *element)
             != Some(&StructuralTypeShape::PrimitiveScalar(byte_type))
     {
         return false;

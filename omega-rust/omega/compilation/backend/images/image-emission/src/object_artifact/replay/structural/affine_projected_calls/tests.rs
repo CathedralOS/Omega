@@ -457,58 +457,31 @@ fn function_closure_checks_calls_and_partition_even_when_no_residual_remains() {
         })
         .collect::<Vec<_>>();
     let homes = [parameter];
-    assert!(exact_projected_affine_parameter(
-        &homes,
-        &calls,
-        Some(&cleanup)
-    ));
-    assert!(!exact_projected_affine_parameter(
-        &homes,
-        &calls[..4],
-        Some(&cleanup)
-    ));
+    macro_rules! projected {
+        ($calls:expr) => {
+            exact_projected_affine_parameter(&homes, $calls, Some(&cleanup))
+        };
+    }
+    assert!(projected!(&calls));
+    assert!(!projected!(&calls[..4]));
     let mut bad_owner = calls.clone();
     bad_owner[2].owner = bad_owner[0].owner;
-    assert!(!exact_projected_affine_parameter(
-        &homes,
-        &bad_owner,
-        Some(&cleanup)
-    ));
+    assert!(!projected!(&bad_owner));
     let mut bad_order = calls.clone();
     bad_order[1].operation_ordinal = 0;
-    assert!(!exact_projected_affine_parameter(
-        &homes,
-        &bad_order,
-        Some(&cleanup)
-    ));
+    assert!(!projected!(&bad_order));
     let mut bad_span = calls.clone();
     bad_span[1].code_offset = 3;
-    assert!(!exact_projected_affine_parameter(
-        &homes,
-        &bad_span,
-        Some(&cleanup)
-    ));
+    assert!(!projected!(&bad_span));
     cleanup.actions = [4, 3, 1, 0]
         .map(|value| TerminalAffineCleanupAction::DiscardResidual(residual(vec![index(value)], 1)))
         .into_iter()
         .chain([TerminalAffineCleanupAction::RetireHome(homes[0].place)])
         .collect();
-    assert!(exact_projected_affine_parameter(
-        &homes,
-        &calls[..1],
-        Some(&cleanup)
-    ));
-    assert!(!exact_projected_affine_parameter(
-        &homes,
-        &calls,
-        Some(&cleanup)
-    ));
+    assert!(projected!(&calls[..1]));
+    assert!(!projected!(&calls));
     cleanup.actions.swap(0, 1);
-    assert!(!exact_projected_affine_parameter(
-        &homes,
-        &calls[..1],
-        Some(&cleanup)
-    ));
+    assert!(!projected!(&calls[..1]));
 }
 
 fn projected_row_copy(

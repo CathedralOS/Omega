@@ -7,8 +7,8 @@ use std::collections::BTreeSet;
 use super::super::{Elaboration, verify_bounded_certificate_on_current_thread};
 use super::Law;
 use crate::{
-    Budget, CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
-    IntegerCorrelatedForbiddenRootWitness, ProofError, ProofNode, ProofRule,
+    Budget, CorrelatedAffineBranchWitness, IntegerCorrelatedForbiddenRootWitness, ProofError,
+    ProofNode, ProofRule, correlated_step, proof_node, value_context,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -131,41 +131,17 @@ fn safe_fixture() -> Fixture {
             integer(integer_type, 1),
         ),
     ];
-    let context = PropositionContext::from_value_types((1..=8).map(|index| {
-        (
-            ValueId::new(index).unwrap(),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("context");
+    let context = value_context(ScalarType::Integer(integer_type), 8);
     let witness = IntegerCorrelatedForbiddenRootWitness {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
             target: dividend.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 1,
-                    literal_axiom: Some(0),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 3,
-                    literal_axiom: Some(2),
-                },
-            ],
+            steps: vec![correlated_step(1, Some(0)), correlated_step(3, Some(2))],
         },
         divisor: CorrelatedAffineBranchWitness {
             root,
             target: divisor.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 5,
-                    literal_axiom: Some(4),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 6,
-                    literal_axiom: None,
-                },
-            ],
+            steps: vec![correlated_step(5, Some(4)), correlated_step(6, None)],
         },
         definition_axiom_count: 7,
         lower_bound_axiom: 7,
@@ -179,10 +155,7 @@ fn safe_fixture() -> Fixture {
         premises: vec![lower, upper],
         parameters: BTreeSet::from([ValueId::new(1).expect("root")]),
         goal: goal.clone(),
-        proof: ProofNode {
-            conclusion: goal,
-            rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness },
-        },
+        proof: proof_node!(goal => ProofRule::IntegerCorrelatedForbiddenRoots { witness }),
     }
 }
 
@@ -222,35 +195,17 @@ fn negative_multiplier_fixture() -> Fixture {
             integer(integer_type, 5),
         ),
     ];
-    let context = PropositionContext::from_value_types((1..=5).map(|index| {
-        (
-            ValueId::new(index).unwrap(),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("context");
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let witness = IntegerCorrelatedForbiddenRootWitness {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
             target: dividend.clone(),
-            steps: vec![CorrelatedAffineStepWitness {
-                definition_axiom: 0,
-                literal_axiom: None,
-            }],
+            steps: vec![correlated_step(0, None)],
         },
         divisor: CorrelatedAffineBranchWitness {
             root,
             target: divisor.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 2,
-                    literal_axiom: Some(1),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 3,
-                    literal_axiom: None,
-                },
-            ],
+            steps: vec![correlated_step(2, Some(1)), correlated_step(3, None)],
         },
         definition_axiom_count: 4,
         lower_bound_axiom: 4,
@@ -264,10 +219,7 @@ fn negative_multiplier_fixture() -> Fixture {
         premises: vec![lower, upper],
         parameters: BTreeSet::from([ValueId::new(1).expect("root")]),
         goal: goal.clone(),
-        proof: ProofNode {
-            conclusion: goal,
-            rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness },
-        },
+        proof: proof_node!(goal => ProofRule::IntegerCorrelatedForbiddenRoots { witness }),
     }
 }
 
@@ -390,35 +342,17 @@ fn forbidden_roots_out_of_interval_root_refutes_case() {
             integer(integer_type, 1),
         ),
     ];
-    let context = PropositionContext::from_value_types((1..=5).map(|index| {
-        (
-            ValueId::new(index).unwrap(),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("context");
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let witness = IntegerCorrelatedForbiddenRootWitness {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
             target: dividend.clone(),
-            steps: vec![CorrelatedAffineStepWitness {
-                definition_axiom: 0,
-                literal_axiom: None,
-            }],
+            steps: vec![correlated_step(0, None)],
         },
         divisor: CorrelatedAffineBranchWitness {
             root,
             target: divisor.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 2,
-                    literal_axiom: Some(1),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 3,
-                    literal_axiom: None,
-                },
-            ],
+            steps: vec![correlated_step(2, Some(1)), correlated_step(3, None)],
         },
         definition_axiom_count: 4,
         lower_bound_axiom: 4,
@@ -432,10 +366,7 @@ fn forbidden_roots_out_of_interval_root_refutes_case() {
         premises: vec![lower, upper],
         parameters: BTreeSet::from([ValueId::new(1).expect("root")]),
         goal: goal.clone(),
-        proof: ProofNode {
-            conclusion: goal,
-            rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness },
-        },
+        proof: proof_node!(goal => ProofRule::IntegerCorrelatedForbiddenRoots { witness }),
     };
     check(
         &fixture,
@@ -503,10 +434,7 @@ fn forbidden_roots_rejects_mutated_witness() {
     };
     let mut drifted = witness.clone();
     drifted.dividend.steps[0].definition_axiom = 3;
-    let proof = ProofNode {
-        conclusion: fixture.goal.clone(),
-        rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness: drifted },
-    };
+    let proof = proof_node!(fixture.goal.clone() => ProofRule::IntegerCorrelatedForbiddenRoots { witness: drifted });
     assert!(
         verify_bounded_certificate_on_current_thread(
             &fixture.context,

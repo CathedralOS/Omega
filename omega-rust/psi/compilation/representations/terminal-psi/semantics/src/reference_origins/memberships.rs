@@ -313,9 +313,7 @@ pub fn reference_result_memberships_weaken<'types>(
                 }
                 let Some(declaration) =
                     crate::qualification_path_carrier(types.clone(), carrier, &row.path[..index])
-                        .and_then(|carrier| {
-                            types.clone().find(|declaration| declaration.id == carrier)
-                        })
+                        .and_then(|carrier| crate::structural_declaration(types.clone(), carrier))
                 else {
                     return false;
                 };

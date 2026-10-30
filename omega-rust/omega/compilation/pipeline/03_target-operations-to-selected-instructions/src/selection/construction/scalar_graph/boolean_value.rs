@@ -119,10 +119,7 @@ pub(super) fn emit(
         materialize,
         state.constraints.keys.materialize_boolean,
         &[output],
-        SelectedInstructionProvenance {
-            values: vec![result.value],
-            ..Default::default()
-        },
+        super::value_provenance(result.value),
     )?;
     Ok(output)
 }

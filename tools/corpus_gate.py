@@ -70,7 +70,11 @@ base revision or requires a postlanding compiler rebuild.
 `--native-target <target>` builds for another catalogued target and diffs
 against that target's golden. Products execute only where the host runs
 them: an Apple-silicon macOS host runs `macos_x86_64` under Rosetta
-(`arch -x86_64`); other foreign targets are realized without executing.
+(`arch -x86_64`); a Linux x86-64 host runs `linux_arm64` images through
+`qemu-aarch64`. Other foreign targets are realized without executing.
+The golden filename is the product target. Its `# context:` line names
+the machine that recorded the run. Those are different facts when the
+product ran under emulation.
 
     python3 tools/corpus_gate.py --native-target macos_x86_64 --filter host/
 

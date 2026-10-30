@@ -15,6 +15,7 @@ use typed_trees::machine::Machine;
 
 mod cycles;
 mod scope;
+pub use scope::private_invocation_entry_is_closed;
 pub(crate) use scope::{ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index};
 
 #[derive(Clone, Copy, PartialEq, Eq)]

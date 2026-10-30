@@ -16,6 +16,7 @@ use machine_code::{
 };
 
 use super::super::WholeFunctionExitContractError;
+use super::super::WholeFunctionExitContractError::{NonReturnControlEffect, NonReturnStackEffect};
 
 pub(in crate::exit_contract) fn frame_permissions(
     physical: &ValidatedPhysicalRegisterModel,
@@ -97,9 +98,7 @@ pub(in crate::exit_contract) fn validate_internal_call(
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let Some((bytes, footprint)) = encoded.encoded(encoding) else {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
+        return Err(NonReturnControlEffect(instruction));
     };
     // Direct calls retain a relocation field. Runtime table calls instead
     // already contain their register CALL/BLR and zero-slot trap, so their
@@ -127,15 +126,11 @@ pub(in crate::exit_contract) fn validate_internal_call(
         || !control_matches
         || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
     {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
+        return Err(NonReturnControlEffect(instruction));
     }
     let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint);
     if !effects_match {
-        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-            instruction,
-        ));
+        return Err(NonReturnStackEffect(instruction));
     }
     Ok(())
 }
@@ -159,19 +154,13 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
         } else if target == NativeTarget::linux_arm64() {
             isa_aarch64::aarch64_linux_system_call_keys()
         } else {
-            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                instruction,
-            ));
+            return Err(NonReturnControlEffect(instruction));
         };
         if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
-            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                instruction,
-            ));
+            return Err(NonReturnControlEffect(instruction));
         }
         let Some((bytes, footprint)) = encoded.encoded(encoding) else {
-            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                instruction,
-            ));
+            return Err(NonReturnControlEffect(instruction));
         };
         if !canonical.contains(&constraint)
             || encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
@@ -183,23 +172,17 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
             || footprint.encoded.control != MachineEncodedControlEffect::SupervisorCallV1
             || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
         {
-            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                instruction,
-            ));
+            return Err(NonReturnControlEffect(instruction));
         }
         if footprint.encoded.memory != MachineEncodedMemoryEffect::NoneV1
             || footprint.encoded.stack != MachineEncodedStackEffect::UnchangedV1
         {
-            return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-                instruction,
-            ));
+            return Err(NonReturnStackEffect(instruction));
         }
         return Ok(());
     }
     let Some((bytes, footprint)) = encoded.encoded(encoding) else {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
+        return Err(NonReturnControlEffect(instruction));
     };
     let control_matches = match &encoding.state {
         SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
@@ -219,15 +202,11 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
         || !control_matches
         || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
     {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
+        return Err(NonReturnControlEffect(instruction));
     }
     let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint);
     if !effects_match {
-        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-            instruction,
-        ));
+        return Err(NonReturnStackEffect(instruction));
     }
     Ok(())
 }

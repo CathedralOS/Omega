@@ -76,11 +76,7 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
             }
             assert_non_return_refused(
                 &format!("mutation {mutation}"),
-                instruction,
-                kind,
-                &changed_row,
-                &layout,
-                &changed,
+                (instruction, kind, &changed_row, &layout, &changed),
             );
         }
     }

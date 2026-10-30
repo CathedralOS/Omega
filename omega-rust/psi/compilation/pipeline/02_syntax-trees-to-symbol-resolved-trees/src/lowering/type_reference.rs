@@ -147,16 +147,10 @@ pub(crate) fn lower_type_reference_handle(
     if origin.is_valid() {
         let application = lower_generic_application_origin(lowerer, syntax_trees, origin)?;
         let instance = lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
+            .declaration_child_type_references()
             .insert(lowered.clone());
         let application = lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
+            .declaration_child_type_references()
             .insert(application);
         lowerer
             .symbol_resolved_trees
@@ -343,10 +337,7 @@ fn lower_type_reference_child(
     let type_reference = lower_type_reference_handle(lowerer, syntax_trees, type_reference)?;
 
     Ok(lowerer
-        .symbol_resolved_trees
-        .tables
-        .declarations
-        .child_type_references
+        .declaration_child_type_references()
         .append(type_reference))
 }
 
@@ -374,10 +365,7 @@ pub(crate) fn lower_child_type_references(
     }
 
     Ok(lowerer
-        .symbol_resolved_trees
-        .tables
-        .declarations
-        .child_type_references
+        .declaration_child_type_references()
         .insert_many(lowered))
 }
 

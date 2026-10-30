@@ -22,6 +22,16 @@ use object_file::{
 };
 use target::NativeTarget;
 
+macro_rules! unexpected {
+    ($diagnostic:expr, $needle:expr) => {
+        assert!(
+            $diagnostic.message.contains($needle),
+            "unexpected diagnostic: {}",
+            $diagnostic.message,
+        );
+    };
+}
+
 fn record(
     section: SectionKind,
     offset: usize,
@@ -127,12 +137,9 @@ fn x86_64_rel32_rejects_symbols_without_a_materialized_address() {
 
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a sectionless symbol has no address to relocate to");
-    assert!(
-        diagnostic
-            .message
-            .contains("test image relocation references unknown symbol `external_callee`"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "test image relocation references unknown symbol `external_callee`"
     );
     assert_eq!(
         image.memory.text, encoded,
@@ -156,13 +163,7 @@ fn x86_64_rel32_rejects_symbols_without_a_materialized_address() {
     let mut dangling_image = image_with(target, &object, &dangling, &encoded, &[]);
     let diagnostic = apply_relocations(&mut dangling_image, &layout(), "test image")
         .expect_err("a dangling symbol handle has no address");
-    assert!(
-        diagnostic
-            .message
-            .contains("relocation references unknown symbol ``"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
-    );
+    unexpected!(diagnostic, "relocation references unknown symbol ``");
     assert_eq!(dangling_image.memory.text, encoded);
 }
 
@@ -236,13 +237,7 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
         "test image",
     )
     .expect_err("a delta of i32::MAX + 1 cannot be encoded");
-    assert!(
-        diagnostic
-            .message
-            .contains("x86_64 relative relocation is out of range"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
-    );
+    unexpected!(diagnostic, "x86_64 relative relocation is out of range");
     assert_eq!(
         out_of_range.memory.text, encoded,
         "the rejected plan must not patch the encoded text",
@@ -281,13 +276,7 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
         "test image",
     )
     .expect_err("a delta of i32::MIN - 1 cannot be encoded");
-    assert!(
-        diagnostic
-            .message
-            .contains("x86_64 relative relocation is out of range"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
-    );
+    unexpected!(diagnostic, "x86_64 relative relocation is out of range");
     assert_eq!(negative_out_of_range.memory.text, encoded);
 }
 
@@ -330,12 +319,9 @@ fn x86_64_rejects_addend_targets_that_overflow_the_address_space() {
             "test image",
         )
         .expect_err("an overflowing addend cannot produce a target address");
-        assert!(
-            diagnostic.message.contains(&format!(
-                "x86_64 relocation target overflows after addend {addend}"
-            )),
-            "unexpected diagnostic: {}",
-            diagnostic.message,
+        unexpected!(
+            diagnostic,
+            &format!("x86_64 relocation target overflows after addend {addend}")
         );
         assert_eq!(
             image.memory.data,
@@ -380,11 +366,7 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
 
         let diagnostic = apply_relocations(&mut image, &layout(), "test image")
             .expect_err("a relocation into .bss has no bytes to patch");
-        assert!(
-            diagnostic.message.contains(expected),
-            "unexpected diagnostic: {}",
-            diagnostic.message,
-        );
+        unexpected!(diagnostic, expected);
         assert_eq!(image.memory.text, encoded);
     }
 
@@ -418,13 +400,7 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
         });
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a sectionless record has no address base");
-    assert!(
-        diagnostic
-            .message
-            .contains("x86_64 relative relocation has no section"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
-    );
+    unexpected!(diagnostic, "x86_64 relative relocation has no section");
     assert_eq!(image.memory.text, encoded);
 
     // And the byte cursor stays bounds-checked: a field that runs past the
@@ -441,12 +417,9 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a field past the text end cannot be patched");
-    assert!(
-        diagnostic
-            .message
-            .contains("x86_64 relocation offset 6 is outside text section"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "x86_64 relocation offset 6 is outside text section"
     );
     assert_eq!(image.memory.text, encoded);
 }
@@ -497,12 +470,9 @@ fn aarch64_distinguishes_imports_from_sectionless_symbols() {
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("an import symbol cannot be bound by the static patcher");
-    assert!(
-        diagnostic.message.contains(
-            "test image cannot import `host_call` yet; use syscalls or add dynamic binding"
-        ),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "test image cannot import `host_call` yet; use syscalls or add dynamic binding"
     );
     assert_eq!(image.memory.text, encoded);
 
@@ -518,12 +488,9 @@ fn aarch64_distinguishes_imports_from_sectionless_symbols() {
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a sectionless symbol has no address");
-    assert!(
-        diagnostic
-            .message
-            .contains("relocation references unknown symbol `loose_cell`"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "relocation references unknown symbol `loose_cell`"
     );
     assert_eq!(image.memory.text, encoded);
     validate_final_text_relocation_envelope(&encoded, &image.memory.text, &relocations)
@@ -571,13 +538,7 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("the AArch64 patcher refuses an x86-64 relocation kind");
-    assert!(
-        diagnostic
-            .message
-            .contains("AArch64 image received x86_64 relocation"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
-    );
+    unexpected!(diagnostic, "AArch64 image received x86_64 relocation");
     assert_eq!(image.memory.text, encoded);
 
     // An addend that wraps the resolved address is refused before the kind
@@ -602,12 +563,9 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
         "test image",
     )
     .expect_err("an addend that wraps the target address cannot produce one");
-    assert!(
-        diagnostic
-            .message
-            .contains("AArch64 relocation target overflows after addend -8192"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "AArch64 relocation target overflows after addend -8192"
     );
 
     // `.bss` has no bytes for an absolute slot either.
@@ -623,12 +581,9 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a relocation into .bss has no bytes to patch");
-    assert!(
-        diagnostic
-            .message
-            .contains("AArch64 absolute relocation targets non-materialized section Bss"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "AArch64 absolute relocation targets non-materialized section Bss"
     );
 
     // Every instruction-field kind must land in `.text`: the field bits are
@@ -643,12 +598,9 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
         let mut image = image_with(target, &object, &relocations, &encoded, &[0; 8]);
         let diagnostic = apply_relocations(&mut image, &layout(), "test image")
             .expect_err("an instruction field kind refuses a non-text home");
-        assert!(
-            diagnostic
-                .message
-                .contains("AArch64 instruction relocation targets non-text section Data"),
-            "unexpected diagnostic: {}",
-            diagnostic.message,
+        unexpected!(
+            diagnostic,
+            "AArch64 instruction relocation targets non-text section Data"
         );
         assert_eq!(
             image.memory.data,
@@ -731,12 +683,9 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
         "test image",
     )
     .expect_err("a page delta of 2^20 cannot be encoded in ADRP");
-    assert!(
-        diagnostic
-            .message
-            .contains("AArch64 ADRP relocation is out of range: 1048576 page(s)"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "AArch64 ADRP relocation is out of range: 1048576 page(s)"
     );
     assert_eq!(image.memory.text, encoded);
     validate_final_text_relocation_envelope(&encoded, &image.memory.text, &relocations)
@@ -782,12 +731,9 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
         "test image",
     )
     .expect_err("an instruction delta of 2^25 cannot be encoded in B");
-    assert!(
-        diagnostic
-            .message
-            .contains("AArch64 branch relocation is out of range: 33554432 instruction(s)"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "AArch64 branch relocation is out of range: 33554432 instruction(s)"
     );
     assert_eq!(image.memory.text, encoded);
 
@@ -805,12 +751,9 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a non-aligned branch target cannot be encoded");
-    assert!(
-        diagnostic
-            .message
-            .contains("AArch64 branch relocation target is not instruction-aligned"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "AArch64 branch relocation target is not instruction-aligned"
     );
     assert_eq!(image.memory.text, encoded);
 
@@ -827,12 +770,9 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
     let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a field past the text end cannot be patched");
-    assert!(
-        diagnostic
-            .message
-            .contains("AArch64 relocation offset 14 is outside text section"),
-        "unexpected diagnostic: {}",
-        diagnostic.message,
+    unexpected!(
+        diagnostic,
+        "AArch64 relocation offset 14 is outside text section"
     );
     assert_eq!(image.memory.text, encoded);
 }

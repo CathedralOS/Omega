@@ -153,6 +153,13 @@ pub(crate) fn structural_domain_identity(family: &str, carrier_identity: &str) -
     terminal_psi::StructuralDomainDeclaration::carrier_qualified_identity(family, carrier_identity)
 }
 
+/// Lower-case hex text of one retained byte roster. Identity strings spell
+/// digests and committed bytes this way so two producers of the same roster
+/// agree on its text.
+pub(crate) fn hex_text(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 pub(crate) fn lookup_domain_id(
     ids: &[StructuralDomainBinding],
     source: language_semantics::SemanticDomainId,

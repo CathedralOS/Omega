@@ -226,7 +226,8 @@ impl ProductRequest {
             if realization
                 .custody
                 .execution
-                .program
+                .provider_source
+                .program()
                 .facts
                 .proof_applications
                 .has_obligations
@@ -380,7 +381,8 @@ fn admit_permissions(
         && checked.sources().package_identity().is_some()
         && !checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings()
             .is_empty()
     {

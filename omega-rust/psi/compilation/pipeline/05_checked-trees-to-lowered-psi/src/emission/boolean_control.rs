@@ -4,6 +4,7 @@ use crate::emission::expression_validation::contains_short_circuit;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::boolean::emit_boolean_expression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::value_successor;
 use crate::terminal_identities::{block_id, edge_id, mint};
 use semantic_vocabulary::{BlockId, ValueId};
 use terminal_psi::{
@@ -619,24 +620,8 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
             (
                 Terminator::Conditional {
                     condition,
-                    when_true: SuccessorEdge {
-                        structural_arguments: Vec::new(),
-                        edge: true_edge,
-                        target: when_true,
-                        arguments: Vec::new(),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        cleanup_actions: Vec::new(),
-                    },
-                    when_false: SuccessorEdge {
-                        structural_arguments: Vec::new(),
-                        edge: false_edge,
-                        target: when_false,
-                        arguments: Vec::new(),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        cleanup_actions: Vec::new(),
-                    },
+                    when_true: value_successor(true_edge, when_true),
+                    when_false: value_successor(false_edge, when_false),
                 },
                 operation_end,
             )

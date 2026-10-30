@@ -11,6 +11,7 @@ use terminal_psi::{
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use crate::terminal_identities::hex_text;
 use checked_trees::CheckedTrees;
 
 pub(crate) fn identity(
@@ -28,14 +29,7 @@ pub(crate) fn identity(
     digest.raw(checked.typed.symbols.display_path(symbol, "::").as_bytes());
     digest.raw(&symbol.arena_index().to_le_bytes());
     digest.raw(&symbol.generation().to_le_bytes());
-    Ok(format!(
-        "terminal-borrow:{}",
-        digest
-            .finish()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    ))
+    Ok(format!("terminal-borrow:{}", hex_text(&digest.finish())))
 }
 
 fn ordinal(value: usize) -> Result<u64, LoweringError> {
@@ -64,11 +58,7 @@ pub(crate) fn storage_root_identity(
             digest.raw(&expression.generation().to_le_bytes());
             Ok(format!(
                 "terminal-borrow-storage:{}",
-                digest
-                    .finish()
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>()
+                hex_text(&digest.finish())
             ))
         }
         _ => unsupported("reborrow custody contains an unresolved storage root"),
@@ -153,11 +143,7 @@ impl Capture {
         digest.raw(&expression.generation().to_le_bytes());
         Ok(format!(
             "terminal-borrow-selector:{}",
-            digest
-                .finish()
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>()
+            hex_text(&digest.finish())
         ))
     }
 }
@@ -244,11 +230,7 @@ fn captured_root_identity(
     }
     Ok(format!(
         "terminal-borrow-incoming:{}",
-        digest
-            .finish()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
+        hex_text(&digest.finish())
     ))
 }
 

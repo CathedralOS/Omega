@@ -149,10 +149,7 @@ pub(super) fn build(
                             kind,
                             transfer_key,
                             &[input, output],
-                            SelectedInstructionProvenance {
-                                values: vec![value],
-                                ..Default::default()
-                            },
+                            super::value_provenance(value),
                         )?;
                         output
                     } else {
@@ -256,10 +253,7 @@ pub(super) fn build(
                     SelectedInstructionKind::CompareI64Zero,
                     keys.compare_i64_zero,
                     &[input],
-                    SelectedInstructionProvenance {
-                        values: vec![base],
-                        ..Default::default()
-                    },
+                    super::value_provenance(base),
                 )?;
                 // A Boolean register is true when nonzero, unlike Equal's zero predicate.
                 inverted = !inverted;

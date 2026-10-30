@@ -14,11 +14,7 @@ pub(super) struct PreparedAffinities {
 }
 
 impl PreparedAffinities {
-    pub(super) fn new(
-        domain_count: usize,
-        domain_of: &[u32],
-        affinities: &[CopyAffinity],
-    ) -> Self {
+    pub(super) fn new(domain_count: usize, domain_of: &[u32], affinities: &[CopyAffinity]) -> Self {
         let lookup = |id: VirtualRegisterId| -> Option<usize> {
             domain_of
                 .get(id.0 as usize)
