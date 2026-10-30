@@ -1,8 +1,7 @@
-// A plan-laid layout citing a named conformance from a standalone source:
-// retained placement custody binds hermetic source identities, and a
-// standalone root's declarations have the non-hermetic `User` origin. The
-// same source as a `Build::package` root is
-// `pass/layouts/private_callback_slot_demand_compile`.
+// Standalone source is reconciled to an immutable anonymous package. A named
+// FixedLayout policy and its exact private callback slot need no extra per-layout
+// Build registration. Actual callback placement and publication still validate
+// retained hermetic identities, exact policy/requirement joins and destination.
 use omega::language::core::layout;
 
 boundary trait WindowProcedure {
