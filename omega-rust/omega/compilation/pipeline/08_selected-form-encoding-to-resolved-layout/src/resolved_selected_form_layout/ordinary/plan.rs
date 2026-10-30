@@ -46,27 +46,25 @@ pub(in super::super) fn derive(
             if grown.contains(&descriptor.terminator.id) {
                 continue;
             }
-            let row = pre_rows.get(&descriptor.terminator.id).ok_or(
+            let missing = || {
                 OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
                     descriptor.terminator.id,
-                ),
-            )?;
+                )
+            };
+            let row = pre_rows
+                .get(&descriptor.terminator.id)
+                .ok_or_else(missing)?;
             if !widening_candidate(descriptor.terminator, row) {
                 continue;
             }
-            let taken_offset = *plan.block_offsets.get(&descriptor.when_taken.block).ok_or(
-                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
-                    descriptor.terminator.id,
-                ),
-            )?;
+            let taken_offset = *plan
+                .block_offsets
+                .get(&descriptor.when_taken.block)
+                .ok_or_else(missing)?;
             let instruction_offset = *plan
                 .instruction_offsets
                 .get(&descriptor.terminator.id)
-                .ok_or(
-                    OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
-                        descriptor.terminator.id,
-                    ),
-                )?;
+                .ok_or_else(missing)?;
             let displacement = byte_displacement(taken_offset, instruction_offset)?;
             if !isa_aarch64::AARCH64_CONDITIONAL_BRANCH_BYTE_REACH.contains(&displacement) {
                 grown.insert(descriptor.terminator.id);

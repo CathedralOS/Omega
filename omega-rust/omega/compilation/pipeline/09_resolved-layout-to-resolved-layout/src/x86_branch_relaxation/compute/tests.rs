@@ -1,6 +1,7 @@
 use isa_x86_64::{
-    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_jump_form,
-    encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_short_nonzero_branch_form,
+    ValidatedX86_64SelectedFormEncoding, encode_x86_64_selected_i64_less_than_branch_form,
+    encode_x86_64_selected_jump_form, encode_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
@@ -79,35 +80,18 @@ fn conditional_function(
         machine: MachineId::new(1).unwrap(),
         byte_count: taken_offset + 1,
         blocks: vec![
-            ResolvedSelectedBlockLayout {
-                block: entry,
-                offset: 0,
-                byte_count: 6,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(0),
-                    alternative: branch_alternative,
-                    offset: 0,
-                    bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
-                            predicate,
-                            source_block: entry,
-                            when_taken_edge: Some(EdgeId::new(1).unwrap()),
-                            when_taken_block: taken,
-                            when_taken_offset: taken_offset,
-                            when_fallthrough_edge: Some(EdgeId::new(2).unwrap()),
-                            when_fallthrough_block: fallthrough,
-                            when_fallthrough_offset: fallthrough_offset,
-                            byte_displacement: displacement,
-                            decoded_register_reads: vec![],
-                            decoded_effects: near.footprint().encoded.clone(),
-                        },
-                    ))),
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            near_conditional_block(
+                entry,
+                0,
+                SelectedInstructionId(0),
+                branch_alternative,
+                predicate,
+                &near,
+                entry,
+                (taken, taken_offset, 1),
+                (fallthrough, fallthrough_offset, 2),
+                displacement,
+            ),
             padding_block(
                 fallthrough,
                 fallthrough_offset,
@@ -138,35 +122,18 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
         byte_count: fallthrough_offset + 1,
         blocks: vec![
             padding_block(taken, 0, SelectedInstructionId(0), target_block_bytes),
-            ResolvedSelectedBlockLayout {
-                block: entry,
-                offset: branch_offset,
-                byte_count: 6,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(1),
-                    alternative: alternative(),
-                    offset: branch_offset,
-                    bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
-                            predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
-                            source_block: entry,
-                            when_taken_edge: Some(EdgeId::new(1).unwrap()),
-                            when_taken_block: taken,
-                            when_taken_offset: 0,
-                            when_fallthrough_edge: Some(EdgeId::new(2).unwrap()),
-                            when_fallthrough_block: fallthrough,
-                            when_fallthrough_offset: fallthrough_offset,
-                            byte_displacement: near_displacement,
-                            decoded_register_reads: vec![],
-                            decoded_effects: near.footprint().encoded.clone(),
-                        },
-                    ))),
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            near_conditional_block(
+                entry,
+                branch_offset,
+                SelectedInstructionId(1),
+                alternative(),
+                ResolvedConditionalBranchPredicate::NonZeroV1,
+                &near,
+                entry,
+                (taken, 0, 1),
+                (fallthrough, fallthrough_offset, 2),
+                near_displacement,
+            ),
             return_block(fallthrough, fallthrough_offset, SelectedInstructionId(2)),
         ],
     }
@@ -223,35 +190,18 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     image_address_fixup: None,
                 }],
             },
-            ResolvedSelectedBlockLayout {
-                block: entry,
-                offset: branch_offset,
-                byte_count: 6,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(1),
-                    alternative: alternative(),
-                    offset: branch_offset,
-                    bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
-                            predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
-                            source_block: entry,
-                            when_taken_edge: Some(EdgeId::new(1).unwrap()),
-                            when_taken_block: taken,
-                            when_taken_offset: taken_offset,
-                            when_fallthrough_edge: Some(EdgeId::new(2).unwrap()),
-                            when_fallthrough_block: fallthrough,
-                            when_fallthrough_offset: fallthrough_offset,
-                            byte_displacement: near_displacement,
-                            decoded_register_reads: vec![],
-                            decoded_effects: near.footprint().encoded.clone(),
-                        },
-                    ))),
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            near_conditional_block(
+                entry,
+                branch_offset,
+                SelectedInstructionId(1),
+                alternative(),
+                ResolvedConditionalBranchPredicate::NonZeroV1,
+                &near,
+                entry,
+                (taken, taken_offset, 1),
+                (fallthrough, fallthrough_offset, 2),
+                near_displacement,
+            ),
             padding_block(
                 fallthrough,
                 fallthrough_offset,
@@ -309,6 +259,53 @@ fn return_block(
         offset,
         byte_count: 1,
         instructions: vec![return_row(instruction, offset, vec![0xc3])],
+    }
+}
+
+/// One near conditional-branch row and the block that carries it: `near`
+/// supplies the row's bytes and recorded effects, and each successor arrives
+/// as `(block, offset, psi edge)`. Every near branch row is six bytes wide.
+#[allow(clippy::too_many_arguments)]
+fn near_conditional_block(
+    block: SelectedBlockId,
+    offset: u64,
+    instruction: SelectedInstructionId,
+    alternative: MachineAlternativeKey,
+    predicate: ResolvedConditionalBranchPredicate,
+    near: &ValidatedX86_64SelectedFormEncoding,
+    source_block: SelectedBlockId,
+    taken: (SelectedBlockId, u64, u64),
+    fallthrough: (SelectedBlockId, u64, u64),
+    displacement: i64,
+) -> ResolvedSelectedBlockLayout {
+    ResolvedSelectedBlockLayout {
+        block,
+        offset,
+        byte_count: 6,
+        instructions: vec![ResolvedSelectedFormRow {
+            instruction,
+            alternative,
+            offset,
+            bytes: near.bytes().to_vec(),
+            branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
+                machine_code::ResolvedConditionalBranchEvidence {
+                    predicate,
+                    source_block,
+                    when_taken_edge: Some(EdgeId::new(taken.2).unwrap()),
+                    when_taken_block: taken.0,
+                    when_taken_offset: taken.1,
+                    when_fallthrough_edge: Some(EdgeId::new(fallthrough.2).unwrap()),
+                    when_fallthrough_block: fallthrough.0,
+                    when_fallthrough_offset: fallthrough.1,
+                    byte_displacement: displacement,
+                    decoded_register_reads: vec![],
+                    decoded_effects: near.footprint().encoded.clone(),
+                },
+            ))),
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
+            image_address_fixup: None,
+        }],
     }
 }
 
@@ -759,35 +756,18 @@ fn branch_chain_function(
         } else {
             SelectedBlockId(index + 1)
         };
-        blocks.push(ResolvedSelectedBlockLayout {
-            block: SelectedBlockId(index),
-            offset: offset,
-            byte_count: 6,
-            instructions: vec![ResolvedSelectedFormRow {
-                instruction: SelectedInstructionId(index),
-                alternative: alternative(),
-                offset: offset,
-                bytes: near.bytes().to_vec(),
-                branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                    machine_code::ResolvedConditionalBranchEvidence {
-                        predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
-                        source_block: SelectedBlockId(index),
-                        when_taken_edge: Some(EdgeId::new(u64::from(index) * 2 + 1).unwrap()),
-                        when_taken_block: taken,
-                        when_taken_offset: taken_offset,
-                        when_fallthrough_edge: Some(EdgeId::new(u64::from(index) * 2 + 2).unwrap()),
-                        when_fallthrough_block: fallthrough,
-                        when_fallthrough_offset: offset + 6,
-                        byte_displacement: displacement,
-                        decoded_register_reads: vec![],
-                        decoded_effects: near.footprint().encoded.clone(),
-                    },
-                ))),
-                internal_machine_fixup: None,
-                normalized_foreign_call_fixup: None,
-                image_address_fixup: None,
-            }],
-        });
+        blocks.push(near_conditional_block(
+            SelectedBlockId(index),
+            offset,
+            SelectedInstructionId(index),
+            alternative(),
+            ResolvedConditionalBranchPredicate::NonZeroV1,
+            &near,
+            SelectedBlockId(index),
+            (taken, taken_offset, u64::from(index) * 2 + 1),
+            (fallthrough, offset + 6, u64::from(index) * 2 + 2),
+            displacement,
+        ));
     }
     blocks.push(padding_block(
         padding,
