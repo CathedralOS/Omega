@@ -406,3 +406,13 @@ gains to 5.9–9.6% in independent confirmation, with a 3.3% stack32 regression.
 It is not a standalone substantial win. Preserve its frozen producer as a
 control for a separately measured composition with linear ancestry, without
 adding percentages or promoting either inconclusive standalone result.
+
+The separately declared [three-producer custody composition](../measurements/windows_custody_composition_2026_10_29/README.md)
+then compared original, sibling-only and combined producers directly. The
+combined ordinary-O3 producer lowered warm Windows-only small-program medians
+28–30% in screening and 35–39% in independent confirmation; stack32 improved
+20–22%. Every block improved, all 180 images matched and executed, and focused
+native/Terminal, reject, corruption, source and junction controls passed.
+Median private commit rose about 8 MiB for length and 2.7 MiB for stack32.
+The source-bound result is retained locally as the next scoped substantial win;
+it does not imply a new multi-target, foreign-host or latest-main result.
