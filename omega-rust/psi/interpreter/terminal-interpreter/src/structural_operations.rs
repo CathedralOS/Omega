@@ -541,10 +541,13 @@ impl TerminalExecution<'_> {
                     if !self.structural_byte_storage.contains_key(&home) {
                         self.structural_byte_storage.insert(
                             home,
-                            ByteSequenceView::new(ByteSequenceStorage::zeroed(
-                                length,
+                            crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
+                                crate::structural_inputs::byte_arrays::array_path_type(
+                                    &self.program.structural_types(), value.structural_type, leaf.path(),
+                                ).ok_or_else(malformed)?,
+                                ByteSequenceView::new(ByteSequenceStorage::zeroed(length, self.account.as_ref())?),
                                 self.account.as_ref(),
-                            )?),
+                            ),
                         )?;
                     }
                 }
@@ -948,6 +951,7 @@ impl TerminalExecution<'_> {
         }
         let storage = self.structural_values.get(&source).ok_or_else(malformed)?;
         let selected = self.structural_window_hole(
+            operation,
             source,
             storage,
             path,
@@ -1065,6 +1069,7 @@ impl TerminalExecution<'_> {
             .map_err(|error| failure("destination home", error))?;
         let selected = self
             .structural_window_hole(
+                operation,
                 destination,
                 &storage,
                 path,
@@ -1310,12 +1315,49 @@ impl TerminalExecution<'_> {
     /// or the element a mutable view selects in its collection.
     fn structural_window_hole(
         &self,
+        operation: &terminal_psi::Operation,
         root: semantic_vocabulary::PlaceId,
         storage: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
         required_access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        // A Case names a payload namespace, not a runtime value to project.
+        // Complete the operation's declared field path before following live
+        // storage. Use authored indexes for geometry and only then substitute
+        // the dispatcher's already bounded concrete coordinates.
+        let machine = self.program.verified_machine(self.current_machine)?;
+        let declared = machine.operation(operation.id).ok_or_else(malformed)?;
+        let (declared_root, declared_path, declared_field) = match &declared.kind {
+            OperationKind::MoveStructuralField {
+                source,
+                path,
+                field,
+            } => (*source, path, *field),
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field,
+                ..
+            } => (*destination, path, *field),
+            _ => return Err(malformed()),
+        };
+        if declared_root != root || declared_field != field || declared_path.len() != path.len() {
+            return Err(malformed());
+        }
+        let projection = terminal_semantics::structural_window_projection(
+            self.program.structural_types().values(),
+            self.live_structural_type(root)?,
+            declared_path,
+            field,
+        )
+        .ok_or_else(malformed)?;
+        let mut complete_path = projection.path;
+        complete_path
+            .get_mut(..path.len())
+            .ok_or_else(malformed)?
+            .clone_from_slice(path);
+        let path = complete_path.as_slice();
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
         let prefix_length = path
@@ -1415,19 +1457,10 @@ impl TerminalExecution<'_> {
             )?
             .value
         };
-        let projection = terminal_semantics::structural_window_projection(
-            self.program.structural_types().values(),
-            selected.structural_type,
-            &[],
-            field,
-        )
-        .ok_or_else(malformed)?;
-        let hole = crate::custody::project_structural_value(
-            &self.program.structural_types(),
-            &selected,
-            &projection.path,
-        )?;
-        Ok(hole)
+        if selected.structural_type != projection.structural_type {
+            return Err(malformed());
+        }
+        Ok(selected)
     }
 
     /// Stage every runtime cell under `from` at the same subtree suffix under
@@ -1539,7 +1572,7 @@ impl TerminalExecution<'_> {
             self.byte_sequence_values.insert(
                 result.place,
                 crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                    bytes.detached_descriptor(),
+                    bytes.owned_snapshot(),
                 ),
             )?;
             self.structural_values.insert(result.place, copied)?;
@@ -1618,7 +1651,7 @@ impl TerminalExecution<'_> {
                 let mut elements = Vec::new();
                 value
                     .visit_scalar_leaves(self, &argument, |_, _, scalar| {
-                        elements.push(scalar);
+                        elements.push(crate::scalar_storage::ScalarCell::Local(scalar));
                         Ok(())
                     })?
                     .ok_or_else(malformed)?;
@@ -1921,13 +1954,11 @@ impl TerminalExecution<'_> {
                 _ => return Err(malformed()),
             })
             .map_err(|_| malformed())?;
-            let bytes = bytes
-                .bytes()
-                .get(offset..offset.checked_add(size).ok_or_else(malformed)?)
-                .ok_or_else(malformed)?;
+            let end = offset.checked_add(size).ok_or_else(malformed)?;
+            let window = bytes.read_window(offset, end)?;
             let mut value = 0u128;
-            for (position, byte) in bytes.iter().enumerate() {
-                value |= u128::from(*byte) << (8 * position);
+            for position in 0..size {
+                value |= u128::from(window.read(position)?) << (8 * position);
             }
             let scalar = match member.scalar_type {
                 ScalarType::Boolean => crate::primitive_storage::encoding::boolean_bits(value)?,

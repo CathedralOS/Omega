@@ -127,8 +127,8 @@ pub use operators::{
     CheckedOperatorCrashBucket, CheckedOperatorCrashContract, CheckedOperatorFacts,
     CheckedOperatorOccurrence, CheckedOperatorRealizationContract, CheckedOperatorResolutionIssue,
     CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedOperatorUseHandle,
-    CheckedProviderPlanCommitment, CheckedSelectedFloatComparisonExecution,
-    CheckedSymbolicBoundaryOperatorApplicationArgument,
+    CheckedProviderPlanCommitment, CheckedProviderRequirement, CheckedProviderRequirementKind,
+    CheckedSelectedFloatComparisonExecution, CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{

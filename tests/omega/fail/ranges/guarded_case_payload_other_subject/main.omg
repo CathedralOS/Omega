@@ -1,0 +1,9 @@
+// A case guard for one argument cannot select another argument's payload.
+data Text {
+    case Short(length: u64);
+    case Long(length: u64);
+}
+machine read(first: &Text, second: &Text)
+    requires (first in Text::Short) && second.length <= 4u64;
+{}
+machine main() {}

@@ -16,16 +16,9 @@ pub(super) fn inspect_production_branch(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(X86BranchRelaxationAttemptOutcome, Option<i64>), OptimizedX86BranchRelaxationError> {
     let row = &function.blocks[block_index].instructions[instruction_index];
-    let branch = row
-        .branch
-        .as_deref()
-        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-        .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
-            row.instruction,
-        ))?;
-    let near = lane::near_width(row.bytes.len()).ok_or(
-        OptimizedX86BranchRelaxationError::MalformedBranch(row.instruction),
-    )?;
+    let branch = super::conditional_evidence(row)?;
+    let near =
+        lane::near_width(row.bytes.len()).ok_or_else(|| super::malformed(row.instruction))?;
     lane::validate(
         branch.predicate,
         near,

@@ -1,0 +1,232 @@
+diff --git a/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/tests.rs b/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/tests.rs
+index 91dc0aab488..3f3347e3832 100644
+--- a/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/tests.rs
++++ b/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/tests.rs
+@@ -282,6 +282,7 @@ fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
+         type_reference: TypeReferenceHandle::invalid(),
+         path: vec![Identifier::generated("Family")].into_boxed_slice(),
+         application: Some(Box::new(crate::expression::StaticSymbolApplication {
++            member: arena::Handle::invalid(),
+             lifetime_arguments: Box::default(),
+             arguments: vec![crate::expression::StaticMachineArgument {
+                 type_reference: owner,
+diff --git a/omega-rust/psi/foundation/compiler-storage/src/buffer.rs b/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
+index 9369abbd636..4d868cfd337 100644
+--- a/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
++++ b/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
+@@ -104,6 +104,11 @@ struct RemappedGeneration {
+     payload: Box<dyn Any>,
+ }
+ 
++struct GenerationRemappingDomain {
++    value_type: TypeId,
++    generations: HashMap<u32, RemappedGeneration>,
++}
++
+ pub struct RecordReader<'bytes, Context = ()> {
+     bytes: &'bytes [u8],
+     position: usize,
+@@ -112,7 +117,10 @@ pub struct RecordReader<'bytes, Context = ()> {
+     remaining_depth: usize,
+     pub context: Context,
+     shared_values: Vec<Option<Box<dyn Any>>>,
+-    generation_remappings: HashMap<TypeId, HashMap<u32, RemappedGeneration>>,
++    // Domains are registered by decoder types, not by record bytes. Most
++    // handles retain their generations; avoid hashing every handle's TypeId
++    // just to discover that it is not one of these few remapped domains.
++    generation_remappings: Vec<GenerationRemappingDomain>,
+ }
+ 
+ impl<'bytes, Context> RecordReader<'bytes, Context> {
+@@ -135,7 +143,7 @@ impl<'bytes, Context> RecordReader<'bytes, Context> {
+             remaining_depth: limits.depth,
+             context,
+             shared_values: Vec::new(),
+-            generation_remappings: HashMap::new(),
++            generation_remappings: Vec::new(),
+         })
+     }
+ 
+@@ -298,9 +306,17 @@ impl<Context> RecordReader<'_, Context> {
+     /// semantic handles. Their owner registers a domain before reading uses,
+     /// then defines each old-to-fresh correspondence from its retained payload.
+     pub fn remap_generations<T: 'static>(&mut self) {
+-        self.generation_remappings
+-            .entry(TypeId::of::<T>())
+-            .or_default();
++        let value_type = TypeId::of::<T>();
++        if !self
++            .generation_remappings
++            .iter()
++            .any(|domain| domain.value_type == value_type)
++        {
++            self.generation_remappings.push(GenerationRemappingDomain {
++                value_type,
++                generations: HashMap::new(),
++            });
++        }
+     }
+     pub fn define_generation<T: 'static, Payload: Clone + PartialEq + 'static>(
+         &mut self,
+@@ -308,12 +324,16 @@ impl<Context> RecordReader<'_, Context> {
+         payload: &Payload,
+         allocate: impl FnOnce() -> Result<u32, &'static str>,
+     ) -> Result<u32, RecordError> {
+-        let domain = TypeId::of::<T>();
+-        if let Some(restored) = self
++        let value_type = TypeId::of::<T>();
++        let domain_index = self
+             .generation_remappings
+-            .get(&domain)
+-            .and_then(|map| map.get(&original))
+-        {
++            .iter()
++            .position(|domain| domain.value_type == value_type);
++        if let Some(restored) = domain_index.and_then(|domain_index| {
++            self.generation_remappings[domain_index]
++                .generations
++                .get(&original)
++        }) {
+             if restored.payload.downcast_ref::<Payload>() != Some(payload) {
+                 return Err(self.error("storage generation names conflicting retained payloads"));
+             }
+@@ -327,22 +347,35 @@ impl<Context> RecordReader<'_, Context> {
+             .checked_sub(1)
+             .ok_or_else(|| self.error("generation correspondence limit exceeded"))?;
+         let restored = allocate().map_err(|reason| self.error(reason))?;
+-        self.generation_remappings
+-            .entry(domain)
+-            .or_default()
+-            .insert(
+-                original,
+-                RemappedGeneration {
+-                    restored,
+-                    payload: Box::new(payload.clone()),
+-                },
+-            );
++        let domain_index = match domain_index {
++            Some(domain_index) => domain_index,
++            None => {
++                let domain_index = self.generation_remappings.len();
++                self.generation_remappings.push(GenerationRemappingDomain {
++                    value_type,
++                    generations: HashMap::new(),
++                });
++                domain_index
++            }
++        };
++        self.generation_remappings[domain_index].generations.insert(
++            original,
++            RemappedGeneration {
++                restored,
++                payload: Box::new(payload.clone()),
++            },
++        );
+         Ok(restored)
+     }
+     pub fn generation<T: 'static>(&self, original: u32) -> Result<u32, RecordError> {
+-        match self.generation_remappings.get(&TypeId::of::<T>()) {
++        match self
++            .generation_remappings
++            .iter()
++            .find(|domain| domain.value_type == TypeId::of::<T>())
++        {
+             None => Ok(original),
+-            Some(map) => map
++            Some(domain) => domain
++                .generations
+                 .get(&original)
+                 .map(|entry| entry.restored)
+                 .ok_or_else(|| {
+diff --git a/omega-rust/psi/foundation/compiler-storage/src/tests.rs b/omega-rust/psi/foundation/compiler-storage/src/tests.rs
+index 41a5eecc290..77d8f93f23d 100644
+--- a/omega-rust/psi/foundation/compiler-storage/src/tests.rs
++++ b/omega-rust/psi/foundation/compiler-storage/src/tests.rs
+@@ -158,3 +158,87 @@ fn fixed_width_sequences_keep_size_budget_and_value_refusals() {
+         []
+     );
+ }
++
++#[test]
++fn generation_domains_preserve_semantic_handles_and_separate_equal_old_tags() {
++    struct Text;
++    struct OtherText;
++    struct Semantic;
++    let mut input = crate::RecordReader::<()>::new(&[], RecordLimits::default()).unwrap();
++    input.remap_generations::<Text>();
++    assert_eq!(input.generation::<Semantic>(3).unwrap(), 3);
++    assert!(input.generation::<Text>(3).is_err());
++    assert_eq!(
++        input
++            .define_generation::<Text, _>(3, &"source", || Ok(11))
++            .unwrap(),
++        11
++    );
++    assert_eq!(
++        input
++            .define_generation::<OtherText, _>(3, &"other", || Ok(22))
++            .unwrap(),
++        22
++    );
++    input.remap_generations::<Text>();
++    assert_eq!(
++        input
++            .define_generation::<Text, _>(3, &"source", || panic!(
++                "must reuse the existing correspondence"
++            ))
++            .unwrap(),
++        11
++    );
++    assert!(
++        input
++            .define_generation::<Text, _>(3, &"changed", || Ok(33))
++            .is_err()
++    );
++    assert!(
++        input
++            .define_generation::<Text, _>(3, &17_u32, || Ok(33))
++            .is_err()
++    );
++    assert_eq!(input.generation::<Text>(3).unwrap(), 11);
++    assert_eq!(input.generation::<OtherText>(3).unwrap(), 22);
++    assert_eq!(input.generation::<Semantic>(3).unwrap(), 3);
++}
++
++#[test]
++fn failed_generation_publication_does_not_register_or_publish_a_domain() {
++    struct Text;
++    for limits in [
++        RecordLimits {
++            allocation: 0,
++            ..RecordLimits::default()
++        },
++        RecordLimits {
++            elements: 0,
++            ..RecordLimits::default()
++        },
++    ] {
++        let mut input = crate::RecordReader::<()>::new(&[], limits).unwrap();
++        assert!(
++            input
++                .define_generation::<Text, _>(3, &"source", || panic!(
++                    "budget must refuse before allocating a generation"
++                ))
++                .is_err()
++        );
++        assert_eq!(input.generation::<Text>(3).unwrap(), 3);
++    }
++    let mut input = crate::RecordReader::<()>::new(&[], RecordLimits::default()).unwrap();
++    assert!(
++        input
++            .define_generation::<Text, _>(3, &"source", || Err("generation exhausted"))
++            .is_err()
++    );
++    assert_eq!(input.generation::<Text>(3).unwrap(), 3);
++    input.remap_generations::<Text>();
++    assert!(
++        input
++            .define_generation::<Text, _>(3, &"source", || Err("generation exhausted"))
++            .is_err()
++    );
++    assert!(input.generation::<Text>(3).is_err());
++}

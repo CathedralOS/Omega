@@ -1,0 +1,18 @@
+// Expected exit: 0.
+// `cmp eax, eax` always sets ZF, so the `jz` fallthrough cannot be taken: the
+// unreachable arm's `requires false` closes on the refuted guard alone.
+machine main() crashes Trap {
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, 3;
+        cmp eax, eax;
+        jz equal;
+    different requires false:
+        nop;
+    equal requires eax == 3:
+        nop;
+    }
+    transition true { true -> finished() false -> failed() }
+    machine finished() {}
+    machine failed() crashes Trap { crash Trap; }
+}

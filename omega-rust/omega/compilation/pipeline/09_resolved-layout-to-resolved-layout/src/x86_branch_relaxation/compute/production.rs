@@ -30,7 +30,7 @@ use super::super::{
 use super::{
     RelaxationTrace,
     branch_inspection::inspect_production_branch,
-    lane,
+    conditional_evidence, lane,
     reflow::reflow_production_functions,
     work::{charge, total_bytes},
 };
@@ -109,9 +109,8 @@ pub(super) fn compute_trace(
                     if outcome == X86BranchRelaxationAttemptOutcome::SelectedForRelaxation {
                         charge_axis!(usage, budget, candidates, Candidates);
                         charge_axis!(usage, budget, validation_steps, ValidationSteps);
-                        let displacement = short_displacement.ok_or(
-                            OptimizedX86BranchRelaxationError::MalformedBranch(row.instruction),
-                        )?;
+                        let displacement =
+                            short_displacement.ok_or_else(|| super::malformed(row.instruction))?;
                         swept.push(SweptBranch {
                             function_index,
                             block_index,
@@ -204,15 +203,4 @@ fn relaxation_action(
         old_bytes: old.bytes,
         new_bytes: new.bytes.clone(),
     })
-}
-
-fn conditional_evidence(
-    row: &ResolvedSelectedFormRow,
-) -> Result<&machine_code::ResolvedConditionalBranchEvidence, OptimizedX86BranchRelaxationError> {
-    row.branch
-        .as_deref()
-        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-        .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
-            row.instruction,
-        ))
 }

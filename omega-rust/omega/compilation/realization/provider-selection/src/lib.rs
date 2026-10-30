@@ -6,9 +6,15 @@
 //! Opaque owner data travels with a candidate or choice and is not selection
 //! authority. No index escapes to be reinterpreted against another inventory.
 
+mod boundary_applications;
+mod boundary_review;
+pub use boundary_review::BoundaryProviderAdmission;
 mod checked_bodies;
 mod declarations;
+mod external_execution;
+pub use boundary_applications::{CompilerIntrinsicPlanProvenance, select_boundary_applications};
 pub use checked_bodies::{CheckedBodyCandidate, select_checked_body};
+pub use external_execution::selected_external_execution;
 mod independent_components;
 mod installation_reach;
 mod provider_selection;

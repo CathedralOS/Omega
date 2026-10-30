@@ -50,9 +50,9 @@ pub fn choose<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
 
 /// Preserve source admission order: family completeness, composition closure,
 /// exact declaration correspondence, then immutable selected facts.
-pub fn admit<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
+pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
     mut selected: Vec<SelectedProvider<Declaration, Owner, Origin>>,
-    independent_components: &[component_description::VerifiedComponent],
+    independent_components: impl IntoIterator<Item = &'a component_description::VerifiedComponent>,
 ) -> Result<
     (
         effects::SelectedProviderPlanFacts,

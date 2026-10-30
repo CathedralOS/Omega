@@ -4,7 +4,7 @@
 //! retired payload. One funded row owns both states, so cleanup retirement
 //! transfers no cells and cannot allocate after its custody preflight.
 
-use super::TerminalScalarArrayValue;
+use super::{PackedScalarArrayValue, TerminalScalarArrayValue};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::runtime_rows::RuntimeRows;
 use evaluation_accounting::EvaluationInvocationAccount;
@@ -12,7 +12,7 @@ use semantic_vocabulary::PlaceId;
 
 struct PackedBinding {
     live: bool,
-    value: TerminalScalarArrayValue,
+    value: PackedScalarArrayValue,
 }
 
 pub(crate) struct ScalarArrayBindings {
@@ -39,7 +39,7 @@ impl ScalarArrayBindings {
         self.live_count
     }
 
-    pub(crate) fn get(&self, place: &PlaceId) -> Option<&TerminalScalarArrayValue> {
+    pub(crate) fn get(&self, place: &PlaceId) -> Option<&PackedScalarArrayValue> {
         self.rows
             .get(place)
             .filter(|binding| binding.live)
@@ -70,17 +70,22 @@ impl ScalarArrayBindings {
         // Captured frame homes have no rebinding epoch. Reusing a retained
         // name would silently redirect a loan, even if its live binding ended.
         let live_count = self.live_count.checked_add(1).ok_or_else(malformed)?;
-        self.rows
-            .insert_vacant(place, PackedBinding { live: true, value })?;
+        self.rows.insert_vacant(
+            place,
+            PackedBinding {
+                live: true,
+                value: value.into_runtime()?,
+            },
+        )?;
         self.live_count = live_count;
         Ok(())
     }
 
-    pub(crate) fn backing(&self, place: &PlaceId) -> Option<&TerminalScalarArrayValue> {
+    pub(crate) fn backing(&self, place: &PlaceId) -> Option<&PackedScalarArrayValue> {
         self.rows.get(place).map(|binding| &binding.value)
     }
 
-    pub(crate) fn backing_mut(&mut self, place: &PlaceId) -> Option<&mut TerminalScalarArrayValue> {
+    pub(crate) fn backing_mut(&mut self, place: &PlaceId) -> Option<&mut PackedScalarArrayValue> {
         self.rows.get_mut(place).map(|binding| &mut binding.value)
     }
 
@@ -152,13 +157,10 @@ mod tests {
         let place = PlaceId::new(1).unwrap();
         let mut arrays = ScalarArrayBindings::new(None);
         arrays.publish(place, payload()).unwrap();
-        let original = arrays.get(&place).unwrap().elements().as_ptr();
+        let original = arrays.get(&place).unwrap().cells().as_ptr();
         arrays.remove(&place);
         assert!(arrays.get(&place).is_none());
-        assert_eq!(
-            arrays.backing(&place).unwrap().elements().as_ptr(),
-            original
-        );
+        assert_eq!(arrays.backing(&place).unwrap().cells().as_ptr(), original);
         assert!(arrays.publish(place, payload()).is_err());
         arrays.collect_retired(|retained| retained == place);
         assert!(arrays.backing(&place).is_some());
@@ -196,7 +198,7 @@ mod tests {
         .unwrap();
         let mut arrays = ScalarArrayBindings::new(Some(&account));
         arrays.publish(place, value).unwrap();
-        let original = arrays.get(&place).unwrap().elements().as_ptr();
+        let original = arrays.get(&place).unwrap().cells().as_ptr();
         assert_eq!(
             sponsor.live_storage_cells(),
             2,
@@ -209,11 +211,8 @@ mod tests {
             "retirement must not reserve another row"
         );
         assert!(arrays.get(&place).is_none());
-        assert_eq!(
-            arrays.backing(&place).unwrap().elements().as_ptr(),
-            original
-        );
-        let alias = arrays.backing(&place).unwrap().clone();
+        assert_eq!(arrays.backing(&place).unwrap().cells().as_ptr(), original);
+        let alias = payload();
         assert!(
             arrays.publish(place, alias).is_err(),
             "a captured home cannot be rebound"
@@ -225,7 +224,7 @@ mod tests {
             "the live loan retains its funded payload"
         );
         let mut saved = arrays.take();
-        let alias = saved.backing(&place).unwrap().clone();
+        let alias = payload();
         assert!(
             arrays.publish(other, alias).is_err(),
             "the empty next frame keeps its account"

@@ -265,6 +265,22 @@ impl BoundaryArguments {
         self.storage_inputs.commit(execution)
     }
 
+    pub(crate) fn prepare_original_storage(
+        &mut self,
+        execution: &mut TerminalExecution,
+        handler: &mut impl crate::effects::TerminalEffectHandler,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        original: bool,
+    ) -> Result<(), TerminalInterpretError> {
+        self.storage_inputs.prepare_original_storage(
+            execution,
+            handler,
+            boundary,
+            &mut self.local_identity_cursor,
+            original,
+        )
+    }
+
     /// After input validation, publish the staged allocation cursor before a
     /// host scalar-case result allocates its original home. Input writeback
     /// remains deferred; resetting this cursor after result publication would
@@ -283,6 +299,7 @@ impl TerminalExecution<'_> {
         arguments: &[StructuralArgument],
         storage_arguments: &[usize],
         normal_qualifications: &[terminal_psi::StructuralDomainRequirement],
+        original: bool,
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
         if parameters.len() != arguments.len() {
             return Err(malformed());
@@ -334,6 +351,27 @@ impl TerminalExecution<'_> {
             }
             let parameter = parameters.get(argument_index).ok_or_else(malformed)?;
             let argument = arguments.get(argument_index).ok_or_else(malformed)?;
+            if original
+                && matches!(
+                    self.program
+                        .structural_types()
+                        .get(&parameter.structural_type)
+                        .ok_or_else(malformed)?
+                        .shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+                )
+            {
+                resolved.storage_inputs.capture_byte_view(
+                    self,
+                    parameter,
+                    &resolved.values[argument_index],
+                    resolved.byte_sequences[argument_index]
+                        .as_ref()
+                        .ok_or_else(malformed)?,
+                    argument_index,
+                )?;
+                continue;
+            }
             if !matches!(
                 parameter.access,
                 StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
@@ -350,29 +388,29 @@ impl TerminalExecution<'_> {
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
             {
-                if resolved
-                    .aggregate_backings
-                    .get(argument_index)
-                    .is_some_and(Option::is_some)
-                {
-                    // Host replacement still requires an exact backing-cell
-                    // projection. Logical ingress alone cannot name its fields.
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "aggregate re-view host storage needs its backing field projection",
-                    ));
-                }
-                resolved.storage_inputs.capture_fields(
-                    self,
-                    parameter,
-                    argument,
-                    &resolved.values[argument_index],
-                    resolved.element_views[argument_index].as_ref(),
-                    argument_index,
-                    normal_qualifications,
-                )?;
+                resolved
+                    .storage_inputs
+                    .capture_fields(
+                        self,
+                        parameter,
+                        argument,
+                        &resolved.values[argument_index],
+                        resolved.element_views[argument_index].as_ref(),
+                        resolved.aggregate_backings[argument_index].as_ref(),
+                        argument_index,
+                        normal_qualifications,
+                    )
+                    .map_err(|error| error.in_argument_preparation("capture host storage cells"))?;
             }
         }
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {
+            if resolved.storage_inputs.buffers.iter().any(|buffer| matches!(buffer,
+                crate::TerminalBoundaryStorageBuffer::ByteView(buffer) if buffer.argument_index() == argument_index)) {
+                // Captured original windows have their own completion. Never
+                // also stage their native bytes into the legacy writeback path.
+                resolved.bytes.push(None);
+                continue;
+            }
             match binding {
                 None => resolved.bytes.push(None),
                 Some(ByteSequenceBinding::Immutable(view)) => {

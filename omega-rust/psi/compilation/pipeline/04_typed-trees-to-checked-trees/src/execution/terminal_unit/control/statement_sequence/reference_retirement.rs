@@ -1216,6 +1216,16 @@ impl Retirement<'_> {
                             .is_none_or(|expression| captured.formation_expression == expression)
                         && captured.root == loan.root
                         && captured.incoming_reference == loan.incoming_reference
+                        && self
+                            .facts
+                            .borrow
+                            .access_segments
+                            .span(captured.incoming_owner_path)
+                            == self
+                                .facts
+                                .borrow
+                                .access_segments
+                                .span(loan.incoming_owner_path)
                         && captured.kind == loan.kind
                         && self.facts.borrow.access_segments.span(captured.segments)
                             == Some(segments)

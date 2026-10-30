@@ -1,0 +1,22 @@
+{
+  "path": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+  "sha256": "c66b61f91a14afa81691ef60dc8cd53aa1e4bd868104a72bfb934c8e4374e2b7",
+  "base_revision": "1fecc20b6f5292fa8673feed5cae2300a925433d",
+  "source_overlay_sha256": {
+    "omega-rust/psi/foundation/compiler-storage/src/buffer.rs": "2702ace69e3c34841d0c063a5a5dede575f84a13043cd4d2a639c16ea4b5a711",
+    "omega-rust/psi/foundation/compiler-storage/src/lib.rs": "6b7c681996277f3fc250a3e9ad7d11bf0380d6e2f4cfb4ca011d10c1b8b0175a",
+    "omega-rust/psi/foundation/compiler-storage/src/tests.rs": "59b067d8f3324212990e86e3020f5c07ec92d9486d6c49064f567cb5edb6a7ff",
+    "omega-rust/psi/foundation/compiler-storage/src/values.rs": "8a976c08b49507bb3e7b454d2924d713e4b950a1977005f236f3e9ed1f603e5f",
+    "tools/benchmark/comparison.md": "89347ec46ece7255f28e52b6724e15ba016a870fd72a10f80bbdc8a9b6f73608",
+    "tools/benchmark/src/experiment.rs": "196ebe963b149c7598858ead982ff63737bd944c67bbdc0aa460175a2beb0e01",
+    "tools/benchmark/src/history.rs": "3d14f9d5e23cfd11c70dde041f75c4119665c982eb000202188de26904a6d1d0",
+    "tools/benchmark/src/plan.rs": "05b8b1e4ae389aa788d973b480d39eb74fed7b6ccae5763d2907654b62d8987a",
+    "tools/benchmark/src/records.rs": "4017a1c94e6d57b4d4a2256ccca961bb5514ee2afde2977f192e86cb01bd7208",
+    "tools/benchmark/tests/runner.rs": "6f9ae9dd65450634b8569924a6de3fb187b5dcf02bd3a6ee7e327bef4a3e5932"
+  },
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)"
+}

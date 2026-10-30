@@ -19,6 +19,8 @@ pub enum StoredOperand {
         capture: Handle<FlowOperandFact>,
         reference: typed_trees::types::TypeReferenceHandle,
         projection: Vec<facts::PlaceSegment>,
+        /// Exact queried descriptor slot, separate from its producer and pointee.
+        slot: Option<crate::CanonicalPlace>,
     },
 }
 
@@ -33,6 +35,7 @@ pub struct StoredCapture {
     pub capture: Handle<FlowOperandFact>,
     pub reference: typed_trees::types::TypeReferenceHandle,
     pub projection: Vec<facts::PlaceSegment>,
+    pub slot: Option<crate::CanonicalPlace>,
 }
 
 impl StoredOperand {
@@ -43,10 +46,12 @@ impl StoredOperand {
                 capture,
                 reference,
                 projection,
+                slot,
             } => Some(vec![StoredCapture {
                 capture,
                 reference,
                 projection,
+                slot,
             }]),
             Self::Alternatives(alternatives) => {
                 let mut captures = Vec::new();
@@ -88,3 +93,6 @@ pub use memberships::completed_membership;
 
 mod occurrences;
 pub use occurrences::consumer_captures;
+
+mod loan_homes;
+pub use loan_homes::{InstalledLoanHomes, descriptor_formation_sources};

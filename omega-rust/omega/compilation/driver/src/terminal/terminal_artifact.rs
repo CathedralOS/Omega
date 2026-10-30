@@ -646,6 +646,7 @@ fn prepare_target_provider_publication(
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             overrides: &source.build.config.provider_selections,
             assumed_bindings: source.plan_facts.assumed_bindings(),
+            independent_components: &source.provider_settlement.verified_independent_components,
             targets: &targets,
         }
         .prepare(),

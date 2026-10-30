@@ -41,9 +41,7 @@ pub(super) fn reflow_production_functions(
                         if row.bytes.len() != 5
                             || encoded.footprint().encoded != jump.decoded_effects
                         {
-                            return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
-                                row.instruction,
-                            ));
+                            return Err(super::malformed(row.instruction));
                         }
                         jump.target_offset = target;
                         jump.byte_displacement = displacement;
@@ -58,9 +56,8 @@ pub(super) fn reflow_production_functions(
                     &offsets,
                     row.instruction,
                 )?;
-                let near = lane::near_width(row.bytes.len()).ok_or(
-                    OptimizedX86BranchRelaxationError::MalformedBranch(row.instruction),
-                )?;
+                let near = lane::near_width(row.bytes.len())
+                    .ok_or_else(|| super::malformed(row.instruction))?;
                 let encoded = lane::encode(
                     branch.predicate,
                     near,
@@ -69,9 +66,7 @@ pub(super) fn reflow_production_functions(
                     branch.byte_displacement,
                 )?;
                 if encoded.bytes().len() != row.bytes.len() {
-                    return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
-                        row.instruction,
-                    ));
+                    return Err(super::malformed(row.instruction));
                 }
                 if encoded.footprint().encoded != branch.decoded_effects {
                     return Err(OptimizedX86BranchRelaxationError::BranchEffectsMismatch(

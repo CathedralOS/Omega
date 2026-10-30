@@ -1,0 +1,61 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
+index d3b5582387c..30843c7db43 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
+@@ -336,6 +336,7 @@ impl<'program> IntegerObservations<'program> {
+             self.installed_carrier_bounds = self.carrier_bounds.len();
+         }
+         loop {
++            phase_profile::count("05.premise.install_rounds", 1);
+             let mut changed = false;
+             // Admission stays fixed throughout this premise round. Install
+             // its already-formed comparisons together, in existing intake order,
+@@ -353,6 +354,7 @@ impl<'program> IntegerObservations<'program> {
+                 changed = true;
+             }
+             self.engine.refresh_opaque_intervals();
++            phase_profile::count("05.premise.operation_visits", self.operations.len() as u64);
+             for index in 0..self.operations.len() {
+                 let operation = &self.operations[index];
+                 if !self.admitted(operation.children.clone()) {
+@@ -1439,6 +1441,7 @@ impl<'program> StructuralJudge<'program> {
+         &self,
+         predicate: &StructuralTerm,
+     ) -> Option<(IntegerObservations<'_>, Comparison, Vec<Comparison>)> {
++        let _total = phase_profile::guard("05.premise.query");
+         if !self.runtime_body_values || self.case_facts_only {
+             return None;
+         }
+@@ -1451,11 +1454,13 @@ impl<'program> StructuralJudge<'program> {
+             next_operation_id: 0,
+             operand_resolutions: None,
+         };
+-        let comparison = self.integer_comparison(predicate, &mut observations)?;
++        let comparison = phase_profile::scope("05.premise.goal", || self.integer_comparison(predicate, &mut observations))?;
+         let goal_operations = 0..observations.operations.len();
+-        let mut comparisons = self.observed_integer_premises(&mut observations);
+-        let retained = comparisons.clone();
+-        if !observations.install_premises(&mut comparisons)
++        let mut comparisons = phase_profile::scope("05.premise.project", || self.observed_integer_premises(&mut observations));
++        phase_profile::count("05.premise.rows", comparisons.len() as u64);
++        phase_profile::count("05.premise.operations", observations.operations.len() as u64);
++        let retained = phase_profile::scope("05.premise.copy", || comparisons.clone());
++        if !phase_profile::scope("05.premise.install", || observations.install_premises(&mut comparisons))
+             || !observations.admitted(goal_operations)
+         {
+             return None;
+@@ -1497,7 +1502,14 @@ impl<'program> StructuralJudge<'program> {
+     ) -> ProjectedIntegerPremises {
+         let mut comparisons = Vec::new();
+         let mut complete = true;
++        let mut seen: Vec<(&StructuralTerm, &StructuralTerm)> = Vec::new();
+         for (predicate, truth) in premises {
++            phase_profile::count("05.premise.projection_inputs", 1);
++            if seen.iter().any(|(left, right)| left.same_resolution_payload(predicate) && right.same_resolution_payload(truth)) {
++                phase_profile::count("05.premise.duplicate_inputs", 1);
++            } else {
++                seen.push((predicate, truth));
++            }
+             let resolved_truth;
+             let truth_sem = match truth.semantic_value() {
+                 sem @ StructuralTerm::Constructor { .. } => sem,

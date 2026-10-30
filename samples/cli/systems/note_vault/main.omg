@@ -98,9 +98,9 @@ machine Main::main(context: &mut Main) reaches Console + DirectoryEnumeration + 
     }
     machine audit_time_gap(context: &mut Main, passed: i32 in Wrapping, duration: Duration) {
         let next_passed: i32 in Wrapping = passed + 1;
-        // 9. The gap is sane on BOTH engines: native ~0s (just written);
-        // interp ~767M s (virtual 2001 mtime vs virtual 2026 clock). A
-        // garbage decode blows the 10^9 bound.
+        // 9. Both engines read the real filesystem and current host clock.
+        // A just-written file has a small nonnegative age; a garbage
+        // timestamp decode blows the 10^9 bound.
         transition duration.seconds < 1000000000 { true -> block readback(context, next_passed) _ -> done(context, next_passed) }
     }
 

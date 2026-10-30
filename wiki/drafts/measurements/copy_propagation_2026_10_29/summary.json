@@ -1,0 +1,1848 @@
+{
+  "configured_existing_family_only": true,
+  "no_new_default_or_rust_change": true,
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\windows-custody-landing\\candidate\\producer\\omega.exe",
+    "sha256": "9ef68e447263104d505bf03e8109ca1cd24f43d51c49ecb4ad7a7dc4836c6615",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    },
+    "source_revision": "244e4de7fabae4c8a2ee43f4002805abe0ec63ee"
+  },
+  "qualification": [
+    {
+      "id": "17f3d4da8ceb4fea95bd07a294f497f7",
+      "check": "copy-propagation-screen",
+      "revision": "0f608b19079f0f5bb9c2be57b213e388cae0275c",
+      "exit": 1,
+      "invalidations": [],
+      "receipt": {
+        "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\17f3d4da8ceb4fea95bd07a294f497f7.json",
+        "sha256": "8e6c45ee1943e59f24b7f6e84a21a7566e3211c2a15dc3b806fc5a0df756fb4a"
+      }
+    },
+    {
+      "id": "a0d4d87b56ae49cbb001dcef9547a2e5",
+      "check": "copy-propagation-screen",
+      "revision": "40ad58e4bd56da2511d772c77fa32c1f6f2327fa",
+      "exit": 0,
+      "invalidations": [],
+      "receipt": {
+        "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\a0d4d87b56ae49cbb001dcef9547a2e5.json",
+        "sha256": "b79721c7dec1806d895271f9a4cfb9719f688bd3f0f388da5909f22ef204f4b7"
+      }
+    },
+    {
+      "id": "09f2508cc4a7420c8885b339907359b2",
+      "check": "copy-propagation-confirmation",
+      "revision": "8a2dc20ceb5a551f20fd5427dd9e9ffab2d538b2",
+      "exit": 1,
+      "invalidations": [],
+      "receipt": {
+        "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\09f2508cc4a7420c8885b339907359b2.json",
+        "sha256": "6c9b0e31946289bd13b494a646eeba13528127ab971c3b582cf2563857ec33ec"
+      }
+    },
+    {
+      "id": "6440cf3126d64cd59a854210024cc926",
+      "check": "copy-propagation-confirmation-repair",
+      "revision": "23246481983ee48f82519f4009c307dbf66bfd96",
+      "exit": 0,
+      "invalidations": [],
+      "receipt": {
+        "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\6440cf3126d64cd59a854210024cc926.json",
+        "sha256": "757f9c5ec2320d175992bee149518cd0c572365559d1ef8f44b727a4f7e29af0"
+      }
+    },
+    {
+      "id": "9a05ab9b2cf249f3b8c1a13019d2db67",
+      "check": "copy-propagation-default-control",
+      "revision": "b51cbffc87f46233d572b8f50655f465793c007d",
+      "exit": 0,
+      "invalidations": [],
+      "receipt": {
+        "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\9a05ab9b2cf249f3b8c1a13019d2db67.json",
+        "sha256": "4a0dac0cf7c4133716f96e9d9b638aa229064250677900bdfe02f8602ecd8b75"
+      }
+    }
+  ],
+  "bound_outputs": 552,
+  "cohorts": {
+    "capture": {
+      "subjects": {
+        "stack32": {
+          "off": {
+            "n": 8,
+            "median_wall_ms": 1090.8213999937288,
+            "range_wall_ms": [
+              834.5398000092246,
+              1260.2335999981733
+            ],
+            "median_cpu_ms": 953.125,
+            "median_private_commit_bytes": 271212544.0
+          },
+          "on": {
+            "n": 8,
+            "median_wall_ms": 556.5186500025447,
+            "range_wall_ms": [
+              449.9814000009792,
+              996.9367999874521
+            ],
+            "median_cpu_ms": 539.0625,
+            "median_private_commit_bytes": 236580864.0
+          },
+          "reduction": 0.489816893942726,
+          "cpu_reduction": 0.43442622950819676,
+          "block_reductions": [
+            0.503515775775224,
+            0.24839409697474757,
+            0.4199002476828798,
+            0.48439740328699576
+          ]
+        }
+      },
+      "image_native_checks": 20,
+      "exclusions": []
+    },
+    "comparison": {
+      "subjects": {
+        "dispatch": {
+          "off": {
+            "n": 8,
+            "median_wall_ms": 474.9445499983267,
+            "range_wall_ms": [
+              400.7571999973152,
+              953.1472999951802
+            ],
+            "median_cpu_ms": 414.0625,
+            "median_private_commit_bytes": 213839872.0
+          },
+          "on": {
+            "n": 8,
+            "median_wall_ms": 462.47405000030994,
+            "range_wall_ms": [
+              420.86359999666456,
+              1300.0373999966541
+            ],
+            "median_cpu_ms": 429.6875,
+            "median_private_commit_bytes": 213841920.0
+          },
+          "reduction": 0.026256749336445062,
+          "cpu_reduction": -0.037735849056603765,
+          "block_reductions": [
+            0.09786169229555786,
+            -0.0865416788367479,
+            0.009872494091467177,
+            -0.34739368189375996
+          ]
+        },
+        "length": {
+          "off": {
+            "n": 8,
+            "median_wall_ms": 497.0528500052751,
+            "range_wall_ms": [
+              416.04100000404287,
+              543.7239000020782
+            ],
+            "median_cpu_ms": 437.5,
+            "median_private_commit_bytes": 222298112.0
+          },
+          "on": {
+            "n": 8,
+            "median_wall_ms": 527.5329999931273,
+            "range_wall_ms": [
+              400.9254999982659,
+              625.7737999985693
+            ],
+            "median_cpu_ms": 484.375,
+            "median_private_commit_bytes": 222273536.0
+          },
+          "reduction": -0.06132174875876628,
+          "cpu_reduction": -0.1071428571428572,
+          "block_reductions": [
+            -0.08953576779292916,
+            0.03499762648675231,
+            -0.11859231867828313,
+            -0.11149528747225634
+          ]
+        },
+        "stack32": {
+          "off": {
+            "n": 8,
+            "median_wall_ms": 899.7497500022291,
+            "range_wall_ms": [
+              788.8135999965016,
+              1584.7556000080658
+            ],
+            "median_cpu_ms": 835.9375,
+            "median_private_commit_bytes": 271210496.0
+          },
+          "on": {
+            "n": 8,
+            "median_wall_ms": 562.865600004443,
+            "range_wall_ms": [
+              438.7490000081016,
+              2288.686499989126
+            ],
+            "median_cpu_ms": 492.1875,
+            "median_private_commit_bytes": 236539904.0
+          },
+          "reduction": 0.3744198317331586,
+          "cpu_reduction": 0.4112149532710281,
+          "block_reductions": [
+            0.45329507306973915,
+            0.4277271467192614,
+            0.26008460563607316,
+            -0.053690092883674545
+          ]
+        }
+      },
+      "image_native_checks": 60,
+      "exclusions": []
+    },
+    "confirmation": {
+      "subjects": {
+        "dispatch": {
+          "off": {
+            "n": 8,
+            "median_wall_ms": 506.92470000649337,
+            "range_wall_ms": [
+              443.39439999021124,
+              896.0962999990443
+            ],
+            "median_cpu_ms": 468.75,
+            "median_private_commit_bytes": 213846016.0
+          },
+          "on": {
+            "n": 8,
+            "median_wall_ms": 489.84590000327444,
+            "range_wall_ms": [
+              436.184799997136,
+              787.1784000017215
+            ],
+            "median_cpu_ms": 437.5,
+            "median_private_commit_bytes": 213811200.0
+          },
+          "reduction": 0.0336909998723679,
+          "cpu_reduction": 0.06666666666666665,
+          "block_reductions": [
+            0.018440053189903494,
+            0.14333550494423164,
+            0.0017749438157539377,
+            -0.010761590165539792
+          ]
+        },
+        "length": {
+          "off": {
+            "n": 8,
+            "median_wall_ms": 470.0759499974083,
+            "range_wall_ms": [
+              435.50070001219865,
+              622.01369999093
+            ],
+            "median_cpu_ms": 453.125,
+            "median_private_commit_bytes": 222291968.0
+          },
+          "on": {
+            "n": 8,
+            "median_wall_ms": 497.46684999990975,
+            "range_wall_ms": [
+              437.7329999988433,
+              751.7758000030881
+            ],
+            "median_cpu_ms": 453.125,
+            "median_private_commit_bytes": 222322688.0
+          },
+          "reduction": -0.05826909460620655,
+          "cpu_reduction": 0.0,
+          "block_reductions": [
+            -0.10643702434580438,
+            -0.07639899937446804,
+            -0.03293306517188266,
+            -0.046943518603666634
+          ]
+        },
+        "stack32": {
+          "off": {
+            "n": 8,
+            "median_wall_ms": 872.8699000057532,
+            "range_wall_ms": [
+              805.1628999965033,
+              1205.7570000033593
+            ],
+            "median_cpu_ms": 851.5625,
+            "median_private_commit_bytes": 271237120.0
+          },
+          "on": {
+            "n": 8,
+            "median_wall_ms": 494.83820000023115,
+            "range_wall_ms": [
+              469.50490000017453,
+              664.8463000019547
+            ],
+            "median_cpu_ms": 468.75,
+            "median_private_commit_bytes": 236617728.0
+          },
+          "reduction": 0.4330905441956818,
+          "cpu_reduction": 0.4495412844036697,
+          "block_reductions": [
+            0.48436326802544727,
+            0.4192286710429606,
+            0.4411015670749444,
+            0.42524746523206725
+          ]
+        }
+      },
+      "image_native_checks": 60,
+      "exclusions": []
+    }
+  },
+  "quality": {
+    "validation": 19,
+    "agreements": 10,
+    "rejects": 9,
+    "controls": []
+  },
+  "profiles": {
+    "capture": {
+      "off": {
+        "wall_ms": 1800.4644000029657,
+        "artifact_bytes": 81408,
+        "allocation": [
+          487.324,
+          1
+        ],
+        "bounded_spill": [
+          292.104,
+          2159
+        ]
+      },
+      "on": {
+        "wall_ms": 711.3478000101168,
+        "artifact_bytes": 8704,
+        "allocation": [
+          15.645,
+          1
+        ],
+        "bounded_spill": [
+          6.771,
+          131
+        ]
+      }
+    },
+    "comparison": {
+      "off": {
+        "wall_ms": 2150.956000012229,
+        "artifact_bytes": 81408,
+        "allocation": [
+          425.589,
+          1
+        ],
+        "bounded_spill": [
+          283.922,
+          2159
+        ]
+      },
+      "on": {
+        "wall_ms": 1441.0895000037272,
+        "artifact_bytes": 8704,
+        "allocation": [
+          20.988,
+          1
+        ],
+        "bounded_spill": [
+          9.481,
+          131
+        ]
+      }
+    },
+    "confirmation": {
+      "off": {
+        "wall_ms": 1057.9294999915874,
+        "artifact_bytes": 81408,
+        "allocation": [
+          305.389,
+          1
+        ],
+        "bounded_spill": [
+          200.938,
+          2159
+        ]
+      },
+      "on": {
+        "wall_ms": 476.1982000054559,
+        "artifact_bytes": 8704,
+        "allocation": [
+          11.035,
+          1
+        ],
+        "bounded_spill": [
+          5.01,
+          131
+        ]
+      }
+    }
+  },
+  "default_control": {
+    "subject": "stack32",
+    "flavors": {
+      "default": {
+        "n": 8,
+        "median_wall_ms": 796.2917499971809,
+        "range_wall_ms": [
+          784.5061999978498,
+          855.1974000001792
+        ],
+        "median_cpu_ms": 789.0625,
+        "median_private_commit_bytes": 252643328.0
+      },
+      "off": {
+        "n": 8,
+        "median_wall_ms": 800.5189499963308,
+        "range_wall_ms": [
+          779.792199988151,
+          1117.7038000023458
+        ],
+        "median_cpu_ms": 789.0625,
+        "median_private_commit_bytes": 271233024.0
+      },
+      "on": {
+        "n": 8,
+        "median_wall_ms": 457.1557000017492,
+        "range_wall_ms": [
+          440.7400000054622,
+          574.5169000001624
+        ],
+        "median_cpu_ms": 445.3125,
+        "median_private_commit_bytes": 236597248.0
+      },
+      "default_to_on_reduction": 0.4258942152755347,
+      "off_over_default_ratio": 1.0053086070515798,
+      "default_to_on_cpu_reduction": 0.4356435643564357,
+      "default_to_on_block_reductions": [
+        0.44092420668437693,
+        0.36210933192248695,
+        0.37112558419439534,
+        0.40490018666929417
+      ]
+    },
+    "image_native_checks": 30,
+    "profiles": [
+      {
+        "flavor": "default",
+        "wall_ms": 749.5735999982571,
+        "artifact_bytes": 81408,
+        "spans": {
+          "05": [
+            1.558,
+            2
+          ],
+          "05.01.a_discover_call_catalog": [
+            1.224,
+            2
+          ],
+          "05.01.b_admit_bodies": [
+            0.096,
+            2
+          ],
+          "05.01.c_lower_structural_types": [
+            0.19,
+            2
+          ],
+          "05.01.d_lower_domains_and_services": [
+            1.05,
+            4
+          ],
+          "05.01.e_prepare_qualifications": [
+            0.098,
+            2
+          ],
+          "05.01.f_lower_signatures": [
+            1.027,
+            4
+          ],
+          "05.01.g1.1_setup": [
+            0.134,
+            4
+          ],
+          "05.01.g1.2_emit_states": [
+            1.031,
+            4
+          ],
+          "05.01.g1.3_finish": [
+            0.059,
+            4
+          ],
+          "05.01.g1.3a_requires": [
+            0.004,
+            4
+          ],
+          "05.01.g1.3b_places": [
+            0.013,
+            4
+          ],
+          "05.01.g1.3c_loans": [
+            0.004,
+            4
+          ],
+          "05.01.g1.3d_continuations": [
+            0.008,
+            4
+          ],
+          "05.01.g1.3e.1_owned_extractions": [
+            0.001,
+            10
+          ],
+          "05.01.g1.3e.2_complete_carriers": [
+            0.032,
+            10
+          ],
+          "05.01.g1.3e.3_projected_transfers": [
+            0.005,
+            10
+          ],
+          "05.01.g1.3e.4_retire_borrowed": [
+            0.003,
+            10
+          ],
+          "05.01.g1.3e_affine_cleanup": [
+            0.022,
+            4
+          ],
+          "05.01.g1.3f_crash_and_ranking": [
+            0.001,
+            4
+          ],
+          "05.01.g1_emit_composed_body": [
+            1.289,
+            4
+          ],
+          "05.01.g2_emit_ordinary_body": [
+            1.172,
+            6
+          ],
+          "05.01.h_provider_conformances": [
+            0.003,
+            2
+          ],
+          "05.01_lower_selected_machine": [
+            7.933,
+            2
+          ],
+          "05.02_declarations_retain": [
+            0.036,
+            2
+          ],
+          "05.03_nominal_cleanup_roles": [
+            0.002,
+            2
+          ],
+          "05.04_closed_reach_applications": [
+            0.005,
+            2
+          ],
+          "05.05_reborrow_restored_call_use": [
+            0.003,
+            2
+          ],
+          "05.06_placed_and_suspension": [
+            0.013,
+            2
+          ],
+          "05.07_operation_crash_contracts": [
+            0.011,
+            2
+          ],
+          "05.08_conformance_and_dyn": [
+            0.015,
+            2
+          ],
+          "05.09_build_providers": [
+            0.002,
+            2
+          ],
+          "05.10_reconcile_and_residences": [
+            0.012,
+            2
+          ],
+          "05.11_evidence_artifacts": [
+            0.037,
+            2
+          ],
+          "05.a.source_completion": [
+            0.005,
+            2
+          ],
+          "05.b.retained_match": [
+            0.914,
+            2
+          ],
+          "05.boundary_applications": [
+            0.006,
+            2
+          ],
+          "05.callback_applications": [
+            0.002,
+            2
+          ],
+          "05.debug_map": [
+            0.001,
+            2
+          ],
+          "05.e.declaration_authority": [
+            0.173,
+            2
+          ],
+          "05.identities_build": [
+            0.001,
+            2
+          ],
+          "05.lower_terminal_selection": [
+            8.079,
+            2
+          ],
+          "05.validate_runtime_evidence_inputs": [
+            0.006,
+            2
+          ],
+          "06.0.b_admit_permissions_and_trust": [
+            0.005,
+            1
+          ],
+          "06.0.c_report_prepare": [
+            0.009,
+            1
+          ],
+          "06.0.d_finish_terminal_application": [
+            0.216,
+            1
+          ],
+          "06.0.e_produce_native_product": [
+            361.211,
+            1
+          ],
+          "06.0.f_settlement_finish_native": [
+            0.012,
+            1
+          ],
+          "06.1.c1_prepare_native_execution": [
+            0.284,
+            1
+          ],
+          "06.1.c2_prepare_native_providers": [
+            0.005,
+            1
+          ],
+          "06.1.c3_admit_prepared_native_realization": [
+            0.063,
+            1
+          ],
+          "06.1.c4_admit_executable_entry": [
+            0.075,
+            1
+          ],
+          "06.1.c5_capture_native_admission": [
+            0.01,
+            1
+          ],
+          "06.1.d.01_lower_to_target": [
+            12.388,
+            1
+          ],
+          "06.1.d.04_stage_instruction_selection": [
+            4.433,
+            1
+          ],
+          "06.1.d.04b_optimize_selected_instructions": [
+            5.795,
+            1
+          ],
+          "06.1.d.05.b_fixed_occurrences": [
+            0.587,
+            1
+          ],
+          "06.1.d.05.c2_initial_assign": [
+            1.133,
+            1
+          ],
+          "06.1.d.05.c_initial_analyze": [
+            3.081,
+            1
+          ],
+          "06.1.d.05.d_split_probe": [
+            6.6,
+            2187
+          ],
+          "06.1.d.05.e_remat_probe": [
+            6.22,
+            2187
+          ],
+          "06.1.d.05.f_crossing_spill": [
+            0.753,
+            7
+          ],
+          "06.1.d.05.h_bounded_spill": [
+            190.024,
+            2159
+          ],
+          "06.1.d.05.i.1_liveness": [
+            6.983,
+            13
+          ],
+          "06.1.d.05.i.2_live_ranges": [
+            12.436,
+            13
+          ],
+          "06.1.d.05.i.3_legality": [
+            5.298,
+            13
+          ],
+          "06.1.d.05.i_batch_reanalyze": [
+            21.858,
+            11
+          ],
+          "06.1.d.05.j.1_build_domains": [
+            4.477,
+            20
+          ],
+          "06.1.d.05.j.2_prepared_conflicts": [
+            8.065,
+            20
+          ],
+          "06.1.d.05.j.3_compute_bitmask": [
+            11.0,
+            20
+          ],
+          "06.1.d.05.j_probe_all": [
+            21.516,
+            11
+          ],
+          "06.1.d.05.k_seal_and_manifest": [
+            6.725,
+            1
+          ],
+          "06.1.d.05.pressure.unplaced_victim": [
+            1.186,
+            2004
+          ],
+          "06.1.d.05.spill.derive": [
+            97.624,
+            2166
+          ],
+          "06.1.d.05.spill.mutate": [
+            58.384,
+            2166
+          ],
+          "06.1.d.05.spill.seal": [
+            33.06,
+            2166
+          ],
+          "06.1.d.05_stage_register_allocation": [
+            279.749,
+            1
+          ],
+          "06.1.d.06.a_post_allocation_machine": [
+            16.987,
+            1
+          ],
+          "06.1.d.06.b_stage_function_frame": [
+            2.329,
+            1
+          ],
+          "06.1.d.06.c_selected_form_encoding": [
+            16.834,
+            1
+          ],
+          "06.1.d.06.d_resolved_selected_form_layout": [
+            5.429,
+            1
+          ],
+          "06.1.d.06.e_resolved_layout_opt": [
+            0.004,
+            1
+          ],
+          "06.1.d.06.f_assemble_fixed_frame": [
+            8.442,
+            1
+          ],
+          "06.1.d.06.g_emit_fragment_object": [
+            5.548,
+            1
+          ],
+          "06.1.d.06_stage_frame_realization": [
+            55.703,
+            1
+          ],
+          "06.1.d_emit_realization_object": [
+            359.782,
+            1
+          ],
+          "06.1.e_emit_admitted_image": [
+            0.886,
+            1
+          ],
+          "build.admit_outputs": [
+            1.702,
+            1
+          ],
+          "build.create_session": [
+            32.927,
+            1
+          ],
+          "build.resolve_sources": [
+            147.515,
+            1
+          ],
+          "evaluate_or_defer.check_defer": [
+            0.334,
+            1
+          ],
+          "evaluate_or_defer.check_defer.const_applications": [
+            0.074,
+            1
+          ],
+          "evaluate_or_defer.check_defer.endpoint_calls": [
+            0.088,
+            1
+          ],
+          "evaluate_or_defer.check_defer.independent_lengths": [
+            0.098,
+            1
+          ],
+          "evaluate_or_defer.check_defer.memberships": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work": [
+            0.282,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.const_applications": [
+            0.066,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.const_array_lengths": [
+            0.064,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.domain_facts": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.dynamic_call_targets": [
+            0.069,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.placed_view_plans": [
+            0.001,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.plan_laid_layouts": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.range_endpoints": [
+            0.074,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.wire_plans": [
+            0.001,
+            1
+          ],
+          "evaluate_or_defer.finish": [
+            0.03,
+            1
+          ],
+          "evaluate_or_defer.finish.settle_target_observations": [
+            0.003,
+            1
+          ],
+          "evaluate_or_defer.finish.validate_retained_invocations": [
+            0.027,
+            1
+          ],
+          "psi.source.complete_authored": [
+            0.051,
+            1
+          ],
+          "psi.source.finish": [
+            1.6,
+            1
+          ],
+          "source.graph.load.decode": [
+            64.174,
+            1
+          ],
+          "source.graph.load.digest": [
+            16.977,
+            1
+          ],
+          "source.graph.load.read": [
+            11.47,
+            1
+          ],
+          "source.graph.load.require_after": [
+            10.717,
+            1
+          ],
+          "source.graph.load.require_before": [
+            10.658,
+            1
+          ],
+          "typed_trees::collect_program_references": [
+            2.987,
+            21
+          ],
+          "typed_trees::program_scoped_proof_facts": [
+            0.017,
+            2
+          ]
+        }
+      },
+      {
+        "flavor": "off",
+        "wall_ms": 1006.4906999905361,
+        "artifact_bytes": 81408,
+        "spans": {
+          "05": [
+            1.499,
+            2
+          ],
+          "05.01.a_discover_call_catalog": [
+            1.302,
+            2
+          ],
+          "05.01.b_admit_bodies": [
+            0.218,
+            2
+          ],
+          "05.01.c_lower_structural_types": [
+            0.268,
+            2
+          ],
+          "05.01.d_lower_domains_and_services": [
+            1.187,
+            4
+          ],
+          "05.01.e_prepare_qualifications": [
+            0.097,
+            2
+          ],
+          "05.01.f_lower_signatures": [
+            1.21,
+            4
+          ],
+          "05.01.g1.1_setup": [
+            0.136,
+            5
+          ],
+          "05.01.g1.2_emit_states": [
+            1.866,
+            5
+          ],
+          "05.01.g1.3_finish": [
+            0.586,
+            5
+          ],
+          "05.01.g1.3a_requires": [
+            0.004,
+            5
+          ],
+          "05.01.g1.3b_places": [
+            0.052,
+            5
+          ],
+          "05.01.g1.3c_loans": [
+            0.004,
+            5
+          ],
+          "05.01.g1.3d_continuations": [
+            0.401,
+            5
+          ],
+          "05.01.g1.3e.1_owned_extractions": [
+            0.003,
+            66
+          ],
+          "05.01.g1.3e.2_complete_carriers": [
+            0.247,
+            66
+          ],
+          "05.01.g1.3e.3_projected_transfers": [
+            0.011,
+            66
+          ],
+          "05.01.g1.3e.4_retire_borrowed": [
+            0.004,
+            66
+          ],
+          "05.01.g1.3e_affine_cleanup": [
+            0.108,
+            5
+          ],
+          "05.01.g1.3f_crash_and_ranking": [
+            0.002,
+            5
+          ],
+          "05.01.g1_emit_composed_body": [
+            2.68,
+            5
+          ],
+          "05.01.g2_emit_ordinary_body": [
+            3.446,
+            61
+          ],
+          "05.01.h_provider_conformances": [
+            0.003,
+            2
+          ],
+          "05.01_lower_selected_machine": [
+            12.252,
+            2
+          ],
+          "05.02_declarations_retain": [
+            0.201,
+            2
+          ],
+          "05.03_nominal_cleanup_roles": [
+            0.007,
+            2
+          ],
+          "05.04_closed_reach_applications": [
+            0.005,
+            2
+          ],
+          "05.05_reborrow_restored_call_use": [
+            0.003,
+            2
+          ],
+          "05.06_placed_and_suspension": [
+            0.01,
+            2
+          ],
+          "05.07_operation_crash_contracts": [
+            0.012,
+            2
+          ],
+          "05.08_conformance_and_dyn": [
+            0.015,
+            2
+          ],
+          "05.09_build_providers": [
+            0.003,
+            2
+          ],
+          "05.10_reconcile_and_residences": [
+            0.025,
+            2
+          ],
+          "05.11_evidence_artifacts": [
+            0.038,
+            2
+          ],
+          "05.a.source_completion": [
+            0.004,
+            2
+          ],
+          "05.b.retained_match": [
+            0.876,
+            2
+          ],
+          "05.boundary_applications": [
+            0.008,
+            2
+          ],
+          "05.callback_applications": [
+            0.002,
+            2
+          ],
+          "05.debug_map": [
+            0.0,
+            2
+          ],
+          "05.e.declaration_authority": [
+            0.173,
+            2
+          ],
+          "05.identities_build": [
+            0.001,
+            2
+          ],
+          "05.lower_terminal_selection": [
+            12.581,
+            2
+          ],
+          "05.validate_runtime_evidence_inputs": [
+            0.005,
+            2
+          ],
+          "06.0.b_admit_permissions_and_trust": [
+            0.005,
+            1
+          ],
+          "06.0.c_report_prepare": [
+            0.009,
+            1
+          ],
+          "06.0.d_finish_terminal_application": [
+            0.208,
+            1
+          ],
+          "06.0.e_produce_native_product": [
+            374.96,
+            1
+          ],
+          "06.0.f_settlement_finish_native": [
+            0.012,
+            1
+          ],
+          "06.1.c1_prepare_native_execution": [
+            0.263,
+            1
+          ],
+          "06.1.c2_prepare_native_providers": [
+            0.005,
+            1
+          ],
+          "06.1.c3_admit_prepared_native_realization": [
+            0.061,
+            1
+          ],
+          "06.1.c4_admit_executable_entry": [
+            0.068,
+            1
+          ],
+          "06.1.c5_capture_native_admission": [
+            0.01,
+            1
+          ],
+          "06.1.d.01_lower_to_target": [
+            11.456,
+            1
+          ],
+          "06.1.d.04_stage_instruction_selection": [
+            3.134,
+            1
+          ],
+          "06.1.d.04b_optimize_selected_instructions": [
+            4.393,
+            1
+          ],
+          "06.1.d.05.b_fixed_occurrences": [
+            0.457,
+            1
+          ],
+          "06.1.d.05.c2_initial_assign": [
+            0.893,
+            1
+          ],
+          "06.1.d.05.c_initial_analyze": [
+            2.314,
+            1
+          ],
+          "06.1.d.05.d_split_probe": [
+            6.8,
+            2187
+          ],
+          "06.1.d.05.e_remat_probe": [
+            6.089,
+            2187
+          ],
+          "06.1.d.05.f_crossing_spill": [
+            0.835,
+            7
+          ],
+          "06.1.d.05.h_bounded_spill": [
+            192.874,
+            2159
+          ],
+          "06.1.d.05.i.1_liveness": [
+            7.46,
+            13
+          ],
+          "06.1.d.05.i.2_live_ranges": [
+            13.044,
+            13
+          ],
+          "06.1.d.05.i.3_legality": [
+            5.76,
+            13
+          ],
+          "06.1.d.05.i_batch_reanalyze": [
+            24.215,
+            11
+          ],
+          "06.1.d.05.j.1_build_domains": [
+            4.638,
+            20
+          ],
+          "06.1.d.05.j.2_prepared_conflicts": [
+            8.483,
+            20
+          ],
+          "06.1.d.05.j.3_compute_bitmask": [
+            10.927,
+            20
+          ],
+          "06.1.d.05.j_probe_all": [
+            22.528,
+            11
+          ],
+          "06.1.d.05.k_seal_and_manifest": [
+            7.218,
+            1
+          ],
+          "06.1.d.05.pressure.unplaced_victim": [
+            1.261,
+            2004
+          ],
+          "06.1.d.05.spill.derive": [
+            100.196,
+            2166
+          ],
+          "06.1.d.05.spill.mutate": [
+            58.519,
+            2166
+          ],
+          "06.1.d.05.spill.seal": [
+            33.227,
+            2166
+          ],
+          "06.1.d.05_stage_register_allocation": [
+            285.303,
+            1
+          ],
+          "06.1.d.06.a_post_allocation_machine": [
+            17.557,
+            1
+          ],
+          "06.1.d.06.b_stage_function_frame": [
+            3.127,
+            1
+          ],
+          "06.1.d.06.c_selected_form_encoding": [
+            25.486,
+            1
+          ],
+          "06.1.d.06.d_resolved_selected_form_layout": [
+            6.677,
+            1
+          ],
+          "06.1.d.06.e_resolved_layout_opt": [
+            0.005,
+            1
+          ],
+          "06.1.d.06.f_assemble_fixed_frame": [
+            9.264,
+            1
+          ],
+          "06.1.d.06.g_emit_fragment_object": [
+            5.743,
+            1
+          ],
+          "06.1.d.06_stage_frame_realization": [
+            67.994,
+            1
+          ],
+          "06.1.d_emit_realization_object": [
+            373.453,
+            1
+          ],
+          "06.1.e_emit_admitted_image": [
+            0.992,
+            1
+          ],
+          "build.admit_outputs": [
+            9.028,
+            1
+          ],
+          "build.create_session": [
+            67.325,
+            1
+          ],
+          "build.resolve_sources": [
+            188.064,
+            1
+          ],
+          "evaluate_or_defer.check_defer": [
+            0.336,
+            1
+          ],
+          "evaluate_or_defer.check_defer.const_applications": [
+            0.075,
+            1
+          ],
+          "evaluate_or_defer.check_defer.endpoint_calls": [
+            0.085,
+            1
+          ],
+          "evaluate_or_defer.check_defer.independent_lengths": [
+            0.092,
+            1
+          ],
+          "evaluate_or_defer.check_defer.memberships": [
+            0.001,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work": [
+            0.295,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.const_applications": [
+            0.07,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.const_array_lengths": [
+            0.065,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.domain_facts": [
+            0.001,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.dynamic_call_targets": [
+            0.066,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.placed_view_plans": [
+            0.001,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.plan_laid_layouts": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.range_endpoints": [
+            0.085,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.wire_plans": [
+            0.001,
+            1
+          ],
+          "evaluate_or_defer.finish": [
+            0.03,
+            1
+          ],
+          "evaluate_or_defer.finish.settle_target_observations": [
+            0.004,
+            1
+          ],
+          "evaluate_or_defer.finish.validate_retained_invocations": [
+            0.026,
+            1
+          ],
+          "psi.source.complete_authored": [
+            0.051,
+            1
+          ],
+          "psi.source.finish": [
+            1.586,
+            1
+          ],
+          "source.graph.load.decode": [
+            88.314,
+            1
+          ],
+          "source.graph.load.digest": [
+            18.184,
+            1
+          ],
+          "source.graph.load.read": [
+            17.534,
+            1
+          ],
+          "source.graph.load.require_after": [
+            10.862,
+            1
+          ],
+          "source.graph.load.require_before": [
+            10.935,
+            1
+          ],
+          "typed_trees::collect_program_references": [
+            2.904,
+            21
+          ],
+          "typed_trees::program_scoped_proof_facts": [
+            0.016,
+            2
+          ]
+        }
+      },
+      {
+        "flavor": "on",
+        "wall_ms": 455.46169999579433,
+        "artifact_bytes": 8704,
+        "spans": {
+          "05": [
+            1.509,
+            2
+          ],
+          "05.01.a_discover_call_catalog": [
+            1.316,
+            2
+          ],
+          "05.01.b_admit_bodies": [
+            0.228,
+            2
+          ],
+          "05.01.c_lower_structural_types": [
+            0.269,
+            2
+          ],
+          "05.01.d_lower_domains_and_services": [
+            1.481,
+            4
+          ],
+          "05.01.e_prepare_qualifications": [
+            0.102,
+            2
+          ],
+          "05.01.f_lower_signatures": [
+            1.322,
+            4
+          ],
+          "05.01.g1.1_setup": [
+            0.141,
+            5
+          ],
+          "05.01.g1.2_emit_states": [
+            2.101,
+            5
+          ],
+          "05.01.g1.3_finish": [
+            0.61,
+            5
+          ],
+          "05.01.g1.3a_requires": [
+            0.004,
+            5
+          ],
+          "05.01.g1.3b_places": [
+            0.054,
+            5
+          ],
+          "05.01.g1.3c_loans": [
+            0.005,
+            5
+          ],
+          "05.01.g1.3d_continuations": [
+            0.416,
+            5
+          ],
+          "05.01.g1.3e.1_owned_extractions": [
+            0.003,
+            66
+          ],
+          "05.01.g1.3e.2_complete_carriers": [
+            0.25,
+            66
+          ],
+          "05.01.g1.3e.3_projected_transfers": [
+            0.013,
+            66
+          ],
+          "05.01.g1.3e.4_retire_borrowed": [
+            0.005,
+            66
+          ],
+          "05.01.g1.3e_affine_cleanup": [
+            0.115,
+            5
+          ],
+          "05.01.g1.3f_crash_and_ranking": [
+            0.002,
+            5
+          ],
+          "05.01.g1_emit_composed_body": [
+            2.953,
+            5
+          ],
+          "05.01.g2_emit_ordinary_body": [
+            3.534,
+            61
+          ],
+          "05.01.h_provider_conformances": [
+            0.004,
+            2
+          ],
+          "05.01_lower_selected_machine": [
+            13.259,
+            2
+          ],
+          "05.02_declarations_retain": [
+            0.231,
+            2
+          ],
+          "05.03_nominal_cleanup_roles": [
+            0.007,
+            2
+          ],
+          "05.04_closed_reach_applications": [
+            0.005,
+            2
+          ],
+          "05.05_reborrow_restored_call_use": [
+            0.004,
+            2
+          ],
+          "05.06_placed_and_suspension": [
+            0.011,
+            2
+          ],
+          "05.07_operation_crash_contracts": [
+            0.014,
+            2
+          ],
+          "05.08_conformance_and_dyn": [
+            0.017,
+            2
+          ],
+          "05.09_build_providers": [
+            0.003,
+            2
+          ],
+          "05.10_reconcile_and_residences": [
+            0.027,
+            2
+          ],
+          "05.11_evidence_artifacts": [
+            0.042,
+            2
+          ],
+          "05.a.source_completion": [
+            0.004,
+            2
+          ],
+          "05.b.retained_match": [
+            0.876,
+            2
+          ],
+          "05.boundary_applications": [
+            0.009,
+            2
+          ],
+          "05.callback_applications": [
+            0.003,
+            2
+          ],
+          "05.debug_map": [
+            0.0,
+            2
+          ],
+          "05.e.declaration_authority": [
+            0.174,
+            2
+          ],
+          "05.identities_build": [
+            0.001,
+            2
+          ],
+          "05.lower_terminal_selection": [
+            13.633,
+            2
+          ],
+          "05.validate_runtime_evidence_inputs": [
+            0.006,
+            2
+          ],
+          "06.0.b_admit_permissions_and_trust": [
+            0.006,
+            1
+          ],
+          "06.0.c_report_prepare": [
+            0.011,
+            1
+          ],
+          "06.0.d_finish_terminal_application": [
+            0.196,
+            1
+          ],
+          "06.0.e_produce_native_product": [
+            24.394,
+            1
+          ],
+          "06.0.f_settlement_finish_native": [
+            0.011,
+            1
+          ],
+          "06.1.c1_prepare_native_execution": [
+            0.218,
+            1
+          ],
+          "06.1.c2_prepare_native_providers": [
+            0.005,
+            1
+          ],
+          "06.1.c3_admit_prepared_native_realization": [
+            0.069,
+            1
+          ],
+          "06.1.c4_admit_executable_entry": [
+            0.07,
+            1
+          ],
+          "06.1.c5_capture_native_admission": [
+            0.011,
+            1
+          ],
+          "06.1.d.01_lower_to_target": [
+            2.609,
+            1
+          ],
+          "06.1.d.04_stage_instruction_selection": [
+            0.995,
+            1
+          ],
+          "06.1.d.04b_optimize_selected_instructions": [
+            0.844,
+            1
+          ],
+          "06.1.d.05.b_fixed_occurrences": [
+            0.124,
+            1
+          ],
+          "06.1.d.05.c2_initial_assign": [
+            0.109,
+            1
+          ],
+          "06.1.d.05.c_initial_analyze": [
+            0.418,
+            1
+          ],
+          "06.1.d.05.d_split_probe": [
+            0.258,
+            156
+          ],
+          "06.1.d.05.e_remat_probe": [
+            0.598,
+            156
+          ],
+          "06.1.d.05.f_crossing_spill": [
+            0.166,
+            4
+          ],
+          "06.1.d.05.h_bounded_spill": [
+            4.956,
+            131
+          ],
+          "06.1.d.05.i.1_liveness": [
+            0.507,
+            10
+          ],
+          "06.1.d.05.i.2_live_ranges": [
+            0.787,
+            10
+          ],
+          "06.1.d.05.i.3_legality": [
+            0.394,
+            10
+          ],
+          "06.1.d.05.i_batch_reanalyze": [
+            1.301,
+            8
+          ],
+          "06.1.d.05.j.1_build_domains": [
+            0.279,
+            17
+          ],
+          "06.1.d.05.j.2_prepared_conflicts": [
+            0.369,
+            17
+          ],
+          "06.1.d.05.j.3_compute_bitmask": [
+            0.506,
+            17
+          ],
+          "06.1.d.05.j_probe_all": [
+            0.938,
+            8
+          ],
+          "06.1.d.05.k_seal_and_manifest": [
+            0.686,
+            1
+          ],
+          "06.1.d.05.pressure.unplaced_victim": [
+            0.007,
+            141
+          ],
+          "06.1.d.05.spill.derive": [
+            2.118,
+            135
+          ],
+          "06.1.d.05.spill.mutate": [
+            1.153,
+            135
+          ],
+          "06.1.d.05.spill.seal": [
+            1.779,
+            135
+          ],
+          "06.1.d.05_stage_register_allocation": [
+            11.005,
+            1
+          ],
+          "06.1.d.06.a_post_allocation_machine": [
+            3.132,
+            1
+          ],
+          "06.1.d.06.b_stage_function_frame": [
+            0.271,
+            1
+          ],
+          "06.1.d.06.c_selected_form_encoding": [
+            1.442,
+            1
+          ],
+          "06.1.d.06.d_resolved_selected_form_layout": [
+            0.534,
+            1
+          ],
+          "06.1.d.06.e_resolved_layout_opt": [
+            0.002,
+            1
+          ],
+          "06.1.d.06.f_assemble_fixed_frame": [
+            0.732,
+            1
+          ],
+          "06.1.d.06.g_emit_fragment_object": [
+            0.77,
+            1
+          ],
+          "06.1.d.06_stage_frame_realization": [
+            6.968,
+            1
+          ],
+          "06.1.d_emit_realization_object": [
+            23.662,
+            1
+          ],
+          "06.1.e_emit_admitted_image": [
+            0.24,
+            1
+          ],
+          "build.admit_outputs": [
+            1.953,
+            1
+          ],
+          "build.create_session": [
+            36.185,
+            1
+          ],
+          "build.resolve_sources": [
+            157.671,
+            1
+          ],
+          "evaluate_or_defer.check_defer": [
+            0.327,
+            1
+          ],
+          "evaluate_or_defer.check_defer.const_applications": [
+            0.078,
+            1
+          ],
+          "evaluate_or_defer.check_defer.endpoint_calls": [
+            0.09,
+            1
+          ],
+          "evaluate_or_defer.check_defer.independent_lengths": [
+            0.086,
+            1
+          ],
+          "evaluate_or_defer.check_defer.memberships": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work": [
+            0.284,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.const_applications": [
+            0.067,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.const_array_lengths": [
+            0.066,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.domain_facts": [
+            0.001,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.dynamic_call_targets": [
+            0.066,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.placed_view_plans": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.plan_laid_layouts": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.range_endpoints": [
+            0.075,
+            1
+          ],
+          "evaluate_or_defer.evaluate_work.wire_plans": [
+            0.002,
+            1
+          ],
+          "evaluate_or_defer.finish": [
+            0.03,
+            1
+          ],
+          "evaluate_or_defer.finish.settle_target_observations": [
+            0.003,
+            1
+          ],
+          "evaluate_or_defer.finish.validate_retained_invocations": [
+            0.027,
+            1
+          ],
+          "psi.source.complete_authored": [
+            0.051,
+            1
+          ],
+          "psi.source.finish": [
+            1.589,
+            1
+          ],
+          "source.graph.load.decode": [
+            64.315,
+            1
+          ],
+          "source.graph.load.digest": [
+            17.1,
+            1
+          ],
+          "source.graph.load.read": [
+            11.04,
+            1
+          ],
+          "source.graph.load.require_after": [
+            10.574,
+            1
+          ],
+          "source.graph.load.require_before": [
+            10.629,
+            1
+          ],
+          "typed_trees::collect_program_references": [
+            3.111,
+            21
+          ],
+          "typed_trees::program_scoped_proof_facts": [
+            0.016,
+            2
+          ]
+        }
+      }
+    ]
+  },
+  "decision": "Retained scoped configured-path win: repeated substantial stack32 complete-process and CPU improvement, including direct ordinary-default control; length is consistently about6 percent slower and is reported as a tradeoff. Existing opt-in family only; compiler/default policy and workers unchanged. Preserve all valid observations including losing blocks, and every failed harness run. No full corpus or other-host runtime claim."
+}

@@ -235,6 +235,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // root Binding does not delegate containing-domain death to an embedding.
     let denied = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         entry: None,
+        filesystem: Default::default(),
         native_provider: None,
         x86_flags: None,
         memory_ordering: None,
@@ -259,6 +260,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     );
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         entry: None,
+        filesystem: Default::default(),
         native_provider: None,
         x86_flags: None,
         memory_ordering: None,

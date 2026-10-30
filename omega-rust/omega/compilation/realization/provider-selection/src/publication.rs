@@ -41,6 +41,7 @@ pub struct PreparedTargetChoices {
     pub candidates: Vec<PreparedProviderCandidate>,
     pub defaults: Vec<ProviderDeclaration<CanonicalProviderDeclaration>>,
     pub overrides: Vec<ProviderDeclaration<CanonicalProviderDeclaration>>,
+    pub independent_components: Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
 #[derive(Debug, Clone)]
@@ -137,7 +138,10 @@ impl PreparedTargetChoices {
             .map(|candidate| candidate.choice)
             .collect();
         let selected = crate::choose(demanded, self.profile, &self.defaults, &self.overrides)?;
-        let (_, selected) = crate::admit(selected, &[])?;
+        let (_, selected) = crate::admit(
+            selected,
+            self.independent_components.iter().map(AsRef::as_ref),
+        )?;
         let mut plans = Vec::with_capacity(selected.len());
         for selected in selected {
             let realizations = selected.candidate.owner?;

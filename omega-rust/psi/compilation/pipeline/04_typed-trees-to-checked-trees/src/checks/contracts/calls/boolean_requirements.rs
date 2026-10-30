@@ -158,6 +158,14 @@ pub(super) fn proves(
             expression,
             call_frames,
         )
+        || super::contradictory_edge::proves(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            entry_contexts,
+            call_frames,
+        )
         || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression)
         || super::super::current_values::proves_call(
             program,

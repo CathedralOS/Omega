@@ -548,7 +548,9 @@ impl TerminalExecution<'_> {
     }
 }
 
-fn scalar_qualification_owner(storage: &PrimitiveStorage) -> Option<&StructuralRuntimePlace> {
+pub(crate) fn scalar_qualification_owner(
+    storage: &PrimitiveStorage,
+) -> Option<&StructuralRuntimePlace> {
     match &storage.endpoint {
         PrimitiveStorageEndpoint::Scalar(place) => Some(place),
         PrimitiveStorageEndpoint::ScalarField(field) => Some(&field.parent),

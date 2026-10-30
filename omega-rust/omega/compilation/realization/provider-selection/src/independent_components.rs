@@ -24,15 +24,16 @@ use effects::provider_plan::ProviderPlan;
 /// The join state for one selection: which supplied components an
 /// independently selected plan has claimed.
 pub(crate) struct IndependentComponentJoin<'a> {
-    components: &'a [VerifiedComponent],
+    components: Vec<&'a VerifiedComponent>,
     realized: Vec<bool>,
 }
 
 impl<'a> IndependentComponentJoin<'a> {
-    pub(crate) fn new(components: &'a [VerifiedComponent]) -> Self {
+    pub(crate) fn new(components: impl IntoIterator<Item = &'a VerifiedComponent>) -> Self {
+        let components: Vec<_> = components.into_iter().collect();
         Self {
-            components,
             realized: vec![false; components.len()],
+            components,
         }
     }
 
@@ -74,7 +75,7 @@ impl<'a> IndependentComponentJoin<'a> {
                     .map(|(index, identities)| {
                         format!(
                             "verified component {} realizes it but retains {} unresolved installation-bound requirement row(s) ({})",
-                            description_identity(&self.components[*index]),
+                            description_identity(self.components[*index]),
                             identities.len(),
                             identities.join(", "),
                         )
@@ -99,7 +100,7 @@ impl<'a> IndependentComponentJoin<'a> {
             many => {
                 let identities = many
                     .iter()
-                    .map(|index| description_identity(&self.components[*index]))
+                    .map(|index| description_identity(self.components[*index]))
                     .collect::<Vec<_>>()
                     .join(", ");
                 Err(diagnostics::Diagnostic::error(format!(

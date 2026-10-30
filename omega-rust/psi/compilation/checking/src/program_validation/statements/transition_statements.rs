@@ -225,30 +225,11 @@ pub(super) fn validate(
                     return_owner,
                     diagnostics,
                 );
-                // Nominal guard: `-> Foo { transition { _ -> (self.bar) } }`
-                // returns a `Bar` as a `Foo`.
-                expression_types::report_data_type_conflict(
-                    program,
-                    machine,
-                    Some(state),
-                    *return_expression,
-                    state.return_type,
-                    slot_context,
-                    "return value",
-                    diagnostics,
-                );
-                // Shape guard: an array returned as a scalar (or vice versa).
-                expression_types::report_array_scalar_shape_mismatch(
-                    program,
-                    machine,
-                    Some(state),
-                    *return_expression,
-                    state.return_type,
-                    slot_context,
-                    "return value",
-                    diagnostics,
-                );
-                expression_types::report_scalar_data_shape_mismatch(
+                // Nominal guard (`-> Foo { transition { _ -> (self.bar) } }` returns
+                // a `Bar` as a `Foo`), then the array/scalar shape guard (an
+                // array returned as a scalar, or vice versa) and the scalar/data
+                // one.
+                expression_types::report_place_value_mismatches(
                     program,
                     machine,
                     Some(state),

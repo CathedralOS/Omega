@@ -1,0 +1,45 @@
+[
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\phase-runtime_numeric_operand_order_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 3,
+    "seconds": 144.55713830000605,
+    "transcript": "cases\\phase-runtime_numeric_operand_order_exit\\00.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60"
+  },
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\phase-runtime_numeric_operand_order_exit\\input"
+    ],
+    "exit": 0,
+    "seconds": 4.541424400005781,
+    "transcript": "cases\\phase-runtime_numeric_operand_order_exit\\01.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60"
+  },
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\phase-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 9.587411599997722,
+    "transcript": "cases\\phase-runtime_numeric_operand_order_exit\\02.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60"
+  }
+]

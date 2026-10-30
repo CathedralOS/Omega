@@ -1,0 +1,12 @@
+[
+ {
+  "sample": "samples/cli/arithmetic/wrapping_square_sum",
+  "state": "pass",
+  "detail": "",
+  "seconds": 5.43,
+  "phases": {
+   "review": 2.69,
+   "run": 2.73
+  }
+ }
+]

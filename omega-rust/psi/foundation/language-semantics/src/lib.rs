@@ -21,7 +21,8 @@ pub(crate) use optimization::codec_bytes;
 
 mod boundary_bodies;
 pub mod build_requests;
-pub use boundary_bodies::BoundaryBodySelection;
+pub use boundary_bodies::{BoundaryBodySelection, CheckedBodyCandidate};
+pub mod boundary_provider_review;
 pub mod byte_predicates;
 pub mod const_value;
 pub mod content;

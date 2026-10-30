@@ -1,0 +1,10 @@
+{
+  "path": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\record-wrapper\\omega-before.exe",
+  "sha256": "9fa95f1557381f0641ed6e4f285bc395dd19b4d25436131e24dc6e3f4db2d064",
+  "source_revision": "1fecc20b6f5292fa8673feed5cae2300a925433d",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)"
+}

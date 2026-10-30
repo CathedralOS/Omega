@@ -1,0 +1,134 @@
+{
+  "length": {
+    "end_to_end": {
+      "pairs": 20,
+      "baseline": {
+        "median": 1521512600.0,
+        "mean": 1533792960.0,
+        "observed_p95": 2620021800.0,
+        "observed_p99": 2620822700.0,
+        "minimum": 807306400.0,
+        "maximum": 2620822700.0,
+        "median_absolute_deviation": 266247800.0
+      },
+      "candidate": {
+        "median": 1599130100.0,
+        "mean": 1657325975.0,
+        "observed_p95": 2314864600.0,
+        "observed_p99": 2538174700.0,
+        "minimum": 814468500.0,
+        "maximum": 2538174700.0,
+        "median_absolute_deviation": 310858650.0
+      },
+      "paired_candidate_minus_baseline": {
+        "median": 106638100.0,
+        "mean": 123533015.0,
+        "observed_p95": 833518400.0,
+        "observed_p99": 944468300.0,
+        "minimum": -1035760100.0,
+        "maximum": 944468300.0,
+        "median_absolute_deviation": 290762100.0
+      },
+      "paired_percent_change": {
+        "median": 10.739030174873253,
+        "mean": 13.701618139882413,
+        "observed_p95": 59.26237731115342,
+        "observed_p99": 61.22096889111744,
+        "minimum": -39.52041853117344,
+        "maximum": 61.22096889111744,
+        "median_absolute_deviation": 22.957804348075115
+      },
+      "paired_percent_change_bootstrap_95": [
+        -1.3405246294826978,
+        28.868961490049458
+      ],
+      "median_difference_bootstrap_95": [
+        -13076900.0,
+        409456200.0
+      ],
+      "bootstrap_resamples": 4000,
+      "bootstrap_seed": 8029185205361337710,
+      "interpretation": "inconclusive"
+    },
+    "phases": {
+      "source.graph.load.decode": {
+        "baseline": 298.706,
+        "candidate": 297.16
+      },
+      "build.resolve_sources": {
+        "baseline": 551.029,
+        "candidate": 542.333
+      },
+      "total elapsed": {
+        "baseline": 848.461,
+        "candidate": 813.8
+      }
+    }
+  },
+  "square": {
+    "end_to_end": {
+      "pairs": 20,
+      "baseline": {
+        "median": 1110704650.0,
+        "mean": 1177561835.0,
+        "observed_p95": 1679389200.0,
+        "observed_p99": 1763296700.0,
+        "minimum": 914676900.0,
+        "maximum": 1763296700.0,
+        "median_absolute_deviation": 131495700.0
+      },
+      "candidate": {
+        "median": 1092112100.0,
+        "mean": 1147776630.0,
+        "observed_p95": 1527787500.0,
+        "observed_p99": 1540469500.0,
+        "minimum": 870777100.0,
+        "maximum": 1540469500.0,
+        "median_absolute_deviation": 172651550.0
+      },
+      "paired_candidate_minus_baseline": {
+        "median": 31913150.0,
+        "mean": -29785205.0,
+        "observed_p95": 376852500.0,
+        "observed_p99": 548891200.0,
+        "minimum": -537259200.0,
+        "maximum": 548891200.0,
+        "median_absolute_deviation": 139697500.0
+      },
+      "paired_percent_change": {
+        "median": 3.408484797963285,
+        "mean": 0.030151278427757954,
+        "observed_p95": 37.324508624147626,
+        "observed_p99": 55.35530577867627,
+        "minimum": -31.991345424872332,
+        "maximum": 55.35530577867627,
+        "median_absolute_deviation": 14.198285430578466
+      },
+      "paired_percent_change_bootstrap_95": [
+        -12.05749172402653,
+        5.664164398341553
+      ],
+      "median_difference_bootstrap_95": [
+        -160368800.0,
+        58017200.0
+      ],
+      "bootstrap_resamples": 4000,
+      "bootstrap_seed": 8029185205361337710,
+      "interpretation": "inconclusive"
+    },
+    "phases": {
+      "source.graph.load.decode": {
+        "baseline": 296.382,
+        "candidate": 328.658
+      },
+      "build.resolve_sources": {
+        "baseline": 508.797,
+        "candidate": 555.59
+      },
+      "total elapsed": {
+        "baseline": 742.365,
+        "candidate": 836.893
+      }
+    }
+  }
+}

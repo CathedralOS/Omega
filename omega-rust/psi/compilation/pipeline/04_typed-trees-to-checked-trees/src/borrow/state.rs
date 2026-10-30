@@ -115,6 +115,9 @@ pub(super) fn append_state_borrow_facts(
                     formation_expression: returned.formation_expression,
                     formation_owner_path,
                     incoming_reference: returned.place.incoming_reference,
+                    incoming_owner_path: arenas
+                        .access_segments
+                        .insert_many(returned.place.incoming_owner_path),
                     root: returned.place.root,
                     segments,
                     owner_path,
@@ -276,6 +279,7 @@ pub(super) fn append_carrier_loans(
             .is_some_and(|address| {
                 address.root != pending.place.root
                     || address.incoming_reference != pending.place.incoming_reference
+                    || address.incoming_owner_path != pending.place.incoming_owner_path
             })
         {
             pending.representation_address = None;
@@ -296,6 +300,9 @@ pub(super) fn append_carrier_loans(
             loans_span,
             BorrowLoanFact {
                 incoming_reference: pending.place.incoming_reference,
+                incoming_owner_path: arenas
+                    .access_segments
+                    .insert_many(pending.place.incoming_owner_path.clone()),
                 representation_address,
                 statement_index,
                 established_by_call,
@@ -514,6 +521,7 @@ fn append_incoming_reference_trackers(
                     retained_operand: None,
                     place: checked_trees::CapturedPlace {
                         incoming_reference,
+                        incoming_owner_path: Vec::new(),
                         root: facts::PlaceRoot::Symbol(parameter.symbol),
                         segments: Vec::new(),
                     },
@@ -592,6 +600,7 @@ fn append_incoming_reference_trackers(
                 retained_operand: None,
                 place: checked_trees::CapturedPlace {
                     incoming_reference,
+                    incoming_owner_path: Vec::new(),
                     root: facts::PlaceRoot::Symbol(parameter.symbol),
                     segments: Vec::new(),
                 },

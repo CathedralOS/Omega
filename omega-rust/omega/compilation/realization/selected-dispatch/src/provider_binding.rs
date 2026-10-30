@@ -61,9 +61,39 @@ pub fn prepare_selected_execution(
             &settlement.selected_provider_plan_facts,
         )?;
     }
+    // Numeric plan admission consumes this exact checked owner's declaration
+    // facts. Prepare once before binding; malformed declarations can now refuse
+    // before plan/qualification errors, but neither path executes effects.
+    let external_providers = settlement
+        .external_declarations
+        .get_or_init(|| {
+            psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
+                Arc::clone(&program),
+                settlement.exact_toolchain_sources,
+            )
+            .map(Arc::new)
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "external provider declarations: {error:?}"
+                ))]
+            })
+        })
+        .clone()?;
+    external_providers
+        .require_owner(&program, settlement.exact_toolchain_sources)
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "external provider declarations: {error:?}"
+            ))]
+        })?;
     let binding = provider_planning::bind_selected_provider_plan_facts(
         &program,
         &program.facts,
+        provider_selection::BoundaryProviderAdmission {
+            review: &external_providers.boundary_provider_review(),
+            identities: &external_providers.identities,
+            external_providers: &external_providers.conformances,
+        },
         &provider_plans,
         settlement.selected_provider_plan_facts,
         &settlement.selected_provider_provenance,
@@ -87,28 +117,6 @@ pub fn prepare_selected_execution(
             settlement.exact_toolchain_sources,
         ),
     );
-    let external_providers = settlement
-        .external_declarations
-        .get_or_init(|| {
-            psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
-                Arc::clone(&program),
-                settlement.exact_toolchain_sources,
-            )
-            .map(Arc::new)
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "external provider declarations: {error:?}"
-                ))]
-            })
-        })
-        .clone()?;
-    external_providers
-        .require_owner(&program, settlement.exact_toolchain_sources)
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "external provider declarations: {error:?}"
-            ))]
-        })?;
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         provider_planning::ProviderPlanningContext::new(
             &program.typed,
