@@ -2940,6 +2940,25 @@ fail/contracts/cyclic_descriptor_result_shorter_window rejected 900ms expected @
 fail/contracts/cyclic_descriptor_result_swapped_fields rejected 735ms expected @683f7a2f2406
 	cannot prove ensures contract for exit from retain_view at statement 1: result.bytes.len == selected.bytes.len
 	cannot prove ensures contract for exit from retain_view at statement 1: result.sibling.len == selected.sibling.len
+fail/contracts/cyclic_false_mixed_conjunction rejected 1394ms expected @82dfb1c33a86
+	cannot prove ensures contract for exit from first at statement 1: result <= 256
+	cannot prove ensures contract for exit from first at statement 2: result <= 256
+	cannot prove ensures contract for exit from second at statement 1: result <= 256
+	cannot prove ensures contract for exit from second at statement 2: result <= 256
+fail/contracts/cyclic_mixed_disjunction rejected 1562ms expected @82dfb1c33a86
+	cannot prove ensures contract for exit from first at statement 1: result <= 256
+	cannot prove ensures contract for exit from first at statement 2: result <= 256
+	cannot prove ensures contract for exit from second at statement 1: result <= 256
+	cannot prove ensures contract for exit from second at statement 2: result <= 256
+fail/contracts/cyclic_policy_result_exceeds_bound rejected 1700ms expected @82dfb1c33a86
+	cannot prove ensures contract for exit from collect at statement 1: result <= 256
+	cannot prove ensures contract for exit from digit at statement 3: result <= 256
+	cannot prove ensures contract for exit from store at statement 1: result <= 256
+	cannot prove ensures contract for exit from store_digit at statement 5: result <= 256
+	cannot prove ensures contract for exit from emit at statement 1: result <= 256
+	cannot prove ensures contract for exit from put at statement 2: result <= 256
+	cannot prove ensures contract for exit from write_digit at statement 3: result <= 256
+	cannot prove ensures contract for exit from commit_zero at statement 2: result <= 256
 fail/contracts/cyclic_terminal_bad_result rejected 1037ms expected @e73e8464a94b
 	cannot prove ensures contract for exit from first at statement 1: result <= 256
 	cannot prove ensures contract for exit from second at statement 1: result <= 256
@@ -35075,6 +35094,8 @@ run/calls/static_boundary_terminal_arguments checked 3374ms check-target:macos_a
 run/calls/table_report_call_survival checked 7943ms check-target:macos_arm64 @a92f16431042
 run/contained_health_loop_command_branch checked 7113ms check-target:macos_arm64 @a92f16431042
 run/contracts/captured_bound_unused_mutation checked 3799ms check-target:macos_arm64 @a92f16431042
+run/contracts/cyclic_mixed_conjunction checked 2775ms check-target:macos_arm64 @82dfb1c33a86
+run/contracts/cyclic_record_writer checked 2871ms check-target:macos_arm64 @82dfb1c33a86
 run/contracts/cyclic_terminal_result_producers checked 2330ms check-target:macos_arm64 @e73e8464a94b
 run/contracts/nested_cyclic_copy_bound checked 2320ms check-target:macos_arm64 @e73e8464a94b
 run/contracts/qualified_result_forwarding_exit checked 6344ms check-target:macos_arm64 @a92f16431042
