@@ -33,6 +33,7 @@ use diagnostics::Diagnostic;
 use numerics::literals::IntegerLiteral;
 use numerics::literals::IntegerRadix;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
@@ -653,12 +654,52 @@ fn synthesize_instance(
         }
     }
 
+    // CASE-CONSTRAINTS type-equality facts decide against the closed argument
+    // identities this instance was deduplicated on, whether they stand as a
+    // whole fact (`requires T == i32`) or nest inside a case-dependent
+    // disjunction (`(self in C && T == i32) || ...`). Only `type` binders
+    // enter the map: `const` binders rewrite to literal arguments, and the
+    // remaining binder kinds are still refused upstream.
+    let type_identities: HashMap<String, ClosedArgumentIdentity> = {
+        let Some(template) = snapshot.root_item(instance.template).as_data() else {
+            unreachable!("a discovered template is a data item");
+        };
+        snapshot
+            .tables
+            .items
+            .type_parameters(template.type_parameters)
+            .iter()
+            .zip(instance.argument_identity.iter())
+            .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
+            .map(|(parameter, identity)| {
+                (parameter.name.as_str(syntax).to_owned(), identity.clone())
+            })
+            .collect()
+    };
+
     // Data predicates define a default domain, which need not be inhabited.
     // Omit a proven truth, but retain false and mixed predicates with the same
     // substitution as members. Construction and observation own establishment;
     // discovering a contradiction must not make a type declaration illegal.
     let type_watermark = syntax.type_references.node_count();
     let fact_expression_watermark = syntax.expressions.frontier();
+    // Case-dependent predicates can decide a case out of existence on this
+    // instance (`(self in C && T == i32) || ...` with `T` closed to `bool`).
+    // Each copied fact is replayed against every variant once its type
+    // equalities fold; a refuted variant gets the literal `0` witness that
+    // marks an impossible case for coverage, construction, and zero gating --
+    // the same witness the case `where` copy already writes.
+    let template_variant_names: Vec<String> = snapshot
+        .tables
+        .items
+        .data_members(base_info.members)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant.name.as_str(snapshot).to_owned()),
+            _ => None,
+        })
+        .collect();
+    let mut impossible_variants: HashSet<String> = HashSet::new();
     let mut first_fact = Handle::invalid();
     let mut fact_count = 0u32;
     for (offset, fact) in snapshot
@@ -722,6 +763,41 @@ fn synthesize_instance(
             base_info.where_facts.start().generation(),
         );
         let handle = syntax.copy_proof_fact_from(snapshot, source);
+        let copied_root = match syntax.items.proof_fact(handle) {
+            ProofFact::Expression(root) => Some(*root),
+            _ => None,
+        };
+        // A carried expression fact decides its nested `type`-binder
+        // equalities against this instance's arguments, folding each decided
+        // node to the literal witness the case `where` copy already uses: a
+        // decided-true equation reads `1`, a decided-false one `0`, so a
+        // case-dependent disjunct collapses on the impossible branch and the
+        // surviving branch keeps its membership and value couplings. Binder
+        // spellings outside a decided equality stay symbolic -- the lowering
+        // gate already refused binder mentions in other positions.
+        if let Some(copied_root) = copied_root {
+            super::substitution::decide_instance_type_equalities(
+                syntax,
+                copied_root,
+                &type_identities,
+                selection,
+                &instance.synthetic_name,
+            )?;
+            let type_name = base_info.origin_name.as_str(syntax);
+            for variant_name in &template_variant_names {
+                if matches!(
+                    super::substitution::variant_fact_verdict(
+                        syntax,
+                        copied_root,
+                        type_name,
+                        variant_name,
+                    ),
+                    super::substitution::VariantFactVerdict::Refuted
+                ) {
+                    impossible_variants.insert(variant_name.clone());
+                }
+            }
+        }
         if fact_count == 0 {
             first_fact = handle;
         }
@@ -748,27 +824,6 @@ fn synthesize_instance(
 
     let members: Vec<DataMember> = syntax.tables.items.data_members(base_info.members).to_vec();
     let properties = base_info.properties;
-    // CASE-CONSTRAINTS type-equality facts (`case ... where T == i32`)
-    // decide against the closed argument identities this instance was
-    // deduplicated on. Only `type` binders enter the map: `const`
-    // binders rewrite to literal arguments, and the remaining binder
-    // kinds are still refused upstream.
-    let type_identities: HashMap<String, ClosedArgumentIdentity> = {
-        let Some(template) = snapshot.root_item(instance.template).as_data() else {
-            unreachable!("a discovered template is a data item");
-        };
-        snapshot
-            .tables
-            .items
-            .type_parameters(template.type_parameters)
-            .iter()
-            .zip(instance.argument_identity.iter())
-            .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
-            .map(|(parameter, identity)| {
-                (parameter.name.as_str(syntax).to_owned(), identity.clone())
-            })
-            .collect()
-    };
     let mut first: Handle<DataMember> = Handle::invalid();
     let mut count = 0u32;
     for member in members {
@@ -778,6 +833,7 @@ fn synthesize_instance(
             member,
             &substitution,
             &type_identities,
+            &impossible_variants,
             selection,
             &instance.synthetic_name,
             const_values,
