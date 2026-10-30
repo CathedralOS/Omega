@@ -97,9 +97,8 @@ impl<'program> ProbeProjection<'program> {
         }
         let removed =
             DeclarationSelection::from_symbols(original.machines().iter().filter_map(|machine| {
-                (owned_by(original, &probe_roots, machine.symbol)
-                    || (owned_by(original, &candidates, machine.symbol)
-                        && !owned_by(original, &retained, machine.symbol)))
+                (probe_roots.contains(machine.symbol)
+                    || (candidates.contains(machine.symbol) && !retained.contains(machine.symbol)))
                 .then_some(machine.symbol)
             }));
         Self { original, removed }

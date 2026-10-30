@@ -985,32 +985,75 @@ impl<'base> ConstantSelection<'base> {
         name: &Identifier,
         selected: symbols::SymbolHandle,
     ) -> Result<&'syntax DataDefinition, String> {
+        let declaration = self.source_declaration_item(syntax, name, selected)?;
+        syntax
+            .root_item(declaration)
+            .as_data()
+            .ok_or_else(|| "selected nominal carrier is not a data declaration".to_owned())
+    }
+
+    /// Select an implementation in the authored argument's own namespace.
+    /// Return its live syntax identity, never a transient header symbol.
+    pub(super) fn implementation_item(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> Result<syntax_trees::item::ItemHandle, String> {
+        let selected = self
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                name.as_str(syntax),
+                &[SymbolKind::Conformance],
+                name.source_span(),
+            )
+            .ok_or_else(|| "implementation argument does not select one declaration".to_owned())?;
+        self.source_declaration_item(syntax, name, selected)
+    }
+
+    fn source_declaration_item(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+        selected: symbols::SymbolHandle,
+    ) -> Result<syntax_trees::item::ItemHandle, String> {
         let span = self
             .symbols
             .symbol_source_span(selected)
-            .ok_or_else(|| "selected nominal carrier has no declaration source".to_owned())?;
-        let mut declarations = syntax.root_items().filter_map(|item| match item {
-            Item::Data(definition)
-                if definition.name.source_span() == span
-                    && definition.name.as_str(syntax) == self.symbols.name(selected) =>
-            {
-                Some(definition)
-            }
-            _ => None,
-        });
-        let definition = declarations
+            .ok_or_else(|| "selected canonical declaration has no source".to_owned())?;
+        let kind = self.symbols.get(selected).kind;
+        let mut declarations = syntax
+            .root_item_handles()
+            .iter()
+            .copied()
+            .filter_map(|handle| {
+                let (declaration_kind, declaration_name, is_public) = match syntax.root_item(handle)
+                {
+                    Item::Data(data) => (SymbolKind::Data, &data.name, data.is_public),
+                    Item::Conformance(implementation) => (
+                        SymbolKind::Conformance,
+                        implementation.alias.as_ref()?,
+                        implementation.is_public,
+                    ),
+                    _ => return None,
+                };
+                (declaration_kind == kind
+                    && declaration_name.source_span() == span
+                    && declaration_name.as_str(syntax) == self.symbols.name(selected))
+                .then_some((handle, is_public))
+            });
+        let (declaration, is_public) = declarations
             .next()
-            .ok_or_else(|| "selected nominal carrier lost its declaration".to_owned())?;
+            .ok_or_else(|| "selected canonical declaration lost its source custody".to_owned())?;
         if declarations.next().is_some() {
-            return Err("selected nominal carrier has ambiguous declaration custody".to_owned());
+            return Err("selected canonical declaration has ambiguous source custody".to_owned());
         }
-        if !definition.is_public && !self.symbols.same_source_package(name.source_span(), span) {
+        if !is_public && !self.symbols.same_source_package(name.source_span(), span) {
             return Err(format!(
-                "nominal carrier `{name}` selects a private declaration in another package",
-                name = name.as_str(syntax)
+                "canonical declaration `{}` is private in another package",
+                name.as_str(syntax)
             ));
         }
-        Ok(definition)
+        Ok(declaration)
     }
 
     /// Find a lookup spelling for the already selected template. This is not
@@ -1022,9 +1065,18 @@ impl<'base> ConstantSelection<'base> {
         syntax: &SyntaxTrees,
         name: &Identifier,
     ) -> Option<String> {
+        self.declaration_lookup_path(syntax, name, SymbolKind::Data)
+    }
+
+    pub(super) fn declaration_lookup_path(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+        kind: SymbolKind,
+    ) -> Option<String> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
             name.as_str(syntax),
-            &[SymbolKind::Data],
+            &[kind],
             name.source_span(),
         )?;
         let path = self.symbols.display_path(selected, "::");
@@ -1032,7 +1084,7 @@ impl<'base> ConstantSelection<'base> {
         let selects = |path: &str| {
             self.symbols.find_top_level_by_name_and_kinds_from_source(
                 path,
-                &[SymbolKind::Data],
+                &[kind],
                 name.source_span(),
             ) == Some(selected)
         };
