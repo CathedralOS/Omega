@@ -114,7 +114,7 @@ pub(super) fn project(
         )?;
         return from_application(projected, identity);
     }
-    let (lifetimes, parameters, values, result) = match schema {
+    let (lifetimes, parameters, values, result, selection_exposure) = match schema {
         ProviderSchemaDeclaration::BoundaryOperator(symbol) => {
             let matches = compilation
                 .operators()
@@ -139,6 +139,11 @@ pub(super) fn project(
                 compilation.operator_type_parameters(operator),
                 compilation.operator_parameters(operator),
                 operator.return_type,
+                if operator.is_public {
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+                } else {
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                },
             )
         }
         ProviderSchemaDeclaration::BoundaryRequirement(symbol)
@@ -168,6 +173,7 @@ pub(super) fn project(
                 compilation.machine_type_parameters(machine),
                 compilation.state_parameters(entry),
                 entry.return_type,
+                crate::capture::contracts::facts::callable_contract_exposure(machine),
             )
         }
         ProviderSchemaDeclaration::BoundaryTrait(_) => unreachable!(),
@@ -213,7 +219,7 @@ pub(super) fn project(
         &[],
         &scopes,
         false,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure,
     )?;
     let parameters = values
         .iter()

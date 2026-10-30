@@ -72,7 +72,7 @@ pub(crate) fn declaration_parameters(
         &[],
         &scopes,
         false,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        crate::capture::contracts::facts::trait_contract_exposure(owner),
     )?;
     Ok((parameters, count(owner.lifetime_parameters.len())?))
 }
