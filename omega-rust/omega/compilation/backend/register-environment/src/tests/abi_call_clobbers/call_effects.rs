@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, RegisterConstraintKey, assert_faulting_trap, assert_storage_free,
     baseline_target_register_environment, convention_for, encoded_mut, produced_effects,
-    scalar_abi_cases, stack_pointer_view, validated_effects,
+    row_and_declaration, scalar_abi_cases, stack_pointer_view, validated_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -76,13 +76,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
 
         for (key, semantic) in &call_rules {
             let supervisor = key.family == register_model::RegisterConstraintFamily::SystemCall;
-            let row = environment
-                .constraint(*key)
-                .unwrap_or_else(|| panic!("environment missing selected call row {key:?}"));
-            let declaration = catalog
-                .catalog()
-                .declaration(*key)
-                .unwrap_or_else(|| panic!("effect catalog missing call declaration {key:?}"));
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::Call, "{key:?}");
             // The call contract is bound to the declared preservation

@@ -20,8 +20,9 @@ use isa_x86_64::{
     x86_64_machine_effect_catalog, x86_64_preservation_convention_for_target,
 };
 use register_model::{
-    PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey, RegisterUnitId,
-    RegisterView, ValidatedRegisterConstraintCatalog,
+    PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey,
+    RegisterInstructionConstraint, RegisterUnitId, RegisterView,
+    ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
@@ -279,6 +280,27 @@ fn binds_catalog_provenance(
         environment.constraints().identity()
     );
     assert_eq!(catalog.catalog().selected_keys, keys);
+}
+
+/// The selected constraint row and the effect declaration one selected rule
+/// is checked through: the environment owns the row, the produced catalog the
+/// declaration, both addressed by the same key.
+fn row_and_declaration<'a>(
+    environment: &'a ValidatedTargetRegisterEnvironment,
+    catalog: &'a ValidatedMachineEffectCatalog,
+    key: RegisterConstraintKey,
+) -> (
+    &'a RegisterInstructionConstraint,
+    &'a MachineEffectDeclaration,
+) {
+    let row = environment
+        .constraint(key)
+        .unwrap_or_else(|| panic!("environment selects no constraint row {key:?}"));
+    let declaration = catalog
+        .catalog()
+        .declaration(key)
+        .unwrap_or_else(|| panic!("effect catalog declares no rule for {key:?}"));
+    (row, declaration)
 }
 
 /// One alternative's encoded effects inside a catalog a test is corrupting:

@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     baseline_target_register_environment, binds_catalog_provenance, declaration_mut, encoded_mut,
-    flags_view, produced_effects, scalar_abi_cases, stack_pointer_view, validate_effects,
-    validated_effects,
+    flags_view, produced_effects, row_and_declaration, scalar_abi_cases, stack_pointer_view,
+    validate_effects, validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
@@ -482,13 +482,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
         for (key, semantic) in &memory_rules {
             let contract = memory_contract(*semantic);
-            let row = environment
-                .constraint(*key)
-                .unwrap_or_else(|| panic!("environment missing selected memory row {key:?}"));
-            let declaration = catalog
-                .catalog()
-                .declaration(*key)
-                .unwrap_or_else(|| panic!("effect catalog missing memory declaration {key:?}"));
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
