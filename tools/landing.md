@@ -5,16 +5,35 @@ change; GitHub integrates it with current main, checks that candidate, and
 publishes it. There is no local publication lease, build receipt, or repeated
 author rebase/review merely because main advanced.
 
-## Submit a finished change
+## Open a draft on the first push
 
 Work in an isolated detached-HEAD worktree (`git worktree add --detach .agents/worktree/<short-name> origin/main`).
 Never develop or edit files in the primary repository checkout, and never create local named branches.
-Finish focused checks and any explicitly required review on the submitted source.
-Never chase main by rebasing, rebuilding, or re-running gates: once the PR is submitted,
-GitHub Actions CI executes the integration build and checks in the merge queue.
+The first push of a branch opens its pull request as a draft. Later pushes update
+that same draft. `compiler-check` runs on the draft. A draft cannot enter the
+merge queue, and it is not a place to leave the work: the session that opened
+it still lands it, and does not leave it across unrelated landings.
+
+```text
+git status --short
+git rev-parse HEAD
+git push origin HEAD:refs/heads/work/NAME
+gh pr create --draft --base main --head work/NAME --title "lane: statement" --body-file PR_BODY
+```
+
+Reuse the existing pull request for the branch. Do not open a second one.
 Record the actual revision, commands, results, known limitations and claim ticket in the PR.
-Required review follows changes to meaning, not each queue-generated SHA.
-Resolve actual conflicts or failed checks; do not repeatedly refresh an otherwise eligible PR against moving main.
+
+## Mark ready and enqueue when the change can merge
+
+Finish focused checks and any explicitly required review on the submitted source.
+When GitHub reports the pull request mergeable and the required `compiler-check`
+is green, mark it ready and enqueue it. Do not mark a conflicting or red pull
+request ready. Never chase main by rebasing, rebuilding, or re-running gates:
+once the pull request is ready, GitHub Actions CI executes the integration
+build and checks in the merge queue. Required review follows changes to meaning,
+not each queue-generated SHA. Resolve actual conflicts or failed checks; do not
+repeatedly refresh an otherwise eligible PR against moving main.
 
 Python 3, Git and an authenticated GitHub CLI (`gh`) work on Windows, macOS and
 Linux. Commands below use `python`; use `python3` if that is its installed name.
@@ -22,11 +41,8 @@ Choose a unique remote ref name `work/NAME` and replace `NUMBER` and `FULL_HEAD_
 the PR number and the full output of `git rev-parse HEAD`:
 
 ```text
-git status --short
-git rev-parse HEAD
-git push origin HEAD:refs/heads/work/NAME
-gh pr create --base main --head work/NAME --title "lane: finished outcome" --body-file PR_BODY
 gh pr checks NUMBER --required --watch
+gh pr ready NUMBER
 python tools/landing.py enqueue NUMBER --expected-head FULL_HEAD_SHA
 python tools/landing.py wait NUMBER --expected-head FULL_HEAD_SHA --wait-seconds 60
 ```

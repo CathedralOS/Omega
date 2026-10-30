@@ -97,7 +97,8 @@ different cloud executor.
    upload; a local archive alone is not a backup. Reconcile a disconnect with
    an actual read/command and process state before resuming. Keep builds and
    focused validation local, release build slots, then submit once through
-   [landing](../../../../tools/landing.md)'s GitHub merge queue. Verify the
+   [landing](../../../../tools/landing.md)'s GitHub merge queue. The pull request
+   stays a draft until that page says it can be enqueued. Verify the
    merged PR's source head and published commit on fetched main before removing
    only this task's clean worktree and branch.
 
