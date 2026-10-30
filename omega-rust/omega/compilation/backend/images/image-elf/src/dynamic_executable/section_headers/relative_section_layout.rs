@@ -163,25 +163,12 @@ struct Candidate {
 pub(crate) fn plan_elf_relative_section_payload_layout(
     payloads: ValidatedElfIndexedSectionPayloadPlan,
 ) -> Result<ValidatedElfRelativeSectionPayloadLayout, Box<ElfRelativeSectionPayloadLayoutError>> {
-    checked::plan_candidate(
-        payloads,
-        derive_contents,
-        |payloads, contents| {
-            non_authoritative_layout_compatibility_fingerprint(&payloads, &contents)
-        },
-        |payloads, contents, fingerprint| Candidate {
-            payloads: payloads,
-            contents: contents,
-            non_authoritative_layout_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.payloads,
-        |payloads, diagnostic| {
-            Box::new(ElfRelativeSectionPayloadLayoutError {
-                payloads: payloads,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: payloads,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_layout_compatibility_fingerprint,
+        error: ElfRelativeSectionPayloadLayoutError,
     )
 }
 

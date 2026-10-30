@@ -143,25 +143,12 @@ struct Candidate {
 pub(crate) fn plan_elf_dynamic_section_roster(
     section_names: ValidatedElfSectionNameTablePlan,
 ) -> Result<ValidatedElfDynamicSectionRoster, Box<ElfDynamicSectionRosterPlanningError>> {
-    checked::plan_candidate(
-        section_names,
-        derive_contents,
-        |section_names, contents| {
-            non_authoritative_roster_compatibility_fingerprint(&section_names, &contents)
-        },
-        |section_names, contents, fingerprint| Candidate {
-            section_names: section_names,
-            contents: contents,
-            non_authoritative_roster_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.section_names,
-        |section_names, diagnostic| {
-            Box::new(ElfDynamicSectionRosterPlanningError {
-                section_names: section_names,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: section_names,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_roster_compatibility_fingerprint,
+        error: ElfDynamicSectionRosterPlanningError,
     )
 }
 
