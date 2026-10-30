@@ -17,6 +17,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::expression::UnaryOperator;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::ProofFact;
@@ -641,6 +642,123 @@ pub(crate) fn decide_instance_type_equalities(
         )?;
     }
     Ok(())
+}
+
+/// Fold each `self in Type::Case` atom of a copied data `requires` against
+/// the instance's impossible-case roster: a case the replay refuted has no
+/// admissible value on this carrier, so the atom is a constant `false` and
+/// the surrounding `&&`/`||`/`!` propagate the literals it leaves behind.
+/// The impossible case has no structural representation on the closed
+/// instance, so the atom must not survive to lowering as a membership;
+/// possible-case memberships stay symbolic -- `self`'s case is not known
+/// inside the fact, and they remain the terms the carrier must satisfy.
+pub(crate) fn fold_impossible_case_memberships(
+    syntax: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    type_name: &str,
+    impossible_variants: &HashSet<String>,
+) {
+    match syntax.expressions.expression(expression).clone() {
+        ExpressionNode::Membership(membership) => {
+            let is_self = matches!(
+                syntax.expressions.expression(membership.value),
+                ExpressionNode::Name(path)
+                    if matches!(
+                        syntax.expressions.identifier_path_members(*path),
+                        [member] if member.as_str(syntax) == "self"
+                    )
+            );
+            let impossible_case = matches!(
+                syntax.expressions.identifier_path_members(membership.domain),
+                [head, case]
+                    if head.as_str(syntax) == type_name
+                        && impossible_variants.contains(case.as_str(syntax))
+            );
+            if is_self && impossible_case {
+                syntax
+                    .expressions
+                    .replace_expression(expression, ExpressionNode::Boolean(false));
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            fold_impossible_case_memberships(
+                syntax,
+                binary.left,
+                type_name,
+                impossible_variants,
+            );
+            fold_impossible_case_memberships(
+                syntax,
+                binary.right,
+                type_name,
+                impossible_variants,
+            );
+            fold_instance_boolean_node(syntax, expression);
+        }
+        ExpressionNode::Unary(unary) => {
+            fold_impossible_case_memberships(
+                syntax,
+                unary.operand,
+                type_name,
+                impossible_variants,
+            );
+            fold_instance_boolean_node(syntax, expression);
+        }
+        _ => {}
+    }
+}
+
+/// Propagate `Boolean` literals through a copied fact's boolean skeleton
+/// (`x && false`, `x || true`, `!true`), replacing a decided node with its
+/// surviving operand's subtree so the closed instance carries only the
+/// terms it still owes.
+fn fold_instance_boolean_node(syntax: &mut SyntaxTrees, expression: ExpressionHandle) {
+    let truth = |handle: ExpressionHandle| -> Option<bool> {
+        match syntax.expressions.expression(handle) {
+            ExpressionNode::Boolean(value) => Some(*value),
+            _ => None,
+        }
+    };
+    match syntax.expressions.expression(expression).clone() {
+        ExpressionNode::Binary(binary) => {
+            let decided = match binary.operator {
+                BinaryOperator::And => match (truth(binary.left), truth(binary.right)) {
+                    (Some(false), _) | (_, Some(false)) => {
+                        Some(ExpressionNode::Boolean(false))
+                    }
+                    (Some(true), _) => {
+                        Some(syntax.expressions.expression(binary.right).clone())
+                    }
+                    (_, Some(true)) => {
+                        Some(syntax.expressions.expression(binary.left).clone())
+                    }
+                    _ => None,
+                },
+                BinaryOperator::Or => match (truth(binary.left), truth(binary.right)) {
+                    (Some(true), _) | (_, Some(true)) => Some(ExpressionNode::Boolean(true)),
+                    (Some(false), _) => {
+                        Some(syntax.expressions.expression(binary.right).clone())
+                    }
+                    (_, Some(false)) => {
+                        Some(syntax.expressions.expression(binary.left).clone())
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(node) = decided {
+                syntax.expressions.replace_expression(expression, node);
+            }
+        }
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            if let Some(value) = truth(unary.operand) {
+                syntax
+                    .expressions
+                    .replace_expression(expression, ExpressionNode::Boolean(!value));
+            }
+        }
+        _ => {}
+    }
 }
 
 /// What one copied data `requires` fact says about one case holding on this
