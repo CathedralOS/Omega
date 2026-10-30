@@ -1045,7 +1045,7 @@ def validate_record(record, path):
                  and applicability["reason"],
                  "applicability.reason is required")
             need(all(record.get("metrics", {}).get(name, {}).get("status")
-                     != "measured" for name in METRIC_NAMES),
+                     != "measured" for name in (*METRIC_NAMES, 'package_preparation_ms')),
                  "a non-applicable row cannot carry a measured metric")
     host = record.get("host", {})
     for field in ("os", "machine", "omega_binary"):

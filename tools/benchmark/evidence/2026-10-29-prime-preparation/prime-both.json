@@ -1,0 +1,12 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+    "run",
+    "--both",
+    "--keep",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\samples\\cli\\arithmetic\\prime_counter\\main.omg"
+  ],
+  "exit_code": 8,
+  "seconds": 1.2469971999962581,
+  "producer_sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf"
+}

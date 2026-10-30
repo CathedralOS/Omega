@@ -1,0 +1,16 @@
+{
+  "source_revision": "12e446dac0026ed89e85cf7d2517e3b7311fdb42",
+  "base_revision": "ad7c6890a8971c1609006e1965ba4e4626f30591",
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+    "sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "cargo_output_sha256": "36d1aa0f15f028580f6aa4c5146b285486dbf94eeeed6a28ec01e4d8db335d4e",
+  "changed_rust_inputs": {
+    "omega-rust/psi/compilation/checking/src/machine_calls/effect_inference/invocations.rs": "d82880a16636a9ffeb2d915e505fd9688301b894a79680c9d05305682dd49269"
+  }
+}

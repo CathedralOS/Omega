@@ -64,7 +64,8 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
   measurement of compiler improvement. An unavailable baseline stays unknown.
 - **Performance:** the committed benchmark JSON and its Git history supply
   compile milliseconds per project KLOC, a LOC/time scatter, exit-verified
-  whole-process runtimes, absolute timings, peak memory, executable size, ranges,
+  whole-process runtimes, separate package preparation, absolute compile timings,
+  peak memory, executable size, ranges,
   and sample counts. Select a recorded host/producer context. Project size uses
   the recorded source revision, not today's checkout; dependencies outside the
   subject directory are excluded. Full compiled-source throughput is unavailable.
