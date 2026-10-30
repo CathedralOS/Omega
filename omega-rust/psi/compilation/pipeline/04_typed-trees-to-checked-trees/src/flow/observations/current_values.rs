@@ -85,7 +85,7 @@ pub(in crate::flow) fn scalar_observation_at<'flow>(
                 program,
                 state,
                 statement_index,
-                operand,
+                &facts::BooleanPredicateOperand::Scalar(operand.clone()),
             )?;
             (place, reference, None)
         }

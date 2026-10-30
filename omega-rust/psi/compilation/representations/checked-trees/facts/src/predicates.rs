@@ -9,7 +9,9 @@ use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 
 mod bindings;
-pub use bindings::{BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole};
+pub use bindings::{
+    BooleanPredicate, BooleanPredicateBinding, BooleanPredicateOperand, BooleanPredicateRole,
+};
 
 mod byte_comparison;
 mod integer_math;

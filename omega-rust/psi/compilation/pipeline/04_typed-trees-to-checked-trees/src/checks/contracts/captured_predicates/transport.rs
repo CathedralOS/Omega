@@ -80,9 +80,7 @@ pub(super) fn predicates(
                             .find(|binding| binding.operand == *operand)?;
                         let mut destination = None;
                         for position in 0..required.bindings.len() {
-                            if required.bindings[position].operand.primitive_type()
-                                != observation.operand.primitive_type()
-                            {
+                            if !required.bindings[position].compatible_with(program, observation) {
                                 continue;
                             }
                             let support = super::coverage::dependency(
@@ -114,7 +112,8 @@ pub(super) fn predicates(
                             *operand = super::super::call_values::observed_literal(
                                 value,
                                 observation.operand.primitive_type()?,
-                            )?;
+                            )?
+                            .into();
                             return Some(());
                         };
                         let binding = &required.bindings[position];

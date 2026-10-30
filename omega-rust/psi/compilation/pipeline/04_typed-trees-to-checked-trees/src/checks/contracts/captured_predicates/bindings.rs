@@ -47,14 +47,14 @@ pub(in crate::checks::contracts) fn retain_bindings<'facts>(
     first_position: usize,
     retained: &mut Vec<CapturedBinding<'facts>>,
 ) {
-    let producer = producer_alias(program, facts, captured, epoch);
     for (offset, binding) in bindings.iter().enumerate() {
+        let producer = producer_alias(program, facts, captured, epoch, binding);
         let mut candidate =
             CapturedBinding::observation(first_position + offset, binding.place.clone(), epoch);
         candidate.choices = captured.choices.clone();
-        if let Some((observed, alias, primitive)) = &producer
+        if let Some((observed, alias, source_type)) = &producer
             && binding.place == *observed
-            && binding.operand.primitive_type() == Some(*primitive)
+            && binding.compatible_type(program, *source_type)
         {
             candidate.aliases.push(Alias {
                 place: alias.place.clone(),
@@ -70,14 +70,36 @@ fn producer_alias<'facts>(
     facts: &'facts CheckFacts,
     captured: &CapturedValue<'facts>,
     epoch: &'facts FlowOperandFact,
+    binding: &BoundObservation,
 ) -> Option<(
     CanonicalPlace,
     Alias<'facts>,
-    typed_trees::types::PrimitiveType,
+    typed_trees::types::TypeReferenceHandle,
 )> {
     let stable_copy = |reference, projection: &crate::flow::LiteralExpressionProjection| {
-        validation::project_type_reference_from_segments(program, reference, &projection.remaining)
-            .is_some_and(|selected| crate::flow::operand_binds_stable_copy(program, selected))
+        match &binding.operand {
+            facts::BooleanPredicateOperand::Scalar(_) => {
+                validation::project_type_reference_from_segments(
+                    program,
+                    reference,
+                    &projection.remaining,
+                )
+                .is_some_and(|selected| crate::flow::operand_binds_stable_copy(program, selected))
+            }
+            facts::BooleanPredicateOperand::CaseSubject(_) => {
+                // A tag is part of the owned carrier even when its payload
+                // contains live views. Never cross a reference to freeze it.
+                validation::owned_projection_type_reference(
+                    program,
+                    reference,
+                    &projection.remaining,
+                )
+                .is_some_and(|selected| {
+                    validation::reference_shell(program, selected).is_none()
+                        && program.closed_data_definition(selected).is_some()
+                })
+            }
+        }
     };
     if !stable_copy(captured.observation_type, &captured.observation_projection)
         || (captured.producer_epoch.is_none()
@@ -163,6 +185,6 @@ fn producer_alias<'facts>(
             place: produced.projected.clone(),
             epoch: producer_epoch.row(),
         },
-        program.primitive_type_reference(source_type)?,
+        source_type,
     ))
 }

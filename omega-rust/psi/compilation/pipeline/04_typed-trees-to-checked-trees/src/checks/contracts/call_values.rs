@@ -1,9 +1,12 @@
 //! Bind invocation predicates to actual values captured in source order.
 //!
 //! Detached copies keep operand-time observations; reference operands use the
+
 //! invocation's live referents. Cleanup requirements and concrete write checks
 //! share this substitution law. Neither may reread an initializer or substitute
 //! a later value for an operand already evaluated.
+
+mod predicate_subjects;
 
 use validation::CanonicalPlace;
 
@@ -750,7 +753,7 @@ fn bind_observation(
         primitive_type: primitive,
     };
     bindings.push(crate::facts::boolean_predicates::BoundObservation {
-        operand: operand.clone(),
+        operand: operand.clone().into(),
         place,
         type_reference,
     });
@@ -933,6 +936,7 @@ fn proves_bound_predicate_mode<'program>(
         // one symbolic producer; several agreeing values are still one exact
         // scalar, while differing or unproved alternatives establish nothing.
         if fold_observed_values
+            && let Some(primitive) = operand.primitive_type()
             && let Some(frames) = frames
             && let Some(capture) = captured_operand(program, facts, state, call, &actual)
             && let Some(value) = super::prover::captured_scalar_at_path(
@@ -945,28 +949,29 @@ fn proves_bound_predicate_mode<'program>(
                 call.entry_constraints,
                 frames,
             )
-            && let Some(literal) = observed_literal(value, operand.primitive_type()?)
+            && let Some(literal) = observed_literal(value, primitive)
         {
-            *operand = literal;
+            *operand = literal.into();
             return Some(());
         }
         if fold_observed_values
+            && let Some(primitive) = operand.primitive_type()
             && !read_cuts.is_empty()
             && let Some(values) = captured_values(program, facts, state, call, &actual)
             && let Some(value) = super::prover::captured_values::scalar_preserved_at_values(
                 program,
                 facts,
                 &values,
-                operand.primitive_type()?,
+                primitive,
                 call.invocation_storage,
                 &read_cuts,
             )
-            && let Some(literal) = observed_literal(value, operand.primitive_type()?)
+            && let Some(literal) = observed_literal(value, primitive)
         {
-            *operand = literal;
+            *operand = literal.into();
             return Some(());
         }
-        let values = captured_values(program, facts, state, call, &actual)?;
+        let values = predicate_subjects::values(program, facts, state, call, &actual)?;
         let captured = values.first()?;
         let observation = captured.observation.recorded_in(&facts.flow.control)?;
         if !values.iter().all(|value| {
@@ -1003,17 +1008,26 @@ fn proves_bound_predicate_mode<'program>(
             capture
         };
         let first_binding = current.bindings.len();
-        *operand = current_actual(
-            program,
-            facts,
-            state,
-            call,
-            &captured,
-            operand.primitive_type()?,
-            &operand_contexts,
-            fold_observed_values,
-            &mut current.bindings,
-        )?;
+        *operand = match operand {
+            facts::BooleanPredicateOperand::Scalar(scalar) => {
+                let primitive = scalar.primitive_type()?;
+                current_actual(
+                    program,
+                    facts,
+                    state,
+                    call,
+                    &captured,
+                    primitive,
+                    &operand_contexts,
+                    fold_observed_values,
+                    &mut current.bindings,
+                )?
+                .into()
+            }
+            facts::BooleanPredicateOperand::CaseSubject(_) => {
+                predicate_subjects::current_case(program, facts, captured, &mut current.bindings)?
+            }
+        };
         for binding in &current.bindings[first_binding..] {
             for (previous, previous_epoch) in current.bindings[..first_binding]
                 .iter()
@@ -1196,7 +1210,7 @@ pub(crate) fn entry_predicate(
                 },
             )
         {
-            *operand = value;
+            *operand = value.into();
             return Some(());
         }
         let mut place = validation::canonical_place_from_expression_in_state(
@@ -1221,7 +1235,8 @@ pub(crate) fn entry_predicate(
             position,
             path,
             primitive,
-        )?;
+        )?
+        .into();
         Some(())
     })?;
     Some(expression)

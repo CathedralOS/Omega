@@ -215,7 +215,8 @@ mod tests {
                 operand: CheckedScalarExpression::Parameter {
                     position: 0,
                     primitive_type: PrimitiveType::U64,
-                },
+                }
+                .into(),
                 place: CanonicalPlace {
                     root: PlaceRoot::Symbol(SymbolHandle::from_parts(2, 1)),
                     segments: Vec::new(),
@@ -231,7 +232,8 @@ mod tests {
         other_operand.bindings[0].operand = CheckedScalarExpression::Parameter {
             position: 1,
             primitive_type: PrimitiveType::U64,
-        };
+        }
+        .into();
         let mut other_type = first.clone();
         other_type.bindings[0].type_reference = TypeReferenceHandle::from_parts(3, 2);
         let mut other_generation = first.clone();
