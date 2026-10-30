@@ -289,6 +289,9 @@ fn schema_storage_layout(
             )),
             StructuralTypeShape::FixedArray { element, length } => {
                 let (size, align) = schema_storage_layout(module, *element, target, visiting)?;
+                let terminal_psi::ArrayExtent::Literal(length) = length else {
+                    return None;
+                };
                 Some((size.checked_mul(*length)?, align))
             }
             StructuralTypeShape::Record { fields, storage } => match storage {
