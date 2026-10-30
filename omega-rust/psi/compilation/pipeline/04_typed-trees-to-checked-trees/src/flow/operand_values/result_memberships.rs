@@ -15,10 +15,11 @@ pub(crate) fn captured_result_membership(
     domain: symbols::SymbolHandle,
     identity: language_semantics::SemanticDomainId,
 ) -> bool {
+    let _profile = phase_profile::guard("05.captured_result_membership");
     let source = value.operand.row();
-    let Some(writes) =
+    let Some(writes) = phase_profile::scope("05.captured_result_membership.writes", || {
         crate::flow::operand_contents_writes_between(program, &facts.flow, source, observation)
-    else {
+    }) else {
         return false;
     };
     let contexts = facts

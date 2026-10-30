@@ -161,7 +161,9 @@ pub(super) fn check(
             let satisfied = captured_actual
                 .as_ref()
                 .and_then(|actual| {
-                    super::call_values::captured_values(program, facts, state, call, actual)
+                    phase_profile::scope("05.d.7.3b.1b.nominal_inputs.captures", || {
+                        super::call_values::captured_values(program, facts, state, call, actual)
+                    })
                 })
                 .is_some_and(|projections| {
                     !projections.is_empty()
@@ -338,17 +340,19 @@ fn prove_declared_field_domain(
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
-    if validation::field_domains::domain_requires_provenance(program, domain_symbol)
-        || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
-    {
-        selection.has_membership(subject, domain_symbol, semantic_domain)
-    } else {
-        super::prover::prove_domain_at_place(
-            program,
-            &facts.semantic,
-            &selection.contexts,
-            subject,
-            domain_symbol,
-        )
-    }
+    phase_profile::scope("05.d.7.3b.1b.nominal_inputs.domain", || {
+        if validation::field_domains::domain_requires_provenance(program, domain_symbol)
+            || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
+        {
+            selection.has_membership(subject, domain_symbol, semantic_domain)
+        } else {
+            super::prover::prove_domain_at_place(
+                program,
+                &facts.semantic,
+                &selection.contexts,
+                subject,
+                domain_symbol,
+            )
+        }
+    })
 }
