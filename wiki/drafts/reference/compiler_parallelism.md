@@ -416,4 +416,3 @@ native/Terminal, reject, corruption, source and junction controls passed.
 Median private commit rose about 8 MiB for length and 2.7 MiB for stack32.
 The source-bound result is retained locally as the next scoped substantial win;
 it does not imply a new multi-target, foreign-host or latest-main result.
-
