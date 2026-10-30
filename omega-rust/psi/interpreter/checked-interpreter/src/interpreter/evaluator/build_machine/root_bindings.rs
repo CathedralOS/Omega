@@ -252,11 +252,10 @@ impl<'program> Evaluator<'program> {
                 let value = crate::build_time::observe_build_time_value(&value, &|reference| {
                     self.read_reference(reference)
                 })?;
-                let locator =
-                    language_semantics::declaration_selection::decode_native_binding_value(
-                        &value, widths,
-                    )
-                    .map_err(Halt::Trap)?;
+                let locator = language_semantics::declaration_selection::decode_native_locator(
+                    &value, widths,
+                )
+                .map_err(Halt::Trap)?;
                 SourceBuildSelection::Native(
                     language_semantics::declaration_selection::ExecutedNativeBinding {
                         static_environment:
@@ -267,8 +266,10 @@ impl<'program> Evaluator<'program> {
                             .map_err(Halt::Trap)?,
                         request,
                         target,
-                        locator,
-                        widths,
+                        intent:
+                            language_semantics::declaration_selection::NativeBuildIntent::Locator(
+                                locator,
+                            ),
                         selecting_machine: author_coordinate.ok_or_else(|| {
                             Halt::Trap("native binding lost its selecting owner".into())
                         })?,
@@ -293,10 +294,8 @@ impl<'program> Evaluator<'program> {
                     .ok_or_else(|| {
                         Halt::Trap("typed table binding target is outside the catalog".into())
                     })?;
-                let locator = if request.operation == BuildOperation::NativeTableFunction {
-                    language_semantics::declaration_selection::NativeBindingValue::TableFunction
-                } else {
-                    language_semantics::declaration_selection::NativeBindingValue::VtableField
+                let intent = language_semantics::declaration_selection::NativeBuildIntent::Table {
+                    drops_receiver: request.operation == BuildOperation::NativeTableFunction,
                 };
                 SourceBuildSelection::Native(
                     language_semantics::declaration_selection::ExecutedNativeBinding {
@@ -308,8 +307,7 @@ impl<'program> Evaluator<'program> {
                             .map_err(Halt::Trap)?,
                         request,
                         target,
-                        locator,
-                        widths: [0; 3],
+                        intent,
                         selecting_machine: author_coordinate.ok_or_else(|| {
                             Halt::Trap("typed table binding lost its selecting owner".into())
                         })?,
@@ -338,7 +336,7 @@ impl<'program> Evaluator<'program> {
                     .map_err(|_| Halt::Trap("native demand bytes exceeds u64".into()))?;
                 SourceBuildSelection::Native(language_semantics::declaration_selection::ExecutedNativeBinding {
                         static_environment: typed_trees::product_operand::capture_static_environment(self.program,frame.machine_symbol).map_err(Halt::Trap)?,
-                    request, target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3],
+                    request, target, intent:language_semantics::declaration_selection::NativeBuildIntent::SameStackDemand{bytes},
                     selecting_machine:author_coordinate.ok_or_else(||Halt::Trap("native demand lost its selecting owner".into()))?,
                 })
             }
