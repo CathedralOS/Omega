@@ -117,10 +117,7 @@ impl TerminalExecution<'_> {
             if !source.path.is_empty() {
                 return Err(malformed());
             }
-            let value = self
-                .structural_values
-                .get(&source.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(source.place)?;
             if !value.qualifications.is_empty()
                 || self.byte_sequence_length(source.place)? != extent as u64
             {

@@ -103,7 +103,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let value = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let value = self.structural_value(place)?;
         if value.structural_type != structural_type
             || !matches!(self.program.structural_types().get(&structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
@@ -201,7 +201,7 @@ impl TerminalExecution<'_> {
                     result.multiplicity,
                 )
             };
-        let value = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let value = self.structural_value(place)?;
         if multiplicity != StructuralMultiplicity::Unrestricted
             || !projected_qualifications.is_empty()
             || value.structural_type != structural_type

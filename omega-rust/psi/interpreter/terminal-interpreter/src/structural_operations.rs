@@ -934,7 +934,7 @@ impl TerminalExecution<'_> {
         if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
-        let storage = self.structural_values.get(&source).ok_or_else(malformed)?;
+        let storage = self.structural_value(source)?;
         let selected = self.structural_window_hole(
             operation,
             source,
@@ -1512,7 +1512,7 @@ impl TerminalExecution<'_> {
                 ..
             }) = self.program.structural_types().get(&result.structural_type)
         {
-            let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
+            let source_value = self.structural_value(*source)?;
             let bytes = self
                 .byte_sequence_values
                 .get(source)
@@ -1831,7 +1831,7 @@ impl TerminalExecution<'_> {
                 matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
             })
         {
-            let root = self.structural_values.get(&source).ok_or_else(malformed)?;
+            let root = self.structural_value(source)?;
             let descriptor = if StructuralRuntimePlace::from(root)
                 == StructuralRuntimePlace::from(&leaf)
                 && root.structural_type == leaf.structural_type

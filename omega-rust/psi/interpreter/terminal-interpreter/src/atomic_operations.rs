@@ -31,7 +31,7 @@ impl TerminalExecution<'_> {
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
         let machine = self.program.verified_machine(self.current_machine)?;
-        let root = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let root = self.structural_value(place)?;
         let access = terminal_semantics::arrival_parameter(machine, place)
             .filter(|parameter| parameter.structural_type == root.structural_type)
             .map(|parameter| parameter.access)

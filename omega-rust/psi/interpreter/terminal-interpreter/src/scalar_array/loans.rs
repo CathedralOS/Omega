@@ -207,10 +207,7 @@ impl TerminalExecution<'_> {
         if argument.path.is_empty()
             && let Some(loan) = self.element_view_values.get(&argument.place)
         {
-            let referent = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let referent = self.structural_value(argument.place)?;
             if referent.structural_type != collection_type
                 || !preserves_membership_carrier(
                     &referent.qualifications,

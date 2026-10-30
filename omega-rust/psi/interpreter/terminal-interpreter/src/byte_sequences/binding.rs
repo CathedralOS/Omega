@@ -402,10 +402,7 @@ impl TerminalExecution<'_> {
         &self,
         argument: &StructuralArgument,
     ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
-        let root = self
-            .structural_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
+        let root = self.structural_value(argument.place)?;
         let types = self.program.structural_types();
         if crate::custody::inline_structural_field(&types, root.structural_type, &argument.path)
             .is_some_and(|field| field.field_type.byte_sequence_carrier().is_some())

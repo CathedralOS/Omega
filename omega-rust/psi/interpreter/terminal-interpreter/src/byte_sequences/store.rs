@@ -23,10 +23,7 @@ impl TerminalExecution<'_> {
             .byte_sequence_values
             .get(destination)
             .ok_or_else(malformed)?;
-        let value = self
-            .structural_values
-            .get(destination)
-            .ok_or_else(malformed)?;
+        let value = self.structural_value(*destination)?;
         let (owner, capacity) = match binding {
             ByteSequenceBinding::MutableField {
                 field, capacity, ..

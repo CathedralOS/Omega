@@ -199,7 +199,7 @@ impl TerminalExecution<'_> {
                 &current.path,
             )
         };
-        let storage = self.structural_values.get(&source).ok_or_else(malformed)?;
+        let storage = self.structural_value(source)?;
         if let Some(argument) = self.owned_window_projection(source, storage, path, hole)? {
             let selected = self
                 .live_claims

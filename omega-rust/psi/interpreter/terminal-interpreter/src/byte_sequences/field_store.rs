@@ -61,7 +61,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
+        let source_value = self.structural_value(*source)?;
         if !source_value.projected_qualifications.is_empty()
             || !matches!(self.program.structural_types().get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
@@ -172,10 +172,7 @@ impl TerminalExecution<'_> {
                 Some(destination_field)
             }
             None => {
-                let home = self
-                    .structural_values
-                    .get(destination)
-                    .ok_or_else(malformed)?;
+                let home = self.structural_value(*destination)?;
                 if !path.is_empty()
                     || !home.path.is_empty()
                     || !matches!(self.program.structural_types().get(&home.structural_type),
@@ -186,7 +183,7 @@ impl TerminalExecution<'_> {
                 None
             }
         };
-        let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
+        let source_value = self.structural_value(*source)?;
         if !source_value.path.is_empty()
             || !matches!(self.program.structural_types().get(&source_value.structural_type),
                 Some(declaration) if declaration.shape.is_borrowed_byte_view())
@@ -211,10 +208,7 @@ impl TerminalExecution<'_> {
                 // Replacing a descriptor transfers its observed window, not
                 // its old storage identity. Rehome only the descriptor; its
                 // backing and captured extent remain those of the source.
-                let home = self
-                    .structural_values
-                    .get(destination)
-                    .ok_or_else(malformed)?;
+                let home = self.structural_value(*destination)?;
                 self.byte_sequence_values.insert(
                     *destination,
                     ByteSequenceBinding::Immutable(view.with_descriptor_home(home.clone())),

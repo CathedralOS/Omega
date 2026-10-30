@@ -344,10 +344,7 @@ impl TerminalExecution<'_> {
                 return Ok(());
             }
         }
-        let root = self
-            .structural_values
-            .get(&source.place)
-            .ok_or_else(malformed)?;
+        let root = self.structural_value(source.place)?;
         self.reference_carrier_access(source.place, root.structural_type, &source.path)?;
         Ok(())
     }
@@ -955,7 +952,7 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
-        let owner = self.structural_values.get(&source).ok_or_else(malformed)?;
+        let owner = self.structural_value(source)?;
         let carrier = project_structural_value(&self.program.structural_types(), owner, path)?;
         self.reference_contract(carrier.structural_type)?;
         let key = StructuralRuntimePlace::from(&carrier);
@@ -1282,7 +1279,7 @@ impl TerminalExecution<'_> {
         ) -> Option<terminal_psi::StructuralFieldType>
         + Copy,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
-        let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let owner = self.structural_value(place)?;
         self.resolve_storage_projection_with_leaf_type(place, owner, path, access, leaf_type)
     }
 
@@ -1371,7 +1368,7 @@ impl TerminalExecution<'_> {
         place: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let owner = self.structural_value(place)?;
         let (backing, view, placed) = match self.aggregate_argument_backings.get(&place) {
             Some(backing) => (&backing.value, backing.region, backing.placed.clone()),
             None => (owner, None, None),

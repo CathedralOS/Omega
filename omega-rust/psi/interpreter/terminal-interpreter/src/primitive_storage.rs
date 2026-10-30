@@ -513,10 +513,7 @@ impl TerminalExecution<'_> {
         if argument.path.is_empty()
             && let Some(loan) = self.primitive_loan_values.get(&argument.place)
         {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(argument.place)?;
             if *value != loan.referent
                 || value.structural_type != parameter.structural_type
                 || (parameter.access != StructuralAccess::SharedBorrow
@@ -2057,10 +2054,7 @@ impl TerminalExecution<'_> {
             {
                 // Select this role from the actual declaration, before resolving
                 // storage. A failed home/loan query never falls back to metadata.
-                let current = self
-                    .structural_values
-                    .get(&argument.place)
-                    .ok_or_else(malformed)?;
+                let current = self.structural_value(argument.place)?;
                 if current != completed
                     || current.structural_type != parameter.structural_type
                     || !matches!(self.program.structural_declaration(parameter.structural_type)?.shape,

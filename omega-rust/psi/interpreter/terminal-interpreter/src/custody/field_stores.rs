@@ -59,10 +59,7 @@ impl TerminalExecution<'_> {
         // An affine view owns its exclusive descriptor, not the selected
         // element. Move, claim repair and frontier repair share the same loan
         // crossing judgment; result multiplicity cannot confer backing custody.
-        let root = self
-            .structural_values
-            .get(&destination)
-            .ok_or_else(malformed)?;
+        let root = self.structural_value(destination)?;
         let Some(owned) = self.owned_window_projection(destination, root, path, hole)? else {
             return Ok(());
         };
