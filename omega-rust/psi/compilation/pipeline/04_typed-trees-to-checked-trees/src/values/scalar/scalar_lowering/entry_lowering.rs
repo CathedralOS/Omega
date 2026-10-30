@@ -389,6 +389,20 @@ pub(crate) fn lower_scalar_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    macro_rules! lower_child {
+        ($expression:expr $(,)?) => {
+            lower_scalar_expression(
+                program,
+                operators,
+                $expression,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )
+        };
+    }
     // A recast operand `&place as &T` / `&mut place as &mut T` re-views its
     // source place under the stated target carrier (§5b address identity):
     // the checked form retains the source place's own read at its declared
@@ -415,16 +429,7 @@ pub(crate) fn lower_scalar_expression(
         });
         let (read, _) = match element {
             Some(element) => element,
-            None => lower_scalar_expression(
-                program,
-                operators,
-                source,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )?,
+            None => lower_child!(source)?,
         };
         return Some((
             view_place_read(read, primitive_type)?,
@@ -465,17 +470,7 @@ pub(crate) fn lower_scalar_expression(
                 },
             }
         } else {
-            lower_scalar_expression(
-                program,
-                operators,
-                leaf,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )?
-            .0
+            lower_child!(leaf)?.0
         };
         return (lowered.primitive_type() == Some(primitive))
             .then_some((lowered, ArithmeticDomain::Exact));
@@ -486,16 +481,7 @@ pub(crate) fn lower_scalar_expression(
         authored_parameters,
         expression,
     ) {
-        return lower_scalar_expression(
-            program,
-            operators,
-            leaf,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        );
+        return lower_child!(leaf);
     }
     if let Some(length) = structural_fields::structural_sequence_length(
         program,
@@ -632,16 +618,7 @@ pub(crate) fn lower_scalar_expression(
                 // pure argument custody and future selected operations share
                 // the ordinary scalar route. Format conversion still needs
                 // its selected boundary operation.
-                let (operand, _) = lower_scalar_expression(
-                    program,
-                    operators,
-                    cast.value,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )?;
+                let (operand, _) = lower_child!(cast.value)?;
                 return (scalar_expression_type(&operand) == Some(target_type))
                     .then_some((operand, cast.domain));
             }
@@ -650,35 +627,14 @@ pub(crate) fn lower_scalar_expression(
             }
             let operand =
                 land_anonymous_scalar_expression(program, operators, cast.value, target_type)
-                    .or_else(|| {
-                        lower_scalar_expression(
-                            program,
-                            operators,
-                            cast.value,
-                            parameters,
-                            authored_parameters,
-                            parameter_types,
-                            locals,
-                            exact_integer_casts,
-                        )
-                        .map(|(value, _)| value)
-                    })?;
+                    .or_else(|| lower_child!(cast.value).map(|(value, _)| value))?;
             construct_integer_cast(program, expression, operand, exact_integer_casts)
         }
         ExpressionNode::Unary(unary)
             if unary.operator == UnaryOperator::BitwiseNot
                 && operator_is_builtin(operators, expression) =>
         {
-            let (operand, domain) = lower_scalar_expression(
-                program,
-                operators,
-                unary.operand,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )?;
+            let (operand, domain) = lower_child!(unary.operand)?;
             construct_integer_bitwise_not(operand, domain)
         }
         ExpressionNode::Binary(binary) if operator_is_builtin(operators, expression) => {

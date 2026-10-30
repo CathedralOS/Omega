@@ -175,32 +175,21 @@ fn formed_expression_value(
     if depth >= 128 {
         return None;
     }
+    macro_rules! formed_child {
+        ($node:expr $(,)?) => {
+            formed_expression_value(engine, program, machine, state, $node, arrival, depth + 1)
+        };
+    }
     if super::super::proof_integer::anonymous_integer_value(program, node).is_some() {
         return operation_value(engine, node, arrival);
     }
     let expression = program.expression_table.expression(node);
     match expression {
         ExpressionNode::Atomic(atomic) => {
-            return formed_expression_value(
-                engine,
-                program,
-                machine,
-                state,
-                atomic.value,
-                arrival,
-                depth + 1,
-            );
+            return formed_child!(atomic.value);
         }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
-            let value = formed_expression_value(
-                engine,
-                program,
-                machine,
-                state,
-                cast.value,
-                arrival,
-                depth + 1,
-            )?;
+            let value = formed_child!(cast.value)?;
             let primitive = program.primitive_type_reference(cast.target_type)?;
             if !primitive.is_fixed_integer() || !engine.integer_value_lands(primitive, &value) {
                 return None;
@@ -208,24 +197,8 @@ fn formed_expression_value(
             return Some(value);
         }
         ExpressionNode::Binary(binary) if formation_binary(binary.operator) => {
-            let left = formed_expression_value(
-                engine,
-                program,
-                machine,
-                state,
-                binary.left,
-                arrival,
-                depth + 1,
-            )?;
-            let right = formed_expression_value(
-                engine,
-                program,
-                machine,
-                state,
-                binary.right,
-                arrival,
-                depth + 1,
-            )?;
+            let left = formed_child!(binary.left)?;
+            let right = formed_child!(binary.right)?;
             let references = [binary.left, binary.right].map(|operand| {
                 if program
                     .closed_integer_value_in(operand, machine.symbol)

@@ -14,26 +14,15 @@ pub(in crate::machine_calls::calls::write_frames) fn state_effects(
     if inference.active_states.contains(&entry.symbol) {
         return None;
     }
-    // Each completed relation is relative to this state's formals, not a
-    // caller's storage. Reuse it before walking the callee again, then let the
-    // invocation owner rebase and instantiate it at the actual occurrence.
-    // Known entry values select a narrower relation and cannot share this row.
-    // Keep recursion guards ahead of lookup, and publish only a complete solve:
-    // neither an active-ancestor refusal nor a partial fixed point is evidence.
-    let memo = (!inference.selects_state(entry))
-        .then(|| crate::frozen_program::frozen_program_memos(program))
-        .flatten()
-        .map(|memos| &memos.call_frames);
-    if let Some(effects) = memo.and_then(|memo| memo.normal_slot_effects(entry.symbol)) {
+    let key = inference.slot_effects_key(entry.symbol);
+    if let Some(effects) = inference.cached_slot_effects(&key) {
         return Some(effects);
     }
     inference.active_states.push(entry.symbol);
     let result = solve_state_effects(program, machine, entry, symbols, inference);
     inference.active_states.pop();
-    if let Some(effects) = &result
-        && let Some(memo) = memo
-    {
-        memo.record_normal_slot_effects(entry.symbol, effects);
+    if let Some(effects) = result.as_ref() {
+        inference.retain_slot_effects(key, effects);
     }
     result
 }

@@ -215,7 +215,8 @@ claim infrastructure deletion, automatic expiry or continued billing without
 evidence. Use existing tasks rather than creating a pool of replacements.
 
 Landing follows [the GitHub merge queue](../../../../tools/landing.md): validate
-the submitted source, enqueue once, and resolve actual conflicts or failures.
+the submitted source, keep the pull request draft until it can be enqueued,
+enqueue once, and resolve actual conflicts or failures.
 Main movement alone does not require a new author build or review. Preserve the
 source HEAD; record the merged PR's matching `headRefOid` and its published squash
 commit on fetched main. Source HEAD need not be an ancestor of main after squash.

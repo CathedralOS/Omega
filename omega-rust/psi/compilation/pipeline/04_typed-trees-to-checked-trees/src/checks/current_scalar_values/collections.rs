@@ -5,9 +5,7 @@
 //! independently establish the range. Returning a descriptor binds its actual
 //! observation to the exact contract owner, never to the backing capacity.
 
-use super::{
-    CurrentScalarValues, Length, LengthSubject, admitted, fixed_length, integer_carrier, scoped,
-};
+use super::{CurrentScalarValues, Length, LengthSubject, fixed_length, integer_carrier};
 use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
@@ -26,84 +24,6 @@ pub(super) struct CapturedFieldLength {
 }
 
 impl CurrentScalarValues<'_> {
-    pub(crate) fn prepare_exit_return(&mut self, returned: ExpressionHandle) {
-        if let Some(value) = self.collection_length(returned, 0)
-            && let Some(entry) = self.program.machine_states(self.machine).first()
-        {
-            self.lengths.push(Length {
-                subject: LengthSubject::Result(self.machine.symbol),
-                name: String::new(),
-                stable: true,
-                type_reference: entry.return_type,
-                value: Some(value),
-            });
-        }
-        self.record_returned_field_lengths(returned);
-    }
-
-    pub(crate) fn postcondition(
-        &self,
-        expression: ExpressionHandle,
-        returned: Option<ExpressionHandle>,
-        origins: impl Iterator<Item = (SymbolHandle, SymbolHandle)>,
-    ) -> Option<ScopedArithmeticExpression> {
-        // The declaration's postcondition names invocation parameters, while
-        // the live hypotheses name the exit state's parameters. Bind those
-        // namespaces through the independently established incoming origins;
-        // spelling, slot order and a write-free body are not identity evidence.
-        let entry = self.program.machine_states(self.machine).first()?;
-        let mut bindings = self.current.clone();
-        let mut lengths = self.lengths.clone();
-        if entry.symbol != self.state.symbol {
-            bindings.clear();
-            lengths.retain(|length| {
-                matches!(
-                    length.subject,
-                    LengthSubject::Result(_) | LengthSubject::ResultField { .. }
-                )
-            });
-            for (entry_parameter, state_parameter) in origins {
-                if let Some(current) = self
-                    .current
-                    .iter()
-                    .find(|binding| binding.symbol == state_parameter)
-                {
-                    let mut binding = current.clone();
-                    binding.symbol = entry_parameter;
-                    binding.name = self.program.symbols.name(entry_parameter).to_owned();
-                    bindings.push(binding);
-                }
-                if let Some(current) = self
-                    .lengths
-                    .iter()
-                    .find(|length| length.subject == LengthSubject::Storage(state_parameter))
-                {
-                    let mut length = current.clone();
-                    length.subject = LengthSubject::Storage(entry_parameter);
-                    length.name = self.program.symbols.name(entry_parameter).to_owned();
-                    lengths.push(length);
-                }
-            }
-        }
-        let fields = if entry.symbol == self.state.symbol {
-            self.fields.as_slice()
-        } else {
-            &[]
-        };
-        let occurrence = self.occurrence_at(self.program, self.machine, entry, &lengths);
-        if !admitted(occurrence, expression, &bindings, fields, 0) {
-            return None;
-        }
-        let mut goal = scoped(occurrence, expression, &bindings, fields)?;
-        if let Some(returned) = returned.and_then(|returned| self.current(returned)) {
-            goal.bindings.push(ScopedArithmeticBinding {
-                binder: ScopedArithmeticBinder::Result,
-                value: ScopedArithmeticValue::Term(returned),
-            });
-        }
-        Some(goal)
-    }
-
     pub(super) fn capture_collection(
         &mut self,
         symbol: SymbolHandle,
@@ -438,7 +358,7 @@ impl CurrentScalarValues<'_> {
 
     /// Slice fields of the returned record. A match publishes a field only
     /// when every arm builds that same field with one shared length.
-    fn record_returned_field_lengths(&mut self, returned: ExpressionHandle) {
+    pub(super) fn record_returned_field_lengths(&mut self, returned: ExpressionHandle) {
         for field in self.captured_field_lengths(returned, 0) {
             self.lengths.push(Length {
                 subject: LengthSubject::ResultField {

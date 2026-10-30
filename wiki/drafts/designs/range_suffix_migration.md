@@ -732,6 +732,21 @@ does not close the historical declaration audit, Rust Range retirement or the
 parent task. The existing qualification records distinguish model observations
 from actual lower-chain execution and retain their exact compiler subjects.
 
+## Case-payload customer contracts
+
+The `arm_pattern_rest_optout_exit` and `case_pattern_rename_waive_exit`
+control-flow programs retain both Move coordinates in `0..=50` through guarded
+`Msg` predicates, and retain the renamed argument's numeric call requirement.
+The arithmetic range program retains Dim's `0..=10` on `Cmd` and the scale/apply
+requirements; its entry constructs the original zero representation explicitly
+before borrowing Main. Their original operations and exit 70 remain.
+
+`sum_payload_non_case_guard_unproven` keeps One's `0..=50` and Two's `0..=1000`
+on the containing sum. Its unrelated flag cannot select One, so the exact
+payload-access obligation still rejects. No interval-only nominal domains are
+needed by these four customers. The wire-decoder customer's containing-data
+predicate establishment remains a separate open repair in this migration.
+
 ## Audited wire destination customer
 
 `pass/wire/runtime_wire_decode_ranged_field_exit` now keeps its original

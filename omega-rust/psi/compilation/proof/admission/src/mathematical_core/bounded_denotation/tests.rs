@@ -20,6 +20,12 @@ use crate::mathematical_core::{
     verify_mathematical_certificate,
 };
 
+macro_rules! v {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        verify_bounded_certificate($a, $b, $c, $d, $e, $f)
+    };
+}
+
 fn budget() -> Budget {
     Budget::new(DEFAULT_CONVERSION_STEPS)
 }
@@ -190,15 +196,8 @@ fn equality_rules_become_identity_eliminations() {
             middle_equals_right: Box::new(assumption_proof(second.clone(), 1)),
         },
     };
-    let denoted = verify_bounded_certificate(
-        &context,
-        &goal,
-        &[first, second],
-        &[],
-        &proof,
-        &mut budget(),
-    )
-    .expect("transitivity verifies as J");
+    let denoted = v!(&context => &goal => &[first, second] => &[] => &proof => &mut budget())
+        .expect("transitivity verifies as J");
     // `Int` plus one assumption constant per mathematical endpoint;
     // the lifted `Id Int` chain composes by `J`.
     assert_eq!(denoted.certificate.signature.len(), 4);
@@ -385,15 +384,8 @@ fn integer_math_transitivity_becomes_identity_eliminations() {
             middle_equals_right: Box::new(assumption_proof(second.clone(), 1)),
         },
     };
-    let denoted = verify_bounded_certificate(
-        &context,
-        &goal,
-        &[first, second],
-        &[],
-        &proof,
-        &mut budget(),
-    )
-    .expect("the normalized conclusion verifies as J");
+    let denoted = v!(&context => &goal => &[first, second] => &[] => &proof => &mut budget())
+        .expect("the normalized conclusion verifies as J");
     assert!(matches!(
         denoted.arena.get(denoted.certificate.term),
         Term::IdElim { .. },
@@ -446,15 +438,8 @@ fn conversion_and_value_transport_use_existing_evidence_and_identity_elimination
             equalities: vec![assumption_proof(equation.clone(), 1)],
         },
     };
-    let denoted = verify_bounded_certificate(
-        &context,
-        &goal,
-        &[premise, equation],
-        &[],
-        &proof,
-        &mut budget(),
-    )
-    .expect("value equality transport verifies through J");
+    let denoted = v!(&context => &goal => &[premise, equation] => &[] => &proof => &mut budget())
+        .expect("value equality transport verifies through J");
     assert!(matches!(
         denoted.arena.get(denoted.certificate.term),
         Term::IdElim { .. }
@@ -496,15 +481,8 @@ fn order_substitution_becomes_a_named_law_citation() {
             endpoint: 0,
         },
     };
-    let denoted = verify_bounded_certificate(
-        &context,
-        &goal,
-        &[relation, equality],
-        &[],
-        &proof,
-        &mut budget(),
-    )
-    .expect("order substitution verifies as a roster citation");
+    let denoted = v!(&context => &goal => &[relation, equality] => &[] => &proof => &mut budget())
+        .expect("order substitution verifies as a roster citation");
     // `le_subst_left m_x m_z m_y eq p` — five `Apply`s to the law
     // constant: three endpoints, the equation, the relation.
     let mut head = denoted.certificate.term;

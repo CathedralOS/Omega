@@ -871,16 +871,21 @@ mod tests {
     #[test]
     fn rejects_partial_safety_and_identity_order_root_or_type_drift() {
         let (context, axioms, parameters, witness) = safe_fixture();
+        macro_rules! w {
+            ($axioms:expr => $witness:expr) => {
+                check_integer_correlated_forbidden_root_witness(
+                    &context,
+                    $axioms,
+                    &parameters,
+                    $witness,
+                )
+            };
+        }
 
         let mut bound_drift = witness.clone();
         bound_drift.lower_bound_axiom = 8;
         assert_eq!(
-            check_integer_correlated_forbidden_root_witness(
-                &context,
-                &axioms,
-                &parameters,
-                &bound_drift,
-            ),
+            w!(&axioms => &bound_drift),
             Err(IntegerCorrelatedForbiddenRootWitnessError::BoundIdentityMismatch),
         );
 
@@ -888,36 +893,21 @@ mod tests {
         conclusion_drift.conclusion =
             Proposition::Conjunction(vec![axioms[8].clone(), axioms[7].clone()]);
         assert_eq!(
-            check_integer_correlated_forbidden_root_witness(
-                &context,
-                &axioms,
-                &parameters,
-                &conclusion_drift,
-            ),
+            w!(&axioms => &conclusion_drift),
             Err(IntegerCorrelatedForbiddenRootWitnessError::ConclusionMismatch),
         );
 
         let mut order_drift = witness.clone();
         std::mem::swap(&mut order_drift.dividend, &mut order_drift.divisor);
         assert_eq!(
-            check_integer_correlated_forbidden_root_witness(
-                &context,
-                &axioms,
-                &parameters,
-                &order_drift,
-            ),
+            w!(&axioms => &order_drift),
             Err(IntegerCorrelatedForbiddenRootWitnessError::BranchOrderMismatch),
         );
 
         let mut root_drift = witness.clone();
         root_drift.divisor.root = value(9, i8_type());
         assert!(matches!(
-            check_integer_correlated_forbidden_root_witness(
-                &context,
-                &axioms,
-                &parameters,
-                &root_drift,
-            ),
+            w!(&axioms => &root_drift),
             Err(
                 IntegerCorrelatedForbiddenRootWitnessError::RootNotSignedNative(
                     CorrelatedAffineBranch::Divisor
@@ -930,12 +920,7 @@ mod tests {
         let mut type_drift = witness.clone();
         type_drift.dividend.root = unsigned_root;
         assert!(matches!(
-            check_integer_correlated_forbidden_root_witness(
-                &context,
-                &axioms,
-                &parameters,
-                &type_drift,
-            ),
+            w!(&axioms => &type_drift),
             Err(
                 IntegerCorrelatedForbiddenRootWitnessError::RootNotSignedNative(
                     CorrelatedAffineBranch::Dividend
@@ -951,12 +936,7 @@ mod tests {
             integer(i8_type(), 1),
         );
         assert_eq!(
-            check_integer_correlated_forbidden_root_witness(
-                &context,
-                &partial_axioms,
-                &parameters,
-                &witness,
-            ),
+            w!(&partial_axioms => &witness),
             Err(IntegerCorrelatedForbiddenRootWitnessError::PartiallyUnsafeInterval),
         );
     }

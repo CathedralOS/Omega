@@ -93,6 +93,7 @@ mod calls;
 pub(crate) mod completed_arguments;
 mod dynamic_calls;
 mod structural_results;
+mod suspension_frontier;
 pub(super) use structural_results::{StructuralResults, dense_result_homes};
 mod loan_completions;
 mod locals;

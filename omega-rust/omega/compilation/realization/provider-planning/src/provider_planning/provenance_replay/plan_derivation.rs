@@ -644,6 +644,7 @@ fn derived_plan_position(
                 provenance: ProviderPlanProvenance {
                     schema: schema_declaration,
                     provider_type: provider_type_symbol,
+                    named_application: None,
                     row_requirements: Vec::new(),
                     row_realizations: Vec::new(),
                     row_target_machine_origins: Vec::new(),

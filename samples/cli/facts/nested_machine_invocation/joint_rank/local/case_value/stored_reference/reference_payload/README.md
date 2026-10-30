@@ -118,3 +118,6 @@ That refusal supplies no runtime or caller-transport acceptance. This row closes
 only the demonstrated reference-payload path; the parent task, further
 invocation/custody composition, product compiler and other-host physical
 acceptance remain open.
+
+[Producer-established payload bounds](producer_write/README.md) exercise the same
+rank after a helper writes the original leaf and must prove its own returned bound.

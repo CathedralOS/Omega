@@ -94,3 +94,19 @@ free of these semantic dependencies.
 Validation uses the compiler corpus for production and the CLI's existing
 publication tests, including completed output replay and tamper rejection.
 `cargo check -p compilation-products` checks this ownership boundary directly.
+
+## Native component export index
+
+Flat native publication stages `omega-components.tsv` beside the executable and
+its content-addressed components. Its first line is `omega-native-components-v1`;
+each following line has three tab-separated fields: the retained calling
+application's complete `requirement_identity`, the local component filename,
+and its exact export symbol. The index is empty after the header when there are
+no components. The corresponding description remains `<filename>.component`.
+
+This is descriptive linkage metadata for build adapters. It is not a proof,
+provider-selection decision, installation permission, or runtime authority.
+Consumers must validate their expected requirement roster, local file placement,
+actual exports and artifact restrictions. Row order is not an ABI. Native
+publication still validates each sealed component and stages the index in the
+same file set as its producing images; it does not reopen source to infer names.

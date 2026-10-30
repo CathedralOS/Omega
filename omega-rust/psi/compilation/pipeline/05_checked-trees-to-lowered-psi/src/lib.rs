@@ -54,6 +54,8 @@ pub(crate) use optimization::digest_encoder;
 mod machine_lowering;
 mod program_roots;
 pub use program_roots::TerminalProgramRoots;
+mod prepared_terminal_roots;
+pub use prepared_terminal_roots::{PreparedTerminalRoots, RetainedTerminalRoot};
 
 // The plan families `machine_dispatch` selects between, in their dependency
 // order: each reaches down this list and never back up it.

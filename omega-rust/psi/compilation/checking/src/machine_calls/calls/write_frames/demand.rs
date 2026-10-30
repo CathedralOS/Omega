@@ -132,10 +132,6 @@ pub(crate) struct CallFrameCaches {
     reference_result_leaves: Mutex<HashMap<SymbolHandle, Option<Vec<ReferenceResultLeafOrigin>>>>,
     reference_result_transports:
         Mutex<HashMap<SymbolHandle, Option<Vec<super::ReferenceResultTransport>>>>,
-    /// Complete normal-exit descriptor relations in the callee's namespace.
-    /// Invocation-specialized rows and ancestor-truncated failures never enter
-    /// this memo; callers still instantiate every source at their own cut.
-    normal_slot_effects: Mutex<HashMap<SymbolHandle, Vec<super::stored_calls::SlotEffect>>>,
     stable_expression_bindings: Mutex<HashMap<(SymbolHandle, ExpressionHandle), bool>>,
     stable_call_bindings: Mutex<HashMap<(SymbolHandle, usize), bool>>,
     caller_isolated_proof_values: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
@@ -179,23 +175,6 @@ pub(crate) struct CallFrameCaches {
 }
 
 impl CallFrameCaches {
-    pub(super) fn normal_slot_effects(
-        &self,
-        state: SymbolHandle,
-    ) -> Option<Vec<super::stored_calls::SlotEffect>> {
-        self.normal_slot_effects.lock().ok()?.get(&state).cloned()
-    }
-
-    pub(super) fn record_normal_slot_effects(
-        &self,
-        state: SymbolHandle,
-        effects: &[super::stored_calls::SlotEffect],
-    ) {
-        if let Ok(mut summaries) = self.normal_slot_effects.lock() {
-            summaries.entry(state).or_insert_with(|| effects.to_vec());
-        }
-    }
-
     fn call_plans(
         &self,
         program: &dyn crate::CheckingInput,

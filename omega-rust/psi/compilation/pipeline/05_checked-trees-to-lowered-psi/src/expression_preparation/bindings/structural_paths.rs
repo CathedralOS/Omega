@@ -7,6 +7,13 @@
 
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::lowering_error::{LoweringError, unsupported};
+
+macro_rules! unsupported_error {
+    ($message:literal) => {
+        LoweringError::Unsupported($message)
+    };
+}
+
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
 use semantic_vocabulary::{ScalarType, ValueId};
 use terminal_psi::ValueDeclaration;
@@ -69,17 +76,15 @@ pub(crate) fn lower_structural_path(
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     path.iter()
         .map(|segment| match segment {
-            CheckedUnitStructuralPathSegment::AllElements => Err(LoweringError::Unsupported(
-                "universal qualification is not an operand path",
-            )),
-            CheckedUnitStructuralPathSegment::Case(_) => Err(LoweringError::Unsupported(
-                "a case projection requires its exact source type during preparation",
-            )),
-            CheckedUnitStructuralPathSegment::RepresentationView { .. } => {
-                Err(LoweringError::Unsupported(
-                    "a returned view origin requires its checked declaration and formation codec",
-                ))
+            CheckedUnitStructuralPathSegment::AllElements => {
+                unsupported("universal qualification is not an operand path")
             }
+            CheckedUnitStructuralPathSegment::Case(_) => {
+                unsupported("a case projection requires its exact source type during preparation")
+            }
+            CheckedUnitStructuralPathSegment::RepresentationView { .. } => unsupported(
+                "a returned view origin requires its checked declaration and formation codec",
+            ),
             CheckedUnitStructuralPathSegment::Referent => Ok(StructuralPathSegment::Referent),
             CheckedUnitStructuralPathSegment::Field(identity) => Ok(StructuralPathSegment::Field(
                 identities.intern(&identity.spelling()),
@@ -88,11 +93,9 @@ pub(crate) fn lower_structural_path(
                 Ok(StructuralPathSegment::FixedIndex(*index))
             }
             CheckedUnitStructuralPathSegment::RuntimeIndex { .. }
-            | CheckedUnitStructuralPathSegment::ComputedIndex(_) => {
-                Err(LoweringError::Unsupported(
-                    "a runtime-index projection is lowered by the emitter that evaluates its index",
-                ))
-            }
+            | CheckedUnitStructuralPathSegment::ComputedIndex(_) => unsupported(
+                "a runtime-index projection is lowered by the emitter that evaluates its index",
+            ),
             CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
                 Ok(StructuralPathSegment::FixedByteRange {
                     start: *start,
@@ -143,11 +146,9 @@ pub(crate) fn retain_selector_evaluations(
     ) {
         return unsupported("selector child roster changes its checked projection");
     }
-    let children = operands
-        .span(evaluations)
-        .ok_or(LoweringError::Unsupported(
-            "selector projection has a stale computation child span",
-        ))?;
+    let children = operands.span(evaluations).ok_or(unsupported_error!(
+        "selector projection has a stale computation child span"
+    ))?;
     let checked_indexes = checked_path
         .iter()
         .enumerate()
@@ -178,13 +179,12 @@ pub(crate) fn retain_selector_evaluations(
     if checked_indexes.len() != prepared_indexes.len() {
         return unsupported("prepared projection changes its checked index roster");
     }
-    let inherited =
-        checked_indexes
-            .len()
-            .checked_sub(children.len())
-            .ok_or(LoweringError::Unsupported(
-                "selector child roster exceeds its projection suffix",
-            ))?;
+    let inherited = checked_indexes
+        .len()
+        .checked_sub(children.len())
+        .ok_or(unsupported_error!(
+            "selector child roster exceeds its projection suffix"
+        ))?;
     for (ordinal, computation) in children.iter().enumerate() {
         let index_ordinal = ordinal + inherited;
         let position = checked_indexes[index_ordinal];
@@ -350,7 +350,7 @@ pub(crate) fn complete_emitted_argument_path(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
     let expected = terminal_psi::find_structural_type(types, endpoint).ok_or(
-        LoweringError::Unsupported("state argument lost its receiving declaration"),
+        unsupported_error!("state argument lost its receiving declaration"),
     )?;
     let tip = terminal_semantics::runtime_structural_path_tip(types.iter(), root, path);
     complete_reference_endpoint(tip, expected.identity, access, types, |segment| {
@@ -385,7 +385,7 @@ pub(crate) fn complete_read_observation_path(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError> {
     let tip = terminal_semantics::runtime_structural_path_tip(types.iter(), root, path).ok_or(
-        LoweringError::Unsupported("content observation lost its exact carrier"),
+        unsupported_error!("content observation lost its exact carrier"),
     )?;
     let endpoint = follow_reference_endpoint(
         Some(tip),
@@ -394,8 +394,8 @@ pub(crate) fn complete_read_observation_path(
         types,
         |segment| path.push(segment),
     )?
-    .ok_or(LoweringError::Unsupported(
-        "content observation lost its reference endpoint",
+    .ok_or(unsupported_error!(
+        "content observation lost its reference endpoint"
     ))?;
     Ok(endpoint.id)
 }
@@ -426,13 +426,11 @@ fn follow_reference_endpoint<'a>(
             break;
         };
         if !structural_access_can_supply(supplied, access) || crossed.contains(&declaration.id) {
-            return Err(LoweringError::Unsupported(
-                "borrowed argument crosses an unreadable or cyclic reference",
-            ));
+            return unsupported("borrowed argument crosses an unreadable or cyclic reference");
         }
         crossed.push(declaration.id);
         tip = Some(terminal_psi::find_structural_type(types, referent).ok_or(
-            LoweringError::Unsupported("borrowed argument reference lost its referent declaration"),
+            unsupported_error!("borrowed argument reference lost its referent declaration"),
         )?);
         append(StructuralPathSegment::Referent);
     }
@@ -515,25 +513,19 @@ fn prepare_root_projection<'a>(
         }
     };
     if !identity.is_valid() {
-        return Err(LoweringError::Unsupported(
-            "borrowed projection has no logical root declaration",
-        ));
+        return unsupported("borrowed projection has no logical root declaration");
     }
     let mut roots = types.iter().filter(|row| {
         row.identity == identities.intern(&checked.type_identity_text(identity).unwrap_or_default())
     });
-    let logical_root = roots.next().ok_or(LoweringError::Unsupported(
-        "borrowed argument lost its checked logical root",
+    let logical_root = roots.next().ok_or(unsupported_error!(
+        "borrowed argument lost its checked logical root"
     ))?;
     if roots.next().is_some() {
-        return Err(LoweringError::Unsupported(
-            "borrowed argument logical root is empty or ambiguous",
-        ));
+        return unsupported("borrowed argument logical root is empty or ambiguous");
     }
     if requested == StructuralAccess::Owned {
-        return Err(LoweringError::Unsupported(
-            "logical borrowed argument cannot transfer its carrier",
-        ));
+        return unsupported("logical borrowed argument cannot transfer its carrier");
     }
     let mut remainder = projection;
     for _ in 0..spelled_reference_hops {
@@ -550,12 +542,12 @@ fn prepare_root_projection<'a>(
     // without a spelling/depth limit or a second structural graph.
     let mut remaining = types.len();
     while carrier_id != logical_root.id {
-        remaining = remaining.checked_sub(1).ok_or(LoweringError::Unsupported(
-            "borrowed argument has a cyclic reference presentation",
+        remaining = remaining.checked_sub(1).ok_or(unsupported_error!(
+            "borrowed argument has a cyclic reference presentation"
         ))?;
         let mut carriers = types.iter().filter(|row| row.id == carrier_id);
-        let carrier = carriers.next().ok_or(LoweringError::Unsupported(
-            "borrowed argument lost its published carrier",
+        let carrier = carriers.next().ok_or(unsupported_error!(
+            "borrowed argument lost its published carrier"
         ))?;
         if carriers.next().is_some() {
             return unsupported("borrowed argument published carrier is ambiguous");
@@ -624,9 +616,7 @@ pub(crate) fn prepare_element_view_path(
     if !matches!(tip, PreparedArgumentTip::Declaration(row)
         if matches!(row.shape, terminal_psi::StructuralTypeShape::ElementView { .. }))
     {
-        return Err(LoweringError::Unsupported(
-            "element-view write does not select a descriptor",
-        ));
+        return unsupported("element-view write does not select a descriptor");
     }
     Ok(path)
 }
@@ -641,13 +631,11 @@ fn prepare_argument_projection<'a>(
     use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeShape};
     let declaration = |id| {
         let mut matches = types.iter().filter(|declaration| declaration.id == id);
-        let found = matches.next().ok_or(LoweringError::Unsupported(
-            "argument path lost its source type",
-        ))?;
+        let found = matches
+            .next()
+            .ok_or(unsupported_error!("argument path lost its source type"))?;
         if matches.next().is_some() {
-            return Err(LoweringError::Unsupported(
-                "argument path source type is ambiguous",
-            ));
+            return unsupported("argument path source type is ambiguous");
         }
         Ok(found)
     };
@@ -656,9 +644,7 @@ fn prepare_argument_projection<'a>(
     let mut prepared = Vec::with_capacity(path.len());
     for step in path {
         if selected_case.is_some() && !matches!(step, CheckedUnitStructuralPathSegment::Field(_)) {
-            return Err(LoweringError::Unsupported(
-                "argument case must select its payload field",
-            ));
+            return unsupported("argument case must select its payload field");
         }
         let shape = match tip {
             Tip::Declaration(declaration) => Some(&declaration.shape),
@@ -685,14 +671,12 @@ fn prepare_argument_projection<'a>(
         }
         let lowered = match step {
             CheckedUnitStructuralPathSegment::AllElements => {
-                return Err(LoweringError::Unsupported(
-                    "universal qualification is not an executable projection",
-                ));
+                return unsupported("universal qualification is not an executable projection");
             }
             CheckedUnitStructuralPathSegment::RepresentationView { .. } => {
-                return Err(LoweringError::Unsupported(
+                return unsupported(
                     "a returned view origin is not an executable argument projection",
-                ));
+                );
             }
             CheckedUnitStructuralPathSegment::Case(identity) => {
                 let cases = match shape {
@@ -701,21 +685,17 @@ fn prepare_argument_projection<'a>(
                         | StructuralTypeShape::Mixed { cases, .. },
                     ) => cases,
                     _ => {
-                        return Err(LoweringError::Unsupported(
-                            "argument case requires its exact source sum",
-                        ));
+                        return unsupported("argument case requires its exact source sum");
                     }
                 };
                 let mut matches = cases
                     .iter()
                     .filter(|case| case.identity == identities.intern(&identity.spelling()));
-                let case = matches.next().ok_or(LoweringError::Unsupported(
-                    "argument case belongs to another source type",
+                let case = matches.next().ok_or(unsupported_error!(
+                    "argument case belongs to another source type"
                 ))?;
                 if matches.next().is_some() {
-                    return Err(LoweringError::Unsupported(
-                        "argument case identity is ambiguous",
-                    ));
+                    return unsupported("argument case identity is ambiguous");
                 }
                 selected_case = Some(case);
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::Case(case.id))
@@ -726,22 +706,20 @@ fn prepare_argument_projection<'a>(
                     None => match shape {
                         Some(terminal_psi::record_or_mixed_shape_pattern!(fields)) => fields,
                         _ => {
-                            return Err(LoweringError::Unsupported(
+                            return unsupported(
                                 "argument field requires its source record or selected case",
-                            ));
+                            );
                         }
                     },
                 };
                 let mut matches = fields
                     .iter()
                     .filter(|field| field.identity == identities.intern(&identity.spelling()));
-                let field = matches.next().ok_or(LoweringError::Unsupported(
-                    "argument field belongs to another declaration",
+                let field = matches.next().ok_or(unsupported_error!(
+                    "argument field belongs to another declaration"
                 ))?;
                 if matches.next().is_some() || field.relevance.is_erased() {
-                    return Err(LoweringError::Unsupported(
-                        "argument field is ambiguous or erased",
-                    ));
+                    return unsupported("argument field is ambiguous or erased");
                 }
                 tip = match field.field_type {
                     StructuralFieldType::Structural(child) => Tip::Declaration(declaration(child)?),
@@ -758,9 +736,7 @@ fn prepare_argument_projection<'a>(
                         length: terminal_psi::ArrayExtent::Literal(length),
                     }) => {
                         if index >= length {
-                            return Err(LoweringError::Unsupported(
-                                "argument index exceeds its array",
-                            ));
+                            return unsupported("argument index exceeds its array");
                         }
                         Tip::Declaration(declaration(*element)?)
                     }
@@ -774,9 +750,7 @@ fn prepare_argument_projection<'a>(
                         ) if *index < capacity => Tip::ByteElement,
                         Some(ByteSequenceCarrier::BorrowedView { .. }) => Tip::ByteElement,
                         _ => {
-                            return Err(LoweringError::Unsupported(
-                                "argument index has no element storage",
-                            ));
+                            return unsupported("argument index has no element storage");
                         }
                     },
                 };
@@ -791,9 +765,7 @@ fn prepare_argument_projection<'a>(
                     ) => Tip::Declaration(declaration(*element)?),
                     _ if bytes.is_some() => Tip::ByteElement,
                     _ => {
-                        return Err(LoweringError::Unsupported(
-                            "argument selector has no element storage",
-                        ));
+                        return unsupported("argument selector has no element storage");
                     }
                 };
                 match step {
@@ -808,9 +780,7 @@ fn prepare_argument_projection<'a>(
             }
             CheckedUnitStructuralPathSegment::Referent => {
                 let Some(StructuralTypeShape::Reference { referent, .. }) = shape else {
-                    return Err(LoweringError::Unsupported(
-                        "argument referent requires a reference carrier",
-                    ));
+                    return unsupported("argument referent requires a reference carrier");
                 };
                 tip = Tip::Declaration(declaration(*referent)?);
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::Referent)
@@ -840,16 +810,12 @@ fn prepare_argument_projection<'a>(
                         ) => Some(capacity),
                         Some(ByteSequenceCarrier::BorrowedView { .. }) => None,
                         _ => {
-                            return Err(LoweringError::Unsupported(
-                                "argument window has no byte storage",
-                            ));
+                            return unsupported("argument window has no byte storage");
                         }
                     },
                 };
                 if start > end || capacity.is_some_and(|capacity| *end > capacity) {
-                    return Err(LoweringError::Unsupported(
-                        "argument window exceeds its byte storage",
-                    ));
+                    return unsupported("argument window exceeds its byte storage");
                 }
                 tip = Tip::ByteWindow;
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedByteRange {
@@ -861,9 +827,7 @@ fn prepare_argument_projection<'a>(
         prepared.push(lowered);
     }
     if selected_case.is_some() {
-        return Err(LoweringError::Unsupported(
-            "argument case has no payload field",
-        ));
+        return unsupported("argument case has no payload field");
     }
     Ok((prepared, tip))
 }
@@ -960,9 +924,8 @@ pub(crate) fn lower_reference_origin_path(
             .cloned()
             .map(Origin::Exact)
             .collect::<Vec<_>>();
-        root = terminal_semantics::reference_origin_type(types.iter(), root, &prefix).ok_or(
-            LoweringError::Unsupported("returned origin has no typed prefix"),
-        )?;
+        root = terminal_semantics::reference_origin_type(types.iter(), root, &prefix)
+            .ok_or(unsupported_error!("returned origin has no typed prefix"))?;
         output.extend(prefix);
         let Some(position) = next_projection else {
             return Ok(output);
@@ -991,8 +954,8 @@ pub(crate) fn lower_reference_origin_path(
                     declaration.id,
                     *stored_scalar,
                 )
-                .ok_or(LoweringError::Unsupported(
-                    "returned view has an incompatible storage codec",
+                .ok_or(unsupported_error!(
+                    "returned view has an incompatible storage codec"
                 ))?;
                 Origin::Exact(StructuralPathSegment::RepresentationView {
                     structural_type: declaration.id,
@@ -1006,8 +969,8 @@ pub(crate) fn lower_reference_origin_path(
             root,
             std::slice::from_ref(&projection),
         )
-        .ok_or(LoweringError::Unsupported(
-            "returned origin has an invalid typed projection",
+        .ok_or(unsupported_error!(
+            "returned origin has an invalid typed projection"
         ))?;
         output.push(projection);
         path = &path[position + 1..];
@@ -1070,8 +1033,8 @@ pub(crate) fn emit_argument_path(
     path.iter()
         .map(|segment| match segment {
             PreparedStructuralPathSegment::EvaluatedFixedIndex { index, .. } => {
-                selector_values.next().ok_or(LoweringError::Unsupported(
-                    "fixed selector lost its authored evaluation",
+                selector_values.next().ok_or(unsupported_error!(
+                    "fixed selector lost its authored evaluation"
                 ))?;
                 Ok(StructuralPathSegment::FixedIndex(*index))
             }
@@ -1081,24 +1044,21 @@ pub(crate) fn emit_argument_path(
             ) => {
                 let (Some(values), Some(calls)) = (caller_scalar_values, calls.as_deref_mut())
                 else {
-                    return Err(LoweringError::Unsupported(
-                        "runtime index argument path has no caller scalar frame",
-                    ));
+                    return unsupported("runtime index argument path has no caller scalar frame");
                 };
-                let index = values
-                    .get(usize::try_from(*position).map_err(|_| {
-                        LoweringError::Unsupported("runtime index position exceeds usize")
-                    })?)
-                    .ok_or(LoweringError::Unsupported(
-                        "runtime index selector position has no caller scalar",
-                    ))?;
+                let index =
+                    values
+                        .get(usize::try_from(*position).map_err(|_| {
+                            unsupported_error!("runtime index position exceeds usize")
+                        })?)
+                        .ok_or(unsupported_error!(
+                            "runtime index selector position has no caller scalar"
+                        ))?;
                 if !matches!(
                     index.scalar_type,
                     ScalarType::Integer(integer) if !integer.is_address()
                 ) {
-                    return Err(LoweringError::Unsupported(
-                        "runtime index selector is not an integer operand",
-                    ));
+                    return unsupported("runtime index selector is not an integer operand");
                 }
                 calls.allocate_requirement().map(|obligation| {
                     terminal_psi::StructuralPathSegment::RuntimeIndex {
@@ -1113,26 +1073,24 @@ pub(crate) fn emit_argument_path(
             )
             | PreparedStructuralPathSegment::ComputedIndex(_) => {
                 let Some(calls) = calls.as_deref_mut() else {
-                    return Err(LoweringError::Unsupported(
-                        "runtime index argument path has no caller scalar frame",
-                    ));
+                    return unsupported("runtime index argument path has no caller scalar frame");
                 };
-                let index = selector_values.next().ok_or(LoweringError::Unsupported(
-                    "field-selector runtime index has no evaluated operand",
+                let index = selector_values.next().ok_or(unsupported_error!(
+                    "field-selector runtime index has no evaluated operand"
                 ))?;
                 calls.allocate_requirement().map(|obligation| {
                     terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation }
                 })
             }
-            PreparedStructuralPathSegment::RuntimeIndex(_) => Err(LoweringError::Unsupported(
-                "an assignment-index selector is owned by its store destination",
-            )),
-            PreparedStructuralPathSegment::CapturedIndex(_) => Err(LoweringError::Unsupported(
-                "captured loan selector requires its operand emission frame",
-            )),
-            PreparedStructuralPathSegment::ViewExtent { .. } => Err(LoweringError::Unsupported(
-                "a view element projection requires its emitting operand frame",
-            )),
+            PreparedStructuralPathSegment::RuntimeIndex(_) => {
+                unsupported("an assignment-index selector is owned by its store destination")
+            }
+            PreparedStructuralPathSegment::CapturedIndex(_) => {
+                unsupported("captured loan selector requires its operand emission frame")
+            }
+            PreparedStructuralPathSegment::ViewExtent { .. } => {
+                unsupported("a view element projection requires its emitting operand frame")
+            }
             PreparedStructuralPathSegment::Static(segment) => Ok(segment.clone()),
         })
         .collect()
@@ -1161,9 +1119,7 @@ pub(crate) fn emit_captured_argument_path(
     for segment in path {
         if let PreparedStructuralPathSegment::CapturedIndex(place) = segment {
             let Some((next, operations)) = emission.as_mut() else {
-                return Err(LoweringError::Unsupported(
-                    "captured loan selector has no emitting frame",
-                ));
+                return unsupported("captured loan selector has no emitting frame");
             };
             let scalar = ScalarType::Integer(
                 semantic_vocabulary::IntegerType::new(
@@ -1183,8 +1139,8 @@ pub(crate) fn emit_captured_argument_path(
             );
             let obligation = calls
                 .as_deref_mut()
-                .ok_or(LoweringError::Unsupported(
-                    "captured loan selector has no obligation frame",
+                .ok_or(unsupported_error!(
+                    "captured loan selector has no obligation frame"
                 ))?
                 .allocate_requirement()?;
             output.push(StructuralPathSegment::RuntimeIndex { index, obligation });
@@ -1196,9 +1152,7 @@ pub(crate) fn emit_captured_argument_path(
             // backing. Projected descriptors remain in their original storage;
             // the length emitter deliberately does not cache them by root.
             let Some((next_value, operations)) = emission.as_mut() else {
-                return Err(LoweringError::Unsupported(
-                    "view projection has no operand emission frame",
-                ));
+                return unsupported("view projection has no operand emission frame");
             };
             if *bytes {
                 emit_byte_length(
@@ -1229,8 +1183,8 @@ pub(crate) fn emit_captured_argument_path(
                 Some(*index)
             }
             PreparedStructuralPathSegment::EvaluatedFixedIndex { index, .. } => {
-                selectors.next().ok_or(LoweringError::Unsupported(
-                    "fixed selector lost its authored evaluation",
+                selectors.next().ok_or(unsupported_error!(
+                    "fixed selector lost its authored evaluation"
                 ))?;
                 Some(*index)
             }
@@ -1257,8 +1211,8 @@ pub(crate) fn emit_captured_argument_path(
             );
             let obligation = calls
                 .as_deref_mut()
-                .ok_or(LoweringError::Unsupported(
-                    "view projection has no obligation frame",
+                .ok_or(unsupported_error!(
+                    "view projection has no obligation frame"
                 ))?
                 .allocate_requirement()?;
             output.push(StructuralPathSegment::RuntimeIndex { index, obligation });

@@ -2,6 +2,16 @@
 //! crossing/carry values translated from the exact checked carry facts.
 
 use diagnostics::Diagnostic;
+
+macro_rules! cross {
+    ($detail:literal) => {
+        vec![Diagnostic::error(concat!(
+            "task activation carry crossing ",
+            $detail
+        ))]
+    };
+}
+
 use language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use terminal_psi::{
     TerminalTaskCarryObligations as ActivationCarryObligations,
@@ -46,81 +56,58 @@ pub(crate) fn validate_activation_carry_crossing(
         .machines()
         .iter()
         .filter(|machine| machine.symbol == crossing.machine);
-    let machine = machines.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing must name an exact typed machine",
-        )]
-    })?;
+    let machine = machines
+        .next()
+        .ok_or_else(|| cross!("must name an exact typed machine"))?;
     if machines.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing machine must resolve uniquely",
-        )]);
+        return Err(cross!("machine must resolve uniquely"));
     }
     let mut states = typed
         .machine_states(machine)
         .iter()
         .filter(|state| state.symbol == crossing.state);
-    let state = states.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing state must belong to its exact typed machine",
-        )]
-    })?;
+    let state = states
+        .next()
+        .ok_or_else(|| cross!("state must belong to its exact typed machine"))?;
     if states.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing state must resolve uniquely within its machine",
-        )]);
+        return Err(cross!("state must resolve uniquely within its machine"));
     }
     if typed
         .statement_table
         .statement_at(state, crossing.statement_index)
         .is_none()
     {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing statement must belong to its exact typed state",
-        )]);
+        return Err(cross!("statement must belong to its exact typed state"));
     }
 
     let mut flow_states = check_facts.flow.control.states.iter().filter(|(_, flow)| {
         flow.machine_symbol == crossing.machine && flow.state_symbol == crossing.state
     });
-    let flow_state = flow_states.next().map(|(_, flow)| flow).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing must name one exact checked flow state",
-        )]
-    })?;
+    let flow_state = flow_states
+        .next()
+        .map(|(_, flow)| flow)
+        .ok_or_else(|| cross!("must name one exact checked flow state"))?;
     if flow_states.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing must name exactly one checked flow state",
-        )]);
+        return Err(cross!("must name exactly one checked flow state"));
     }
     let calls = check_facts
         .flow
         .control
         .calls
         .span(flow_state.calls)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "task activation carry crossing flow state must retain an exact valid call span",
-            )]
-        })?;
+        .ok_or_else(|| cross!("flow state must retain an exact valid call span"))?;
     let mut calls = calls.iter().filter(|call| {
         call.statement_index == crossing.statement_index
             && call.call_ordinal == crossing.call_ordinal
     });
-    let call = calls.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing must name one exact checked flow call",
-        )]
-    })?;
+    let call = calls
+        .next()
+        .ok_or_else(|| cross!("must name one exact checked flow call"))?;
     if calls.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing must name exactly one checked flow call",
-        )]);
+        return Err(cross!("must name exactly one checked flow call"));
     }
     if call.target_symbol != crossing.target {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing must retain its exact checked call target",
-        )]);
+        return Err(cross!("must retain its exact checked call target"));
     }
     let mut targets = typed.machines().iter().flat_map(|machine| {
         typed
@@ -128,20 +115,14 @@ pub(crate) fn validate_activation_carry_crossing(
             .iter()
             .filter(|state| state.symbol == crossing.target)
     });
-    targets.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing target must name an exact typed state",
-        )]
-    })?;
+    targets
+        .next()
+        .ok_or_else(|| cross!("target must name an exact typed state"))?;
     if targets.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing target must resolve to exactly one typed state",
-        )]);
+        return Err(cross!("target must resolve to exactly one typed state"));
     }
     if !call.suspension.direct_may_suspend && !call.suspension.transitive_may_suspend {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing must retain a may-suspend checked call",
-        )]);
+        return Err(cross!("must retain a may-suspend checked call"));
     }
     Ok(())
 }
@@ -163,11 +144,7 @@ pub(crate) fn canonical_suspension_crossing(
     }
     Ok(CanonicalSuspensionCrossing {
         identity: checked_trees::canonical_suspension_crossing_id(typed, crossing)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "task activation carry crossing source identity must resolve exactly",
-                )]
-            })?
+            .ok_or_else(|| cross!("source identity must resolve exactly"))?
             .get(),
         suspension_allowed: crossing.effective.suspension == CarrySuspension::Allowed,
         preserve_cpu: crossing.effective.cpu == CarryCpu::Origin,
@@ -277,9 +254,7 @@ fn live_claim_identity(
         ordinal,
     } = *claim
     else {
-        return Err(vec![Diagnostic::error(
-            "task activation carry crossing retains a live claim whose identity never resolved",
-        )]);
+        return Err(cross!("retains a live claim whose identity never resolved"));
     };
     let mut hash = semantic_vocabulary::Fnv1a::new();
     hash.byte(0x43);

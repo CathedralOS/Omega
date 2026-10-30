@@ -86,27 +86,35 @@ pub fn prepare_selected_execution(
                 "external provider declarations: {error:?}"
             ))]
         })?;
-    let binding = provider_planning::bind_selected_provider_plan_facts(
+    let declarations = provider_planning::prepare_selected_plan_declarations(
         &program,
-        &program.facts,
+        &settlement.selected_provider_plan_facts,
+        &settlement.selected_provider_provenance,
+    );
+    let binding = provider_selection::bind_selected_provider_plan_facts(
         provider_selection::BoundaryProviderAdmission {
             review: &external_providers.boundary_provider_review(),
             identities: &external_providers.identities,
             external_providers: &external_providers.conformances,
         },
+        program.facts.semantic.admitted_qualification_issuers(),
         &provider_plans,
         settlement.selected_provider_plan_facts,
-        &settlement.selected_provider_provenance,
+        declarations,
         settlement.root_grants,
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let callback_roots = provider_planning::calling_policy_plans::select_nominal_callback_roots(
-        &program.typed,
+    let callback_roots = provider_planning::callback_roots::prepare(
+        &program,
         &selected_provider_plan_facts,
-        &program.facts,
         settlement.boundary_calling_plan_realizations,
     )?;
+    let callback_roots = psi_terminal_production::PreparedTerminalRoots::prepare(
+        &program,
+        settlement.exact_toolchain_sources,
+        callback_roots,
+    );
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(

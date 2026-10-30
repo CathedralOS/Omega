@@ -1,0 +1,35 @@
+// Expected exit: 0.
+data Resolution
+    requires (self in Resolution::Inferred)
+        || ((self in Resolution::Named) && self.length <= 256u64)
+{
+    case Inferred;
+    case Named(length: u64);
+}
+data Field { resolution: Resolution; }
+data Entry {
+    case Field(field: Field);
+    case Padding(bytes: u64);
+}
+data Table { fields: [Entry; 64]; count: u64; }
+machine main() crashes Trap {
+    let table: Table = Table { count: 0u64 };
+    transition table.count == 0u64 {
+        true -> inspect(&table.fields[0u64])
+        false -> wrong()
+    }
+    machine inspect(entry: &Entry) crashes Trap {
+        transition entry {
+            Entry::Field { field } -> inspect_resolution(&field.resolution)
+            _ -> wrong()
+        }
+    }
+    machine inspect_resolution(resolution: &Resolution) crashes Trap {
+        transition resolution {
+            Resolution::Inferred -> done()
+            _ -> wrong()
+        }
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

@@ -36,6 +36,14 @@ pub(crate) fn retain_shapes(
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
     let retained = (|| {
+        macro_rules! retain_operand {
+            ($type_reference:expr) => {
+                retain_declarations(
+                    shapes,
+                    super::super::terminal_unit::scalar_operand_shapes(program, $type_reference)?,
+                )
+            };
+        }
         // A stored reference publishes only its pointer shape. Forming one also
         // demands actual backing storage, whether named or computed. Follow the
         // retained formation/value edges, never transitive pointee types or
@@ -71,13 +79,7 @@ pub(crate) fn retain_shapes(
                         // Constructor operands complete in their own storage before
                         // joining the field. Inline field geometry (including byte
                         // views) cannot replace that operand's exact descriptor.
-                        retain_declarations(
-                            shapes,
-                            super::super::terminal_unit::scalar_operand_shapes(
-                                program,
-                                field.type_reference,
-                            )?,
-                        )?;
+                        retain_operand!(field.type_reference)?;
                     }
                 }
                 if let checked_trees::CheckedStructuralValueKind::Reference {
@@ -91,13 +93,7 @@ pub(crate) fn retain_shapes(
                     // consumer crosses Referent. A nested producer's descriptor
                     // need not occur in the outer call's signature; its backing
                     // declaration alone cannot supply that stored pointer type.
-                    retain_declarations(
-                        shapes,
-                        super::super::terminal_unit::scalar_operand_shapes(
-                            program,
-                            structural_values.nodes.get(value).type_reference,
-                        )?,
-                    )?;
+                    retain_operand!(structural_values.nodes.get(value).type_reference)?;
                     retain_declarations(
                         shapes,
                         super::super::terminal_unit::reference_backing_shapes(
@@ -109,13 +105,7 @@ pub(crate) fn retain_shapes(
                     if source_value.is_valid() {
                         // A projected computed source also owns its complete
                         // containing storage, independently of the borrowed leaf.
-                        retain_declarations(
-                            shapes,
-                            super::super::terminal_unit::scalar_operand_shapes(
-                                program,
-                                structural_values.nodes.get(*source_value).type_reference,
-                            )?,
-                        )?;
+                        retain_operand!(structural_values.nodes.get(*source_value).type_reference)?;
                     }
                 }
             }
@@ -158,10 +148,7 @@ pub(crate) fn retain_shapes(
                 }
                 | CheckedScalarComputationKind::StorageAddress { operand_type, .. }
                 | CheckedScalarComputationKind::ByteSequencePredicate { operand_type, .. } => {
-                    retain_declarations(
-                        shapes,
-                        super::super::terminal_unit::scalar_operand_shapes(program, *operand_type)?,
-                    )?;
+                    retain_operand!(*operand_type)?;
                 }
                 CheckedScalarComputationKind::StructuralField { receiver_value, .. }
                 | CheckedScalarComputationKind::CaseMembership { receiver_value, .. } => {
@@ -184,13 +171,7 @@ pub(crate) fn retain_shapes(
                     // The evaluated dependency owns the whole receiver type. The
                     // ordinary shape collector retains its transitive fields;
                     // neither the observed leaf nor a source local supplies it.
-                    retain_declarations(
-                        shapes,
-                        super::super::terminal_unit::scalar_operand_shapes(
-                            program,
-                            root.type_reference,
-                        )?,
-                    )?;
+                    retain_operand!(root.type_reference)?;
                 }
                 CheckedScalarComputationKind::RetainedConstant { .. }
                 | CheckedScalarComputationKind::Value(_) => {}
@@ -198,13 +179,7 @@ pub(crate) fn retain_shapes(
                     pending.extend(subject.scalar_operands(&plans.operands));
                     if let checked_trees::CheckedDispatchSubject::Structural { value, .. } = subject
                     {
-                        retain_declarations(
-                            shapes,
-                            super::super::terminal_unit::scalar_operand_shapes(
-                                program,
-                                structural_values.nodes.get(*value).type_reference,
-                            )?,
-                        )?;
+                        retain_operand!(structural_values.nodes.get(*value).type_reference)?;
                     }
                     for arm in plans.dispatch_arms.span(*arms)? {
                         if let Some(value) = arm.pattern.computation() {
@@ -243,13 +218,7 @@ pub(crate) fn retain_shapes(
                                                 .is_some()
                                     })
                                     .nth(parameter_index as usize)?;
-                                retain_declarations(
-                                    shapes,
-                                    super::super::terminal_unit::scalar_operand_shapes(
-                                        program,
-                                        parameter.type_reference,
-                                    )?,
-                                )?;
+                                retain_operand!(parameter.type_reference)?;
                             }
                         }
                         if let checked_trees::CheckedScalarComputationStructuralArgument::Place(
@@ -287,13 +256,7 @@ pub(crate) fn retain_shapes(
                             // reapplying an owned-result admission fence.
                             // its scalar children have their own retained roots in
                             // this same state's computation inventory.
-                            retain_declarations(
-                                shapes,
-                                super::super::terminal_unit::scalar_operand_shapes(
-                                    program,
-                                    root.type_reference,
-                                )?,
-                            )?;
+                            retain_operand!(root.type_reference)?;
                         }
                         if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
                             subject,
@@ -326,13 +289,7 @@ pub(crate) fn retain_shapes(
                             }
                             checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
                                 let root = structural_values.root_for_value(*value)?;
-                                retain_declarations(
-                                    shapes,
-                                    super::super::terminal_unit::scalar_operand_shapes(
-                                        program,
-                                        root.type_reference,
-                                    )?,
-                                )?;
+                                retain_operand!(root.type_reference)?;
                             }
                         }
                     }

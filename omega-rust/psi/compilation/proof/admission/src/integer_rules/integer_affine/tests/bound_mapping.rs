@@ -14,6 +14,12 @@ use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::{IntegerSign, ValueId};
 
+macro_rules! check {
+    ($form:expr => $premise:expr => $conclusion:expr) => {
+        check_integer_affine_bound_conversion($form, $premise, $conclusion)
+    };
+}
+
 mod correlated;
 mod direct;
 
@@ -62,11 +68,7 @@ fn unsigned_remainder_intersects_dividend_bounds_and_accepts_legacy_images() {
             Ok(())
         );
         assert_eq!(
-            check_integer_affine_bound_conversion(
-                &form,
-                &premise,
-                &Proposition::LessOrEqual(target.clone(), literal(255)),
-            ),
+            check!(&form => &premise => &Proposition::LessOrEqual(target.clone(), literal(255))),
             Ok(()),
             "the previous total-image certificate remains valid",
         );
@@ -167,51 +169,27 @@ fn maps_upper_and_lower_bounds_across_every_coefficient_sign() {
     let lower = Proposition::LessOrEqual(literal(-3), root.clone());
 
     assert_eq!(
-        check_integer_affine_bound_conversion(
-            &form(2, 1),
-            &upper,
-            &Proposition::LessOrEqual(target.clone(), literal(9)),
-        ),
+        check!(&form(2, 1) => &upper => &Proposition::LessOrEqual(target.clone(), literal(9))),
         Ok(()),
     );
     assert_eq!(
-        check_integer_affine_bound_conversion(
-            &form(2, 1),
-            &lower,
-            &Proposition::LessOrEqual(literal(-5), target.clone()),
-        ),
+        check!(&form(2, 1) => &lower => &Proposition::LessOrEqual(literal(-5), target.clone())),
         Ok(()),
     );
     assert_eq!(
-        check_integer_affine_bound_conversion(
-            &form(-2, 1),
-            &upper,
-            &Proposition::LessOrEqual(literal(-7), target.clone()),
-        ),
+        check!(&form(-2, 1) => &upper => &Proposition::LessOrEqual(literal(-7), target.clone())),
         Ok(()),
     );
     assert_eq!(
-        check_integer_affine_bound_conversion(
-            &form(-2, 1),
-            &lower,
-            &Proposition::LessOrEqual(target.clone(), literal(7)),
-        ),
+        check!(&form(-2, 1) => &lower => &Proposition::LessOrEqual(target.clone(), literal(7))),
         Ok(()),
     );
     assert_eq!(
-        check_integer_affine_bound_conversion(
-            &form(0, 5),
-            &upper,
-            &Proposition::LessOrEqual(target.clone(), literal(5)),
-        ),
+        check!(&form(0, 5) => &upper => &Proposition::LessOrEqual(target.clone(), literal(5))),
         Ok(()),
     );
     assert_eq!(
-        check_integer_affine_bound_conversion(
-            &form(0, 5),
-            &lower,
-            &Proposition::LessOrEqual(literal(5), target.clone()),
-        ),
+        check!(&form(0, 5) => &lower => &Proposition::LessOrEqual(literal(5), target.clone())),
         Ok(()),
     );
     assert_eq!(
@@ -597,14 +575,7 @@ fn saturating_endpoints_cover_every_byte_input_and_reject_plateau_strictness() {
                                 map_integer_affine_bound(&checked, &premise),
                                 Ok(conclusion.clone())
                             );
-                            assert_eq!(
-                                check_integer_affine_bound_conversion(
-                                    &checked,
-                                    &premise,
-                                    &conclusion
-                                ),
-                                Ok(())
-                            );
+                            assert_eq!(check!(&checked => &premise => &conclusion), Ok(()));
                             for input in minimum..=maximum {
                                 if upper && input <= bound {
                                     assert!(execute(input) <= endpoint);

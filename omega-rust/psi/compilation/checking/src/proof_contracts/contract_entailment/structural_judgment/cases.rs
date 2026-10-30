@@ -105,9 +105,9 @@ impl StructuralJudge<'_> {
                 .type_reference_table
                 .peeled_type_reference(reference);
             if let Some(applied) = self.program.closed_data_definition(reference)
-                && let Some(applied_variant) =
-                    self.program
-                        .closed_data_constructor_case(reference, variant.symbol)
+                && let Some(applied_variant) = self
+                    .program
+                    .closed_data_constructor_case(reference, variant.symbol)
             {
                 case_owner = applied.symbol;
                 case_symbol = applied_variant.symbol;

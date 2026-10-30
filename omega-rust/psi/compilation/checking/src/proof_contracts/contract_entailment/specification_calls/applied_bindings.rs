@@ -349,18 +349,20 @@ impl AppliedProofBindings {
                 return Some(bindings);
             }
             if let SelectedCallContract::Signature(signature) = owner
-                && (program
+                && let Some(declared) = program
                     .trait_machine_signature(application.binding_declaration)
-                    .is_some()
-                    || program
-                        .machine_by_symbol(caller)
-                        .and_then(|machine| {
-                            program.machine_parameter_signature_in(
-                                machine,
-                                application.binding_declaration,
-                            )
-                        })
-                        .is_some_and(|declared| std::ptr::eq(declared, *signature)))
+                    .map(|(_, signature)| signature)
+                    .or_else(|| {
+                        program
+                            .machine_by_symbol(caller)
+                            .and_then(|machine| {
+                                program.machine_parameter_signature_in(
+                                    machine,
+                                    application.binding_declaration,
+                                )
+                            })
+                            .filter(|declared| std::ptr::eq(*declared, *signature))
+                    })
             {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
@@ -371,30 +373,23 @@ impl AppliedProofBindings {
                 {
                     return None;
                 }
-                let runtime_parameters = correspondence
-                    .runtime_parameters
-                    .iter()
-                    .map(|source| {
-                        let mut rows = correspondence
-                            .parameters
-                            .iter()
-                            .filter(|(parameter, _)| parameter == source);
-                        let (_, logical) = rows.next()?;
-                        rows.next().is_none().then_some(*logical)
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                // Applied requirements and lexical callable parameters both
-                // retain their exact receiving telescope. Decode the authored
-                // tuple only through its authenticated source-to-public map.
-                return Self::for_application(
+                // Authenticate the complete authored tuple before projecting
+                // into the public invocation. Closed static binders may have
+                // no receiving name because their payloads are substituted;
+                // erasure cannot make their original operands disappear from
+                // admission. This is the same transport as a concrete call,
+                // using only the declared public signature.
+                let mut bindings = Self::for_application(
                     program,
-                    owner,
+                    &SelectedCallContract::Signature(declared),
                     handle,
                     arguments,
-                    &runtime_parameters,
-                    &correspondence.parameters,
+                    &correspondence.runtime_parameters,
+                    &[],
                     correspondence.declaration,
-                );
+                )?;
+                bindings.transport_parameters(&correspondence.parameters)?;
+                return Some(bindings);
             }
         }
         let declaration = match owner {

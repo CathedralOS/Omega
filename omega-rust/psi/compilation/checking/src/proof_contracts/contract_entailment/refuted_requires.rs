@@ -371,12 +371,13 @@ pub(super) fn instantiated_selected_fact_judgment(
             StructuralJudgment::Unknown => {}
         }
     }
-    // Bind completed operands before walking a descriptor path: a symbolic
-    // formal alone cannot authorize its stored shared-reference crossings.
+    // Bind completed operands before walking their paths. Scalar cells and
+    // descriptor measures share the typed owner; a symbolic formal alone
+    // cannot authorize stored reference crossings or recover expired contents.
     if judge.has_runtime_body_values()
         && machine_map.is_empty()
         && matches!(
-            judge.captured_metadata_predicate_judgment(callee_owner, callee_parameters, fact, map),
+            judge.captured_operand_predicate_judgment(callee_owner, callee_parameters, fact, map),
             StructuralJudgment::Proven
         )
     {

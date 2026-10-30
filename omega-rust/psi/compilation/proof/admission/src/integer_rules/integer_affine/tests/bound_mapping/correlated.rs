@@ -1,5 +1,14 @@
 use super::*;
 
+macro_rules! math_value {
+    ($source_type:expr => $value:expr) => {
+        IntegerMathTerm::MathValue {
+            source_type: $source_type,
+            value: $value,
+        }
+    };
+}
+
 #[test]
 fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
@@ -19,14 +28,8 @@ fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
             Proposition::LessOrEqual(left.clone(), correlated.clone()),
             Proposition::IntegerMathLessOrEqual(
                 IntegerMathTerm::Add(
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(1).unwrap(),
-                    }),
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(2).unwrap(),
-                    }),
+                    Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                    Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
                 ),
                 IntegerMathTerm::literal(IntegerValue::Signed(127)),
             ),
@@ -37,14 +40,8 @@ fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
             Proposition::IntegerMathLessOrEqual(
                 IntegerMathTerm::literal(IntegerValue::Signed(-128)),
                 IntegerMathTerm::Add(
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(1).unwrap(),
-                    }),
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(2).unwrap(),
-                    }),
+                    Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                    Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
                 ),
             ),
         ),
@@ -133,14 +130,8 @@ fn correlated_add_bound_replays_exact_complement_identity_and_relation() {
         ),
         Ok(Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::Add(
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(1).unwrap(),
-                }),
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(2).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
             ),
             IntegerMathTerm::literal(IntegerValue::Signed(127)),
         )),
@@ -240,14 +231,8 @@ fn correlated_subtract_replays_complement_definition_and_endpoint_landing() {
         Ok(Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::literal(IntegerValue::Signed(-128)),
             IntegerMathTerm::Subtract(
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(1).unwrap(),
-                }),
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(2).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
             ),
         )),
     );
@@ -294,14 +279,8 @@ fn correlated_negative_multiply_uses_target_endpoint_and_sign_orientation() {
             Proposition::IntegerMathLessOrEqual(
                 IntegerMathTerm::literal(IntegerValue::Signed(-128)),
                 IntegerMathTerm::Multiply(
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(1).unwrap(),
-                    }),
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(2).unwrap(),
-                    }),
+                    Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                    Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
                 ),
             ),
         ),
@@ -310,14 +289,8 @@ fn correlated_negative_multiply_uses_target_endpoint_and_sign_orientation() {
             Proposition::LessOrEqual(quotient.clone(), left.clone()),
             Proposition::IntegerMathLessOrEqual(
                 IntegerMathTerm::Multiply(
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(1).unwrap(),
-                    }),
-                    Box::new(IntegerMathTerm::MathValue {
-                        source_type: integer_type,
-                        value: ValueId::new(2).unwrap(),
-                    }),
+                    Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                    Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
                 ),
                 IntegerMathTerm::literal(IntegerValue::Signed(127)),
             ),

@@ -117,6 +117,13 @@ fn parse_source_error(
     crate::parser::parse_syntax_trees(&tokens).expect_err(error_message)
 }
 
+fn parse_tokenized_error(
+    source: &str,
+    error_message: &str,
+) -> crate::diagnostics::parse_error::ParseError {
+    parse_source_error(source, "tokenize should succeed", error_message)
+}
+
 /// Assert `error`'s message names the expected diagnostic needle.
 fn expect_error(error: &crate::diagnostics::parse_error::ParseError, needle: &str) {
     assert!(
