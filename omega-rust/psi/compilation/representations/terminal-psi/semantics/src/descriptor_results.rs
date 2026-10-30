@@ -224,9 +224,8 @@ pub fn descriptor_value_access<'a>(
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
 ) -> Option<StructuralAccess> {
-    let mut declarations = types.into_iter().filter(|item| item.id == structural_type);
-    let declaration = declarations.next()?;
-    if declarations.next().is_some() || multiplicity == StructuralMultiplicity::Linear {
+    let declaration = exactly_one(types.into_iter(), |item| item.id == structural_type)?;
+    if multiplicity == StructuralMultiplicity::Linear {
         return None;
     }
     let access = match declaration.shape {

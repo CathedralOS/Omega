@@ -57,9 +57,8 @@ pub fn primitive_place_type<'a>(
     if let Some((CanonicalStructuralPathSegment::Field(field), carrier)) = path.split_last() {
         let declaration = canonical_structural_path_tip(declarations.clone(), root, carrier)?;
         if let StructuralTypeShape::Record { fields, .. } = &declaration.shape {
-            let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
-            let field = matching.next()?;
-            if matching.next().is_some() || field.relevance.is_erased() {
+            let field = exactly_one(fields.iter(), |candidate| candidate.id == *field)?;
+            if field.relevance.is_erased() {
                 return None;
             }
             if let Some(scalar) = plain_scalar_field(&field.field_type) {

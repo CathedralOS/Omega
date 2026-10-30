@@ -121,9 +121,8 @@ pub fn structural_read_scalar_type<'a>(
                         _ => return None,
                     },
                 };
-                let mut matches = fields.iter().filter(|field| field.id == *identity);
-                let field = matches.next()?;
-                if matches.next().is_some() || field.relevance.is_erased() {
+                let field = exactly_one(fields.iter(), |field| field.id == *identity)?;
+                if field.relevance.is_erased() {
                     return None;
                 }
                 target = match &field.field_type {

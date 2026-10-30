@@ -336,9 +336,8 @@ fn canonical_projection_type<'a>(
                         _ => return None,
                     },
                 };
-                let mut matching = fields.iter().filter(|field| field.id == *identity);
-                let field = matching.next()?;
-                if matching.next().is_some() || field.relevance.is_erased() {
+                let field = exactly_one(fields.iter(), |field| field.id == *identity)?;
+                if field.relevance.is_erased() {
                     return None;
                 }
                 let child = match &field.field_type {
