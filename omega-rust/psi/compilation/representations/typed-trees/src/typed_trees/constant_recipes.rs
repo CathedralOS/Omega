@@ -45,6 +45,21 @@ pub enum RetainedConstantPosition {
     },
 }
 
+impl RetainedConstantPosition {
+    /// The complete authored expression, when the position retains a graph.
+    /// Array lengths retain their distinct zero-argument invocation instead.
+    pub fn expression(&self) -> ExpressionHandle {
+        match *self {
+            Self::RangeEndpoint(expression)
+            | Self::ContractExpression(expression)
+            | Self::ConstApplication {
+                root: expression, ..
+            } => expression,
+            Self::None | Self::ArrayLength(_) => ExpressionHandle::invalid(),
+        }
+    }
+}
+
 /// One retained symbolic constant application.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RetainedConstantRecipe {
@@ -199,7 +214,8 @@ impl crate::TypedTrees {
             FixedArrayLength::Literal(length) => u64::try_from(*length)
                 .ok()
                 .map(DeclaredArrayExtent::Literal),
-            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::Expression(_) => None,
+            FixedArrayLength::ConstParameter { .. } => None,
+            FixedArrayLength::Expression(argument) => self.declared_constant_extent(*argument),
             FixedArrayLength::ConstCall { .. } => {
                 let recipe = self.constant_recipe_for_array_length(type_reference);
                 recipe
@@ -207,6 +223,29 @@ impl crate::TypedTrees {
                     .then_some(DeclaredArrayExtent::Recipe(recipe))
             }
         }
+    }
+
+    /// A const actual supplies either its literal extent or its exact retained
+    /// application. Substituted fields and structural plans share this query.
+    pub fn declared_constant_extent(
+        &self,
+        argument: TypeReferenceHandle,
+    ) -> Option<DeclaredArrayExtent> {
+        let literal = match self.type_reference_table.type_reference(argument) {
+            TypeReferenceNode::Named { name, .. } => name.as_str().parse::<u64>().ok(),
+            TypeReferenceNode::ConstExpression(expression) => self
+                .expression_table
+                .constant_integer_value(*expression)
+                .and_then(|value| u64::try_from(value).ok()),
+            _ => None,
+        };
+        if let Some(value) = literal {
+            return Some(DeclaredArrayExtent::Literal(value));
+        }
+        let recipe = self.constant_recipe_for_const_application(argument);
+        recipe
+            .is_valid()
+            .then_some(DeclaredArrayExtent::Recipe(recipe))
     }
 
     /// The recipe retained for the exact `FixedArray` node, or the invalid handle.
@@ -313,7 +352,11 @@ impl crate::TypedTrees {
         };
         match length {
             FixedArrayLength::Literal(length) => Some(*length),
-            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::Expression(_) => None,
+            FixedArrayLength::ConstParameter { .. } => None,
+            FixedArrayLength::Expression(argument) => self
+                .declared_constant_extent(*argument)
+                .and_then(|extent| extent.closed(self))
+                .and_then(|value| usize::try_from(value).ok()),
             FixedArrayLength::ConstCall { .. } => self
                 .closed_constant_recipe_value(self.constant_recipe_for_array_length(type_reference))
                 .and_then(BigInt::to_u64)

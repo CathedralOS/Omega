@@ -120,6 +120,14 @@ realization never starts another Psi production. Product constant applications
 and their checked conditions cross this boundary in canonical Terminal Psi.
 Selected realization completes them without copying or rewriting checked source;
 selected providers cannot inject completion roles into checked source.
+Psi retains each const argument's complete expression, lexical owner and result
+carrier. Type and body copying carry that relationship through exact occurrence
+maps; substituted array fields refer to the same retained extent. Preparation
+creates ordinary evaluation entries from closed expression inputs, including
+closed expressions inside generic owners, without dropping the template's
+checking obligations. Canonical publication consumes those entries, never the
+first nested helper as a substitute for the complete expression. Selected
+execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
