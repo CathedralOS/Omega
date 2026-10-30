@@ -104,17 +104,9 @@ fn expression_has_effect_at_depth(
         }
         ExpressionNode::Match(dispatch) => {
             child_has_effect!(dispatch.subject)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|operand| child_has_effect!(operand))
-                            || child_has_effect!(arm.value)
-                    })
+                || crate::flow::match_arm_satisfies(program, dispatch.arms, |operand| {
+                    child_has_effect!(operand)
+                })
         }
         ExpressionNode::Binary(binary) => {
             child_has_effect!(binary.left) || child_has_effect!(binary.right)

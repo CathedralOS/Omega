@@ -219,6 +219,21 @@ pub(crate) fn resolved_operator_statement_symbol(
         .map(|resolved| resolved.operator.symbol)
 }
 
+/// Whether any arm of a match dispatch satisfies `predicate`, on either its
+/// pattern operands or its value. Every expression consumer that walks a
+/// `Match` node asks exactly this question; the arm/pattern traversal is the
+/// same one `TableMatchArm` documents, so it is stated once.
+pub(crate) fn match_arm_satisfies(
+    program: &dyn ::validation::CheckingInput,
+    arms: arena::HandleSpan<typed_trees::expression::TableMatchArm>,
+    predicate: impl Fn(checked_trees::expression::ExpressionHandle) -> bool,
+) -> bool {
+    let table = &program.expression_table;
+    table.match_arms(arms).iter().any(|arm| {
+        table.match_pattern_operands(arm.pattern).any(&predicate) || predicate(arm.value)
+    })
+}
+
 /// The `CallEnsures` point a call's flow facts carry: the call's machine,
 /// state, statement, and ordinal, so every phase that publishes or reads those
 /// rows names the same point.
