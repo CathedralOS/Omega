@@ -62,6 +62,35 @@ pub struct ContextualCleanupFacts {
 }
 
 impl ContextualCleanupFacts {
+    /// A receiving occurrence's exact pre-disposal vacancy. Repeated producer
+    /// rows must agree; absence and mixed incoming evidence grant no vacancy.
+    pub fn replaces_transferred_storage(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        source: PermissionEventSource,
+        root: facts::PlaceRoot,
+        path: &[PlaceSegment],
+    ) -> bool {
+        let mut matched = false;
+        for (_, establishment) in self.storage_establishments.iter() {
+            if establishment.machine == machine
+                && establishment.state == state
+                && establishment.source == source
+                && establishment.destination.root == root
+                && self
+                    .segments
+                    .span_or_empty(establishment.destination.segments)
+                    == path
+            {
+                if !establishment.prior_value_transferred {
+                    return false;
+                }
+                matched = true;
+            }
+        }
+        matched
+    }
     /// Run `read` against the disposition rows recorded for `(machine, state)`,
     /// in arena order: every row, including duplicates of one coordinate.
     fn with_state_dispositions<Result>(
@@ -149,6 +178,9 @@ impl ContextualCleanupFacts {
 /// Its destination path belongs to `ContextualCleanupFacts::segments`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualStorageEstablishment {
+    /// The exact pre-disposal custody proves every predecessor already moved
+    /// this destination value. Loan weakening alone cannot establish vacancy.
+    pub prior_value_transferred: bool,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub source: PermissionEventSource,
