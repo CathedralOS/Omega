@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: quality [43c057ea9367]: no prior revision to compare.
+Standalone candidate source: quality [43c057ea9367]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\build\prime-preparation-2\quality2\baseline\constant_boolean_return_join_exit\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\build\prime-preparation-2\quality2\baseline\constant_boolean_return_join_exit\build\package-manager\review-windows_x86_64.txt
