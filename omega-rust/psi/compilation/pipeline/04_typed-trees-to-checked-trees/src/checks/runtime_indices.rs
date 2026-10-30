@@ -600,14 +600,15 @@ impl Scope<'_> {
         ordinal: usize,
     ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
         use typed_trees::type_identity::{
-            AppliedTypeIdentityScope, applied_type_lifetime_identity,
+            AppliedTypeIdentityScope, applied_type_lifetime_identity_in_scope,
         };
         let source = self.application_source(application);
         let Some((handle, source)) = source else {
-            return applied_type_lifetime_identity(
+            return applied_type_lifetime_identity_in_scope(
                 self.program,
                 reference,
                 ordinal,
+                self.machine.symbol,
                 self.machine.symbol,
                 &[],
             );
@@ -621,10 +622,11 @@ impl Scope<'_> {
             arguments: &[],
             lifetimes: &lifetimes,
         }];
-        applied_type_lifetime_identity(
+        applied_type_lifetime_identity_in_scope(
             self.program,
             reference,
             ordinal,
+            source.binding_declaration,
             source.lexical_owner,
             &scopes,
         )

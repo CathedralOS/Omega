@@ -287,12 +287,14 @@ pub fn applied_lifetime_identity(
 
 /// Resolve an explicit Generic region operand using the same retained supplier
 /// fence as full type identity. The ordinal names the authored argument, not a
-/// caller-selected spelling. Application operands remain simultaneous.
-pub fn applied_type_lifetime_identity(
+/// caller-selected spelling. Receiving binders and supplying operands keep
+/// distinct owners, and application operands remain simultaneous.
+pub fn applied_type_lifetime_identity_in_scope(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     ordinal: usize,
-    lexical_owner: SymbolHandle,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
     if !program
@@ -311,8 +313,8 @@ pub fn applied_type_lifetime_identity(
     let invalid = Cell::new(false);
     let context = TypeIdentityContext {
         application_scopes: scopes,
-        application_owner: lexical_owner,
-        application_argument_owner: lexical_owner,
+        application_owner: receiving_owner,
+        application_argument_owner: argument_owner,
         invalid_application: Some(&invalid),
         ..TypeIdentityContext::default()
     }

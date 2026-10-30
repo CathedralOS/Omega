@@ -70,26 +70,24 @@ impl CheckedInitializers {
             })
             .cloned()
             .collect::<Vec<_>>();
-        let mut bodies = prepared.typed().clone();
-        let (probes, machines): (Vec<_>, Vec<_>) = bodies
+        let probes = prepared
+            .typed()
             .machines()
             .iter()
-            .cloned()
-            .partition(|machine| probe_symbols.contains(&machine.symbol));
-        if probes.len() != probe_symbols.len() {
+            .filter(|machine| probe_symbols.contains(&machine.symbol))
+            .count();
+        if probes != probe_symbols.len() {
             return Err(super::failure(
                 source::SourceSpan::default(),
                 "initializer preparation lost an exact probe owner",
             ));
         }
-        // Probe expressions are checked by the exact scalar evaluator, not as
-        // runtime bodies whose call results have only a declared range. Only
-        // their compiler-created roots leave this private body check. Every
-        // authored helper body remains unchanged and undergoes ordinary checking.
-        bodies.roots.machines = arena::HandleSpan::empty();
-        for machine in machines {
-            bodies.push_machine(machine);
-        }
+        // The private scalar evaluator owns probe expressions. The projection
+        // removes their unused generated context as well as their roots, while
+        // preserving every helper or descriptive operand that actually uses it.
+        let projection =
+            super::probe_projection::ProbeProjection::new(prepared.typed(), probe_symbols);
+        let bodies = projection.helper_bodies();
         let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
         let checking = typed_trees_to_checked_trees::CheckingRequest::new();
         let (bodies, preparation) =
@@ -100,10 +98,7 @@ impl CheckedInitializers {
             &checked.typed,
             &checked.facts,
         );
-        let mut typed = checked.typed.into_inner();
-        for probe in probes {
-            typed.push_machine(probe);
-        }
+        let typed = projection.rejoin_unjudged(checked.typed.into_inner());
         // Checking may normalize boundary tokens into requirement calls.
         // Admission and interpretation consume the same validated selected
         // meaning on a private graph, never mutate the completed judgment.

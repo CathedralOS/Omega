@@ -66,6 +66,7 @@ use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
 
 mod invocations;
 mod materialize;
+mod probe_projection;
 mod replay;
 mod target_observations;
 
