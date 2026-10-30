@@ -23,7 +23,8 @@ its current drive. The library must not silently reinterpret that path.
 The [host re-cast rung](host_recast/main.omg) isolates the bounded original
 backing required by Darwin filesystem metadata writes. It passes a 144-byte
 window starting eight bytes into a larger array through a checked foreign
-call twice. Its oracle checks that both returned addresses are nonzero and
+call twice. A preceding shared whole-array comparison establishes the canaries
+in that same native residence without lending them mutably. Its oracle checks that both returned addresses are nonzero and
 identical, and checks the first, interior and last bytes and both adjacent
 canaries. The [reject twin](host_recast/invalid/main.omg) shortens only that
 window to 143 bytes and must fail the same minimum-length contract. This
