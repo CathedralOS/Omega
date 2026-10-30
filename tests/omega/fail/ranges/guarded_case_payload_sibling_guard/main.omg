@@ -1,0 +1,9 @@
+// A guard in one disjunct does not select the payload in another disjunct.
+data Text
+    requires ((self in Text::Short) && self.length <= 4u64)
+        || self.length <= 8u64
+{
+    case Short(length: u64);
+    case Long(length: u64);
+}
+machine main() {}
