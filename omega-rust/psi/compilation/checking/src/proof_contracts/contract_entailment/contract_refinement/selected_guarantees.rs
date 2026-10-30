@@ -3,7 +3,6 @@
 //! bind corresponding actuals by position. Neither bodies nor goal facts are
 //! inputs to normalization.
 
-use super::super::structural_judgment::selected_contracts::bound_term;
 use super::super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::{Conjunct, ContractFacts};
 use symbols::SymbolHandle;
@@ -145,16 +144,17 @@ fn contract_term(
             )
         })
         .collect::<Vec<_>>();
-    bound_term(
-        program,
-        *expression,
-        owner,
-        parameters,
-        owner,
-        &bindings,
-        Some(&StructuralTerm::Variable("\0contract-result".to_owned())),
-        0,
-    )
+    StructuralJudge::from_declaration_requires(program, owner, parameters, &[], false)
+        .bound_contract_term(
+            *expression,
+            owner,
+            parameters,
+            owner,
+            &bindings,
+            &[],
+            Some(&StructuralTerm::Variable("\0contract-result".to_owned())),
+            0,
+        )
 }
 
 struct PublishedContractNormalizer<'program> {

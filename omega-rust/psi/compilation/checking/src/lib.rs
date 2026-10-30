@@ -56,11 +56,11 @@ pub use value_custody::static_inline_storage::{
 };
 
 pub use declarations::selection_resolution;
-pub use declarations::{source_catalogues, source_completion};
 pub use declarations::standard_declarations::{
     boundary_has_explicit_calling_policy, standard_calling_vocabularies,
 };
 use declarations::state_signatures::StateSignatureOwner;
+pub use declarations::{source_catalogues, source_completion};
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
     SelectedCallArgument, call_target_has_checked_body_contract, call_type_arguments,
@@ -337,12 +337,12 @@ pub use machine_calls::effect_inference::{
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
-pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
     PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
     ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,
     ValidatedRequirementCallSpecialization, ValidatedRequirementCallTypeBinding,
-    closed_static_call_type_bindings, infer_call_type_arguments, validate_static_machine_selections,
+    closed_static_call_type_bindings, infer_call_type_arguments,
+    validate_static_machine_selections,
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
 pub use machine_calls::result_overloads::{

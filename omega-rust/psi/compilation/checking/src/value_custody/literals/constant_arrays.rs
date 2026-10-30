@@ -402,12 +402,10 @@ pub fn scalar_array_elements(
                     None => return None,
                 }
             }
-            TypeReferenceNode::Named { .. } => {
-                leaves.push(ScalarArrayElement::Authored {
-                    expression,
-                    primitive_type: program.primitive_type_reference(reference)?,
-                })
-            }
+            TypeReferenceNode::Named { .. } => leaves.push(ScalarArrayElement::Authored {
+                expression,
+                primitive_type: program.primitive_type_reference(reference)?,
+            }),
             _ => return None,
         }
     }

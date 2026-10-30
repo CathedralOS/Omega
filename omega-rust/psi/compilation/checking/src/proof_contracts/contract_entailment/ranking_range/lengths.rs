@@ -368,7 +368,9 @@ fn transparent_call_result_length(
         .chain(call_arguments.iter().copied())
         .skip(callee.leading_operands)
         .collect();
-    let statements = program.statement_table.statements(callee_state.statement_nodes);
+    let statements = program
+        .statement_table
+        .statements(callee_state.statement_nodes);
     let mut results = Vec::new();
     for (index, statement) in statements.iter().enumerate() {
         match statement {
@@ -443,9 +445,9 @@ fn transparent_call_result_length(
                 .iter()
                 .find(|(symbol, _)| *symbol == parameter.symbol)
                 .map(|(_, identity)| identity.clone());
-            let identity = slice_length.clone().unwrap_or_else(|| {
-                format!("\0call-result:param:{:?}", parameter.symbol)
-            });
+            let identity = slice_length
+                .clone()
+                .unwrap_or_else(|| format!("\0call-result:param:{:?}", parameter.symbol));
             if !measured
                 .terms
                 .keys()

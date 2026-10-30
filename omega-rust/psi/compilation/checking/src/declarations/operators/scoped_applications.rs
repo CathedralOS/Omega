@@ -293,14 +293,14 @@ pub fn scoped_operator_application<'program>(
         };
     let builtin = canonical.is_empty()
         && (builtin_indexed
-        || (carriers
-            && typed_trees::operator::has_builtin_spelled_expression_meaning(
-                program,
-                scope.owner,
-                expression,
-                spelling,
-                operand_types,
-            )));
+            || (carriers
+                && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    scope.owner,
+                    expression,
+                    spelling,
+                    operand_types,
+                )));
     let domain_builtin = carriers
         && typed_trees::closed_numeric::has_builtin_anonymous_operands(
             program, expression, spelling,

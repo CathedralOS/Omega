@@ -289,7 +289,8 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralTerm> {
-        let carrier = self.selected_application_carrier(value, depth);
+        let resolving = self.clone().resolving_application(value)?;
+        let carrier = resolving.selected_application_carrier(value, depth);
         if self.published_contract_tracing() && carrier.is_none() {
             eprintln!(
                 "PUBLISHED carrier unavailable caller={:?} value={value:?}",
@@ -307,8 +308,14 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        let equations =
-            self.declared_contract_equations(&owner, &bindings, &bindings, Some(value), depth);
+        let equations = resolving.declared_contract_equations(
+            &owner,
+            &bindings,
+            &bindings,
+            &[],
+            Some(value),
+            depth,
+        );
         if self.published_contract_tracing() {
             eprintln!(
                 "PUBLISHED equations caller={:?} callee={:?} value={value:?} equations={equations:?}",
@@ -316,7 +323,7 @@ impl StructuralJudge<'_> {
                 owner_symbol(&owner)
             );
         }
-        for (left, right) in equations? {
+        for (left, right) in equations?.0 {
             for (pattern, replacement) in [(&left, &right), (&right, &left)] {
                 if pattern == value
                     && replacement != value
@@ -680,7 +687,7 @@ impl StructuralJudge<'_> {
         type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
         result: Option<&StructuralTerm>,
         depth: usize,
-    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+    ) -> Option<(Vec<(StructuralTerm, StructuralTerm)>, Self)> {
         if depth >= 32 {
             return None;
         }
@@ -721,13 +728,13 @@ impl StructuralJudge<'_> {
                     if self.published_contract_tracing()
                         && let ProofFact::Expression(required) = fact
                     {
-                        let required = bound_term(
-                            program,
+                        let required = self.bound_contract_term(
                             *required,
                             callable,
                             parameters,
                             callable,
                             entry_bindings,
+                            type_bindings,
                             None,
                             depth + 1,
                         );
@@ -801,7 +808,7 @@ impl StructuralJudge<'_> {
                 }
             }
         }
-        Some(equations)
+        Some((equations, completion))
     }
 
     fn declared_guarantees(
@@ -809,16 +816,18 @@ impl StructuralJudge<'_> {
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
+        type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
         result: Option<&StructuralTerm>,
         depth: usize,
     ) -> Option<SelectedGuarantees> {
         if depth >= 32 {
             return None;
         }
-        let mut equations = match self.declared_contract_equations(
+        let (mut equations, completion) = match self.declared_contract_equations(
             owner,
             entry_bindings,
             bindings,
+            type_bindings,
             result,
             depth,
         ) {
