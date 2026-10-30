@@ -228,7 +228,7 @@ impl PrimitiveStorageWrites {
                 let stored = arrays
                     .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements().get(*index))
+                    .and_then(|array| array.cell(*index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         destination,
                     ))?;
@@ -1092,7 +1092,7 @@ impl TerminalExecution<'_> {
                 types.values(),
                 array.structural_type,
             )
-            .is_some_and(|(_, count)| count == 0 && array.elements().is_empty()));
+            .is_some_and(|(_, count)| count == 0 && array.is_empty()));
         }
         let value = values.get(&home.place).ok_or_else(malformed)?;
         if value.structural_type != home.structural_type {
@@ -1338,8 +1338,7 @@ impl TerminalExecution<'_> {
             }
             let index = usize::try_from(leaf_offset).map_err(|_| malformed())?;
             if array
-                .elements()
-                .get(index)
+                .cell(index)
                 .is_none_or(|value| value.scalar_type() != scalar_type)
             {
                 return Err(malformed());
@@ -2065,8 +2064,8 @@ impl TerminalExecution<'_> {
                 arrays
                     .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements().get(index))
-                    .copied()
+                    .ok_or_else(malformed)?
+                    .element(index)?
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         source,
                     ))
@@ -2317,10 +2316,7 @@ impl TerminalExecution<'_> {
                 let array = arrays.backing_mut(&home.place).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
                 )?;
-                let stored = array.elements_mut()?.get_mut(index).ok_or(
-                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
-                )?;
-                *stored = scalar;
+                array.set_element(index, scalar)?;
             }
             PrimitiveStorageEndpoint::Scalar(storage) => {
                 // The resolved live owner and exact leaf carrier authorize a
@@ -2427,7 +2423,7 @@ impl TerminalExecution<'_> {
 
     /// Resolve the machine owning a suspended home frame, rejecting homes
     /// recorded against a different machine.
-    fn owned_array_home(
+    pub(crate) fn owned_array_home(
         &self,
         home: &PrimitiveStorageHome,
     ) -> Result<MachineId, TerminalInterpretError> {

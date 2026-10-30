@@ -24,7 +24,7 @@ pub(crate) enum ConstructorValue<'execution> {
     Placed(TerminalStructuralValue),
     PackedScalars {
         structural_type: StructuralTypeId,
-        elements: &'execution [TerminalScalarValue],
+        elements: &'execution [crate::scalar_storage::ScalarCell],
         qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
         projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     },
@@ -41,7 +41,7 @@ impl<'execution> ConstructorValue<'execution> {
             }
             let types = execution.program.structural_types();
             let mut structural_type = array.structural_type;
-            let mut elements = array.elements();
+            let mut elements = array.cells();
             // A packed tree's static child is a contiguous row-major span.
             // Select the actual source span before any receiving declaration
             // is consulted; neither a referent nor byte window owns this data.
@@ -195,9 +195,10 @@ impl<'execution> ConstructorValue<'execution> {
                 .map(StructuralPathSegment::FixedIndex)
                 .collect::<Vec<_>>();
             let value = match self {
-                Self::PackedScalars { elements, .. } => *elements
+                Self::PackedScalars { elements, .. } => elements
                     .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
-                    .ok_or_else(malformed)?,
+                    .ok_or_else(malformed)?
+                    .read()?,
                 Self::Placed(value) => {
                     execution.read_primitive_argument(source, value, &path, scalar_type)?
                 }
@@ -707,7 +708,11 @@ impl ConstructorStorage {
                 if transfers_custody {
                     return Err(malformed());
                 }
-                self.stage_array(execution, *structural_type, elements, destination)
+                let values = elements
+                    .iter()
+                    .map(crate::scalar_storage::ScalarCell::read)
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.stage_array(execution, *structural_type, &values, destination)
             }
         }
     }

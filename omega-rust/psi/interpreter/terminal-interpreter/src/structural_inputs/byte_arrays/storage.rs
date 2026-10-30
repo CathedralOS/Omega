@@ -7,7 +7,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::scalar_array::TerminalScalarArrayValue;
+use crate::scalar_array::PackedScalarArrayValue;
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralTypeId};
 
@@ -64,7 +64,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let values = self.frame_array(depth, place).ok_or_else(malformed)?;
-                TerminalByteRead::scalars(&values.elements()[base + start..base + end])
+                TerminalByteRead::cells(&values.cells()[base + start..base + end])
             }
         }
     }
@@ -73,7 +73,7 @@ impl TerminalExecution<'_> {
         &self,
         depth: usize,
         place: PlaceId,
-    ) -> Option<&TerminalScalarArrayValue> {
+    ) -> Option<&PackedScalarArrayValue> {
         if depth == self.call_stack.len() {
             self.scalar_array_values.backing(&place)
         } else {
@@ -86,7 +86,7 @@ impl TerminalExecution<'_> {
 
     /// A frame-owned fixed byte array has one payload, not an opaque projected
     /// host root. Admission currently permits its whole backing plus byte ranges.
-    fn frame_byte_array_window(
+    pub(crate) fn frame_byte_array_window(
         &self,
         storage: &ArrayStorage,
     ) -> Result<(usize, usize), TerminalInterpretError> {
@@ -104,7 +104,7 @@ impl TerminalExecution<'_> {
             terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)
                 .ok_or_else(malformed)?;
         if array.structural_type != structural_type
-            || u64::try_from(array.elements().len()).ok() != Some(count)
+            || u64::try_from(array.len()).ok() != Some(count)
             || !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.bits() == 8 && !integer.is_address() && integer.sign() == IntegerSign::Unsigned)
         {
             return Err(malformed());
@@ -146,7 +146,7 @@ impl TerminalExecution<'_> {
                 .map_err(|_| malformed())?;
         let end = offset
             .checked_add(length)
-            .filter(|end| *end <= array.elements().len())
+            .filter(|end| *end <= array.len())
             .ok_or_else(malformed)?;
         Ok((offset, end))
     }
@@ -191,9 +191,10 @@ impl TerminalExecution<'_> {
                     .ok_or_else(malformed)?;
                 let value = self
                     .frame_array(depth, place)
-                    .and_then(|array| array.elements().get(absolute))
+                    .ok_or_else(malformed)?
+                    .element(absolute)?
                     .ok_or_else(malformed)?;
-                scalar_byte(value)
+                scalar_byte(&value)
             }
         }
     }
@@ -226,13 +227,13 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
                 let scalar_type =
                     IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
-                *array
-                    .elements_mut()?
-                    .get_mut(absolute)
-                    .ok_or_else(malformed)? = TerminalScalarValue::Integer {
-                    scalar_type,
-                    value: IntegerValue::Unsigned(u128::from(byte)),
-                };
+                array.set_element(
+                    absolute,
+                    TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: IntegerValue::Unsigned(u128::from(byte)),
+                    },
+                )?;
                 Ok(())
             }
         };
@@ -275,10 +276,10 @@ impl TerminalExecution<'_> {
         let (base, _) = self.frame_byte_array_window(storage)?;
         let values = self
             .frame_array(depth, place)
-            .and_then(|array| array.elements().get(base + start..base + end))
+            .and_then(|array| array.cells().get(base + start..base + end))
             .ok_or_else(malformed)?
             .iter()
-            .map(scalar_byte);
+            .map(|cell| scalar_byte(&cell.read()?));
         Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
             end - start,
             values,

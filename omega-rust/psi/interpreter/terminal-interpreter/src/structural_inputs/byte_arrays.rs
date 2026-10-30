@@ -288,7 +288,7 @@ impl TerminalExecution<'_> {
                 self.program.structural_types().values(),
                 structural_type,
             )?
-            .1 != u64::try_from(array.elements().len()).ok()?
+            .1 != u64::try_from(array.len()).ok()?
         {
             return None;
         }

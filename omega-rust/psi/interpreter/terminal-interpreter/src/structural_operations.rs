@@ -1611,7 +1611,7 @@ impl TerminalExecution<'_> {
                 let mut elements = Vec::new();
                 value
                     .visit_scalar_leaves(self, &argument, |_, _, scalar| {
-                        elements.push(scalar);
+                        elements.push(crate::scalar_storage::ScalarCell::Local(scalar));
                         Ok(())
                     })?
                     .ok_or_else(malformed)?;

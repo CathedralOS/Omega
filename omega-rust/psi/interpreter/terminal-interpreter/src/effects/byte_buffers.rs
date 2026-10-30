@@ -265,6 +265,20 @@ impl BoundaryArguments {
         self.storage_inputs.commit(execution)
     }
 
+    pub(crate) fn prepare_original_storage(
+        &mut self,
+        execution: &mut TerminalExecution,
+        handler: &mut impl crate::effects::TerminalEffectHandler,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<(), TerminalInterpretError> {
+        self.storage_inputs.prepare_original_storage(
+            execution,
+            handler,
+            boundary,
+            &mut self.local_identity_cursor,
+        )
+    }
+
     /// After input validation, publish the staged allocation cursor before a
     /// host scalar-case result allocates its original home. Input writeback
     /// remains deferred; resetting this cursor after result publication would

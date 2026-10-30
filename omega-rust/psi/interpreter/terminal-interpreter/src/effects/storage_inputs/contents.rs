@@ -512,14 +512,9 @@ pub(super) fn scalar_storage(
     if let Some(backing) = aggregate {
         // Logical paths select bytes in the retained region. Only the core
         // projector may join those bytes to original scalar endpoints.
-        let region = backing
-            .region
-            .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                "host aggregate storage needs a retained typed scalar region",
-            ))?;
-        if backing.placed.is_some() || backing.byte_region.is_some() || array_loan.is_some() {
+        if backing.placed.is_some() || array_loan.is_some() {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "host aggregate storage has no resident codec for placed or byte-backed cells",
+                "host aggregate storage has no resident codec for placed cells",
             ));
         }
         let path = terminal_semantics::canonical_structural_storage_path(
@@ -528,14 +523,21 @@ pub(super) fn scalar_storage(
             &leaf.path,
         )
         .ok_or_else(malformed)?;
-        execution.aggregate_view_primitive_access(
-            &backing.value,
-            crate::reference::AggregateViewTip::Aggregate {
-                view: region,
-                backing: backing.value.structural_type,
-            },
-            &path,
-        )
+        if let Some(region) = backing.region {
+            execution.aggregate_view_primitive_access(
+                &backing.value,
+                crate::reference::AggregateViewTip::Aggregate {
+                    view: region,
+                    backing: backing.value.structural_type,
+                },
+                &path,
+            )
+        } else {
+            let region = backing.byte_region.as_ref().ok_or_else(malformed)?;
+            let (storage, scalar) =
+                execution.captured_byte_region_access(&backing.value, region, &path)?;
+            Ok((storage, scalar, access == StructuralAccess::SharedBorrow))
+        }
     } else if let Some(loan) = array_loan {
         let path = leaf
             .path
