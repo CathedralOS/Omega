@@ -405,7 +405,7 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 84 std raw platform, 2 interrupt, and 126 float rows
+  - Migrate the remaining 81 std raw platform, 2 interrupt, and 126 float rows
     plus 78 test files to boundary traits with explicit reach clauses, lift stage
     04's template-dependent result borrow-elision fence for `core/task.omg`'s
     generic `request_cancel` and `finish`, and preserve source-selected trait

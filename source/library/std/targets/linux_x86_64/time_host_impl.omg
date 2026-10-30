@@ -35,9 +35,9 @@ use time_host;
 // becoming an enormous unsigned tick count.
 public data LinuxX64TimeHostInstant { seconds: i64; nanoseconds: i64; }
 
-// Per-target requirement carriers. A `boundary requirement` is target-neutral,
-// so each target's seam owns its own carrier type rather than re-declaring a
-// shared path — the shape `LinuxClockWait`/`LinuxArmClockWait` already use.
+// Per-target requirement carriers. Each target's seam owns its own carrier
+// rather than re-declaring a shared path. `LinuxClockWait` and
+// `LinuxArmClockWait` are the one-member boundary traits for the clock waits.
 data LinuxX64TimeRead { }
 
 boundary requirement LinuxX64TimeRead::clock_gettime(clock_id: u32, instant: &mut LinuxX64TimeHostInstant) -> i64
