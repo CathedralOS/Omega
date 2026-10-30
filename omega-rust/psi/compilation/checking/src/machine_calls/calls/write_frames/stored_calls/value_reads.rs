@@ -75,7 +75,11 @@ impl CompletedValueReads {
             eprintln!(
                 "STRUCT completed-address-refused reference={:?} leaves={:?}",
                 program.type_reference_table.type_reference(self.reference),
-                self.returned.references
+                self.returned
+                    .references
+                    .iter()
+                    .map(|leaf| (&leaf.local_segments, &leaf.origin))
+                    .collect::<Vec<_>>()
             );
         }
         let (boundary, sources) = addressed?;
