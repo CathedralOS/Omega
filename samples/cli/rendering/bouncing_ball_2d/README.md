@@ -47,8 +47,9 @@ ARM64; native execution exits 0. Other declared hosted targets still require
 matching-host execution.
 
 Both native execution and Terminal interpretation exit 0 on macOS ARM64.
-The checked sleep adapter executes normally; its exact selected foreign wait
-advances virtual time without delaying the interpreter or invoking a host import.
+The CLI supplies the host clock environment, so Terminal waits use the host
+sleep implementation. Earlier checked-tree observations used a virtual-time
+sleep adapter; the current native/Terminal qualification is recorded below.
 
 ## Scalar contract migration
 

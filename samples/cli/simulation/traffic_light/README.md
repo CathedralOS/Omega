@@ -5,20 +5,19 @@ Showcases `case` member types with `[copy]` property, case-value
 dispatch in transitions, and accumulated scalar state across multiple machine
 calls. Runs to exit **70**.
 
-```
-omega --target windows_x86_64 --build-dir build samples/cli/simulation/traffic_light/main.omg
-./build/omega-program.exe   # exit 70
+```sh
+omega run --both --input samples/cli/simulation/traffic_light/input.txt samples/cli/simulation/traffic_light/main.omg
 ```
 
-The machine starts in `Red` (zero-initialized) and calls `self.advance()` four
+The machine starts in `Red` (zero-initialized) and calls `Main::advance(main)` four
 times. After Red→Green→Yellow→Red→Green the advance count is 4 and the phase
 is `Green`. A two-level guard ladder checks both conditions before exiting 70.
 
 Features exercised:
 - `data Phase [copy] { case Red; case Green; case Yellow; }`
 - `data Light [copy]` holding a `Phase` field
-- `transition self.light.phase { Phase::Green -> ... _ -> ... }`
-- Repeated `&mut self` method calls accumulating state
+- `transition main.light.phase { Phase::Green -> ... _ -> ... }`
+- Repeated `Main::advance(main)` calls mutate the explicit `main: &mut Main` context
 
 ## Scalar contract migration
 
