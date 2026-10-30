@@ -178,16 +178,12 @@ mod tests {
 
     #[test]
     fn data_absolute_relocations_become_exact_dyld_pointer_sites() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 data: vec![0; 0x98],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            2,
         );
         let function = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "private-realization".to_owned(),
@@ -220,17 +216,13 @@ mod tests {
 
     #[test]
     fn rejects_non_data_or_malformed_absolute_relocations() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 text: vec![0; 8],
                 data: vec![0; 8],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            1,
         );
         let function = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "private-realization".to_owned(),
@@ -279,17 +271,13 @@ mod tests {
 
     #[test]
     fn preferred_pointer_replay_rejects_mutated_patched_bytes() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 text: vec![0; 8],
                 data: vec![0; 8],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            1,
         );
         let function = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "private-realization".to_owned(),
@@ -330,16 +318,12 @@ mod tests {
 
     #[test]
     fn rejects_unknown_targets_and_duplicate_pointer_sites() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 data: vec![0; 8],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            2,
         );
         let function = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "private-realization".to_owned(),

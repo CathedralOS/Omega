@@ -190,14 +190,13 @@ mod tests {
     use super::plan_macho_container;
     use crate::file_layout::constants::MACHO_EXECUTABLE_BASE;
     use crate::isa::MachoIsa;
-    use arena::Handle;
     use image::FinalImage;
 
     const PAGE_SIZE: usize = 0x4000;
 
     #[test]
     fn plans_macho_data_bss_and_linkedit_layout() {
-        let image = FinalImage::with_capacity(
+        let image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 text: vec![0; 3],
@@ -205,10 +204,6 @@ mod tests {
                 bss_size: 7,
                 bss_alignment: 8,
             },
-            Handle::invalid(),
-            0,
-            0,
-            0,
         );
 
         let plan = plan_macho_container(
@@ -242,17 +237,13 @@ mod tests {
 
     #[test]
     fn rebase_only_image_keeps_distinct_linkedit_offsets() {
-        let image = FinalImage::with_capacity(
+        let image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 text: vec![0; 4],
                 data: vec![0; 8],
                 ..Default::default()
             },
-            Handle::invalid(),
-            0,
-            0,
-            0,
         );
 
         let plan = plan_macho_container(
