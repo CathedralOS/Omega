@@ -114,10 +114,13 @@ pub(super) fn borrowed_initializers(
             let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
                 return Vec::new();
             };
-            if let Some(application) = program.data_application_definition(type_reference) {
+            if program
+                .data_application_definition(type_reference)
+                .is_some()
+            {
                 return borrowed_data_literal_initializers(
                     program,
-                    application,
+                    type_reference,
                     expression,
                     &[],
                     owner_path,
@@ -136,7 +139,7 @@ pub(super) fn borrowed_initializers(
             );
             borrowed_data_literal_initializers(
                 program,
-                definition,
+                type_reference,
                 expression,
                 &nested_substitutions,
                 owner_path,
@@ -165,12 +168,9 @@ pub(super) fn borrowed_initializers(
             ) {
                 return vec![initializer];
             }
-            let Some(definition) = program.data_definition_by_symbol(*symbol) else {
-                return Vec::new();
-            };
             borrowed_data_literal_initializers(
                 program,
-                definition,
+                type_reference,
                 expression,
                 substitutions,
                 owner_path,
@@ -216,7 +216,7 @@ fn aggregate_value_initializer(
 
 fn borrowed_data_literal_initializers(
     program: &dyn ::validation::CheckingInput,
-    definition: &typed_trees::data::DataDefinition,
+    receiving: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
@@ -224,16 +224,19 @@ fn borrowed_data_literal_initializers(
     let Some(literal) = program.expression_table.struct_literal_node(expression) else {
         return Vec::new();
     };
-    let Some(selected_definition) =
-        validation::selected_construction_definition(program, expression, literal)
-    else {
-        return Vec::new();
-    };
-    if selected_definition.symbol != definition.symbol {
+    // Missing preparation is independently rejected by constructor formation;
+    // it is never evidence that this aggregate has no reference leaves. Join
+    // the caller's exact receiving application, including open field views,
+    // instead of requiring its storage symbol to equal an authored owner.
+    if program
+        .data_constructor_definition(receiving, literal.type_symbol)
+        .is_none()
+    {
         return Vec::new();
     }
-    let selected_case =
-        validation::selected_construction_case(program, expression, literal, selected_definition);
+    let selected_case = literal.case_symbol.and_then(|selected| {
+        program.data_constructor_case(receiving, literal.type_symbol, selected)
+    });
     if literal.case_symbol.is_some() != selected_case.is_some()
         || literal.case_name.is_some() != selected_case.is_some()
     {
@@ -246,10 +249,9 @@ fn borrowed_data_literal_initializers(
     // of a case value. The shared typed selector retains applied field types;
     // declaration membership, not the literal's selected case, owns each path.
     for literal_field in program.expression_table.struct_fields(literal.fields) {
-        let Some(field) = validation::selected_construction_field(
-            program,
-            expression,
-            literal,
+        let Some(field) = program.data_constructor_field(
+            receiving,
+            literal.type_symbol,
             literal_field.field_symbol,
         ) else {
             return Vec::new();

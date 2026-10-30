@@ -28,21 +28,22 @@ impl StructuralJudge<'_> {
     /// A completed call's public coordinate observes current contents through
     /// its independently retained result suppliers. It is a logical post-state
     /// cell, not an invented executable scalar-read occurrence.
-    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retain_completed_result_reads(
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn stage_completed_result_reads(
         &mut self,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
         captured: &super::super::StructuralTerm,
-    ) {
+    ) -> Vec<super::super::normal_returns::PostCallStorage> {
         if !self.requires_value_preservation() {
-            return;
+            return Vec::new();
         }
         let Some(reference) =
             crate::machine_calls::calls::call_result_type(self.program, expression)
         else {
-            return;
+            return Vec::new();
         };
+        let mut staged = Vec::new();
         for observation in
             crate::scoped_call_result_observations(self.program, machine, state, expression)
         {
@@ -104,14 +105,43 @@ impl StructuralJudge<'_> {
                 geometry.result_type_reference,
                 value,
             );
-            let backing = self.freeze_scalar_read_backing(state, backing);
+            // This temporary cell only binds the checked public guarantee.
+            // It supplies no pre-write alias identity: the owning completion
+            // freezes the raw backing after applying this call's own effects.
+            staged.push(super::super::normal_returns::PostCallStorage {
+                coordinate: coordinate.clone(),
+                value: value.clone(),
+                backing: Some(backing.clone()),
+            });
             self.retain_storage_value(coordinate.clone(), value, false);
             if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
                 .iter_mut()
                 .find(|stored| stored.coordinate == coordinate)
             {
-                stored.backing = Some(backing);
+                stored.backing = Some(CapturedScalarReadBacking {
+                    dependencies: backing,
+                    identity: None,
+                });
             }
+        }
+        staged
+    }
+
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn install_post_call_storage(
+        &mut self,
+        state: &State,
+        storage: super::super::normal_returns::PostCallStorage,
+    ) {
+        let backing = storage
+            .backing
+            .map(|backing| self.freeze_scalar_read_backing(state, backing));
+        self.retain_storage_value(storage.coordinate.clone(), storage.value, false);
+        if let Some(backing) = backing
+            && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
+                .iter_mut()
+                .find(|stored| stored.coordinate == storage.coordinate)
+        {
+            stored.backing = Some(backing);
         }
     }
 
