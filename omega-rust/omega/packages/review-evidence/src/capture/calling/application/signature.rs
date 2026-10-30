@@ -324,8 +324,8 @@ fn project_with_binders(
                 .expression_table
                 .static_machine_application(local.application);
             let supplied = compilation
-                .expression_table
-                .static_machine_application_lifetimes(local.application);
+                .static_application_lifetimes_for_declaration(local.application, signature.symbol)
+                .map_err(rejected)?;
             if supplied.len() != signature.lifetime_parameters.len()
                 || supplied[ordinal].parameter != *name
             {

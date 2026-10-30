@@ -360,7 +360,8 @@ pub(crate) fn conformance_binding_is_exact(
     let lifetimes = program
         .expression_table
         .static_machine_application_lifetimes(binding_application);
-    let matches = lifetimes.len() == declaration.lifetime_parameters.len()
+    let matches = binding.lifetime_binding_declaration == declaration.symbol
+        && lifetimes.len() == declaration.lifetime_parameters.len()
         && lifetimes.len() == application.lifetime_arguments.len()
         && lifetimes
             .iter()

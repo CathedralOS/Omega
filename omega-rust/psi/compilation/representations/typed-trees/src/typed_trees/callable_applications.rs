@@ -215,6 +215,12 @@ enum AppliedCallableOwner {
         caller_operands: arena::HandleSpan<CallableSubstitution>,
         caller_lifetimes:
             arena::HandleSpan<crate::static_applications::StaticMachineLifetimeBinding>,
+        caller_lifetime_declaration: SymbolHandle,
+        caller_lifetime_owner: SymbolHandle,
+        provider_lifetime_declaration: SymbolHandle,
+        provider_lifetime_owner: SymbolHandle,
+        provider_lifetimes:
+            arena::HandleSpan<crate::static_applications::StaticMachineLifetimeBinding>,
     },
 }
 
@@ -501,6 +507,44 @@ impl TypedTrees {
                     origin: CallableLifetimeOrigin::Lexical,
                 })
                 .collect(),
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
+    /// Apply one retained call's region operands in their original supplying
+    /// scope, projecting receiving formals only through their exact declaration
+    /// correspondence. The copied carrier retains resolved region coordinates.
+    pub fn apply_static_application_type(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        let source = self
+            .expression_table
+            .static_machine_application(application);
+        let lifetimes = self
+            .static_application_lifetimes_for_declaration(application, declaration)?
+            .iter()
+            .map(|binding| {
+                let region = crate::type_identity::lifetime_parameter_identity(
+                    self,
+                    source.lexical_owner,
+                    binding.argument.as_str(),
+                )
+                .ok_or("static callable result region lost its supplying declaration")?;
+                Ok(CallableLifetimeBinding {
+                    parameter: binding.parameter.clone(),
+                    argument: binding.argument.clone(),
+                    region,
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        CallableApplication {
+            region_scope: declaration,
+            lifetimes,
             ..CallableApplication::default()
         }
         .type_reference(self, original)

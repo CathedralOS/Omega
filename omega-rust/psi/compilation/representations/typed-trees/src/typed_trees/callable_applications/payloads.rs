@@ -490,9 +490,17 @@ impl CallableApplication {
                                 },
                             )
                             .collect::<Vec<_>>();
+                        let declaration = program
+                            .expression_table
+                            .static_machine_application(application)
+                            .lifetime_binding_declaration;
                         program
                             .expression_table
-                            .set_static_machine_application_lifetimes(application, &lifetimes);
+                            .set_static_machine_application_lifetimes(
+                                application,
+                                declaration,
+                                &lifetimes,
+                            );
                         let mut arguments = program
                             .expression_table
                             .static_machine_application_arguments(application)

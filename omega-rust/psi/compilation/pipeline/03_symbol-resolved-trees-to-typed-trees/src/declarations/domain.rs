@@ -164,7 +164,7 @@ pub(crate) fn lower_cleanup_selection(
         lowerer
             .typed_trees
             .expression_table
-            .set_static_machine_application_lifetimes(application, &lifetimes);
+            .set_static_machine_application_lifetimes(application, selected.symbol, &lifetimes);
     }
     Ok(typed::domain::CleanupSelection {
         application,

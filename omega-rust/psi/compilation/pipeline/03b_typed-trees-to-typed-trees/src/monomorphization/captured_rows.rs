@@ -498,7 +498,7 @@ fn realize_capture(
                 .collect::<Vec<_>>();
             program
                 .expression_table
-                .set_static_machine_application_lifetimes(binding, &lifetimes);
+                .set_static_machine_application_lifetimes(binding, conformance.symbol, &lifetimes);
             program
                 .expression_table
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);

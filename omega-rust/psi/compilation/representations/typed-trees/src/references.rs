@@ -1255,6 +1255,15 @@ fn visit_static_machine_bindings_inner(
     let source = program
         .expression_table
         .static_machine_application(application);
+    if !program
+        .expression_table
+        .static_machine_application_lifetimes(application)
+        .is_empty()
+    {
+        // Region scopes are descriptive custody, never executable call edges.
+        retained.declaration_description_dependency(source.lifetime_binding_declaration);
+        retained.declaration_description_dependency(source.lexical_owner);
+    }
     for selection in program
         .product_input_selections
         .span_or_empty(source.input_selections)

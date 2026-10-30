@@ -1197,6 +1197,23 @@ fn validate_conformance_machine_selections(
                     .expression_table
                     .static_machine_application(view.provider);
                 provider_tuple_matches_source(program, original, view.provider)
+                    && program.applied_machine_callable_matches(
+                        invocation,
+                        ordinal,
+                        argument.symbol,
+                        parameter.symbol,
+                        program
+                            .expression_table
+                            .static_machine_application_bindings(view.provider),
+                        program
+                            .expression_table
+                            .static_machine_application_lifetimes(view.provider),
+                        required,
+                        &substitutions,
+                        program
+                            .expression_table
+                            .static_machine_application_lifetimes(invocation),
+                    )
                     && provider.registration_operation
                         == program
                             .machine_by_symbol(original.symbol)

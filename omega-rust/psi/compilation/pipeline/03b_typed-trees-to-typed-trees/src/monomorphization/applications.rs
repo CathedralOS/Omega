@@ -275,19 +275,27 @@ pub(super) fn retain_instance(
     // Preserve the representative source application's lexical region scope;
     // every other source edge still owns its separate admission. Roster-only
     // instances have no source call and retain their declaration context.
-    let (lexical_owner, lifetimes) = if candidate.binding_application.is_valid() {
-        let origin = source.unwrap_or(program);
-        let source_application = origin
-            .expression_table
-            .static_machine_application(candidate.binding_application);
-        let lifetimes = origin
-            .expression_table
-            .static_machine_application_lifetimes(candidate.binding_application)
-            .to_vec();
-        (source_application.lexical_owner, lifetimes)
-    } else {
-        (instance, Vec::new())
-    };
+    let (lexical_owner, lifetime_declaration, lifetimes) =
+        if candidate.binding_application.is_valid() {
+            let origin = source.unwrap_or(program);
+            let source_application = origin
+                .expression_table
+                .static_machine_application(candidate.binding_application);
+            let lifetimes = origin
+                .static_application_lifetimes_for_declaration(
+                    candidate.binding_application,
+                    candidate.template.template_symbol,
+                )
+                .map_err(|reason| vec![super::Diagnostic::error(reason)])?
+                .into_owned();
+            (
+                source_application.lexical_owner,
+                candidate.template.template_symbol,
+                lifetimes,
+            )
+        } else {
+            (instance, candidate.template.template_symbol, Vec::new())
+        };
     // Runtime callers share a carrier-specialized instance. No one caller's
     // subject belongs to that instance's static tuple.
     for binding in &mut bindings {
@@ -322,6 +330,6 @@ pub(super) fn retain_instance(
         .set_static_machine_application_bindings(application, &bindings);
     program
         .expression_table
-        .set_static_machine_application_lifetimes(application, &lifetimes);
+        .set_static_machine_application_lifetimes(application, lifetime_declaration, &lifetimes);
     Ok(application)
 }

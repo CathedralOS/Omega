@@ -2,9 +2,9 @@
 //! declared call results, propositions, equality and Equatable synthesis,
 //! exhaustiveness, fixed byte-array literals and qualification casts.
 
-mod capture_product_operands;
 pub(crate) mod build_selections;
 pub(crate) mod call_results;
+mod capture_product_operands;
 pub(crate) mod equality;
 pub(crate) mod equatable;
 pub(crate) mod exhaustiveness;

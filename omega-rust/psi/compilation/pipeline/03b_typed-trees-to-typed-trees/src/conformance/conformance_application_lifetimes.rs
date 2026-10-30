@@ -372,7 +372,11 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             }
             program
                 .expression_table
-                .set_static_machine_application_lifetimes(application, &lifetimes);
+                .set_static_machine_application_lifetimes(
+                    application,
+                    binding_declaration,
+                    &lifetimes,
+                );
         }
         match call.site {
             ElisionCallSite::Expression(handle) => {

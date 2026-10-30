@@ -285,7 +285,11 @@ impl ExpressionTable {
         });
         self.set_static_machine_application_bindings(copy, &bindings);
         self.set_static_machine_application_selected_machines(copy, &selected);
-        self.set_static_machine_application_lifetimes(copy, &lifetimes);
+        self.set_static_machine_application_lifetimes(
+            copy,
+            declaration.lifetime_binding_declaration,
+            &lifetimes,
+        );
         copy
     }
 

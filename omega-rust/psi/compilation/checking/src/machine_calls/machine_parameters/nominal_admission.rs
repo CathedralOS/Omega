@@ -172,24 +172,38 @@ pub(super) fn validate_nominal_machine_selection(
                 })
                 .collect::<Vec<_>>();
             retain_conformance_operands(program, application, &mut operands);
-            let lifetimes = if application.is_valid() {
-                program
-                    .expression_table
-                    .static_machine_application_lifetimes(application)
-            } else {
-                &[]
+            let receiving = program.symbols.get(parameter.symbol).parent;
+            let lifetimes = match program
+                .static_application_lifetimes_for_declaration(application, receiving)
+            {
+                Ok(lifetimes) => lifetimes,
+                Err(reason) => {
+                    operand_mismatch = Some(reason.to_owned());
+                    return false;
+                }
             };
             let lifetimes =
-                crate::machine_calls::static_bindings::lifetime_identity_rows(lifetimes);
+                crate::machine_calls::static_bindings::lifetime_identity_rows(&lifetimes);
             let provider_lifetimes = provider_application
                 .map(|handle| {
-                    crate::machine_calls::static_bindings::lifetime_identity_rows(
-                        program
-                            .expression_table
-                            .static_machine_application_lifetimes(handle),
-                    )
+                    let provider = program.expression_table.static_machine_application(handle);
+                    program
+                        .static_application_lifetimes_for_declaration(
+                            handle,
+                            provider.binding_declaration,
+                        )
+                        .map(|bindings| {
+                            crate::machine_calls::static_bindings::lifetime_identity_rows(&bindings)
+                        })
                 })
-                .unwrap_or_default();
+                .transpose();
+            let provider_lifetimes = match provider_lifetimes {
+                Ok(lifetimes) => lifetimes.unwrap_or_default(),
+                Err(reason) => {
+                    operand_mismatch = Some(reason.to_owned());
+                    return false;
+                }
+            };
             let provider_scopes = provider_application
                 .map(|handle| {
                     let provider = program.expression_table.static_machine_application(handle);
@@ -286,15 +300,30 @@ pub(super) fn validate_nominal_machine_selection(
             .expression_table
             .static_machine_application(application)
             .lexical_owner;
-        let provider_lifetimes = crate::machine_calls::static_bindings::lifetime_identity_rows(
-            program
-                .expression_table
-                .static_machine_application_lifetimes(
-                    provider_application.expect("applied provider tuple"),
-                ),
-        );
+        let provider_lifetime_rows = match program.static_application_lifetimes_for_declaration(
+            provider_application.expect("applied provider tuple"),
+            provider.binding_declaration,
+        ) {
+            Ok(lifetimes) => lifetimes,
+            Err(reason) => {
+                operand_mismatch = Some(reason.to_owned());
+                return false;
+            }
+        };
+        let provider_lifetimes =
+            crate::machine_calls::static_bindings::lifetime_identity_rows(&provider_lifetime_rows);
+        let caller_lifetimes = match program.static_application_lifetimes_for_declaration(
+            application,
+            program.symbols.get(parameter.symbol).parent,
+        ) {
+            Ok(lifetimes) => lifetimes,
+            Err(reason) => {
+                operand_mismatch = Some(reason.to_owned());
+                return false;
+            }
+        };
         let caller_lifetimes =
-            crate::machine_calls::static_bindings::lifetime_identity_rows(applied.caller_lifetimes);
+            crate::machine_calls::static_bindings::lifetime_identity_rows(&caller_lifetimes);
         let provider_scope = AppliedTypeIdentityScope {
             declaration: provider.binding_declaration,
             arguments: provider_operands

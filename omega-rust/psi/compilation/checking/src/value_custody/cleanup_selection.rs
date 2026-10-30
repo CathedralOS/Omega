@@ -162,7 +162,8 @@ pub(super) fn same_application(
     let right_lifetimes = program
         .expression_table
         .static_machine_application_lifetimes(right.application);
-    left_lifetimes.len() == right_lifetimes.len()
+    left_application.lifetime_binding_declaration == right_application.lifetime_binding_declaration
+        && left_lifetimes.len() == right_lifetimes.len()
         && left_lifetimes
             .iter()
             .zip(right_lifetimes)

@@ -434,6 +434,7 @@ fn validate_callable_regions(
     };
     let caller_substitutions;
     let provider_substitutions;
+    let provider_lifetimes;
     if let Some(applied) = applied {
         // Applied carriers serve full formation. Region proof instead uses
         // the source declarations and separately scoped simultaneous operands.
@@ -481,7 +482,7 @@ fn validate_callable_regions(
                 declaration: program
                     .expression_table
                     .static_machine_application(applied.invocation)
-                    .binding_declaration,
+                    .lifetime_binding_declaration,
                 bindings: applied.caller_lifetimes,
             }),
             argument_owner: program
@@ -489,6 +490,9 @@ fn validate_callable_regions(
                 .static_machine_application(applied.invocation)
                 .lexical_owner,
         };
+        provider_lifetimes = program
+            .static_application_lifetimes_for_declaration(applied.provider, machine.symbol)
+            .map_err(str::to_owned)?;
         selected = CallableBorrowContract {
             lexical_owner: machine.symbol,
             lifetime_parameters: &machine.lifetime_parameters,
@@ -500,9 +504,7 @@ fn validate_callable_regions(
             binders: &binders,
             lifetime_application: Some(CallableLifetimeApplication::Invocation {
                 declaration: machine.symbol,
-                bindings: program
-                    .expression_table
-                    .static_machine_application_lifetimes(applied.provider),
+                bindings: &provider_lifetimes,
             }),
             argument_owner: applied.lexical_owner,
         };
