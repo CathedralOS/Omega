@@ -75,17 +75,8 @@ pub struct ProviderPlanProvenance {
     pub named_application: Option<checked_trees::provider_declarations::NamedProviderApplication>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
     pub row_realizations: Vec<ProviderRowRealization>,
-    /// Exact pre-resolution target-scoped declaration custody for catalog-
-    /// inferred rows. `None` is mandatory for checked and Build-native rows.
-    pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>,
-    /// Compiler-catalog custody is distinct from authored target-machine origins.
+    /// Compiler-catalog custody remains distinct from authored ordinary bodies.
     pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedTargetMachineOrigin {
-    pub machine: symbols::SymbolHandle,
-    pub target: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,27 +86,24 @@ pub struct DerivedProviderPlan {
 }
 
 /// One derivation of source-owned candidate intent. The caller lends exact
-/// target declaration origins and admitted Build-native rows; this operation
+/// admitted Build-native rows; this operation
 /// neither evaluates source nor reconstructs a forwarding machine.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,
     calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
-    target_machine_origins: &'a [SelectedTargetMachineOrigin],
 }
 impl<'a> ProviderPlanDerivation<'a> {
     pub const fn new(
         context: ProviderPlanningContext<'a>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
-        target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Self {
         Self {
             context,
             calling_plans,
             selected_target,
-            target_machine_origins,
         }
     }
 }
@@ -129,6 +117,5 @@ pub fn derive_satisfies_plans(
         derivation.context,
         derivation.calling_plans,
         derivation.selected_target,
-        derivation.target_machine_origins,
     )
 }

@@ -213,9 +213,8 @@ fn mint_toolchain_settled_plan(
 /// Target defaults and declaration origins prepared before provider planning.
 /// Build admission resolves its retained declarations to these exact typed
 /// identities; settlement consumes them without depending on source filtering.
-pub struct SettledTargetMachineDeclarations {
+pub struct SettledProviderDefaults {
     pub provider_defaults: Vec<ProviderSelection>,
-    pub origins: Vec<crate::SelectedTargetMachineOrigin>,
 }
 
 /// Final typed provider choices and their evidence. The selected plan facts
@@ -612,7 +611,7 @@ fn demanded_requirement_coordinates(
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
-    settled_target_machines: SettledTargetMachineDeclarations,
+    settled_provider_defaults: SettledProviderDefaults,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
@@ -641,7 +640,7 @@ pub fn settle_checked_providers(
             context,
             &boundary_calling_plan_realizations,
             planning_target,
-            settled_target_machines,
+            settled_provider_defaults,
         )?);
     let target_provider_defaults = authored_providers.defaults();
     let mut derived_provider_plans = authored_providers.candidates().to_vec();
@@ -791,7 +790,7 @@ pub fn settle_checked_providers(
                         crate::ProviderRowRealization::Toolchain;
                         minted.plan.rows.len()
                     ],
-                    row_target_machine_origins: vec![None; minted.plan.rows.len()],
+
                     row_placed_accessors: vec![None; minted.plan.rows.len()],
                 },
                 selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,

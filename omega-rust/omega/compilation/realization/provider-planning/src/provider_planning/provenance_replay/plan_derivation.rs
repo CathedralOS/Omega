@@ -19,8 +19,7 @@ use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_satisfied_requirement_identity, inferred_compiler_leaf_binding,
 };
 use crate::provider_planning::provenance_replay::{
-    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    SelectedTargetMachineOrigin, satisfies_plan_name,
+    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration, satisfies_plan_name,
 };
 use crate::provider_planning::source_provider_selections::{
     provider_type_package_identity, provider_type_symbol,
@@ -32,7 +31,6 @@ pub(crate) fn derive_provider_plans(
     context: ProviderPlanningContext<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
@@ -73,13 +71,9 @@ pub(crate) fn derive_provider_plans(
             {
                 continue;
             }
-            let Some((row_binding, target_machine_origin)) = checked_or_catalog_binding(
-                typed,
-                machine,
-                clause,
-                selected_target,
-                target_machine_origins,
-            ) else {
+            let Some(row_binding) =
+                checked_or_catalog_binding(typed, machine, clause, selected_target)
+            else {
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
@@ -133,24 +127,12 @@ pub(crate) fn derive_provider_plans(
                     .provenance
                     .row_realizations
                     .push(super::ProviderRowRealization::Authored(machine.symbol));
-                plans[position]
-                    .provenance
-                    .row_target_machine_origins
-                    .push(target_machine_origin.clone());
                 plans[position].provenance.row_placed_accessors.push(None);
             }
         }
     }
-    plans.extend(derive_boundary_operator_plans(
-        context,
-        selected_target,
-        target_machine_origins,
-    ));
-    plans.extend(derive_top_level_requirement_plans(
-        context,
-        selected_target,
-        target_machine_origins,
-    ));
+    plans.extend(derive_boundary_operator_plans(context, selected_target));
+    plans.extend(derive_top_level_requirement_plans(context, selected_target));
     let named =
         super::named_provider_plans::derive(context, calling_plans, selected_target, &plans);
     plans.extend(named);
@@ -171,7 +153,6 @@ pub(crate) fn derive_provider_plans(
 fn derive_top_level_requirement_plans(
     context: ProviderPlanningContext<'_>,
     selected_target: Option<&str>,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Vec<DerivedProviderPlan> {
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
@@ -229,13 +210,8 @@ fn derive_top_level_requirement_plans(
             {
                 continue;
             }
-            let Some((binding, target_machine_origin)) = checked_or_catalog_binding(
-                typed,
-                machine,
-                clause,
-                selected_target,
-                target_machine_origins,
-            ) else {
+            let Some(binding) = checked_or_catalog_binding(typed, machine, clause, selected_target)
+            else {
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
@@ -273,10 +249,6 @@ fn derive_top_level_requirement_plans(
                 .provenance
                 .row_realizations
                 .push(super::ProviderRowRealization::Authored(machine.symbol));
-            plans[position]
-                .provenance
-                .row_target_machine_origins
-                .push(target_machine_origin.clone());
             plans[position].provenance.row_placed_accessors.push(None);
         }
     }
@@ -310,7 +282,6 @@ fn provider_plan_schema_target(
 fn derive_boundary_operator_plans(
     context: ProviderPlanningContext<'_>,
     selected_target: Option<&str>,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Vec<DerivedProviderPlan> {
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
@@ -338,13 +309,8 @@ fn derive_boundary_operator_plans(
             if typed.machine(operator.symbol).is_some() {
                 continue;
             }
-            let Some((binding, target_machine_origin)) = checked_or_catalog_binding(
-                typed,
-                machine,
-                clause,
-                selected_target,
-                target_machine_origins,
-            ) else {
+            let Some(binding) = checked_or_catalog_binding(typed, machine, clause, selected_target)
+            else {
                 continue;
             };
             let Some(schema) = crate::service_schema::from_typed_operator(context, operator) else {
@@ -396,10 +362,6 @@ fn derive_boundary_operator_plans(
                 .provenance
                 .row_realizations
                 .push(super::ProviderRowRealization::Authored(machine.symbol));
-            plans[position]
-                .provenance
-                .row_target_machine_origins
-                .push(target_machine_origin.clone());
             plans[position].provenance.row_placed_accessors.push(None);
         }
     }
@@ -460,24 +422,17 @@ fn checked_or_catalog_binding(
     machine: &checked_trees::typed_trees::machine::Machine,
     clause: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Option<(DraftRowBinding, Option<SelectedTargetMachineOrigin>)> {
+) -> Option<DraftRowBinding> {
     match machine.supply_mode {
         language_semantics::MachineSupplyMode::CheckedBody if machine.body_is_present => {
-            Some((checked_adapter_draft(typed, machine), None))
+            Some(checked_adapter_draft(typed, machine))
         }
         language_semantics::MachineSupplyMode::Boundary
         | language_semantics::MachineSupplyMode::CompilerPrimitive
             if !machine.body_is_present =>
         {
-            let (binding, origin) = inferred_compiler_leaf_binding(
-                typed,
-                machine,
-                clause,
-                selected_target,
-                target_machine_origins,
-            )?;
-            Some((DraftRowBinding::Bound(binding), origin))
+            let binding = inferred_compiler_leaf_binding(typed, machine, clause, selected_target)?;
+            Some(DraftRowBinding::Bound(binding))
         }
         _ => None,
     }
@@ -549,7 +504,7 @@ fn derived_plan_position(
                     named_application: None,
                     row_requirements: Vec::new(),
                     row_realizations: Vec::new(),
-                    row_target_machine_origins: Vec::new(),
+
                     row_placed_accessors: Vec::new(),
                 },
             });
@@ -629,7 +584,6 @@ fn derive_placed_accessor_plans(
                 provenance
                     .row_realizations
                     .push(super::ProviderRowRealization::Authored(machine.symbol));
-                provenance.row_target_machine_origins.push(None);
                 provenance.row_placed_accessors.push(Some(accessor));
             }
         }

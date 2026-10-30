@@ -5,7 +5,7 @@
 //! Product provider selection remains immutable here; moving the remaining
 //! provider settlement behind Terminal Psi is separate work.
 
-use crate::SettledTargetMachineDeclarations;
+use crate::SettledProviderDefaults;
 use checked_trees::typed_trees::TypedTrees;
 use target::TargetProfile;
 
@@ -20,10 +20,9 @@ pub use provider_publication::{
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(
-    context: crate::ProviderPlanningContext<'_>,
     retained: &[crate::TargetProviderDefaults],
     target: TargetProfile,
-) -> SettledTargetMachineDeclarations {
+) -> SettledProviderDefaults {
     let matches_target = |name: &str| {
         TargetProfile::from_canonical_target_name(name).is_ok_and(|resolved| resolved == target)
     };
@@ -32,26 +31,7 @@ pub fn settle_provider_defaults(
         .filter(|row| row.target.as_ref().is_none_or(|name| matches_target(name)))
         .flat_map(|row| row.selections.iter().cloned())
         .collect();
-    let origins = context
-        .typed
-        .machines()
-        .iter()
-        .filter(|machine| {
-            context.contains(machine.symbol)
-                && (context.scope == source::DependencyScope::Product || machine.target.is_none())
-        })
-        .filter_map(|machine| {
-            let authored = machine.authored_target.as_ref()?;
-            matches_target(authored.as_str()).then(|| crate::SelectedTargetMachineOrigin {
-                machine: machine.symbol,
-                target: authored.as_str().to_owned(),
-            })
-        })
-        .collect();
-    SettledTargetMachineDeclarations {
-        provider_defaults,
-        origins,
-    }
+    SettledProviderDefaults { provider_defaults }
 }
 
 /// A call names the callee's entry state, a named transition one of its own

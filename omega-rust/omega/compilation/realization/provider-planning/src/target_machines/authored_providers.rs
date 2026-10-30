@@ -25,13 +25,12 @@ impl AuthoredTargetProviders {
         context: ProviderPlanningContext<'_>,
         calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
         target: Option<target::TargetProfile>,
-        declarations: crate::SettledTargetMachineDeclarations,
+        declarations: crate::SettledProviderDefaults,
     ) -> Result<Self, Vec<Diagnostic>> {
         let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::new(
             context,
             calling_plans,
             target.map(target::TargetProfile::target_name),
-            &declarations.origins,
         ))?;
         Ok(Self {
             target,
@@ -73,7 +72,7 @@ impl TargetProviderInventoryRequest<'_> {
         if retained.target == Some(profile) {
             return Ok(Arc::clone(retained));
         }
-        let declarations = super::settle_provider_defaults(self.context, self.defaults, profile);
+        let declarations = super::settle_provider_defaults(self.defaults, profile);
         AuthoredTargetProviders::derive(
             self.context,
             &self.settlement.boundary_calling_plan_realizations,

@@ -47,7 +47,7 @@ pub mod service_schema;
 mod source_guards;
 pub mod target_machines;
 
-pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
+pub(crate) use provider_settlement::SettledProviderDefaults;
 pub use provider_settlement::{
     CheckedProviderSelection, ProviderSettlement, settle_checked_providers,
     verify_selected_compositions_are_realized,
@@ -74,7 +74,7 @@ pub use provider_planning::{
     selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use provider_planning::{
-    DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
+    DerivedProviderPlan, ProviderPlanProvenance,
     selected_provider_plan_facts_with_independent_components,
 };
 pub(crate) use provider_planning::{

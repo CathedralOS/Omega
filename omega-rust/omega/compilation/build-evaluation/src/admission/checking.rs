@@ -96,7 +96,6 @@ pub(crate) fn prepare_checked_build(
         );
     }
     let declarations = provider_planning::target_machines::settle_provider_defaults(
-        context,
         &defaults,
         execution_profile.unwrap_or_else(target::TargetProfile::host),
     );
@@ -105,7 +104,6 @@ pub(crate) fn prepare_checked_build(
             context,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
-            &declarations.origins,
         ))?;
     let (selected_provider_plan_facts, provenance) =
         if candidates.is_empty() && declarations.provider_defaults.is_empty() {

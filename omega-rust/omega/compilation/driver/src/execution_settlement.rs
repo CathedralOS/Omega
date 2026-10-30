@@ -449,8 +449,7 @@ fn prepare_target_provider_selection(
             package_inputs,
         )?;
     }
-    let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+    let settled_provider_defaults = provider_planning::target_machines::settle_provider_defaults(
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
@@ -458,7 +457,7 @@ fn prepare_target_provider_selection(
     let application_roots = product_application_roots(source, profile)?;
     provider_planning::settle_checked_providers(
         &source.program,
-        settled_target_machines,
+        settled_provider_defaults,
         selected_target_profile,
         package_inputs,
         &build_config.provider_selections,

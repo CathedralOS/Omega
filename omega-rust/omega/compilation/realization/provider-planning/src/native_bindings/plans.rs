@@ -126,7 +126,7 @@ pub(crate) fn derive(
                         named_application: None,
                         row_requirements: Vec::new(),
                         row_realizations: Vec::new(),
-                        row_target_machine_origins: Vec::new(),
+
                         row_placed_accessors: Vec::new(),
                     },
                 });
@@ -189,7 +189,6 @@ pub(crate) fn derive(
                     },
                 },
             )));
-        candidate.provenance.row_target_machine_origins.push(None);
         candidate.provenance.row_placed_accessors.push(None);
     }
     for candidate in &plans {

@@ -32,9 +32,7 @@ pub use effects::{
     CompilerPrimitiveIntegerComparisonOperation,
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
-pub(crate) use provenance_replay::{
-    DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
-};
+pub(crate) use provenance_replay::{DerivedProviderPlan, ProviderPlanProvenance};
 pub use provenance_replay::{
     ProviderPlanDerivation, ProviderRowRealization, ProviderSchemaDeclaration,
     derive_satisfies_plans, exact_checked_adapter, project_checked_provider_instances,

@@ -280,54 +280,10 @@ pub(super) fn retain_instance(
         let source_application = origin
             .expression_table
             .static_machine_application(candidate.binding_application);
-        let mut lifetimes = origin
+        let lifetimes = origin
             .expression_table
             .static_machine_application_lifetimes(candidate.binding_application)
             .to_vec();
-        let source_declaration = source_application.binding_declaration;
-        let target_declaration = candidate.template.template_symbol;
-        if source_declaration != target_declaration
-            && origin.target_machine_families.iter().any(|family| {
-                let contains = |symbol| {
-                    family.canonical == symbol
-                        || family.members.iter().any(|member| member.machine == symbol)
-                };
-                contains(source_declaration) && contains(target_declaration)
-            })
-        {
-            let source_machine = origin
-                .machine_by_symbol(source_declaration)
-                .ok_or_else(|| {
-                    vec![super::Diagnostic::error(
-                        "family lifetime tuple lost its source declaration",
-                    )]
-                })?;
-            let target_machine = origin
-                .machine_by_symbol(target_declaration)
-                .ok_or_else(|| {
-                    vec![super::Diagnostic::error(
-                        "family lifetime tuple lost its target declaration",
-                    )]
-                })?;
-            if source_machine.lifetime_parameters.len() != target_machine.lifetime_parameters.len()
-            {
-                return Err(vec![super::Diagnostic::error(
-                    "family lifetime telescopes have incompatible positions",
-                )]);
-            }
-            for binding in &mut lifetimes {
-                let ordinal = source_machine
-                    .lifetime_parameters
-                    .iter()
-                    .position(|parameter| parameter == &binding.parameter)
-                    .ok_or_else(|| {
-                        vec![super::Diagnostic::error(
-                            "family lifetime tuple names no source binder",
-                        )]
-                    })?;
-                binding.parameter = target_machine.lifetime_parameters[ordinal].clone();
-            }
-        }
         (source_application.lexical_owner, lifetimes)
     } else {
         (instance, Vec::new())

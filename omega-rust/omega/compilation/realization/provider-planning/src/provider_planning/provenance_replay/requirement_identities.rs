@@ -1,7 +1,6 @@
 //! Identities of satisfied requirements, external bindings, hosted catalog
 //! leaves and provider boundary arguments.
 
-use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
 use crate::provider_planning::{ProviderBinding, TypedTrees};
 use checked_trees::typed_trees::{signature::StateSignature, trait_definition::TraitDefinition};
 use target::HostedIntrinsicBundle;
@@ -41,8 +40,7 @@ pub(crate) fn inferred_compiler_leaf_binding(
     machine: &checked_trees::typed_trees::machine::Machine,
     conformance: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
-    _target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Option<(ProviderBinding, Option<SelectedTargetMachineOrigin>)> {
+) -> Option<ProviderBinding> {
     let numeric =
         typed.sealed_numeric_realization_descriptor(machine.symbol, conformance.requirement_symbol);
     if let Some(catalogue) = numeric {
@@ -52,12 +50,9 @@ pub(crate) fn inferred_compiler_leaf_binding(
         if !catalogue.instruction_set.supports(target) {
             return None;
         }
-        return Some((
-            ProviderBinding::CompilerIntrinsic {
-                machine: typed.machine_callable_identity_text(machine)?,
-            },
-            None,
-        ));
+        return Some(ProviderBinding::CompilerIntrinsic {
+            machine: typed.machine_callable_identity_text(machine)?,
+        });
     }
     if typed
         .sealed_core_entry_realization(machine.symbol, conformance.requirement_symbol)
@@ -66,12 +61,9 @@ pub(crate) fn inferred_compiler_leaf_binding(
         if selected_target != Some("uefi_x86_64") {
             return None;
         }
-        return Some((
-            ProviderBinding::CompilerIntrinsic {
-                machine: typed.machine_callable_identity_text(machine)?,
-            },
-            None,
-        ));
+        return Some(ProviderBinding::CompilerIntrinsic {
+            machine: typed.machine_callable_identity_text(machine)?,
+        });
     }
     if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerPrimitive {
         return None;
@@ -84,12 +76,9 @@ pub(crate) fn inferred_compiler_leaf_binding(
         {
             return None;
         }
-        return Some((
-            ProviderBinding::CompilerIntrinsic {
-                machine: typed.machine_callable_identity_text(machine)?,
-            },
-            None,
-        ));
+        return Some(ProviderBinding::CompilerIntrinsic {
+            machine: typed.machine_callable_identity_text(machine)?,
+        });
     }
     None
 }
