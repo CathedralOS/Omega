@@ -76,3 +76,20 @@ source retain their existing provenance, move, and retained-custody rejections.
 A diagnostic probe that ignores a borrowed input and independently issues fresh
 outputs still reaches the existing conservative borrowed-source refusal; this
 change does not establish that separate capability.
+
+Membership written in `requires` contributes the same exact subject as a typed
+qualification. Nested owned fields count as consumed content; a reference field
+still describes borrowed storage. An unresolved owned type parameter or an
+unrepresented indexed requirement leaves the entry frontier open. That prevents
+an empty-frontier inference without discarding sources already known from a
+qualified array type. The indexed preservation control is Source-only; it does
+not count as an additional runtime place.
+
+The repaired producer `767215d6ee2d6f734d20c963f1919eae9565faf7` passes all nine
+paired executions and their nine intended reject twins. Focused corpus evidence
+covers 33 Source fixtures, 12 ARM64 paired fixtures, one x86-64 paired target
+fixture, and five installations of the same Terminal artifact. A comparison of
+114 existing content/provider fixtures against retained `9d0ba50` observations
+has no semantic moves. The historical baseline retains that original producer
+identity; it is not relabeled as the fixed `a7c028d` base. These results discharge
+this row and its target-body migration, while the parent outcomes remain open.
