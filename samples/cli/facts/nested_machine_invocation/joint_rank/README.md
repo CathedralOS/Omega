@@ -204,3 +204,8 @@ aliases, ordered descriptor replacement and snapshot controls.
 carry the same seven/empty counter fact through two independently captured stored
 references in all nine places, with common-field loans, pointer restoration and
 stale-result controls.
+
+[Copied conditional case payloads](local/case_value/copied_payload/README.md)
+carry the same rank through all nine places while later arguments replace the
+original carrier. The row retains the complete conditional bound and shared
+reference inventory, and checks intrinsic snapshot death before backing cleanup.
