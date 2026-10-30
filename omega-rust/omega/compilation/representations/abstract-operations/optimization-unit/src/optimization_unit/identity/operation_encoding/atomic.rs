@@ -5,7 +5,7 @@
 //! either changes; legality remains the event's own recheck.
 
 use crate::optimization_unit::identity::carrier_encoding::{
-    encode_abstract_result, encode_structural_path_segment,
+    encode_abstract_result, encode_optional_id, encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::structural_encoding::encode_structural_operation_result;
 
@@ -33,13 +33,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     use abstract_operations::AbstractAtomicEvent as E;
     bytes.u8(72);
     bytes.id(*psi_operation);
-    match resident_obligation {
-        Some(obligation) => {
-            bytes.u8(1);
-            bytes.id(*obligation);
-        }
-        None => bytes.u8(0),
-    }
+    encode_optional_id(bytes, resident_obligation.as_ref());
     match event {
         E::Load {
             location,
