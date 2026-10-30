@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
-    binds_catalog_provenance, declaration_mut, named_view, produced_effects, scalar_abi_cases,
-    validate_effects,
+    binds_catalog_provenance, declaration_mut, flags_view, named_view, produced_effects,
+    scalar_abi_cases, validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -156,13 +156,7 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
 
         binds_catalog_provenance(&catalog, case, &environment, keys);
 
-        let flags = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "branch matrix names a condition-codes view",
-        );
+        let flags = flags_view(model, case);
         let program_counter = named_view(
             model,
             case.target,
@@ -281,13 +275,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
         let catalog = produced_effects(case, environment.constraints());
         let stack_pointer =
             named_view(model, case.target, "rsp", "sp", "target names no such view");
-        let flags = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "target names no such view",
-        );
+        let flags = flags_view(model, case);
         let program_counter =
             named_view(model, case.target, "rip", "pc", "target names no such view");
         for (key, semantic) in selected_branch_rules(&environment) {

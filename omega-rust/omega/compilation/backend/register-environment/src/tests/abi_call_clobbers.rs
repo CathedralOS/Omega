@@ -21,7 +21,7 @@ use isa_x86_64::{
 };
 use register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey, RegisterUnitId,
-    ValidatedRegisterConstraintCatalog,
+    RegisterView, ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
@@ -237,6 +237,17 @@ fn produced_effects(
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
         Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
     }
+}
+
+/// The condition-codes view the ABI matrix names for this target.
+fn flags_view<'m>(model: &'m PhysicalRegisterModel, case: ScalarAbiCase) -> &'m RegisterView {
+    named_view(
+        model,
+        case.target,
+        "rflags",
+        "nzcv",
+        "the ABI matrix names a flags view",
+    )
 }
 
 /// The produced catalog names this exact target, this validated constraint

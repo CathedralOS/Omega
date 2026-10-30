@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_storage_free, baseline_target_register_environment, binds_catalog_provenance,
-    declaration_mut, named_view, produced_effects, scalar_abi_cases, units_for_names,
+    declaration_mut, flags_view, named_view, produced_effects, scalar_abi_cases, units_for_names,
     validate_effects,
 };
 use register_model::RegisterOperandAccess;
@@ -700,13 +700,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
 
         binds_catalog_provenance(&catalog, case, &environment, keys);
 
-        let flags = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "arithmetic matrix names a condition-codes view",
-        );
+        let flags = flags_view(model, case);
         let integer_class = model.view_named(case.arguments[0]).unwrap().class;
         let float_class = model.view_named(case.float_result).unwrap().class;
         // The ABI leaves the condition codes volatile on every pair: an
@@ -879,13 +873,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
         let catalog = produced_effects(case, environment.constraints());
         let stack_pointer =
             named_view(model, case.target, "rsp", "sp", "target names no such view");
-        let flags = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "target names no such view",
-        );
+        let flags = flags_view(model, case);
         for (key, semantic) in selected_arithmetic_rules(&environment) {
             let contract = arithmetic_contract(semantic, case.target.architecture);
             macro_rules! reject_encoded {
