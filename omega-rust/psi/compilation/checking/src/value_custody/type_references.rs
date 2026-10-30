@@ -82,6 +82,7 @@ use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// The declaration whose lexical binders own a static call's type arguments.
@@ -1054,6 +1055,20 @@ pub(crate) fn type_references_match(
     }
 
     program.normalized_type_identity(actual) == program.normalized_type_identity(required)
+}
+
+/// The ordinary identity of `type_reference` under one-at-a-time
+/// `substitutions`. The derivation stays in the typed program: callers that
+/// compare two identities still ask for each operand separately.
+pub(crate) fn substituted_identity(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> typed_trees::type_identity::NormalizedTypeIdentity {
+    program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(type_reference)
+    })
 }
 
 pub(crate) fn type_reference_label(

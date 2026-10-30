@@ -92,6 +92,7 @@ pub(crate) use reference_values::{
 // The declared borrow a reference type spells is a place query; the expression
 // module's consumers read it through this re-export.
 pub(crate) use crate::value_custody::places::declared_reference_access;
+pub(crate) use crate::value_custody::type_references::substituted_identity;
 pub(crate) use result_type::declaration_expression_result_type_reference;
 pub(crate) use result_type::domain_expression_result_type_reference;
 pub(crate) use result_type::{
@@ -338,15 +339,13 @@ fn argument_matches_type_reference_using(
                     ..
                 } = program.type_reference_table.type_reference(actual)
             {
-                return program.type_identity(TypeIdentityRequest {
-                    substitutions: &substitutions,
-                    ..TypeIdentityRequest::ordinary(*actual_referee)
-                }) == program.type_identity_with_simultaneous_substitutions(
-                    TypeIdentityRequest {
-                        substitutions: required_substitutions,
-                        ..TypeIdentityRequest::ordinary(*referee)
-                    },
-                );
+                return substituted_identity(program, *actual_referee, &substitutions)
+                    == program.type_identity_with_simultaneous_substitutions(
+                        TypeIdentityRequest {
+                            substitutions: required_substitutions,
+                            ..TypeIdentityRequest::ordinary(*referee)
+                        },
+                    );
             }
             return correspondence(
                 program,
@@ -488,10 +487,8 @@ fn argument_matches_type_reference_using(
         // A producer's complete type establishes correspondence independently
         // of the expression's arrangement. In particular an atomic observation
         // delivers its resident value, not the dedicated cell or its receiver.
-        let delivered_identity = program.type_identity(TypeIdentityRequest {
-            substitutions: &actual.substitutions,
-            ..TypeIdentityRequest::ordinary(actual.reference)
-        });
+        let delivered_identity =
+            substituted_identity(program, actual.reference, &actual.substitutions);
         if delivered_identity.is_valid()
             && delivered_identity
                 == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
@@ -587,19 +584,18 @@ fn argument_matches_type_reference_using(
             let actual = program
                 .type_reference_table
                 .unconstrained_type_reference(actual);
-            program.type_identity(TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..TypeIdentityRequest::ordinary(actual)
-            }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-                substitutions: required_substitutions,
-                ..TypeIdentityRequest::ordinary(type_reference)
-            }) || reference_values::fixed_array_binds_open_length(
-                program,
-                actual,
-                type_reference,
-                &substitutions,
-                required_substitutions,
-            )
+            substituted_identity(program, actual, &substitutions)
+                == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                    substitutions: required_substitutions,
+                    ..TypeIdentityRequest::ordinary(type_reference)
+                })
+                || reference_values::fixed_array_binds_open_length(
+                    program,
+                    actual,
+                    type_reference,
+                    &substitutions,
+                    required_substitutions,
+                )
         }
         TypeReferenceNode::Slice { element_type } => {
             // A string literal is a byte sequence, so it satisfies a `[u8]` slice
@@ -652,15 +648,13 @@ fn argument_matches_type_reference_using(
                     // syntax cannot authorize a different width or format;
                     // access, ordering and destination predicates retain
                     // their independent checking obligations.
-                    return program.type_identity(TypeIdentityRequest {
-                        substitutions: &actual.substitutions,
-                        ..TypeIdentityRequest::ordinary(actual.reference)
-                    }) == program.type_identity_with_simultaneous_substitutions(
-                        TypeIdentityRequest {
-                            substitutions: required_substitutions,
-                            ..TypeIdentityRequest::ordinary(type_reference)
-                        },
-                    );
+                    return substituted_identity(program, actual.reference, &actual.substitutions)
+                        == program.type_identity_with_simultaneous_substitutions(
+                            TypeIdentityRequest {
+                                substitutions: required_substitutions,
+                                ..TypeIdentityRequest::ordinary(type_reference)
+                            },
+                        );
                 }
                 if crate::value_custody::literals::land_anonymous_integer_expression(
                     program,
