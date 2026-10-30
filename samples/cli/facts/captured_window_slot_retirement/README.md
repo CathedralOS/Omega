@@ -64,13 +64,17 @@ provider rows. Distinct architecture tags make wrong provider selection observab
 at runtime without exporting private implementation guarantees. Every positive
 binds the four required hosted targets; this place also binds macOS x86-64.
 
-Fresh optimized producer `4266cde1867088c2498660aeef6405715cab856b`
+Fresh optimized producer `04f5793fae624639ead022ce6fe4b8ec7b308236`
 ran the nine original positives and seven composition positives with native 0
 and Terminal 0 on macOS ARM64. The nine original twins and six composition
-controls reject their authored obligations. Pinned corpus capture records 31
-Source outcomes, 17 ARM64 native/Terminal agreements (including an existing
-reborrow-extent audit repair), and the target-body agreement on macOS x86-64.
+controls reject their authored obligations. Integrated corpus capture records
+35 Source outcomes (the fact's 31 plus four image-retention controls), 19 ARM64
+native/Terminal agreements (the fact's 16, the existing reborrow-extent repair,
+and two image-retention programs), and the target-body agreement on macOS x86-64.
 The target-body Terminal container is identical across both native realizations;
-all five declared target installations exit 0. A Terminal positive exits 0 and
+all five declared target installations exit 0. Positive immutable-image
+profiles are authenticated before activation-relative descriptor lookup; the
+two image-retention programs and their two reject controls preserve that
+incoming-main behavior alongside exact window custody. A Terminal positive exits 0 and
 two wrong-provider counterfactuals produce typed Trap. Windows/Linux native
 execution and the wider borrowed-storage restoration acceptance remain open.
