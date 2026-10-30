@@ -1,13 +1,15 @@
 //! Physical coverage of established scalar and fragmented storage.
 //!
 //! This inventory permits observation only into unrestricted non-atomic bits.
-//! It carries no value predicate, writable restoration, or access authority.
+//! It carries no value predicate or access authority. Each implication checks
+//! target value validity independently; mutable views require both directions.
 
-use super::MutableRecordRepresentation;
+use super::{MutableRecordLeaf, MutableRecordRepresentation};
 use std::ops::Range;
 
 pub(super) struct InitializedStorageBits {
     ranges: Vec<Range<usize>>,
+    limit: usize,
 }
 
 impl InitializedStorageBits {
@@ -26,31 +28,12 @@ impl InitializedStorageBits {
             if leaf.facts.atomic {
                 continue;
             }
-            if leaf.byte_projection {
-                let start = leaf.offset.checked_mul(8)?;
-                let end = leaf.offset.checked_add(leaf.size)?.checked_mul(8)?;
-                if end > limit {
-                    return None;
-                }
-                if start < end {
-                    ranges.push(start..end);
-                }
-            } else {
-                for fragment in &leaf.bit_fragments {
-                    let offset = leaf
-                        .offset
-                        .checked_add(fragment.container_byte_offset)?
-                        .checked_mul(8)?;
-                    let width = usize::from(fragment.container_width_bits);
-                    let first = usize::from(fragment.destination_lsb);
-                    let last = first.checked_add(usize::from(fragment.width))?;
-                    if fragment.width == 0 || last > width || offset.checked_add(width)? > limit {
-                        return None;
-                    }
-                    ranges.push(offset.checked_add(first)?..offset.checked_add(last)?);
-                }
-            }
+            visit_leaf_ranges(leaf, limit, |range| {
+                ranges.push(range);
+                Some(())
+            })?;
         }
+
         ranges.sort_unstable_by_key(|range| (range.start, range.end));
         let mut retained = 0usize;
         for position in 0..ranges.len() {
@@ -62,18 +45,55 @@ impl InitializedStorageBits {
             }
         }
         ranges.truncate(retained);
-        Some(Self { ranges })
+        Some(Self { ranges, limit })
     }
 
-    pub(super) fn contains_bytes(&self, offset: usize, size: usize) -> bool {
-        let Some((start, end)) = offset
-            .checked_mul(8)
-            .zip(offset.checked_add(size).and_then(|end| end.checked_mul(8)))
-        else {
-            return false;
-        };
-        let next = self.ranges.partition_point(|range| range.start <= start);
-        next.checked_sub(1)
-            .is_some_and(|previous| end <= self.ranges[previous].end)
+    pub(super) fn contains_leaf(&self, leaf: &MutableRecordLeaf) -> bool {
+        visit_leaf_ranges(leaf, self.limit, |range| {
+            let next = self
+                .ranges
+                .partition_point(|source| source.start <= range.start);
+            next.checked_sub(1)
+                .filter(|&previous| range.end <= self.ranges[previous].end)
+                .map(|_| ())
+        })
+        .is_some()
     }
+}
+
+/// Enumerate only the bits the existing normalized scalar recipe owns. A
+/// fragmented leaf does not observe unused container bits or intervening holes.
+fn visit_leaf_ranges(
+    leaf: &MutableRecordLeaf,
+    limit: usize,
+    mut visit: impl FnMut(Range<usize>) -> Option<()>,
+) -> Option<()> {
+    if leaf.byte_projection {
+        let start = leaf.offset.checked_mul(8)?;
+        let end = leaf.offset.checked_add(leaf.size)?.checked_mul(8)?;
+        if end > limit {
+            return None;
+        }
+        if start < end {
+            visit(start..end)?;
+        }
+    } else {
+        if leaf.bit_fragments.is_empty() {
+            return None;
+        }
+        for fragment in &leaf.bit_fragments {
+            let offset = leaf
+                .offset
+                .checked_add(fragment.container_byte_offset)?
+                .checked_mul(8)?;
+            let width = usize::from(fragment.container_width_bits);
+            let first = usize::from(fragment.destination_lsb);
+            let last = first.checked_add(usize::from(fragment.width))?;
+            if fragment.width == 0 || last > width || offset.checked_add(width)? > limit {
+                return None;
+            }
+            visit(offset.checked_add(first)?..offset.checked_add(last)?)?;
+        }
+    }
+    Some(())
 }

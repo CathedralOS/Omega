@@ -1061,16 +1061,28 @@ fn compatible_backing_geometry(
     source.size == target.size && target.align != 0 && source.align % target.align == 0
 }
 
-/// An unrestricted encoded leaf can observe any initialized bits in its range.
-/// Atomic access, domains, bool validity and narrowed integer/float predicates
-/// remain obligations; none follows merely from the presence of backing bytes.
+/// Every encoded scalar bit pattern must be a valid target value. Fragments
+/// select their logical bit width independently of the extent of their physical
+/// containers; validated plans already prove that those logical bits tile.
+/// Atomic protocols and named predicates remain separate obligations.
 fn leaf_accepts_all_bits(leaf: &MutableRecordLeaf) -> bool {
-    if leaf.facts.atomic || !leaf.facts.domains.is_empty() || !leaf.byte_projection {
+    if leaf.facts.atomic || !leaf.facts.domains.is_empty() {
         return false;
     }
-    let bits = match leaf.size.checked_mul(8) {
-        Some(bits @ 1..=64) => bits,
-        _ => return false,
+    let bits = if leaf.byte_projection {
+        leaf.size.checked_mul(8)
+    } else {
+        leaf.bit_fragments
+            .iter()
+            .try_fold(0usize, |width, fragment| {
+                (fragment.width != 0).then_some(())?;
+                Some(width.max(
+                    usize::from(fragment.source_lsb).checked_add(usize::from(fragment.width))?,
+                ))
+            })
+    };
+    let Some(bits @ 1..=64) = bits else {
+        return false;
     };
     let maximum = u64::MAX >> (64 - bits);
     matches!(&leaf.facts.values,
@@ -1089,19 +1101,18 @@ fn representation_values_imply(
     target.leaves.iter().all(|target| {
         // Both inventories are already sorted by physical offset. Reuse that
         // association rather than rebuilding a byte map or expanding bit sets.
-        let position = source
+        let first = source
+            .leaves
+            .partition_point(|source| source.offset < target.offset);
+        let end = source
             .leaves
             .partition_point(|source| source.offset <= target.offset);
-        let Some(position) = position.checked_sub(1) else {
-            return false;
-        };
-        let source_leaf = &source.leaves[position];
-        if source_leaf.offset == target.offset
-            && source_leaf.size == target.size
-            && source_leaf.byte_projection == target.byte_projection
-            && source_leaf.bit_fragments == target.bit_fragments
-            && scalar_representation_facts_imply(program, &source_leaf.facts, &target.facts)
-        {
+        if source.leaves[first..end].iter().any(|source_leaf| {
+            source_leaf.size == target.size
+                && source_leaf.byte_projection == target.byte_projection
+                && source_leaf.bit_fragments == target.bit_fragments
+                && scalar_representation_facts_imply(program, &source_leaf.facts, &target.facts)
+        }) {
             return true;
         }
         if !leaf_accepts_all_bits(target) {
@@ -1109,7 +1120,7 @@ fn representation_values_imply(
         }
         initialized
             .as_ref()
-            .is_some_and(|coverage| coverage.contains_bytes(target.offset, target.size))
+            .is_some_and(|coverage| coverage.contains_leaf(target))
     })
 }
 
