@@ -388,9 +388,17 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
             "macos_arm64"
         };
         let other_selections = admit_target_machine_selections(artifact.view(), other_target);
-        let other_layouts =
-            terminal_installation::admit_target_layouts(artifact.view(), &other_selections)
-                .unwrap();
+        let other_layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &other_selections,
+            &terminal_installation::LayoutTargetFacts {
+                profile: other_selections.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let program = TerminalProgram::borrow(artifact.view());
         let other_installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {

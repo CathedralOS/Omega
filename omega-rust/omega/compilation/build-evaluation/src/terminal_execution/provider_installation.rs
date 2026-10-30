@@ -55,8 +55,12 @@ pub(super) fn prepare<'host, 'code>(
         artifact.view(),
         profile.target_name(),
     );
-    let layouts = terminal_installation::admit_target_layouts(artifact.view(), &targets)
-        .map_err(|error| format!("Build helper layouts: {error:?}"))?;
+    let layout_target = profile
+        .layout_target_facts()
+        .ok_or("Build helper has no admitted target layout facts")?;
+    let layouts =
+        terminal_installation::admit_target_layouts(artifact.view(), &targets, &layout_target)
+            .map_err(|error| format!("Build helper layouts: {error:?}"))?;
     let mut bindings = Vec::new();
     for boundary in &request.requirement.boundaries {
         let receiving = receiver

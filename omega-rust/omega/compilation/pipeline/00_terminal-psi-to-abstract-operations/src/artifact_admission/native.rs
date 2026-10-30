@@ -481,11 +481,9 @@ mod private_entry_target_tests {
             .clone();
         let selections =
             terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
-        let layout_target = profile.layout_target_facts().ok_or_else(|| {
-            ArtifactLoweringError::TargetFamily(
-                "selected profile has no admitted target layout facts".into(),
-            )
-        })?;
+        let layout_target = target::TargetProfile::LinuxX64
+            .layout_target_facts()
+            .expect("Linux layout facts");
         let layouts = terminal_installation::admit_target_layouts(
             artifact.view(),
             &selections,
@@ -547,9 +545,14 @@ mod private_entry_target_tests {
                 artifact.view(),
                 profile.target_name(),
             );
-            let other =
-                terminal_installation::admit_target_layouts(artifact.view(), &other_selections)
-                    .expect("other target has independently admitted geometry");
+            let other = terminal_installation::admit_target_layouts(
+                artifact.view(),
+                &other_selections,
+                &profile
+                    .layout_target_facts()
+                    .expect("other target layout facts"),
+            )
+            .expect("other target has independently admitted geometry");
             assert_ne!(recipe.layouts(), &other);
             let failure = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
                 &artifact,

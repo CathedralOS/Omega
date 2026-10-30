@@ -715,8 +715,17 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
         (&windows, machine_id(2)),
         (&windows, machine_id(1)),
     ] {
-        let layouts =
-            terminal_installation::admit_target_layouts(artifact.view(), selected).unwrap();
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            selected,
+            &terminal_installation::LayoutTargetFacts {
+                profile: selected.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
                 entry: Some(TargetMachineCallable::Machine(entry)),
