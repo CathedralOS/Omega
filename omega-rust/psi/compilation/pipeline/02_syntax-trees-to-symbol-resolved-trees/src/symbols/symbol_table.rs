@@ -33,26 +33,24 @@ pub(super) fn extend_symbol_table(
     let mut extension = std::mem::take(&mut program.symbols)
         .begin_extension(Some(sources), source_scoped_top_level_bindings);
 
-    for index in roots.domain_definitions..program.domain_definitions.len() {
-        let definition = program.domain_definitions[index].clone();
-        let symbol = extension.insert_top_level([symbol_seed(
-            SymbolKind::Domain,
-            &definition.name,
-            has_sources,
-        )])[0];
-        insert_domain_symbol_children(&mut extension, program, symbol, &definition, has_sources);
-        program.domain_definitions[index].symbol = symbol;
+    // Every family inserts its own symbol seed and children from the same shape;
+    // only the roster, kind, and child walker differ.
+    macro_rules! extend_root_family {
+        ($roster:ident, $kind:ident, $insert:path) => {
+            for index in roots.$roster..program.$roster.len() {
+                let definition = program.$roster[index].clone();
+                let symbol = extension.insert_top_level([symbol_seed(
+                    SymbolKind::$kind,
+                    &definition.name,
+                    has_sources,
+                )])[0];
+                $insert(&mut extension, program, symbol, &definition, has_sources);
+                program.$roster[index].symbol = symbol;
+            }
+        };
     }
-    for index in roots.data_definitions..program.data_definitions.len() {
-        let definition = program.data_definitions[index].clone();
-        let symbol = extension.insert_top_level([symbol_seed(
-            SymbolKind::Data,
-            &definition.name,
-            has_sources,
-        )])[0];
-        insert_data_symbol_children(&mut extension, program, symbol, &definition, has_sources);
-        program.data_definitions[index].symbol = symbol;
-    }
+    extend_root_family!(domain_definitions, Domain, insert_domain_symbol_children);
+    extend_root_family!(data_definitions, Data, insert_data_symbol_children);
     for index in roots.conformances..program.conformances.len() {
         let conformance = program.conformances[index].clone();
         let Some(alias) = &conformance.alias else {
@@ -78,38 +76,16 @@ pub(super) fn extend_symbol_table(
         let symbol = extension.insert_top_level([machine_symbol_seed(&machine, has_sources)])[0];
         program.machines[index].symbol = symbol;
     }
-    for index in roots.propositions..program.propositions.len() {
-        let proposition = program.propositions[index].clone();
-        let symbol = extension.insert_top_level([symbol_seed(
-            SymbolKind::Proposition,
-            &proposition.name,
-            has_sources,
-        )])[0];
-        insert_proposition_symbol_children(
-            &mut extension,
-            program,
-            symbol,
-            &proposition,
-            has_sources,
-        );
-        program.propositions[index].symbol = symbol;
-    }
-    for index in roots.mathematical_definitions..program.mathematical_definitions.len() {
-        let definition = program.mathematical_definitions[index].clone();
-        let symbol = extension.insert_top_level([symbol_seed(
-            SymbolKind::MathematicalDefinition,
-            &definition.name,
-            has_sources,
-        )])[0];
-        insert_mathematical_symbol_children(
-            &mut extension,
-            program,
-            symbol,
-            &definition,
-            has_sources,
-        );
-        program.mathematical_definitions[index].symbol = symbol;
-    }
+    extend_root_family!(
+        propositions,
+        Proposition,
+        insert_proposition_symbol_children
+    );
+    extend_root_family!(
+        mathematical_definitions,
+        MathematicalDefinition,
+        insert_mathematical_symbol_children
+    );
     for index in roots.operators..program.operators.len() {
         let operator = program.operators[index].clone();
         let name = operator_symbol_name(program, &operator);
@@ -134,16 +110,7 @@ pub(super) fn extend_symbol_table(
         insert_measure_symbol_children(&mut extension, symbol, &measure, has_sources);
         program.measures[index].symbol = symbol;
     }
-    for index in roots.traits..program.traits.len() {
-        let definition = program.traits[index].clone();
-        let symbol = extension.insert_top_level([symbol_seed(
-            SymbolKind::Trait,
-            &definition.name,
-            has_sources,
-        )])[0];
-        insert_trait_symbol_children(&mut extension, program, symbol, &definition, has_sources);
-        program.traits[index].symbol = symbol;
-    }
+    extend_root_family!(traits, Trait, insert_trait_symbol_children);
     for index in roots.wire_schemas..program.wire_schemas.len() {
         let schema = program.wire_schemas[index].clone();
         let symbol = extension.insert_top_level([symbol_seed(
