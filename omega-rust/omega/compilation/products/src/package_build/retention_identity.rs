@@ -645,6 +645,9 @@ impl BuildOutputIdentity<'_> {
             BuildOperation::IncludedSourceHandoff => 10,
             BuildOperation::LogWriteLine => 11,
             BuildOperation::NativeBinding => 12,
+            BuildOperation::NativeTableFunction => 13,
+            BuildOperation::NativeVtableField => 14,
+            BuildOperation::NativeSameStackDemand => 15,
         });
         self.digest.len(operands.len());
         for operand in operands {
