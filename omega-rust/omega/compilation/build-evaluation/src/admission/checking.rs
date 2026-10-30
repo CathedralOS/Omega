@@ -57,11 +57,6 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    let mut provisional = if pre_checks.is_empty() {
-        projection
-    } else {
-        validation::execution_projection::project_build_program(typed, entry)?
-    };
     // Projection deliberately removes conformance descriptor roots from host
     // type-work. Provider planning still needs their complete declaration
     // roster. Borrow the retained frontier, filtered to this Build scope;
@@ -71,10 +66,18 @@ pub(crate) fn prepare_checked_build(
         .into_iter()
         .map(|selection| {
             selection
-                .rejoin(&mut provisional, source::DependencyScope::Build, &[])
+                .rejoin(typed, source::DependencyScope::Build, &[])
                 .map_err(|error| vec![error])
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // Rejoin against the complete declaration owner, then project its prepared
+    // applications into the checked Build input. A descriptor-only named
+    // implementation is intentionally absent from the host work roster.
+    let provisional = if pre_checks.is_empty() && inherited.is_empty() {
+        projection
+    } else {
+        validation::execution_projection::project_build_program(typed, entry)?
+    };
     let context = provider_planning::ProviderPlanningContext::new(
         provisional.product_declarations(),
         source::DependencyScope::Build,
