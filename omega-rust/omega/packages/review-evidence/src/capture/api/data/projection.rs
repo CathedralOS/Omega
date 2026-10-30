@@ -2,9 +2,7 @@ use super::evidence::require_rederived_data_definition_facts;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::domains::facts::project_definition_contract_fact;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
-use crate::capture::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns,
-};
+use crate::capture::semantics::declarations::{nominal_identity, owned_identity};
 use crate::capture::semantics::signatures::parameters::project_type_parameters;
 use crate::capture::semantics::types::{
     project_data_field, project_data_properties, review_signature_type_identity_with_binders,
@@ -93,13 +91,9 @@ pub(crate) fn project_public_data<'a>(
         .iter()
         .filter(|row| row.is_public)
     {
-        if !is_product_scope_instance(compilation, definition.symbol)? {
+        let Some(identity) = owned_identity(compilation, package, definition.symbol)? else {
             continue;
-        }
-        let identity = nominal_identity(compilation, definition.symbol)?;
-        if !reviewed_package_owns(&identity, package)? {
-            continue;
-        }
+        };
         let parameters = compilation.data_type_parameters(definition);
         let (binders, type_parameters) = project_type_parameters(
             compilation,

@@ -7,17 +7,17 @@ use crate::OptimizationUnitValidationError;
 
 /// One materialized integer constant: the operation that published it, the
 /// result and scalar type it published, and the literal value itself.
-pub(super) struct MaterializedIntegerConstant {
-    pub(super) operation: OperationId,
-    pub(super) result: ValueId,
-    pub(super) scalar_type: ScalarType,
-    pub(super) value: IntegerValue,
+pub(crate) struct MaterializedIntegerConstant {
+    pub(crate) operation: OperationId,
+    pub(crate) result: ValueId,
+    pub(crate) scalar_type: ScalarType,
+    pub(crate) value: IntegerValue,
 }
 
 /// The integer constant node `definition` lands on. A definition that names a
 /// parameter, another value, or any other operation is a candidate operand-fact
 /// mismatch, so a law's operand evidence is always read from one literal node.
-pub(super) fn materialized_integer_constant(
+pub(crate) fn materialized_integer_constant(
     function: &PsiOptimizationFunction,
     definition: ValueDefinition,
 ) -> Result<MaterializedIntegerConstant, OptimizationUnitValidationError> {

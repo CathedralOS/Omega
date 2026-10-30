@@ -104,11 +104,7 @@ impl TerminalExecution<'_> {
         &mut self,
         arguments: &[TerminalStructuralByteArrayValue],
     ) -> Result<(), TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let mut storage = RuntimeRows::new(self.account.as_ref());
         let mut descriptors = RuntimeRows::new(self.account.as_ref());
         for argument in arguments {
@@ -650,11 +646,7 @@ impl TerminalExecution<'_> {
         let Some(length) = byte_array_length(&self.program.structural_types(), array_type) else {
             return Ok(None);
         };
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let source = machine
             .structural_parameters
             .iter()

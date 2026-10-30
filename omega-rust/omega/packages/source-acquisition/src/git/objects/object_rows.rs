@@ -26,6 +26,13 @@ pub(crate) enum GitTreeEntryKind {
     },
 }
 
+impl GitTreeEntryKind {
+    /// Only regular files and symbolic links resolve to a blob payload.
+    pub(crate) fn carries_blob(&self) -> bool {
+        matches!(self, Self::File { .. } | Self::Symlink { .. })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GitBlobBytes {
     pub(crate) batch: Arc<Vec<u8>>,

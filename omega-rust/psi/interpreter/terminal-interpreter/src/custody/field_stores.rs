@@ -28,11 +28,7 @@ impl TerminalExecution<'_> {
         if path.contains(&StructuralPathSegment::Referent) {
             return Ok(());
         }
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let parameter = machine.structural_parameter(destination);
         let owned_affine = if let Some(parameter) = parameter {
             parameter.access == StructuralAccess::Owned
