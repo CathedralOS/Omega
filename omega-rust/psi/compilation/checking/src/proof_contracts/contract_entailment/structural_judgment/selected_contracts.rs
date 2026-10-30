@@ -317,6 +317,7 @@ impl StructuralJudge<'_> {
             depth,
         );
         if self.published_contract_tracing() {
+            let equations = equations.as_ref().map(|(equations, _)| equations);
             eprintln!(
                 "PUBLISHED equations caller={:?} callee={:?} value={value:?} equations={equations:?}",
                 self.machine_symbol,
