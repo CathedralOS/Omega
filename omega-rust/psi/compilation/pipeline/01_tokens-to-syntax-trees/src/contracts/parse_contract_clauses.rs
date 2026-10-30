@@ -618,18 +618,9 @@ fn parse_crash_header<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, (CrashCause, usize)> {
     let input = input.take_contextual("crashes")?;
-    let (cause, input) = input.take_identifier()?;
-    let cause = match cause.as_str(&input) {
-        "Trap" => CrashCause::Trap,
-        "Abort" => CrashCause::Abort,
-        _ => {
-            return Err(input.error_here(format!(
-                "unknown crash cause `{}`; expected `Trap` or `Abort`",
-                cause.as_str(&input)
-            )));
-        }
-    };
-    Ok(((cause, 2), input))
+    let (cause, after_cause) = input.take_identifier()?;
+    let cause = crate::contracts::parse_crash_cause(&cause, after_cause)?;
+    Ok(((cause, 2), after_cause))
 }
 
 fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
