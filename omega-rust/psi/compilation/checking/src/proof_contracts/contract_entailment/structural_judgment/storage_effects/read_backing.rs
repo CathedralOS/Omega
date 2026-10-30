@@ -56,11 +56,14 @@ impl StructuralJudge<'_> {
         expression: ExpressionHandle,
     ) -> Option<super::super::super::StructuralTerm> {
         // Whole references/aggregates retain their ordinary conservative fence.
-        super::super::super::observed_projections::scalar_storage_read(
+        let declared =
+            crate::expression_result_type_reference(self.program, machine, state, expression)?;
+        // Ordinary scalar operands may read an explicit readable scalar borrow.
+        // This selects meaning only: the exact captured-load chain below still
+        // supplies its independent content observation and authority.
+        let (primitive, _) = crate::value_custody::expression_types::scalar_observation_meaning(
             self.program,
-            machine,
-            state,
-            expression,
+            declared,
         )?;
         let place = crate::canonical_place_from_expression(self.program, expression)?;
         let dependencies = self.frame_resolver()?.storage_read_backing_at_expression(
@@ -73,6 +76,9 @@ impl StructuralJudge<'_> {
         let identity = self
             .freeze_scalar_read_backing(state, dependencies)
             .identity?;
+        if identity.1 != primitive {
+            return None;
+        }
         self.stored_values.iter().find_map(|stored| {
             (stored.backing.as_ref()?.identity.as_ref()? == &identity)
                 .then(|| stored.current.clone())
