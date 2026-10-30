@@ -1066,7 +1066,7 @@ fn selected_numeric_admission_consumes_retained_declarations() {
     assert!(!evidence.contains(".execution_identity(typed)"));
     assert!(!evidence.contains(".intrinsic_realization_matches(typed,"));
     let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
-    assert!(preparation.contains("review: &external_providers.boundary_provider_review()"));
+    assert!(preparation.contains("review: &declaration_catalog.boundary_provider_review()"));
     assert!(
         preparation.find(".require_owner(").unwrap()
             < preparation
@@ -1398,7 +1398,7 @@ fn callback_root_policy_consumes_prepared_source_correspondence() {
     assert!(preparation.contains("crate::exact_checked_adapter(context, plan, row)"));
     let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains("realization.boundary_arguments.is_empty()"));
-    assert!(binding.contains("external_providers.callbacks.calling_requirements("));
+    assert!(binding.contains("declaration_catalog.callbacks.calling_requirements("));
     let policy = include_str!("../../realization/provider-selection/src/callback_roots.rs");
     for forbidden in [
         "TypedTrees",

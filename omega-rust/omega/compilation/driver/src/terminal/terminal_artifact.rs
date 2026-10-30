@@ -51,7 +51,7 @@ impl<'a> TerminalProductionView<'a> {
     ) -> Self {
         Self {
             program: &selection.execution.program,
-            external_declarations: &selection.execution.numeric_realizations,
+            external_declarations: &selection.execution.declaration_catalog,
             sources: &selection.sources,
             build: &selection.build,
             provider_defaults: &selection.provider_defaults,
@@ -73,7 +73,7 @@ impl<'a> TerminalProductionView<'a> {
     ) -> Self {
         Self {
             program: &checked.execution().program,
-            external_declarations: &checked.execution().numeric_realizations,
+            external_declarations: &checked.execution().declaration_catalog,
             sources: checked.sources(),
             build: checked.build(),
             provider_defaults: checked.provider_defaults(),

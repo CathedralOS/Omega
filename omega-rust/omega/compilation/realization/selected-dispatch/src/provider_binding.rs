@@ -29,10 +29,7 @@ pub struct ProviderBindingRequest<'a> {
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub external_declarations: &'a std::sync::OnceLock<
-        Result<
-            Arc<psi_terminal_production::PreparedDeclarationCatalog>,
-            Vec<Diagnostic>,
-        >,
+        Result<Arc<psi_terminal_production::PreparedDeclarationCatalog>, Vec<Diagnostic>>,
     >,
 }
 
@@ -65,7 +62,7 @@ pub fn prepare_selected_execution(
         )?;
     }
     // Prepare immutable checked declaration evidence before source-free binding.
-    let numeric_realizations = settlement
+    let declaration_catalog = settlement
         .external_declarations
         .get_or_init(|| {
             psi_terminal_production::PreparedDeclarationCatalog::prepare(
@@ -80,7 +77,7 @@ pub fn prepare_selected_execution(
             })
         })
         .clone()?;
-    numeric_realizations
+    declaration_catalog
         .require_owner(&program, settlement.exact_toolchain_sources)
         .map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -94,9 +91,9 @@ pub fn prepare_selected_execution(
     );
     let binding = provider_selection::bind_selected_provider_plan_facts(
         provider_selection::BoundaryProviderAdmission {
-            review: &numeric_realizations.boundary_provider_review(),
-            identities: &numeric_realizations.identities,
-            numeric_realizations: &numeric_realizations.conformances,
+            review: &declaration_catalog.boundary_provider_review(),
+            identities: &declaration_catalog.identities,
+            numeric_realizations: &declaration_catalog.conformances,
         },
         program.facts.semantic.admitted_qualification_issuers(),
         &provider_plans,
@@ -108,7 +105,7 @@ pub fn prepare_selected_execution(
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
     // Close the existing exact source association once. Native ABI publication
     // is not needed to count calling declarations and must not add early errors.
-    let calling_requirements = external_providers.callbacks.calling_requirements(
+    let calling_requirements = declaration_catalog.callbacks.calling_requirements(
         settlement
             .boundary_calling_plan_realizations
             .iter()
@@ -118,10 +115,10 @@ pub fn prepare_selected_execution(
     let callback_roots = provider_planning::callback_roots::prepare(
         &program,
         &selected_provider_plan_facts,
-        &external_providers.callbacks.declarations,
+        &declaration_catalog.callbacks.declarations,
         &calling_requirements,
     )?;
-    let callback_roots = external_providers.selected_callback_roots(callback_roots);
+    let callback_roots = declaration_catalog.selected_callback_roots(callback_roots);
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(
@@ -149,7 +146,7 @@ pub fn prepare_selected_execution(
     };
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
         settlement.provider_candidates,
-        &numeric_realizations,
+        &declaration_catalog,
         &service_declarations,
         &selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
@@ -160,7 +157,7 @@ pub fn prepare_selected_execution(
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
     )?;
     let direct_boundary_leaves = crate::intrinsic_review::produce_direct_boundary_leaves(
-        &numeric_realizations,
+        &declaration_catalog,
         &settlement.selected_provider_provenance,
         settlement.provider_candidates,
         &service_declarations,
@@ -189,7 +186,7 @@ pub fn prepare_selected_execution(
     Ok(SelectedExecution {
         direct_boundary_leaves,
         service_declarations,
-        numeric_realizations,
+        declaration_catalog,
         native_provider_sources,
         program,
         selected_target_profile: settlement.selected_target_profile,

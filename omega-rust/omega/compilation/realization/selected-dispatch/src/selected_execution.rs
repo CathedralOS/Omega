@@ -18,7 +18,7 @@ pub struct SelectedExecution {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub program: Arc<CheckedProgram>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
-    pub numeric_realizations: Arc<psi_terminal_production::PreparedDeclarationCatalog>,
+    pub declaration_catalog: Arc<psi_terminal_production::PreparedDeclarationCatalog>,
     /// Native handoff and executable exclusion admission demand these source
     /// identities. A refusal remains data so checking-only stops acquire no
     /// native-only obligations.
