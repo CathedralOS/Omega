@@ -55,6 +55,15 @@ struct CapturedScalarObservation<Value> {
 }
 
 impl CopiedIntegerValue {
+    /// The scalar root emitted by this completed copy. Descendant recipes do
+    /// not describe the argument itself, and are not invocation scalar inputs.
+    pub(crate) fn integer_range_recipe(&self) -> Option<&checked_trees::IntegerRangeRecipe> {
+        self.recipes
+            .iter()
+            .find(|(segments, suffix, _)| segments.is_empty() && suffix.is_empty())
+            .map(|(_, _, recipe)| recipe)
+    }
+
     /// Completed associations are consumed only at a delivered value and
     /// its supplied record fields, not at every expression evaluated inside it.
     /// Keep numeric observation requests on the same delivery-child owner.

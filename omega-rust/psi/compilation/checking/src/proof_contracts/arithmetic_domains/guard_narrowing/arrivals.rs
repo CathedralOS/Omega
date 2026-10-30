@@ -20,7 +20,9 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 use super::requirements::{RequirementSeeds, machine_written_paths};
 
+mod normal_returns;
 mod transition_arguments;
+pub(crate) use normal_returns::inferred_normal_return_interval;
 
 struct EvaluatedValue {
     interval: Interval,
@@ -138,12 +140,13 @@ pub fn occurrence_integer_bounds(
     OccurrenceIntegerBounds {
         bounds: observations
             .into_iter()
-            .map(|observation| {
+            .filter_map(|observation| {
+                let expression = observation.expression()?;
                 let bounds = observation.interval.and_then(|interval| {
                     let (low, high) = (interval.low?, interval.high?);
                     (low <= high).then_some((low, high))
                 });
-                (observation.expression, bounds)
+                Some((expression, bounds))
             })
             .collect(),
     }
@@ -332,13 +335,8 @@ impl OccurrenceValueEnvironments {
         let position = self
             .observations
             .binary_search_by_key(
-                &(expression.arena_index(), expression.generation()),
-                |observation| {
-                    (
-                        observation.expression.arena_index(),
-                        observation.expression.generation(),
-                    )
-                },
+                &(0, expression.arena_index(), expression.generation()),
+                ExpressionObservation::key,
             )
             .ok()?;
         self.observations[position].environment.as_ref()
@@ -633,230 +631,18 @@ pub(super) fn incoming_environments(
 /// arms and states reached through named transfers. Captures, writes and
 /// argument order use the same walk as source observations. Crash transitions
 /// contribute no normal value; incomplete ordinary exits decline inference.
-pub(crate) fn inferred_normal_return_interval(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    entry: &State,
-    target_primitive: Option<typed_trees::types::PrimitiveType>,
-    actuals: &[(
-        SymbolHandle,
-        Interval,
-        Option<checked_trees::IntegerRangeRecipe>,
-    )],
-) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
-    // This judgment publishes integer intervals. Other result carriers have
-    // their own evidence owners and cannot benefit from this body traversal.
-    let primitive = target_primitive?;
-    super::super::primitive_range(primitive)?;
-    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
-        // Deferred recipes carry more than concrete interval endpoints. Until
-        // they have an exact memo identity, preserve their ordinary inference.
-        actuals.iter().all(|(_, _, recipe)| recipe.is_none())
-            && program
-                .machine(machine.symbol)
-                .is_some_and(|stored| std::ptr::eq(stored, machine))
-            && program
-                .state_in_machine(machine, entry.symbol)
-                .is_some_and(|stored| std::ptr::eq(stored, entry))
-    });
-    let key = (
-        machine.symbol,
-        entry.symbol,
-        primitive as u8,
-        actuals
-            .iter()
-            .map(|(symbol, interval, _)| (*symbol, interval.low, interval.high))
-            .collect::<Vec<_>>(),
-    );
-    if let Some(memos) = memos
-        && let Ok(intervals) = memos.normal_return_intervals.lock()
-        && let Some(interval) = intervals.get(&key)
-    {
-        return interval.clone();
-    }
-    let interval =
-        discover_normal_return_interval(program, machine, entry, target_primitive, actuals);
-    if let Some(memos) = memos
-        && let Ok(mut intervals) = memos.normal_return_intervals.lock()
-    {
-        intervals.insert(key, interval.clone());
-    }
-    interval
-}
-
-fn discover_normal_return_interval(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    entry: &State,
-    target_primitive: Option<typed_trees::types::PrimitiveType>,
-    actuals: &[(
-        SymbolHandle,
-        Interval,
-        Option<checked_trees::IntegerRangeRecipe>,
-    )],
-) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
-    if machine.target_family_interface
-        && program.machine_states(machine).first()?.symbol == entry.symbol
-    {
-        let parameters = program.state_parameters(entry);
-        let members = crate::machine_calls::calls::target_family_members(program, machine)?;
-        let mut combined: Option<Interval> = None;
-        let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
-        for member in members {
-            let member_machine = program.machine(member.machine)?;
-            let member_entry = program.machine_states(member_machine).first()?;
-            let member_parameters = program.state_parameters(member_entry);
-            if member_parameters.len() != parameters.len() {
-                return None;
-            }
-            let member_actuals = parameters
-                .iter()
-                .zip(member_parameters)
-                .filter_map(|(interface_param, member_param)| {
-                    actuals
-                        .iter()
-                        .find(|(symbol, _, _)| *symbol == interface_param.symbol)
-                        .map(|(_, interval, recipe)| {
-                            (member_param.symbol, *interval, recipe.clone())
-                        })
-                })
-                .collect::<Vec<_>>();
-            let (interval, recipe) = inferred_normal_return_interval(
-                program,
-                member_machine,
-                member_entry,
-                target_primitive,
-                &member_actuals,
-            )?;
-            combined_recipe = if combined.is_none() {
-                recipe
-            } else {
-                combined_recipe
-                    .zip(recipe)
-                    .map(|(left, right)| left.union(&right))
-            };
-            combined = Some(combined.map_or(interval, |previous| previous.union(interval)));
-        }
-        let combined = combined?;
-        return (combined_recipe.is_some() || (combined.low.is_some() && combined.high.is_some()))
-            .then_some((combined, combined_recipe));
-    }
-    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
-            program, machine,
-        )
-    {
-        return None;
-    }
-    let mut state_returns = Vec::new();
-    for state in program.machine_states(machine) {
-        let statements = program.statement_table.statements(state.statement_nodes);
-        let order = program
-            .statement_table
-            .finite_execution_order(state.statement_nodes)
-            .ok()??;
-        let last = order.last().map(|index| &statements[*index]);
-        if program.primitive_type_reference(state.return_type) != target_primitive {
-            return None;
-        }
-        if !matches!(
-            last,
-            Some(StatementNode::Expression(_) | StatementNode::Transition(_))
-        ) {
-            return None;
-        }
-        let mut returns = Vec::new();
-        if let Some(StatementNode::Expression(expression)) = last {
-            returns.push(*expression);
-        }
-        for statement in order.iter().map(|index| &statements[*index]) {
-            let Some(transition) = statement.as_transition() else {
-                continue;
-            };
-            if !matches!(
-                transition.exit,
-                typed_trees::statement::TransitionExit::Ordinary
-            ) {
-                continue;
-            }
-            for target in transition.targets() {
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Value(expression) => {
-                        if !returns.contains(expression) {
-                            returns.push(*expression);
-                        }
-                    }
-                    TransitionTargetNode::Named {
-                        path,
-                        static_machine_parameter,
-                        evidence_arguments,
-                        ..
-                    } => {
-                        if static_machine_parameter.is_valid()
-                            || !evidence_arguments.is_empty()
-                            || typed_trees::state::state_by_symbol(
-                                program.machine_states(machine),
-                                path.symbol,
-                            )
-                            .is_none()
-                        {
-                            return None;
-                        }
-                    }
-                    TransitionTargetNode::Terminal => return None,
-                }
-            }
-        }
-        if !returns.is_empty() {
-            state_returns.push((state, returns));
-        }
-    }
-    if state_returns.is_empty() {
-        return None;
-    }
-    let frames = CallFrameResolver::new(program);
-    let incoming = incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
-    let mut combined: Option<Interval> = None;
-    let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
-    for (state, returns) in state_returns {
-        let mut environment = incoming.iter().find_map(|(symbol, environment)| {
-            (*symbol == state.symbol).then(|| environment.clone())
-        })?;
-        let mut walk = ArrivalWalk {
-            program,
-            machine,
-            frames: frames.as_ref(),
-            arrivals: Vec::new(),
-            observations: returns
-                .into_iter()
-                .map(ExpressionObservation::bounds)
-                .collect(),
-            completed_children: Default::default(),
-            infer_call_bodies: false,
-            collect_arrivals: false,
-        };
-        walk.state(state, &mut environment);
-        for observed in walk.observations {
-            let interval = observed.interval?;
-            combined_recipe = if combined.is_none() {
-                observed.recipe
-            } else {
-                combined_recipe
-                    .zip(observed.recipe)
-                    .map(|(left, right)| left.union(&right))
-            };
-            combined = Some(combined.map_or(interval, |previous| previous.union(interval)));
-        }
-    }
-    let combined = combined?;
-    (combined_recipe.is_some() || (combined.low.is_some() && combined.high.is_some()))
-        .then_some((combined, combined_recipe))
+enum ValueObservationSite {
+    Expression(ExpressionHandle),
+    Invocation {
+        target: typed_trees::statement::TransitionTargetHandle,
+        arrivals: Vec<Vec<(Interval, Option<checked_trees::IntegerRangeRecipe>)>>,
+    },
 }
 
 struct ExpressionObservation {
     include_bounds: bool,
     recipe: Option<checked_trees::IntegerRangeRecipe>,
-    expression: ExpressionHandle,
+    site: ValueObservationSite,
     interval: Option<Interval>,
     environment: Option<ValueEnvironment>,
     completed_children: std::collections::BTreeMap<
@@ -866,11 +652,39 @@ struct ExpressionObservation {
 }
 
 impl ExpressionObservation {
+    fn invocation(target: typed_trees::statement::TransitionTargetHandle) -> Self {
+        Self {
+            site: ValueObservationSite::Invocation {
+                target,
+                arrivals: Vec::new(),
+            },
+            ..Self::bounds(ExpressionHandle::invalid())
+        }
+    }
+
+    fn expression(&self) -> Option<ExpressionHandle> {
+        match self.site {
+            ValueObservationSite::Expression(expression) => Some(expression),
+            ValueObservationSite::Invocation { .. } => None,
+        }
+    }
+
+    fn key(&self) -> (u8, u32, u32) {
+        match self.site {
+            ValueObservationSite::Expression(expression) => {
+                (0, expression.arena_index(), expression.generation())
+            }
+            ValueObservationSite::Invocation { target, .. } => {
+                (1, target.arena_index(), target.generation())
+            }
+        }
+    }
+
     fn bounds(expression: ExpressionHandle) -> Self {
         Self {
             include_bounds: true,
             recipe: None,
-            expression,
+            site: ValueObservationSite::Expression(expression),
             interval: None,
             environment: None,
             completed_children: Default::default(),
@@ -881,7 +695,7 @@ impl ExpressionObservation {
         Self {
             include_bounds: false,
             recipe: None,
-            expression,
+            site: ValueObservationSite::Expression(expression),
             interval: None,
             environment: None,
             completed_children: Default::default(),
@@ -1254,7 +1068,28 @@ impl ArrivalWalk<'_, '_> {
                 path, arguments, ..
             } => {
                 let arguments = self.program.statement_table.expression_handles(*arguments);
-                self.visit_call_or_target(source, path.symbol, arguments, environment);
+                if let Ok(position) = self.observations.binary_search_by_key(
+                    &(1, target.arena_index(), target.generation()),
+                    ExpressionObservation::key,
+                ) {
+                    // The existing argument owner freezes each scalar before
+                    // later siblings execute. Keep whole arrival batches paired.
+                    let values = self.arguments(source, arguments, environment);
+                    if let ValueObservationSite::Invocation { arrivals, .. } =
+                        &mut self.observations[position].site
+                    {
+                        arrivals.push(
+                            values
+                                .into_iter()
+                                .map(|value| {
+                                    (value.interval, value.copied.integer_range_recipe().cloned())
+                                })
+                                .collect(),
+                        );
+                    }
+                } else {
+                    self.visit_call_or_target(source, path.symbol, arguments, environment);
+                }
             }
             TransitionTargetNode::Value(expression) => {
                 self.expression(source, *expression, environment)
@@ -1869,13 +1704,8 @@ impl ArrivalWalk<'_, '_> {
             | typed_trees::literal_expression_pattern!() => {}
         }
         if let Ok(position) = self.observations.binary_search_by_key(
-            &(expression.arena_index(), expression.generation()),
-            |observation| {
-                (
-                    observation.expression.arena_index(),
-                    observation.expression.generation(),
-                )
-            },
+            &(0, expression.arena_index(), expression.generation()),
+            ExpressionObservation::key,
         ) {
             let mut observed = environment.clone();
             self.expression_effects(source, expression, &mut observed);
