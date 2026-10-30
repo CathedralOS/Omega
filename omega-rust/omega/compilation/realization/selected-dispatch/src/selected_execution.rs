@@ -34,10 +34,9 @@ pub struct SelectedExecution {
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
-    /// Target-owned recipes joined to checked nominal uses. Engines consume
-    /// these plans rather than reconstructing placement from source semantics.
-    pub callback_placements:
-        Vec<provider_planning::calling_policy_plans::SelectedCallbackPlacement>,
+    /// Selected source roots for behavior admission, including dormant uses.
+    /// Executable callback placement is produced from Terminal, not stored here.
+    pub callback_roots: Vec<symbols::SymbolHandle>,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,

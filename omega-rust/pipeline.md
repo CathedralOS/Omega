@@ -899,20 +899,23 @@ entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
-handoff. Callback proposal production now closes source placements into body,
-ABI and argument records once; retained native re-entry borrows those records
-without retaining or rejoining checked-source callback placements.
-The native placement carries application/contract identity and its ABI recipe;
-the source-selected machine stays with the producer that compiles its body.
-Backend callback planning no longer depends on checked-tree records.
+handoff. Executable callback placement belongs to Omega stage 00: canonical
+callback applications name their registrar operation, exact body, requirement
+and checked entry admission; target calling applications retain exact static
+binder ordinals, requirement identities and synchronous invocation membership.
+Fresh and recovered native inputs derive placements through the same join.
+Neither the realization request nor its persisted record carries source-produced
+callback placements. Source preparation still selects callback roots and checks
+dormant declarations before behavior admission; emitted occurrences alone cannot
+replace that complete source roster.
 Psi identifies callback uses from their declared calling policy and retains
 the exact checked entry resource receipt. Native ABI plan hashes are not
 callback checking facts; Omega binds the checked entry to its evaluated calling
 application without rewriting the nominal-use facts. Evaluated calling applications
 belong to provider settlement, not typed trees. Schema derivation receives those
 applications explicitly; package review joins the exact schema commitment to
-the retained realization. Callback materialization borrows the checked program
-and updates only its native application, without reopening the source owner.
+the retained realization. Callback materialization consumes only canonical
+Terminal uses and completed calling applications, without reopening source.
 
 Logical `Binding<R>` shapes and occurrence receipts are Psi data, independent
 of selected composition mode. Provider settlement does not mutate typed trees
