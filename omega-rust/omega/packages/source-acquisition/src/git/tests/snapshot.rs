@@ -2,9 +2,9 @@ use super::{
     Arc, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_SNAPSHOT_METADATA, GitBlobBytes,
     GitExecutionTransport, GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path, PathBuf,
     SourceResolveError, SourceResolver, create_git_source, git_cache_entry_root, local_git_request,
-    make_tree_owner_writable, publish_git_member_snapshot, read_git_blobs_batch_from_path,
-    resolve_git_source_from_hardened_base, run_test_git, run_test_git_with_input, temp_root,
-    test_system_git_executor,
+    make_tree_owner_writable, primed_git_cache, publish_git_member_snapshot,
+    read_git_blobs_batch_from_path, resolve_git_source_from_hardened_base, run_test_git,
+    run_test_git_with_input, temp_root, test_system_git_executor,
 };
 #[cfg(unix)]
 use super::{
@@ -250,11 +250,7 @@ fn git_snapshot_reuse_rejects_content_with_forged_matching_metadata() {
 
 #[test]
 fn git_batch_failure_precedes_snapshot_staging() {
-    let (repo, _) = create_git_source("git-snapshot-cleanup");
-    let cache = temp_root("git-snapshot-cleanup-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-snapshot-cleanup");
     let entry_root = git_cache_entry_root(&cache, &request);
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
     let missing_oid = "0000000000000000000000000000000000000000";
