@@ -74,6 +74,28 @@ fn named_view<'m>(
         .expect(missing)
 }
 
+/// The Microsoft x86-64 record both COFF targets declare. The two pairs
+/// differ by `NativeTarget` alone: one convention, one call row, and one set
+/// of call-clobbered argument views serve both.
+fn microsoft_x64(target: NativeTarget) -> ScalarAbiCase {
+    ScalarAbiCase {
+        target,
+        convention: "microsoft-x64",
+        call: X86_64_MICROSOFT_CALL,
+        arguments: &["rcx", "rdx", "r8", "r9"],
+        result: "rax",
+        implicit_uses: &["rsp"],
+        implicit_defs: &["rsp", "rip"],
+        stack_alignment: 16,
+        red_zone_bytes: 0,
+        opposite_call: X86_64_SYSTEM_V_CALL,
+        integer_results: &["rax", "rdx"],
+        float_result: "xmm0",
+        return_uses: &["rsp"],
+        return_defs: &["rsp", "rip"],
+    }
+}
+
 fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
     vec![
         ScalarAbiCase {
@@ -92,38 +114,8 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
             return_uses: &["rsp"],
             return_defs: &["rsp", "rip"],
         },
-        ScalarAbiCase {
-            target: NativeTarget::windows_x64(),
-            convention: "microsoft-x64",
-            call: X86_64_MICROSOFT_CALL,
-            arguments: &["rcx", "rdx", "r8", "r9"],
-            result: "rax",
-            implicit_uses: &["rsp"],
-            implicit_defs: &["rsp", "rip"],
-            stack_alignment: 16,
-            red_zone_bytes: 0,
-            opposite_call: X86_64_SYSTEM_V_CALL,
-            integer_results: &["rax", "rdx"],
-            float_result: "xmm0",
-            return_uses: &["rsp"],
-            return_defs: &["rsp", "rip"],
-        },
-        ScalarAbiCase {
-            target: NativeTarget::uefi_x64(),
-            convention: "microsoft-x64",
-            call: X86_64_MICROSOFT_CALL,
-            arguments: &["rcx", "rdx", "r8", "r9"],
-            result: "rax",
-            implicit_uses: &["rsp"],
-            implicit_defs: &["rsp", "rip"],
-            stack_alignment: 16,
-            red_zone_bytes: 0,
-            opposite_call: X86_64_SYSTEM_V_CALL,
-            integer_results: &["rax", "rdx"],
-            float_result: "xmm0",
-            return_uses: &["rsp"],
-            return_defs: &["rsp", "rip"],
-        },
+        microsoft_x64(NativeTarget::windows_x64()),
+        microsoft_x64(NativeTarget::uefi_x64()),
         ScalarAbiCase {
             target: NativeTarget::linux_arm64(),
             convention: "aapcs64",
