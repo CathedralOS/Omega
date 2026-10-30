@@ -820,26 +820,6 @@ fn interpret_checked_fixture(
     if let Err(error) = std::io::Read::read_to_end(&mut input, &mut input_bytes) {
         return terminal_execution::Observation::failure(error);
     }
-    // The realization owner chose `target` for this fixture's check leg; a call
-    // bound to a target family runs the member body selected for that target,
-    // the same member native realization binds.
-    let machine_bodies: Vec<checked_interpreter::SelectedBuildTimeMachineBody> = checked
-        .execution()
-        .program
-        .typed
-        .target_machine_families
-        .iter()
-        .filter_map(|family| {
-            family
-                .members
-                .iter()
-                .find(|member| member.target.as_str() == target)
-                .map(|member| checked_interpreter::SelectedBuildTimeMachineBody {
-                    family: family.canonical,
-                    body: member.machine,
-                })
-        })
-        .collect();
     // The same owner supplies the x86 flags environment for this check leg:
     // when `target` is an x86 target the host's captured image is the modeled
     // state `pushfq` observes and `popfq` restores, matching the environment
@@ -857,7 +837,6 @@ fn interpret_checked_fixture(
         checked_interpreter::InterpretOptions {
             boundary_adapters: &dispatch.boundary_adapters,
             float_comparisons: &dispatch.float_comparisons,
-            machine_bodies: &machine_bodies,
             x86_flags,
             ..checked_interpreter::InterpretOptions::default()
         },
