@@ -161,7 +161,7 @@ pub(crate) fn scalar_observation_meaning(
 /// Retain the complete readable value type without treating a reference
 /// descriptor's qualifications as qualifications of its referent. Selection
 /// still consumes the declared operand before this observation is interpreted.
-pub(super) fn readable_observation_type_reference(
+pub(crate) fn readable_observation_type_reference(
     program: &dyn crate::CheckingInput,
     declared: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {

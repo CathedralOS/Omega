@@ -157,8 +157,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and private helper coordinates for
-    case projections beyond independently classified inline payloads, further
-    independently captured reference loads, and declared-view or
+    case projections behind additional independently captured reference/index
+    loads, and declared-view or
     dependent-distance joint SCC measures without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
