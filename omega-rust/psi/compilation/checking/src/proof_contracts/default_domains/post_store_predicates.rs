@@ -113,7 +113,17 @@ pub(super) fn post_store_predicate_holds(
             });
             Some(match written_bounds {
                 Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
-                    value: Box::new(value),
+                    // This is the completed value at one pre-store
+                    // occurrence, not a request to replay a mutable read.
+                    value: Box::new(ScopedArithmeticValue::Atom {
+                        identity: format!(
+                            "\0stored-value:{:?}:{:?}:{statement_index}:{written_value:?}",
+                            machine.symbol, state.symbol,
+                        ),
+                        unsigned: program
+                            .primitive_type_reference(field.type_reference)
+                            .is_some_and(|primitive| !primitive.is_signed_integer()),
+                    }),
                     minimum: Some(BigInt::from_i128(i128::from(minimum))),
                     maximum: Some(BigInt::from_i128(i128::from(maximum))),
                 },
