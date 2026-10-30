@@ -5,7 +5,7 @@
 //! rebases. This compiler-owned payload has no source store operation; using
 //! initialized data does not promise physically read-only host pages.
 
-use super::Error;
+use super::{Error, refuse_symbol_collision};
 use crate::ObjectFunction;
 use machine_code::PlacedImageAddress;
 use object_file::{
@@ -70,14 +70,7 @@ pub(super) fn place(
             0,
         );
         let name = format!("omega_implementation_table_{}", table.id);
-        if object
-            .layout
-            .symbols
-            .iter()
-            .any(|(_, symbol)| symbol.name == name)
-        {
-            return Err(Error::Mismatch("implementation table symbol collision"));
-        }
+        refuse_symbol_collision(object, &name, "implementation table symbol collision")?;
         let symbol = object.layout.symbols.insert(SymbolPlan {
             name,
             section: SymbolSection::Section(SectionKind::Data),

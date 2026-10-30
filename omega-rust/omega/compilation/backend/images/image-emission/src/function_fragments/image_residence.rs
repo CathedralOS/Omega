@@ -6,7 +6,7 @@
 //! image-wide referent while preserving each occurrence's relocation origin.
 //! Nothing here introduces memory access or source storage ownership.
 
-use super::Error;
+use super::{Error, refuse_symbol_collision};
 use machine_code::{ImageAddressFields, PlacedImageAddress};
 use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationOrigin, RelocationPlan, RelocationRecord, SymbolKind,
@@ -36,14 +36,7 @@ pub(super) fn declare(
 
 pub(crate) fn declare_symbol(object: &mut ObjectPlan) -> Result<ObjectSymbolHandle, Error> {
     let name = "omega_retained_entry_storage";
-    if object
-        .layout
-        .symbols
-        .iter()
-        .any(|(_, symbol)| symbol.name == name)
-    {
-        return Err(Error::Mismatch("image residence symbol collision"));
-    }
+    refuse_symbol_collision(object, name, "image residence symbol collision")?;
     Ok(object.layout.symbols.insert(SymbolPlan {
         name: name.into(),
         section: SymbolSection::None,
