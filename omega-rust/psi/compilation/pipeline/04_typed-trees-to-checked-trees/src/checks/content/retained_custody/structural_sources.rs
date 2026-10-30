@@ -53,8 +53,8 @@ pub(super) fn parameter_sources(
 ) -> ContentSourceExpansion {
     let ContentSourceExpansion {
         mut sources,
-        mut complete,
-        has_open_owned_carrier,
+        complete,
+        mut has_open_owned_carrier,
     } = domain_sources(program, parameter.type_reference);
     for contract in contracts
         .iter()
@@ -90,7 +90,11 @@ pub(super) fn parameter_sources(
                     })
                     .collect::<Option<Vec<_>>>();
                 let Some(path) = path else {
-                    complete = false;
+                    // This extra contract cannot prove an empty frontier, but
+                    // does not erase sources already known from the type.
+                    // Ordinary borrowed-source/law checks keep their previous
+                    // completeness; only the new emptiness inference closes.
+                    has_open_owned_carrier = true;
                     continue;
                 };
                 let selected = validation::owned_projection_type_reference(
