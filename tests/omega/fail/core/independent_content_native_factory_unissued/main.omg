@@ -1,3 +1,5 @@
+// Compile-only refusal: opaque supply cannot mint these private routed claims.
+// The deliberately incompatible locator must never execute.
 // Fact: Two independent routed interval claims on one owned region remain independently conserved by one checked split.
 // Expected exit: 0
 // Numeric custody model only; no physical backing or access is granted.
