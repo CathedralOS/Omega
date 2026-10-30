@@ -20,9 +20,9 @@ type CompletedSlotEffects =
 #[derive(Clone, Default)]
 pub(super) struct FrameInference {
     pub(super) active_states: Vec<SymbolHandle>,
-    // Completed operands retain the same frozen prefix. Copy its records only
-    // when a branch actually extends that prefix, not for every observation.
-    local_shapes: Arc<Vec<StoredLocalOrigins>>,
+    // Completed operands retain the same frozen prefix. Branch extension copies
+    // only the selection of immutable records, not their reference/case trees.
+    local_shapes: Arc<Vec<Arc<StoredLocalOrigins>>>,
     parameter_values: Option<ParameterValues>,
     // Relative normal-exit summaries belong to this inference invocation.
     // Cloned operand snapshots share completed work, never in-progress work.
@@ -60,7 +60,7 @@ impl FrameInference {
         }
     }
     pub(super) fn record_local(&mut self, local: &StoredLocalOrigins) {
-        Arc::make_mut(&mut self.local_shapes).push(local.clone());
+        Arc::make_mut(&mut self.local_shapes).push(Arc::new(local.clone()));
     }
 
     pub(super) fn local_origins(&self, symbol: SymbolHandle) -> Option<&StoredLocalOrigins> {
@@ -68,6 +68,7 @@ impl FrameInference {
             .iter()
             .rev()
             .find(|local| local.local_symbol == symbol)
+            .map(Arc::as_ref)
     }
 
     pub(super) fn with_local_scope<T>(&mut self, action: impl FnOnce(&mut Self) -> T) -> T {
@@ -550,6 +551,10 @@ mod tests {
         assert!(Arc::ptr_eq(&original.local_shapes, &branch.local_shapes));
         branch.record_local(&local(true));
         assert!(!Arc::ptr_eq(&original.local_shapes, &branch.local_shapes));
+        assert!(Arc::ptr_eq(
+            &original.local_shapes[0],
+            &branch.local_shapes[0]
+        ));
         assert!(
             !original
                 .local_origins(SymbolHandle::default())
@@ -576,6 +581,10 @@ mod tests {
             scope.clone()
         });
         assert!(Arc::ptr_eq(&before.local_shapes, &inference.local_shapes));
+        assert!(Arc::ptr_eq(
+            &before.local_shapes[0],
+            &captured.local_shapes[0]
+        ));
         assert!(
             !inference
                 .local_origins(SymbolHandle::default())
