@@ -3,17 +3,17 @@
 //! the interpreter still checks requires, claims, guarantees and crash routes.
 //! No loader name, fixture identity or observed C token selects semantics.
 //!
-//! This private sponsor supplies the selected native service only, with no
-//! standard streams or additional service capabilities. Existing modeled host
-//! services retain their explicit bindings before this route is considered.
+//! The private worker supplies no additional service authority. Explicit
+//! filesystem delegation admits exact OS operations through its guest descriptor
+//! namespace. Standard descriptors retain their finite input/buffered output
+//! bindings, selected before the invocation's storage presentation is captured.
 
 mod original_homes;
 mod record_fields;
 mod record_shape;
 mod reference_outputs;
 mod values;
-pub(super) use original_homes::NativeContext;
-use original_homes::rejection;
+pub(super) use original_homes::{NativeContext, rejection};
 use values::StorageCodec;
 
 use super::super::TerminalRuntimeError;
@@ -48,6 +48,10 @@ enum Parameter {
         access: StructuralAccess,
         codec: StorageCodec,
     },
+    ByteView {
+        index: usize,
+        access: StructuralAccess,
+    },
 }
 enum ResultCodec {
     Unit,
@@ -55,7 +59,7 @@ enum ResultCodec {
     Record(StorageCodec),
 }
 
-pub(super) struct NativeImport {
+pub(super) struct NativeImport<'host> {
     signature: TerminalImportSignature,
     artifact: TerminalPsiIdentity,
     boundary: BoundaryMachineId,
@@ -66,15 +70,20 @@ pub(super) struct NativeImport {
     layouts: Vec<NativeBorrowedStorageLayout>,
     result: ResultCodec,
     references: reference_outputs::ReferenceOutputs,
+    filesystem: Option<super::filesystem::FilesystemCall>,
+    modeled_descriptor: Option<super::descriptor_io::DescriptorIoImport<'host>>,
 }
 
-impl NativeImport {
+impl<'host> NativeImport<'host> {
     pub(super) fn admit(
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
         provisions: Option<&TerminalRuntimeHostProvisions>,
         native: &NativeContext,
+        filesystem: Option<super::filesystem::FilesystemCall>,
+        input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
+        output: super::buffered_output::BufferedStreams,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
         if !native.available() {
             return Ok(None);
@@ -90,16 +99,17 @@ impl NativeImport {
         // Modeled descriptor operations own their explicit input/output
         // capability supply. An exact recognized but unoffered operation
         // must not fall through to this worker's private null streams.
-        if runtime_abi::descriptor_import_identity(locator).is_some() {
+        if runtime_abi::descriptor_import_identity(locator).is_some() && filesystem.is_none() {
             return Err(missing(
                 "descriptor operation requires its explicit modeled I/O capability".into(),
             ));
         }
-        if declaration
-            .fixed_service_reach
-            .iter()
-            .chain(&declaration.published_service_ceiling)
-            .any(|service| Some(*service) != declaration.owning_service)
+        if filesystem.is_none()
+            && declaration
+                .fixed_service_reach
+                .iter()
+                .chain(&declaration.published_service_ceiling)
+                .any(|service| Some(*service) != declaration.owning_service)
         {
             return Err(missing(
                 "private native sponsor supplies no additional service capability".into(),
@@ -146,6 +156,26 @@ impl NativeImport {
         }
         let signature = TerminalImportSignature::from(declaration);
         let layouts = provisions.borrowed_storage_layouts();
+        let modeled_descriptor = if filesystem
+            .as_ref()
+            .is_some_and(|filesystem| filesystem.descriptor_io())
+        {
+            Some(
+                super::descriptor_io::DescriptorIoImport::for_filesystem(
+                    program,
+                    declaration,
+                    binding,
+                    layouts,
+                    input,
+                    output,
+                )?
+                .ok_or_else(|| {
+                    missing("filesystem descriptor lost its exact stream contract".into())
+                })?,
+            )
+        } else {
+            None
+        };
         let parameters = admit_parameters(program, declaration, application, layouts)
             .map_err(|error| missing(error.reason))?;
         let result = match &declaration.result {
@@ -188,7 +218,7 @@ impl NativeImport {
         let adapter = native
             .sponsor
             .borrow_mut()
-            .with(|process| process.install(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
+            .with(|process| process.install(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, Parameter::ByteView { .. } => NativeParameterStorage::OriginalByteView, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
             .map_err(|error| missing(error.reason))?;
         let references = reference_outputs::ReferenceOutputs::admit(program, declaration, layouts);
         Ok(Some(Self {
@@ -202,10 +232,12 @@ impl NativeImport {
             layouts: layouts.to_vec(),
             result,
             references,
+            filesystem,
+            modeled_descriptor,
         }))
     }
 }
-import_signature_via_clone!(NativeImport);
+import_signature_via_clone!(NativeImport<'_>);
 
 fn validate_scalar_shape(
     shape: calling_conventions::BoundaryValueShape,
@@ -304,6 +336,27 @@ fn admit_parameters(
                     .filter(|kind| **kind == BoundaryParameterKind::Structural)
                     .count();
                 let parameter = &declaration.structural_parameters[index];
+                if matches!(program.structural_type(parameter.structural_type).map(|row| &row.shape),
+                    Some(terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { access })) if access.is_none_or(|access| access == parameter.access))
+                {
+                    if !matches!(
+                        parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    ) || shape.class != BoundaryValueClass::Reference
+                        || shape.byte_size != 16
+                        || shape.alignment != 8
+                        || *physical != calling_conventions::ValueShape::integer(16, 8)
+                    {
+                        return Err(rejection(
+                            "native byte view lost its exact borrowed pointer/length transport",
+                        ));
+                    }
+                    parameters.push(Parameter::ByteView {
+                        index,
+                        access: parameter.access,
+                    });
+                    continue;
+                }
                 let codec = StorageCodec::admit(program, layouts, parameter.structural_type)?;
                 match parameter.access {
                     StructuralAccess::Owned => {
@@ -356,15 +409,30 @@ fn admit_parameters(
     Ok(parameters)
 }
 
-impl TerminalEffectHandler for NativeImport {
-    fn requires_original_storage(&self, boundary: BoundaryMachineId) -> bool {
-        boundary == self.boundary
-    }
-    fn storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
-        if boundary == self.boundary {
-            &self.storage_arguments
-        } else {
-            &[]
+impl TerminalEffectHandler for NativeImport<'_> {
+    fn storage_requirements(
+        &self,
+        boundary: BoundaryMachineId,
+        arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        if boundary != self.boundary {
+            return terminal_interpreter::TerminalCallStorageRequirements {
+                arguments: &[],
+                original: false,
+            };
+        }
+        if self
+            .filesystem
+            .as_ref()
+            .is_some_and(|filesystem| filesystem.modeled_stream(arguments))
+        {
+            if let Some(modeled) = &self.modeled_descriptor {
+                return modeled.storage_requirements(boundary, arguments);
+            }
+        }
+        terminal_interpreter::TerminalCallStorageRequirements {
+            arguments: &self.storage_arguments,
+            original: true,
         }
     }
     fn prepare_original_storage(
@@ -399,6 +467,19 @@ impl TerminalEffectHandler for NativeImport {
         bytes: &mut [TerminalBoundaryByteBuffer],
         buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if let TerminalEffect::BoundaryCall { arguments, .. } = effect {
+            if self
+                .filesystem
+                .as_ref()
+                .is_some_and(|filesystem| filesystem.modeled_stream(arguments))
+            {
+                return self
+                    .modeled_descriptor
+                    .as_mut()
+                    .ok_or_else(|| rejection("filesystem stream lost its modeled binding"))?
+                    .handle_effect_with_buffers(effect, bytes, buffers);
+            }
+        }
         let TerminalEffect::BoundaryCall {
             boundary,
             arguments,
@@ -423,20 +504,47 @@ impl TerminalEffectHandler for NativeImport {
         enum Input {
             Value(Vec<u8>),
             Loan(native_provider_runtime::NativeHomeId, usize),
+            ByteView(native_provider_runtime::NativeHomeId, usize, usize),
         }
         let mut inputs = Vec::with_capacity(self.parameters.len());
+        let supplied_arguments = self
+            .filesystem
+            .as_ref()
+            .map(|filesystem| filesystem.arguments(arguments))
+            .transpose()?;
+        let native_scalars = supplied_arguments.as_deref().unwrap_or(arguments);
         for parameter in &self.parameters {
             inputs.push(match parameter {
+                Parameter::ByteView { index, access } => {
+                    let mut matching = buffers.iter().filter_map(|buffer| match buffer {
+                        TerminalBoundaryStorageBuffer::ByteView(buffer) if buffer.argument_index() == *index => Some(buffer),
+                        _ => None,
+                    });
+                    let buffer = matching.next().ok_or_else(|| rejection("native byte view lost its captured original window"))?;
+                    if matching.next().is_some() || buffer.access() != *access {
+                        return Err(rejection("native byte view changed access or repeated its capture"));
+                    }
+                    let loan = buffer.original_storage().ok_or_else(|| rejection("native byte view has no original allocation"))?;
+                    let (home, offset, length) = self.native.byte_loan(loan)?;
+                    if length as u64 != buffer.length() { return Err(rejection("native byte view changed its captured live length")); }
+                    Input::ByteView(home, offset, length)
+                }
                 Parameter::Scalar { index, scalar } => {
-                    let value = arguments[*index];
+                    let value = native_scalars[*index];
                     if value.scalar_type() != *scalar { return Err(rejection("native scalar actual changed its declared carrier")); }
                     let encoded = encode(value, *scalar)?;
                     Input::Value(encoded[..scalar_extent(*scalar)?].to_vec())
                 }
                 Parameter::Structural { index, access, codec } => {
-                    let mut matching = buffers.iter().filter(|buffer| match buffer { TerminalBoundaryStorageBuffer::Scalar(buffer) => buffer.argument_index() == *index, TerminalBoundaryStorageBuffer::Structural(buffer) => buffer.argument_index() == *index });
+                    let mut matching = buffers.iter().filter(|buffer| match buffer { TerminalBoundaryStorageBuffer::Scalar(buffer) => buffer.argument_index() == *index, TerminalBoundaryStorageBuffer::Structural(buffer) => buffer.argument_index() == *index, TerminalBoundaryStorageBuffer::ByteView(_) => false });
                     let buffer = matching.next().ok_or_else(|| rejection("native structural argument lost its captured payload"))?;
                     if matching.next().is_some() { return Err(rejection("native structural argument has repeated captures")); }
+                    if let Some(filesystem) = &self.filesystem {
+                        if filesystem.path_argument(*index) {
+                            let TerminalBoundaryStorageBuffer::Structural(buffer) = buffer else { return Err(rejection("filesystem path lost its captured array")); };
+                            filesystem.validate_path(*index, &codec.encode(buffer.values())?)?;
+                        }
+                    }
                     match (access, buffer) {
                         (StructuralAccess::Owned, TerminalBoundaryStorageBuffer::Structural(buffer)) if buffer.access() == *access && buffer.structural_type() == codec.structural_type && buffer.original_storage().is_none() => Input::Value(codec.encode(buffer.values())?),
                         (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, TerminalBoundaryStorageBuffer::Structural(buffer)) if buffer.access() == *access && buffer.structural_type() == codec.structural_type => {
@@ -460,6 +568,11 @@ impl TerminalEffectHandler for NativeImport {
                     home: *home,
                     offset: *offset,
                 },
+                Input::ByteView(home, offset, length) => NativeArgument::ByteView {
+                    home: *home,
+                    offset: *offset,
+                    length: *length,
+                },
             })
             .collect::<Vec<_>>();
         let returned = match self
@@ -475,6 +588,14 @@ impl TerminalEffectHandler for NativeImport {
             Err(error) => return Err(rejection(error.to_string())),
         };
         self.references.complete(&self.native, buffers)?;
+        for parameter in &self.parameters {
+            let Parameter::ByteView { index, access: StructuralAccess::MutableBorrow } = parameter else { continue; };
+            let buffer = buffers.iter_mut().find_map(|buffer| match buffer {
+                TerminalBoundaryStorageBuffer::ByteView(buffer) if buffer.argument_index() == *index => Some(buffer),
+                _ => None,
+            }).ok_or_else(|| rejection("native mutable byte completion lost its original window"))?;
+            buffer.acknowledge_original_write()?;
+        }
         // Mutable captures are completion observations of the same mapped
         // homes, never a write-back copy. Core validates them and preserves its
         // ordinary qualification/provenance and claim completion joins.
@@ -496,11 +617,13 @@ impl TerminalEffectHandler for NativeImport {
                     TerminalBoundaryStorageBuffer::Structural(buffer) => {
                         buffer.argument_index() == *index
                     }
+                    TerminalBoundaryStorageBuffer::ByteView(_) => false,
                 })
                 .ok_or_else(|| rejection("native mutable completion lost its original input"))?;
             let loan = match &*buffer {
                 TerminalBoundaryStorageBuffer::Scalar(buffer) => buffer.original_storage(),
                 TerminalBoundaryStorageBuffer::Structural(buffer) => buffer.original_storage(),
+                TerminalBoundaryStorageBuffer::ByteView(_) => None,
             }
             .ok_or_else(|| rejection("native mutable completion lost its original loan"))?;
             let (home, offset) = self.native.loan(loan, codec)?;
@@ -519,14 +642,22 @@ impl TerminalEffectHandler for NativeImport {
                 TerminalBoundaryStorageBuffer::Structural(buffer) => {
                     buffer.replace(codec.decode_fields(&observed)?)?
                 }
+                TerminalBoundaryStorageBuffer::ByteView(_) => {
+                    return Err(rejection("fixed codec completion received a byte view"));
+                }
             }
         }
         match &self.result {
             ResultCodec::Unit if returned.is_empty() => Ok(TerminalEffectResult::Unit),
             ResultCodec::Unit => Err(rejection("native Unit completion returned a payload")),
-            ResultCodec::Scalar(scalar) => Ok(TerminalEffectResult::Scalar(decode(
-                &returned, *scalar, *scalar,
-            )?)),
+            ResultCodec::Scalar(scalar) => {
+                let value = decode(&returned, *scalar, *scalar)?;
+                let value = match &self.filesystem {
+                    Some(filesystem) => filesystem.result(arguments, value)?,
+                    None => value,
+                };
+                Ok(TerminalEffectResult::Scalar(value))
+            }
             ResultCodec::Record(codec) => Ok(TerminalEffectResult::ScalarAggregate(
                 codec.aggregate(&returned)?,
             )),

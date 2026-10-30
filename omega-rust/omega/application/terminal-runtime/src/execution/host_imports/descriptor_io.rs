@@ -57,16 +57,41 @@ impl<'input> DescriptorIoImport<'input> {
         input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
         output: BufferedStreams,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        let Some(contract) = admission::admit(program, declaration, binding, storage_layouts)?
-        else {
-            return Ok(None);
-        };
-        if matches!(contract.operation, DescriptorOperation::Read) && input.is_none() {
+        let adapter = Self::for_filesystem(
+            program,
+            declaration,
+            binding,
+            storage_layouts,
+            input,
+            output,
+        )?;
+        if adapter.as_ref().is_some_and(|adapter| {
+            matches!(adapter.contract.operation, DescriptorOperation::Read)
+                && adapter.input.is_none()
+        }) {
             return Err(TerminalRuntimeError::missing(
                 "runtime-standard-input",
                 "no finite replay stream was supplied",
             ));
         }
+        Ok(adapter)
+    }
+
+    /// File descriptors need no stdin capability. The shared native route
+    /// still dispatches descriptor zero through this finite-stream adapter,
+    /// whose ordinary invocation check rejects absent input before reading.
+    pub(super) fn for_filesystem(
+        program: &TerminalProgram,
+        declaration: &BoundaryMachineDeclaration,
+        binding: &NormalizedForeignCallBinding,
+        storage_layouts: &[NativeBorrowedStorageLayout],
+        input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
+        output: BufferedStreams,
+    ) -> Result<Option<Self>, TerminalRuntimeError> {
+        let Some(contract) = admission::admit(program, declaration, binding, storage_layouts)?
+        else {
+            return Ok(None);
+        };
         Ok(Some(Self {
             contract,
             input,
@@ -112,10 +137,17 @@ impl TerminalImportAdapter for DescriptorIoImport<'_> {
     }
 }
 impl TerminalEffectHandler for DescriptorIoImport<'_> {
-    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        match self.contract.buffer {
-            DescriptorBuffer::Aggregate(_) => &[0],
-            _ => &[],
+    fn storage_requirements(
+        &self,
+        _boundary: semantic_vocabulary::BoundaryMachineId,
+        _arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: match self.contract.buffer {
+                DescriptorBuffer::Aggregate(_) => &[0],
+                _ => &[],
+            },
         }
     }
     fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {

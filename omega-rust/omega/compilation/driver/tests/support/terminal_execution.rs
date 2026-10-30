@@ -182,6 +182,7 @@ pub(super) fn target_installations(
         };
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
             entry: None,
+            filesystem: Default::default(),
             native_provider: Some(std::process::Command::new(executable)),
             x86_flags,
             memory_ordering:
@@ -316,6 +317,7 @@ pub(super) fn interpret(
     };
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
         entry: None,
+        filesystem: Default::default(),
         native_provider: Some(std::process::Command::new(executable)),
         x86_flags,
         memory_ordering: target

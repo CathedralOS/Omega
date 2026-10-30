@@ -96,6 +96,7 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
         let started = Instant::now();
         let terminal = terminal_runtime::execute(TerminalRuntimeRequest {
             entry: None,
+            filesystem: Default::default(),
             native_provider: None,
             x86_flags: None,
             memory_ordering: None,

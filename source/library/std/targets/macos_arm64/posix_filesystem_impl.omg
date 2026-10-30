@@ -382,7 +382,7 @@ boundary requirement PosixFilesystemDarwin::c_open(path: &[u8; 4096], flags: i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_open_create(path: &[u8; 4096], flags: i32, mode: i32) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_create(path: &[u8; 4096], mode: i32) -> i32
+boundary requirement PosixFilesystemDarwin::c_create(path: &[u8; 4096], mode: u16) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_close(fd: i32) -> i32
 ;
@@ -390,19 +390,19 @@ boundary requirement PosixFilesystemDarwin::c_remove(path: &[u8; 4096]) -> i32
 reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_seek(fd: i32, offset: i64, whence: i32) -> i64
 ;
-boundary requirement PosixFilesystemDarwin::c_create_dir(path: &[u8; 4096], mode: i32) -> i32
+boundary requirement PosixFilesystemDarwin::c_create_dir(path: &[u8; 4096], mode: u16) -> i32
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_remove_dir(path: &[u8; 4096]) -> i32
 reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_create_dir_name(name: &[u8; 4096], mode: i32) -> i32
+boundary requirement PosixFilesystemDarwin::c_create_dir_name(name: &[u8; 4096], mode: u16) -> i32
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_open_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_unlink_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
 reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_set_permissions(path: &[u8; 4096], mode: u32) -> i32
+boundary requirement PosixFilesystemDarwin::c_set_permissions(path: &[u8; 4096], mode: u16) -> i32
 reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_set_file_permissions(fd: i32, mode: u32) -> i32
+boundary requirement PosixFilesystemDarwin::c_set_file_permissions(fd: i32, mode: u16) -> i32
 reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_rename(from: &[u8; 4096], to: &[u8; 4096]) -> i32
 reaches FilesystemNamespaceMutation;
@@ -430,11 +430,11 @@ boundary requirement PosixFilesystemDarwin::c_duplicate(fd: i32) -> i32
 ;
 boundary requirement PosixFilesystemDarwin::c_lock_file(fd: i32, operation: i32) -> i32
 ;
-boundary requirement PosixFilesystemDarwin::c_change_owner(path: &[u8; 4096], uid: i32, gid: i32) -> i32
+boundary requirement PosixFilesystemDarwin::c_change_owner(path: &[u8; 4096], uid: u32, gid: u32) -> i32
 reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_change_owner_no_follow(path: &[u8; 4096], uid: i32, gid: i32) -> i32
+boundary requirement PosixFilesystemDarwin::c_change_owner_no_follow(path: &[u8; 4096], uid: u32, gid: u32) -> i32
 reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
+boundary requirement PosixFilesystemDarwin::c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
 reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_error_location() -> u64
 ;
@@ -448,7 +448,7 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_open(path: &[u8; 4096], flag
     satisfies PosixFilesystemDarwin::c_open via posix_darwin_open_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_open_create(path: &[u8; 4096], flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemDarwin::c_open_create via posix_darwin_open_private_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_create(path: &[u8; 4096], mode: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_create(path: &[u8; 4096], mode: u16) -> i32
     satisfies PosixFilesystemDarwin::c_create via posix_darwin_creat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_read(fd: i32, buffer: &mut [u8]) -> i64
     satisfies PosixFilesystemDarwinByteViews::c_read via posix_darwin_read_binding();
@@ -464,19 +464,19 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_remove(path: &[u8; 4096]) ->
     satisfies PosixFilesystemDarwin::c_remove via posix_darwin_unlink_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_seek(fd: i32, offset: i64, whence: i32) -> i64
     satisfies PosixFilesystemDarwin::c_seek via posix_darwin_lseek_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_create_dir(path: &[u8; 4096], mode: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_create_dir(path: &[u8; 4096], mode: u16) -> i32
     satisfies PosixFilesystemDarwin::c_create_dir via posix_darwin_mkdir_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_remove_dir(path: &[u8; 4096]) -> i32
     satisfies PosixFilesystemDarwin::c_remove_dir via posix_darwin_rmdir_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_create_dir_name(name: &[u8; 4096], mode: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_create_dir_name(name: &[u8; 4096], mode: u16) -> i32
     satisfies PosixFilesystemDarwin::c_create_dir_name via posix_darwin_mkdir_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_open_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
     satisfies PosixFilesystemDarwin::c_open_at via posix_darwin_openat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_unlink_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
     satisfies PosixFilesystemDarwin::c_unlink_at via posix_darwin_unlinkat_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_set_permissions(path: &[u8; 4096], mode: u32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_permissions(path: &[u8; 4096], mode: u16) -> i32
     satisfies PosixFilesystemDarwin::c_set_permissions via posix_darwin_chmod_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_permissions(fd: i32, mode: u32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_permissions(fd: i32, mode: u16) -> i32
     satisfies PosixFilesystemDarwin::c_set_file_permissions via posix_darwin_fchmod_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_rename(from: &[u8; 4096], to: &[u8; 4096]) -> i32
     satisfies PosixFilesystemDarwin::c_rename via posix_darwin_rename_binding();
@@ -508,11 +508,11 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_duplicate(fd: i32) -> i32
     satisfies PosixFilesystemDarwin::c_duplicate via posix_darwin_dup_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_lock_file(fd: i32, operation: i32) -> i32
     satisfies PosixFilesystemDarwin::c_lock_file via posix_darwin_flock_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_change_owner(path: &[u8; 4096], uid: i32, gid: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_change_owner(path: &[u8; 4096], uid: u32, gid: u32) -> i32
     satisfies PosixFilesystemDarwin::c_change_owner via posix_darwin_chown_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_change_owner_no_follow(path: &[u8; 4096], uid: i32, gid: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_change_owner_no_follow(path: &[u8; 4096], uid: u32, gid: u32) -> i32
     satisfies PosixFilesystemDarwin::c_change_owner_no_follow via posix_darwin_lchown_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
     satisfies PosixFilesystemDarwin::c_change_file_owner via posix_darwin_fchown_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_error_location() -> u64
     satisfies PosixFilesystemDarwin::c_error_location via posix_darwin_error_private_binding();
@@ -596,7 +596,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemDarwin::c_create(&terminated, mode);
+    let outcome: i32 = PosixFilesystemDarwin::c_create(&terminated, narrow_i32_to_u16_wrapping(mode));
     transition fits {
         true -> settle(outcome)
         _ -> (PosixFilesystemDarwin::name_too_long_i32())
@@ -692,7 +692,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemDarwin::c_create_dir(&terminated, mode);
+    let outcome: i32 = PosixFilesystemDarwin::c_create_dir(&terminated, narrow_i32_to_u16_wrapping(mode));
     transition fits {
         true -> settle(outcome)
         _ -> (PosixFilesystemDarwin::name_too_long_i32())
@@ -732,7 +732,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
-    let outcome: i32 = PosixFilesystemDarwin::c_create_dir_name(&terminated, mode);
+    let outcome: i32 = PosixFilesystemDarwin::c_create_dir_name(&terminated, narrow_i32_to_u16_wrapping(mode));
     transition fits {
         true -> settle(outcome)
         _ -> (PosixFilesystemDarwin::name_too_long_i32())
@@ -792,7 +792,7 @@ reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemDarwin::c_set_permissions(&terminated, mode);
+    let outcome: i32 = PosixFilesystemDarwin::c_set_permissions(&terminated, narrow_u32_to_u16_wrapping(mode));
     transition fits {
         true -> settle(outcome)
         _ -> (PosixFilesystemDarwin::name_too_long_i32())
@@ -810,7 +810,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::set_file_permissions(fd: i32,
     satisfies PosixFilesystemHost::set_file_permissions
 reaches FilesystemMetadataMutation
 {
-    let outcome: i32 = PosixFilesystemDarwin::c_set_file_permissions(fd, mode);
+    let outcome: i32 = PosixFilesystemDarwin::c_set_file_permissions(fd, narrow_u32_to_u16_wrapping(mode));
     transition outcome < 0 {
         true -> (PosixFilesystemDarwin::failure_i32())
         _ -> (outcome)
@@ -1103,7 +1103,7 @@ reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemDarwin::c_change_owner(&terminated, uid, gid);
+    let outcome: i32 = PosixFilesystemDarwin::c_change_owner(&terminated, narrow_i32_to_u32_wrapping(uid), narrow_i32_to_u32_wrapping(gid));
     transition fits {
         true -> settle(outcome)
         _ -> (PosixFilesystemDarwin::name_too_long_i32())
@@ -1123,7 +1123,7 @@ reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemDarwin::c_change_owner_no_follow(&terminated, uid, gid);
+    let outcome: i32 = PosixFilesystemDarwin::c_change_owner_no_follow(&terminated, narrow_i32_to_u32_wrapping(uid), narrow_i32_to_u32_wrapping(gid));
     transition fits {
         true -> settle(outcome)
         _ -> (PosixFilesystemDarwin::name_too_long_i32())
@@ -1141,7 +1141,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::change_file_owner(fd: i32, ui
     satisfies PosixFilesystemHost::change_file_owner
 reaches FilesystemMetadataMutation
 {
-    let outcome: i32 = PosixFilesystemDarwin::c_change_file_owner(fd, uid, gid);
+    let outcome: i32 = PosixFilesystemDarwin::c_change_file_owner(fd, narrow_i32_to_u32_wrapping(uid), narrow_i32_to_u32_wrapping(gid));
     transition outcome < 0 {
         true -> (PosixFilesystemDarwin::failure_i32())
         _ -> (outcome)

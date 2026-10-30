@@ -229,10 +229,17 @@ fn wait(
 import_signature_via_clone!(ClockImport);
 
 impl TerminalEffectHandler for ClockImport {
-    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        match self.operation {
-            ClockOperation::ReadTimespec(_) | ClockOperation::Nanosleep(_) => &[0],
-            _ => &[],
+    fn storage_requirements(
+        &self,
+        _boundary: semantic_vocabulary::BoundaryMachineId,
+        _arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: match self.operation {
+                ClockOperation::ReadTimespec(_) | ClockOperation::Nanosleep(_) => &[0],
+                _ => &[],
+            },
         }
     }
 

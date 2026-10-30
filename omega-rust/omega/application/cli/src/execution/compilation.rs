@@ -91,6 +91,7 @@ pub(super) fn interpret_product(
         ))?;
     terminal_runtime::execute(TerminalRuntimeRequest {
         entry: None,
+        filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
         native_provider: Some(std::process::Command::new(
             std::env::current_exe().map_err(|error| TerminalRuntimeError::MissingProvision {
                 capability: "native-provider-sponsor",

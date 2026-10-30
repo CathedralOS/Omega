@@ -3,12 +3,13 @@
 //! The native producer retains its admitted entry and provider provisions.
 //! Reference execution consumes those exact records without rebuilding source
 //! or rerunning Build. They identify what to establish; this owner creates the
-//! actual zero backing and pure buffered host bindings. Containing-domain exit
+//! actual zero backing and explicitly supplied host bindings. Containing-domain exit
 //! requires a separate explicit host delegation; its default is absent even
 //! when entry or provider provisions are present. Guest storage never escapes,
 //! no placed host loans are admitted, and host output is copied into an
-//! observation rather than performed on a
-//! surviving process. Those are the domain-death premises of this runtime, not
+//! observation. A separate filesystem delegation can perform persistent effects
+//! in the host namespace; private domain death does not undo those effects.
+//! These are explicit receiving choices, not
 //! permissions inferred from a provider name or from a reach declaration.
 //! Selected numeric imports reuse exact shared IEEE semantics, including directed
 //! rounding and integer conversion. Their trapping responses still require the
@@ -45,6 +46,15 @@ pub enum TerminalDomainExitDelegation {
     IsolatedContainingDomain,
 }
 
+/// Explicit access to this host's filesystem namespace. Naming filesystem
+/// effects or selecting a native provider does not supply this authority.
+#[derive(Clone, Copy, Default)]
+pub enum TerminalFilesystemDelegation {
+    #[default]
+    Unprovided,
+    HostNamespace,
+}
+
 use native_artifact::TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
@@ -60,8 +70,10 @@ pub struct TerminalRuntimeRequest<'program> {
     pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>,
     /// Explicit private native sponsor. Its executable must dispatch the
     /// runtime worker hook before normal arguments. None admits no native C
-    /// execution. This worker supplies no standard stream or external service.
+    /// execution. This worker supplies no standard stream or external service
+    /// authority on its own; filesystem access needs the separate delegation.
     pub native_provider: Option<std::process::Command>,
+    pub filesystem: TerminalFilesystemDelegation,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     pub memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
@@ -374,6 +386,7 @@ pub fn execute_sliced(
         request.standard_input,
         request.clock,
         request.native_provider,
+        request.filesystem,
     );
     let component_slots = request
         .provisions
