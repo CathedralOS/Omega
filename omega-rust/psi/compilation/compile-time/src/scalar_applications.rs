@@ -22,7 +22,7 @@ mod tests;
 /// canonical jobs and discharges every applicable condition. Address-model
 /// refusal remains deferred until predicates have been checked.
 pub struct ScalarScopeEvaluation {
-    pub application_roots: Option<Vec<terminal_psi::TargetMachineCallable>>,
+    pub application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
     pub targets: terminal_installation::AdmittedTargetMachineSelections,
     pub providers: terminal_installation::AdmittedProviderSelections,
     pub address_model: Result<Option<terminal_installation::ScalarAddressModel>, String>,

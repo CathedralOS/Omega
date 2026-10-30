@@ -157,44 +157,41 @@ impl PreparedTargetChoices {
 fn close_application_roots(
     roots: &[CanonicalProviderDeclaration],
     artifact: terminal_codec::TerminalArtifactView<'_>,
-) -> Result<Vec<terminal_psi::TargetMachineCallable>, String> {
+) -> Result<Vec<terminal_psi::ProofDeclarationId>, String> {
     let module = artifact.module();
+    let scope = &module.scalar_applications.proof_scope;
     let mut result = Vec::with_capacity(roots.len());
     for root in roots {
         let CanonicalProviderDeclaration::Machine { owner, callable } = root else {
             return Err("Build application root is not an exact ordinary machine".into());
         };
-        let declarations = module
-            .machines
+        // Declaration checking publishes application owners without requiring
+        // their executable bodies. These canonical proof coordinates retain the
+        // exact checked declaration; they grant no supplier or entry authority.
+        let mut matches = scope
+            .declarations
+            .storage_slice()
             .iter()
-            .filter_map(|machine| {
-                machine.declaration.as_ref().map(|declaration| {
-                    (
-                        terminal_psi::TargetMachineCallable::Machine(machine.id),
-                        declaration,
-                    )
-                })
-            })
-            .chain(module.boundary_machines.iter().filter_map(|boundary| {
-                boundary.declaration.as_ref().map(|declaration| {
-                    (
-                        terminal_psi::TargetMachineCallable::Boundary(boundary.id),
-                        &declaration.source,
-                    )
-                })
-            }));
-        let mut matches = declarations
-            .filter(|(_, declaration)| {
-                module.identities.text(declaration.machine.identity()) == Some(owner.as_str())
-                    && module.identities.text(declaration.callable) == Some(callable.as_str())
-            })
-            .map(|(callable, _)| callable);
-        let root = matches
+            .enumerate()
+            .filter_map(|(ordinal, declaration)| {
+                let terminal_psi::ProofScopeDeclaration::Callable(declaration) = declaration else {
+                    return None;
+                };
+                (module.identities.text(declaration.machine.identity()) == Some(owner.as_str())
+                    && module.identities.text(declaration.callable) == Some(callable.as_str()))
+                .then_some(ordinal)
+            });
+        let ordinal = matches
             .next()
-            .ok_or("Build application root has no emitted checked declaration")?;
+            .ok_or("Build application root has no retained checked proof declaration")?;
         if matches.next().is_some() {
-            return Err("Build application root has competing emitted declarations".into());
+            return Err("Build application root has competing checked proof declarations".into());
         }
+        let coordinate = u32::try_from(ordinal)
+            .ok()
+            .and_then(|ordinal| ordinal.checked_add(1))
+            .ok_or("Build application proof coordinate namespace is exhausted")?;
+        let root = terminal_psi::ProofDeclarationId(coordinate);
         if !result.contains(&root) {
             result.push(root);
         }

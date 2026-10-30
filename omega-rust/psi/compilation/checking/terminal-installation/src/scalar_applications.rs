@@ -158,28 +158,37 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
     /// from dormant candidate declarations or a target spelling in Source.
     pub fn with_application_roots(
         mut self,
-        roots: Option<&[terminal_psi::TargetMachineCallable]>,
+        roots: Option<&[terminal_psi::ProofDeclarationId]>,
     ) -> Result<Self, String> {
         let Some(roots) = roots else {
             return Ok(self);
         };
         let scope = &self.artifact.module().scalar_applications.proof_scope;
-        let mut declarations = Vec::new();
-        for callable in roots
-            .iter()
-            .copied()
-            .chain(
-                self.providers
-                    .providers()
-                    .map(|(_, body)| terminal_psi::TargetMachineCallable::Machine(body)),
-            )
+        let mut declarations = Vec::with_capacity(roots.len());
+        for &root in roots {
+            if !matches!(
+                scope.declaration(root),
+                Some(terminal_psi::ProofScopeDeclaration::Callable(_))
+            ) {
+                return Err(
+                    "Build scalar application root has no exact checked proof declaration".into(),
+                );
+            }
+            if !declarations.contains(&root) {
+                declarations.push(root);
+            }
+        }
+        for callable in self
+            .providers
+            .providers()
+            .map(|(_, body)| terminal_psi::TargetMachineCallable::Machine(body))
             .chain(self.providers.assumed_bindings().iter().map(|binding| {
                 terminal_psi::TargetMachineCallable::Machine(binding.implementation)
             }))
         {
             let owner = scope
                 .callable_declaration(callable)
-                .ok_or("Build scalar application root has no retained proof declaration")?;
+                .ok_or("selected scalar provider has no retained proof declaration")?;
             if !declarations.contains(&owner) {
                 declarations.push(owner);
             }

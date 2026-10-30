@@ -16,10 +16,10 @@ pub struct TerminalTargetProviderProposal {
     /// Complete selected optimization set; pending Omega work is not applied
     /// by Terminal interpretation and this identity supplies no native authority.
     pub optimization_selection: optimization_core::OptimizationSelectionIdentity,
-    /// Exact Build-bound ordinary entries in this artifact. None denotes a
+    /// Exact Build-bound ordinary entry proof declarations in this artifact. None denotes a
     /// reusable declaration product; Some is a complete deployment roster,
     /// including a provider-only deployment with no ProgramEntry.
-    pub application_roots: Option<Vec<terminal_psi::TargetMachineCallable>>,
+    pub application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
     /// An authored entry or provider row requires this deployment scope even
     /// when another target is the primary value consumer.
     pub application_required: bool,

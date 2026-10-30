@@ -302,17 +302,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                         resolve_bindings(self.operational, call.arguments, &application.bindings),
                     ),
                 };
-                // Supplied code can become a callback/indirect entry without
-                // a direct source invocation in the receiving body. Its exact
-                // captured telescope belongs to this same reached application.
-                let mut captures = bindings.clone();
-                while let Some(binding) = captures.pop() {
-                    captures.extend(binding.arguments.iter().cloned());
-                    pending.push(Application {
-                        machine: binding.selected,
-                        bindings: binding.arguments,
-                    });
-                }
                 pending.push(Application {
                     machine: callee,
                     bindings,

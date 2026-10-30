@@ -21,7 +21,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 
 // Provider plans retain complete applications and exact numeric realization declarations.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI07";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI08";
 
 #[cfg(test)]
 mod tests {
