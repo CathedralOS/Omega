@@ -340,13 +340,46 @@ impl CheckedBoundaryCallable {
 impl BoundaryMachineDeclaration {
     /// Opaque supply cannot assert non-content provenance owned by another
     /// issuer. It needs an actual checked return; equal bits and a matching
-    /// host result annotation do not carry that history. Content domains retain
-    /// their independent input conservation and issuance checks. This query
+    /// host result annotation do not carry that history. Content with an empty
+    /// owned entry frontier also needs its exact authorized issuance route;
+    /// conservation cannot justify supply when nothing was consumed. Other
+    /// content transfers retain their independent conservation checks. This query
     /// does not admit supply, prove predicates, or manufacture custody.
     pub fn requires_checked_result(&self, domains: &[crate::StructuralDomainDeclaration]) -> bool {
         let BoundaryMachineResult::Structural(result) = &self.result else {
             return false;
         };
+        // Only owned occurrences contribute input custody. A record containing
+        // a reference owns its descriptor, never the qualified referent. Unknown
+        // domain metadata cannot establish an empty frontier. This is the same
+        // frontier distinction as source partition validation, applied to the
+        // retained signature before either native or interpreter host dispatch.
+        let has_owned_content_input = self.structural_parameters.iter().any(|parameter| {
+            parameter.access == crate::StructuralAccess::Owned
+                && parameter
+                    .qualifications
+                    .iter()
+                    .chain(
+                        parameter
+                            .projected_qualifications
+                            .iter()
+                            .filter(|row| {
+                                !row.path.contains(&crate::StructuralPathSegment::Referent)
+                            })
+                            .map(|row| &row.domain),
+                    )
+                    .any(|domain| {
+                        domains
+                            .iter()
+                            .find(|declaration| declaration.id == *domain)
+                            .and_then(|declaration| declaration.required_domain_closure(domains))
+                            .is_none_or(|required| {
+                                required
+                                    .iter()
+                                    .any(|node| node.content_projection.is_some())
+                            })
+                    })
+        });
         result
             .qualifications
             .iter()
@@ -365,11 +398,13 @@ impl BoundaryMachineDeclaration {
                             .required_domain_closure(domains)
                             .is_none_or(|required| {
                                 required.into_iter().any(|node| {
-                                    // Content conservation still owns direct content
-                                    // results. A child annotation cannot substitute
-                                    // for that parent's separate conservation edge.
+                                    // Transferred direct content still owes its
+                                    // conservation edge. Independently supplied
+                                    // content has no such input: an annotation
+                                    // cannot substitute for issuer authorization.
                                     (node.id != declaration.id && node.content_projection.is_some())
-                                        || (node.content_projection.is_none()
+                                        || ((node.content_projection.is_none()
+                                            || !has_owned_content_input)
                                             && !node.establishment_routes.is_empty()
                                             && !node.authorizes_boundary_requirement(
                                                 self.identity,
