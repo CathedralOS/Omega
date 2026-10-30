@@ -1051,8 +1051,8 @@ impl<'base> ConstantSelection<'base> {
                     _ => None,
                 }).take(8).collect::<Vec<_>>();
                 format!(
-                    "selected nominal carrier lost its declaration: selected={selected:?}, header={span:?}, use={:?}, retained_headers=[{}]",
-                    name.source_span(), retained.join(", "),
+                    "selected nominal carrier lost its declaration: selected={selected:?}({}), header={span:?}, use={:?}, retained_headers=[{}]",
+                    self.symbols.name(selected), name.source_span(), retained.join(", "),
                 )
             })?;
         if declarations.next().is_some() {
