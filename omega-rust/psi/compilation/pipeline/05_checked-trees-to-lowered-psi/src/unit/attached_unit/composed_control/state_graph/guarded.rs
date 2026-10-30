@@ -69,23 +69,7 @@ pub(super) fn emit(
                 next_edge,
                 operations,
             },
-            |frame| {
-                let (mut environment, emission) = frame.split();
-                emission.evaluation.guard_value(
-                    identities,
-                    checked,
-                    owner,
-                    state.state,
-                    guard.guard_statement_ordinal,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            },
+            |mut frame| frame.guard_value(identities, guard.guard_statement_ordinal),
         )?;
         if condition.scalar_type != ScalarType::Boolean {
             return unsupported("ordered return guard is not Boolean");

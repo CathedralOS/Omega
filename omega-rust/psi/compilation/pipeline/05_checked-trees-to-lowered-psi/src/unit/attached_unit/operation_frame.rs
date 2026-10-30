@@ -330,6 +330,30 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
         )
     }
 
+    /// Read the checked scalar guard one statement conditions on, on this
+    /// frame's own lanes: the guard is the frame's state, not the caller's.
+    pub(super) fn guard_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        statement: u32,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let (mut environment, emission) = self.reborrow().split();
+        emission.evaluation.guard_value(
+            identities,
+            environment.checked,
+            environment.machine,
+            environment.state,
+            statement,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
+            &mut environment,
+        )
+    }
+
     /// Evaluate every runtime element of one store path on this frame's own
     /// lanes, in the authored selector order the destination names.
     pub(super) fn store_selectors(
