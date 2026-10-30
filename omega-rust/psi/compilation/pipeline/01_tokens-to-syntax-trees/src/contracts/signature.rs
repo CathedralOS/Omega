@@ -54,15 +54,15 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
 ) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::diagnostics::parse_error::ParseError>
 {
-    let mut service_reaches = crate::handle_spans::HandleSpanBuilder::new();
+    let mut service_reaches = Vec::new();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
-    let mut invokes = crate::handle_spans::HandleSpanBuilder::new();
+    let mut invokes = Vec::new();
     let mut suspends_keyword_source_spans = Vec::new();
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
-    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
+    let mut contracts = Vec::new();
     let mut terminates_guarantee = false;
     let mut where_facts = crate::handle_spans::HandleSpanBuilder::new();
 
@@ -126,7 +126,6 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         if input.at_contextual("reaches") {
             input = super::take_operational_reaches_clause(
                 input,
-                syntax_trees,
                 &mut service_reach_keyword_source_spans,
                 &mut service_reaches,
                 &mut service_reach_is_installation_bound,
@@ -138,8 +137,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         if input.at_contextual("invokes") {
             input = input.take_contextual("invokes")?;
             let (binding, after_binding) = input.take_identifier()?;
-            let handle = syntax_trees.items.append_identifier_path_member(binding);
-            invokes.push(handle);
+            invokes.push(binding);
             input = take_invokes_signature_clause(
                 after_binding,
                 allow_clauses_after_operational_separator,
@@ -182,19 +180,15 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             let header_token_count = 2usize;
             let ((facts, fact_token_count), rest) =
                 parse_proof_facts_until(syntax_trees, after_header, signature_clause_boundary)?;
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind: CapabilityContractKind::Crashes { cause },
-                    keyword_source_span,
-                    binding: None,
-                    facts,
-                    token_count: fact_token_count
-                        .checked_add(header_token_count)
-                        .expect("crash contract token count overflow"),
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind: CapabilityContractKind::Crashes { cause },
+                keyword_source_span,
+                binding: None,
+                facts,
+                token_count: fact_token_count
+                    .checked_add(header_token_count)
+                    .expect("crash contract token count overflow"),
+            });
             input = rest;
             continue;
         }
@@ -221,17 +215,13 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                     "a named bodyless-signature contract must contain exactly one proposition",
                 ));
             }
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind,
-                    keyword_source_span,
-                    binding,
-                    facts,
-                    token_count,
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind,
+                keyword_source_span,
+                binding,
+                facts,
+                token_count,
+            });
             input = rest;
             continue;
         }
@@ -272,15 +262,17 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
 
     Ok((
         SignatureClauses {
-            service_reaches: service_reaches.finish(),
+            service_reaches: syntax_trees
+                .items
+                .insert_identifier_path_members(service_reaches),
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
-            invokes: invokes.finish(),
+            invokes: syntax_trees.items.insert_identifier_path_members(invokes),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts: contracts.finish(),
+            contracts: super::publish_capability_contracts(syntax_trees, contracts),
             terminates_guarantee,
             where_facts: where_facts.finish(),
         },

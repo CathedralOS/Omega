@@ -1,0 +1,39 @@
+// Fact: a selected callback satisfies the public callable guarantee, and its bounded result permits subtraction from 64u64.
+// Expected exit: 0
+// Each nested producer and its enclosing consumer must execute once.
+data Counters [copy] { inner: u64 in Wrapping; outer: u64 in Wrapping; }
+machine identity(value: u64, counters: &mut Counters) -> u64
+    requires value <= 64 ensures result <= 64 && result >= value
+{
+    counters.inner = counters.inner + 1u64;
+    value
+}
+boundary trait CallbackApply {
+    machine apply<machine Selected>(value: u64, counters: &mut Counters) -> u64
+        requires machine Selected(input: u64, counts: &mut Counters) -> u64
+            requires input <= 64 ensures result <= 64 && result >= input;
+        reaches requires value <= 64 ensures result <= 64;
+}
+SharedApply satisfies CallbackApply {
+    machine apply<machine Action>(value: u64, counters: &mut Counters) -> u64
+        requires machine Action(input: u64, counts: &mut Counters) -> u64
+            requires input <= 64 ensures result <= 64 && result >= input;
+        requires value <= 64 ensures result <= 64
+    { Action(value, counters) }
+}
+machine relay(value: u64, counters: &mut Counters) -> u64
+    requires value <= 64 ensures result <= 64
+{
+    counters.outer = counters.outer + 1u64;
+    value
+}
+machine main() reaches CallbackApply invokes CallbackApply; crashes Trap {
+    let mut counters: Counters = Counters { inner: 0u64, outer: 0u64 };
+    let result: u64 = relay(CallbackApply::apply<identity>(42, &mut counters), &mut counters);
+    let remaining: u64 = 64u64 - result;
+    transition remaining == 22 && counters.inner == 1 && counters.outer == 1 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
