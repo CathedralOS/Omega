@@ -166,17 +166,32 @@ def recorded_hosts(text):
     return hosts if saw else None
 
 
-def is_host_evidence(path, text):
-    """Whether `text` may count as execution evidence for the host in `path`.
+def evidence_kind(path, text):
+    """How `text` counts for the host named by `path`: host, emulated, or None.
 
-    A golden with no context line predates host stamping and stays eligible.
-    A named host golden counts only when every context line names that host.
+    A golden with no context line predates host stamping and stays host
+    evidence. A `linux_arm64` product recorded on Linux x86_64 is the
+    qemu-aarch64 run of that product. Any other recorder mismatch is not
+    evidence for the filename host.
     """
     target = execution_target(path)
     if target is None:
-        return True
+        return "host"
     hosts = recorded_hosts(text)
-    return hosts is None or hosts == {target}
+    if hosts is None or hosts == {target}:
+        return "host"
+    if target == "linux_arm64" and hosts == {"linux_x86_64"}:
+        return "emulated"
+    return None
+
+
+def choose_execution_sources(classified):
+    """Prefer a matching-host golden. Emulated rows remain when they are the only evidence."""
+    host_sources = [(path, records) for kind, path, records in classified if kind == "host"]
+    if host_sources:
+        return host_sources, False
+    emulated = [(path, records) for kind, path, records in classified if kind == "emulated"]
+    return emulated, bool(emulated)
 
 
 def execution_revision_dates(repository):
@@ -209,23 +224,27 @@ def collect_native(repository, warnings):
         relative = f"tests/omega/corpus_native_{target}.txt"
         paths = [f"tests/omega/corpus_{mode}_{target}.txt" for mode in ("native", "both")
                  if (repository / f"tests/omega/corpus_{mode}_{target}.txt").is_file()]
-        host = {"target": target, "path": relative, "available": bool(paths), "golden_paths": paths}
+        host = {"target": target, "path": relative, "available": bool(paths),
+                "golden_paths": paths, "emulated": False}
         if host["available"]:
             try:
-                sources = []
+                classified = []
                 for path in paths:
                     text = (repository / path).read_text(encoding="utf-8")
-                    if is_host_evidence(path, text):
-                        sources.append((path, corpus_records.parse(text)))
+                    kind = evidence_kind(path, text)
+                    if kind is None:
+                        recorded = recorded_hosts(text)
+                        where = ", ".join(sorted(recorded)) if recorded else "an unrecognized host"
+                        warnings.append(
+                            f"Skipped {path}: recorded on {where}, so it is not {target} host evidence")
                         continue
-                    recorded = recorded_hosts(text)
-                    where = ", ".join(sorted(recorded)) if recorded else "an unrecognized host"
-                    warnings.append(
-                        f"Skipped {path}: recorded on {where}, so it is not {target} host evidence")
+                    classified.append((kind, path, corpus_records.parse(text)))
+                sources, emulated = choose_execution_sources(classified)
                 if not sources:
                     host.update(available=False, golden_paths=[])
                     hosts.append(host)
                     continue
+                host["emulated"] = emulated
                 records = [row for row in merge_execution_records(repository, sources, dates)
                            if row["tier"] in ("pass", "run")]
                 golden = repository / sources[0][0]
@@ -319,21 +338,23 @@ def native_history(repository, relative, warnings=None):
                 if warnings is not None:
                     warnings.append(f"Skipped historical golden {path} at {revision[:11]}: {error}")
                 continue
-            if not is_host_evidence(path, text):
+            kind = evidence_kind(path, text)
+            if kind is None:
                 continue
             try:
-                sources.append((path, corpus_records.parse(text)))
+                sources.append((kind, path, corpus_records.parse(text)))
             except (OSError, ValueError) as error:
                 malformed = True
                 if warnings is not None:
                     warnings.append(f"Skipped historical golden {path} at {revision[:11]}: {error}")
-        if malformed or not sources:
+        chosen, emulated = choose_execution_sources(sources)
+        if malformed or not chosen:
             continue
-        records = merge_execution_records(repository, sources, dates)
+        records = merge_execution_records(repository, chosen, dates)
         valid = [row for row in records if row["tier"] in ("pass", "run")]
         counts = native_scoreboard(valid)
-        history.append({"revision": revision, "date": committed, "paths": [path for path, _ in sources],
-                        "executed": counts["executed"], "fixtures": counts["fixtures"]})
+        history.append({"revision": revision, "date": committed, "paths": [path for path, _ in chosen],
+                        "emulated": emulated, "executed": counts["executed"], "fixtures": counts["fixtures"]})
     return history
 
 

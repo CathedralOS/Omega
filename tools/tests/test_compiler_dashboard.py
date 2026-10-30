@@ -103,7 +103,7 @@ class DashboardTests(unittest.TestCase):
         import corpus_gate
         self.assertEqual(dashboard.RECORDING_HOSTS, corpus_gate.HOST_TARGETS)
 
-    def test_qemu_recorded_linux_arm64_rows_are_not_that_hosts_evidence(self):
+    def test_qemu_recorded_linux_arm64_rows_stay_and_are_marked_emulated(self):
         corpus = self.root / "tests/omega"
         corpus.mkdir(parents=True)
         (corpus / "corpus_both_linux_arm64.txt").write_text(
@@ -115,12 +115,13 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual([host["target"] for host in hosts], list(dashboard.TARGETS))
         arm = hosts[3]
         self.assertEqual(arm["target"], "linux_arm64")
-        self.assertFalse(arm["available"])
-        self.assertNotIn("counts", arm)
-        self.assertEqual(arm["golden_paths"], [])
-        self.assertTrue(any("corpus_both_linux_arm64.txt" in warning and "linux_x86_64" in warning
-                            for warning in warnings))
+        self.assertTrue(arm["available"])
+        self.assertTrue(arm["emulated"])
+        self.assertEqual(arm["golden_paths"], ["tests/omega/corpus_both_linux_arm64.txt"])
+        self.assertEqual(arm["counts"]["executed"], 1)
+        self.assertFalse(any("Skipped" in warning for warning in warnings))
         self.assertFalse(hosts[1]["available"])
+        self.assertFalse(hosts[1]["emulated"])
         (corpus / "corpus_native_linux_arm64.txt").write_text(
             '# context: {"schema": "omega-corpus-context-v1", "platform": "linux", "machine": "aarch64"}\n'
             "pass/g/native built 1ms exit:0\n")
@@ -128,10 +129,11 @@ class DashboardTests(unittest.TestCase):
         with patch.object(dashboard, "git", return_value="2026-10-30T00:00:00Z"):
             arm = dashboard.collect_native(self.root, warnings)[3]
         self.assertTrue(arm["available"])
+        self.assertFalse(arm["emulated"])
         self.assertEqual(arm["golden_paths"], ["tests/omega/corpus_native_linux_arm64.txt"])
         self.assertEqual(arm["counts"]["executed"], 1)
         self.assertEqual(arm["source_counts"], {"tests/omega/corpus_native_linux_arm64.txt": 1})
-        self.assertTrue(any("corpus_both_linux_arm64.txt" in warning for warning in warnings))
+        self.assertFalse(any("Skipped" in warning for warning in warnings))
 
     def test_matching_aarch64_context_remains_linux_arm64_host_evidence(self):
         corpus = self.root / "tests/omega"
@@ -142,6 +144,7 @@ class DashboardTests(unittest.TestCase):
         with patch.object(dashboard, "git", return_value="2026-10-30T00:00:00Z"):
             host = dashboard.collect_native(self.root, [])[3]
         self.assertTrue(host["available"])
+        self.assertFalse(host["emulated"])
         self.assertEqual(host["counts"]["executed"], 1)
         self.assertEqual(host["golden_paths"], ["tests/omega/corpus_both_linux_arm64.txt"])
 
@@ -156,8 +159,9 @@ class DashboardTests(unittest.TestCase):
                      qemu, native]
         with patch.object(dashboard, "git", side_effect=responses):
             history = dashboard.native_history(self.root, path)
-        self.assertEqual([(point["revision"], point["executed"], point["fixtures"]) for point in history],
-                         [("native", 2, 2)])
+        self.assertEqual([(point["revision"], point["executed"], point["fixtures"], point["emulated"])
+                          for point in history],
+                         [("qemu", 1, 1, True), ("native", 2, 2, False)])
 
     def test_execution_goldens_reconcile_per_fixture_and_keep_unmeasured_native_rows(self):
         corpus = self.root / "tests/omega"

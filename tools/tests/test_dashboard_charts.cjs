@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../dashboard/index.html'), 'utf8');
-const renderer = html.slice(html.indexOf('function renderHistory()'), html.indexOf('function renderOutcomes()'));
+const renderer = html.slice(html.indexOf('function hostName('), html.indexOf('function renderOutcomes()'));
 assert.ok(renderer.length > 100);
 const point = (executed, day) => ({executed, fixtures:100, date:`2026-10-${day}T12:00:00Z`, revision:'abc'});
 const native = [
@@ -34,12 +34,18 @@ assert.equal(labelPositions.length,3);
 assert.ok(labelPositions.every((position,index)=>!index||position-labelPositions[index-1]>=26.99));
 assert.equal((render('linux_x86_64')['history-plot'].innerHTML.match(/data-host-series=/g)||[]).length,1);
 assert.ok(render('linux_arm64')['history-plot'].innerHTML.includes('No native golden'));
+native[3].history=[point(5,'15')];
+native[3].emulated=true;
+assert.ok(render('linux_arm64')['history-plot'].innerHTML.includes('Linux arm64 (emulated) 5'));
+native[3].history=[];
+native[3].emulated=false;
 const mobile = render('all',true)['history-plot'].innerHTML;
 assert.equal((mobile.match(/class="series-end"/g)||[]).length,0);
 assert.equal((mobile.match(/class="mobile-series-row"/g)||[]).length,3);
 console.log('Chart checks passed: shared hosts, values, end-label separation, target/empty states, mobile labels.');
 
-const cohortRenderer=html.slice(html.indexOf('function renderCohort()'),html.indexOf('function selectView('));
+const hostNameFn=html.slice(html.indexOf('function hostName('), html.indexOf('function renderHistory()'));
+const cohortRenderer=hostNameFn+html.slice(html.indexOf('function renderCohort()'),html.indexOf('function selectView('));
 function renderCohort(cohort,narrow=false){
   const nodes=Object.fromEntries(['cohort-plot','growth-plot','cohort-details','cohort-readout'].map(id=>[id,{innerHTML:'',textContent:'',querySelectorAll:()=>[]}]));
   const context=vm.createContext({data:{native:[{target:'windows_x86_64',cohort}]},hosts:{windows_x86_64:['Windows','x86_64']},$:id=>nodes[id],icon:()=>'',escapeHTML:String,number:String,matchMedia:()=>({matches:narrow})});
