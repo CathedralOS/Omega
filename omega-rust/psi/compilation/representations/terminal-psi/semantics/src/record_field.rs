@@ -78,10 +78,7 @@ pub fn record_field_carrier<'types>(
 ) -> Option<RecordFieldCarrier> {
     let (structural_type, runtime_path, _) = walk_record_fields(types.clone(), root, path)?;
     matches!(
-        types
-            .clone()
-            .find(|declaration| declaration.id == structural_type)?
-            .shape,
+        crate::structural_shape(types.clone(), structural_type)?,
         StructuralTypeShape::Record { .. } | StructuralTypeShape::Mixed { .. }
     )
     .then_some(RecordFieldCarrier {
@@ -119,10 +116,8 @@ pub fn case_payload_carrier<'types>(
         return None;
     };
     let (sum, runtime_path, _) = walk_record_fields(types.clone(), root, prefix)?;
-    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) = &types
-        .clone()
-        .find(|declaration| declaration.id == sum)?
-        .shape
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        crate::structural_shape(types.clone(), sum)?
     else {
         return None;
     };
@@ -149,10 +144,8 @@ pub fn observed_field_declaration<'types>(
         carrier.fields
     } else {
         let carrier = record_field_carrier(types.clone(), root, path)?;
-        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &types
-            .clone()
-            .find(|declaration| declaration.id == carrier.structural_type)?
-            .shape
+        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) =
+            crate::structural_shape(types.clone(), carrier.structural_type)?
         else {
             return None;
         };
@@ -295,9 +288,7 @@ fn walk_record_fields<'types>(
     let mut crosses_view = false;
     let mut payload_fields = None;
     for segment in path {
-        let declaration = types
-            .clone()
-            .find(|declaration| declaration.id == structural_type)?;
+        let declaration = crate::structural_declaration(types.clone(), structural_type)?;
         if matches!(segment, CanonicalStructuralPathSegment::Referent) {
             if payload_fields.is_some() {
                 return None;
@@ -335,9 +326,7 @@ fn walk_record_fields<'types>(
             // Fixed arrays retain every element identity through nested fields.
             // Views use the same element/member namespace, but their bound is
             // a live length, not the declaration-owned extent checked here.
-            let declaration = types
-                .clone()
-                .find(|declaration| declaration.id == structural_type)?;
+            let declaration = crate::structural_declaration(types.clone(), structural_type)?;
             let element = match &declaration.shape {
                 StructuralTypeShape::FixedArray {
                     element,
@@ -361,9 +350,7 @@ fn walk_record_fields<'types>(
         let CanonicalStructuralPathSegment::Field(field) = segment else {
             return None;
         };
-        let declaration = types
-            .clone()
-            .find(|declaration| declaration.id == structural_type)?;
+        let declaration = crate::structural_declaration(types.clone(), structural_type)?;
         let fields = match payload_fields.take() {
             Some(fields) => fields,
             None => declaration.shape.direct_fields()?,

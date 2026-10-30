@@ -8,6 +8,12 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/borrows/nested_byte_field_capture_breaks_utf8 rejected 761ms expected @7b9a72614daf
+	cannot prove requires contract for call consume from write: main.line in [u8; N]::Utf8 (invalidated by prior mutation of main.line[1]; main.line is part of [u8; N]::Utf8) in state `entry`
+	cannot prove default-domain field requirement for return from write at statement 2: main.line requires [u8; N]::Utf8
+fail/borrows/nested_byte_field_capture_stale_carrier rejected 709ms expected @7b9a72614daf
+	cannot prove requires contract for call consume from write: main.line in [u8; N]::Utf8 (invalidated by prior mutation of main.line[1]; main.line is part of [u8; N]::Utf8) in state `entry`
+	cannot prove default-domain field requirement for return from write at statement 2: main.line requires [u8; N]::Utf8
 fail/calls/requires_machine_conflicting_const_kind rejected 7ms expected @45fb2a705c96
 	tests/omega/fail/calls/requires_machine_conflicting_const_kind/main.omg:2:26: `Selected` is not a machine parameter; its declared kind or property bounds conflict with `requires machine Selected`
 fail/calls/requires_machine_outer_cannot_read_nested_parameter rejected 1511ms expected @45fb2a705c96
@@ -599,6 +605,7 @@ pass/borrows/runtime_nested_array_range_record_domains_exit rejected 3054ms chec
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[0][1].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][0].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][1].room.label requires [u8; N]::Utf8
+pass/borrows/runtime_nested_byte_field_capture_exit checked 1105ms check-target:macos_arm64 @7b9a72614daf
 pass/borrows/runtime_nested_callable_field_regions_exit checked 3416ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 16323ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 10879ms check-target:macos_arm64 @ccdb99ca2214
@@ -13453,7 +13460,7 @@ fail/asm/checked_asm_compare_x86_uninitialized_register rejected 729ms expected 
 	assembly label `asm#entry` reads uninitialized scratch register/flag value
 fail/asm/checked_asm_nested_implicit_runtime_capture rejected 1271ms expected @ccdb99ca2214
 	machine `received` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/asm/checked_asm_nested_unproved_arrival rejected 1116ms unexpected @ccdb99ca2214
+fail/asm/checked_asm_nested_unproved_arrival rejected 412ms expected @7b9a72614daf
 	machine `left` state `entry` value call to `received` violates required fact `value == 37`: the instantiated fact is structurally false (`36 == 37`)
 fail/asm/checked_asm_nominal_overwritten_exit rejected 2689ms expected @ccdb99ca2214
 	cannot prove asm `ensures` fact at block exit in move_selected state `entry` (statement 7): output == selected.length && output == 7

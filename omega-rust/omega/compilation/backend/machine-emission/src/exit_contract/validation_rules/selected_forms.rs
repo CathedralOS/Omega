@@ -32,7 +32,9 @@ use machine_code::SelectedFormEncoding;
 
 use super::super::{
     WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
-    error::WholeFunctionExitContractError,
+    error::WholeFunctionExitContractError::{
+        self, NonReturnControlEffect, NonReturnMemoryEffect, NonReturnStackEffect,
+    },
 };
 
 #[cfg(test)]
@@ -173,18 +175,22 @@ pub(in crate::exit_contract) fn validated_aarch64_addressed_form_fixture(
     (store, encoding, layout)
 }
 
+/// The instruction under admission with the three rows the replay reads.
+#[cfg(test)]
+type NonReturnCase<'a> = (
+    SelectedInstructionId,
+    SelectedInstructionKind,
+    &'a machine_code::SelectedFormEncodingRow,
+    &'a machine_code::ResolvedSelectedFormRow,
+    &'a machine_code::SelectedFormEncodedRowStore,
+);
+
 /// Whole-function admission refuses the submitted row set. The test states
 /// the mutation it made and why it must be refused; this owner states the
 /// admission call shape once.
 #[cfg(test)]
-pub(in crate::exit_contract) fn assert_non_return_refused(
-    message: &str,
-    instruction: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    encoding: &machine_code::SelectedFormEncodingRow,
-    layout: &machine_code::ResolvedSelectedFormRow,
-    store: &machine_code::SelectedFormEncodedRowStore,
-) {
+pub(in crate::exit_contract) fn assert_non_return_refused(message: &str, case: NonReturnCase<'_>) {
+    let (instruction, kind, encoding, layout, store) = case;
     assert!(
         validate_non_return(
             target::Architecture::Aarch64,
@@ -444,9 +450,7 @@ pub(in crate::exit_contract) fn validate_non_return(
     };
     let temporary_stack = balanced_temporary_stack(architecture, kind, effects);
     if effects.stack != MachineEncodedStackEffect::UnchangedV1 && !temporary_stack {
-        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-            instruction,
-        ));
+        return Err(NonReturnStackEffect(instruction));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
@@ -810,14 +814,10 @@ pub(in crate::exit_contract) fn validate_non_return(
         _ => false,
     };
     if !memory_matches {
-        return Err(WholeFunctionExitContractError::NonReturnMemoryEffect(
-            instruction,
-        ));
+        return Err(NonReturnMemoryEffect(instruction));
     }
     if effects.control != expected_control {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
+        return Err(NonReturnControlEffect(instruction));
     }
     Ok(())
 }

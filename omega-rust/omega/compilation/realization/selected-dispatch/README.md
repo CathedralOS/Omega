@@ -51,6 +51,11 @@ The same declaration route serves general checked-provider instance projection:
 Psi records inherited/generic candidates, while source-free provider selection
 judges counts, template rows and closed-instance coverage. It retains the original
 plan/row association and does not substitute the reviewed candidate for custody.
+`SelectedExecution::provider_source` keeps the checked owner and whole selected
+plans inseparable. Its lazy declaration payload is shared by callbacks, Check,
+review and reference execution. These consumers still judge selection at their
+own admission points; preparing a payload neither reports its deferred errors nor
+grants execution. Empty callback rosters leave the payload unprepared.
 Checked-provider binding prepares exact service declaration/schema records once.
 Resolved semantic bindings retain those records without source symbols; role and
 permission settlement read them directly. The invocation's catalog provides local

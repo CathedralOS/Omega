@@ -12,6 +12,19 @@ use syntax_trees::expression::{
 use syntax_trees::identifier::Identifier;
 use tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
+/// Insert `node` and give it `source_span`: every literal primary owns one.
+fn spanned(
+    syntax_trees: &mut SyntaxTrees,
+    node: ExpressionNode,
+    source_span: SourceSpan,
+) -> ExpressionHandle {
+    let expression = syntax_trees.expressions.insert(node);
+    syntax_trees
+        .expressions
+        .set_source_span(expression, source_span);
+    expression
+}
+
 pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -20,12 +33,11 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     if context.allows_type_expression() && starts_lifetime_reference_type(input) {
         let start = input;
         let (reference, rest) = parse_type_reference_handle(syntax_trees, input)?;
-        let expression = syntax_trees
-            .expressions
-            .insert(ExpressionNode::TypeExpression(reference));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, start.source_span_until(rest));
+        let expression = spanned(
+            syntax_trees,
+            ExpressionNode::TypeExpression(reference),
+            start.source_span_until(rest),
+        );
         return Ok((expression, rest));
     }
     if input.at_keyword(KeywordKind::True) {
@@ -35,12 +47,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             .map(|token| input.source_span(token))
             .expect("recognized boolean literal has a source token");
         let input = input.take_keyword(KeywordKind::True, "true")?;
-        let expression = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Boolean(true));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, source_span);
+        let expression = spanned(syntax_trees, ExpressionNode::Boolean(true), source_span);
         return Ok((expression, input));
     }
 
@@ -51,12 +58,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             .map(|token| input.source_span(token))
             .expect("recognized boolean literal has a source token");
         let input = input.take_keyword(KeywordKind::False, "false")?;
-        let expression = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Boolean(false));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, source_span);
+        let expression = spanned(syntax_trees, ExpressionNode::Boolean(false), source_span);
         return Ok((expression, input));
     }
 
@@ -68,12 +70,11 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             let member = syntax_trees
                 .expressions
                 .append_identifier_path_member(Identifier::new("self", source_span));
-            let expression = syntax_trees.expressions.insert(ExpressionNode::Name(
-                arena::HandleSpan::from_parts(member, 1),
-            ));
-            syntax_trees
-                .expressions
-                .set_source_span(expression, source_span);
+            let expression = spanned(
+                syntax_trees,
+                ExpressionNode::Name(arena::HandleSpan::from_parts(member, 1)),
+                source_span,
+            );
             return Ok((expression, input));
         }
         return Err(input.error_here(
@@ -117,12 +118,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             .map(|token| input.source_span(token))
             .expect("recognized integer literal has a source token");
         let (literal, input) = input.take_integer_literal()?;
-        let expression = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Integer(literal));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, source_span);
+        let expression = spanned(syntax_trees, ExpressionNode::Integer(literal), source_span);
         return Ok((expression, input));
     }
 
@@ -134,12 +130,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }) {
         let source_span = input.current_source_span();
         let (value, input) = input.take_float_text()?;
-        let expression = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Float(value));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, source_span);
+        let expression = spanned(syntax_trees, ExpressionNode::Float(value), source_span);
         return Ok((expression, input));
     }
 

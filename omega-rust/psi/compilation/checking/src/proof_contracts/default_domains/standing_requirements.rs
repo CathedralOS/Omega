@@ -94,9 +94,7 @@ pub fn standing_facts_prove_requirement(
         return false;
     }
     program
-        .proof_facts
-        .span_or_empty(definition.where_facts)
-        .iter()
+        .conjunctive_proof_facts(definition.where_facts)
         .any(|fact| {
             let Some(fact) = fact.as_expression() else {
                 return false;

@@ -105,6 +105,11 @@ pub fn prepare_selected_execution(
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
+    let provider_source = Arc::new(provider_planning::SelectedProviderSource::new(
+        Arc::clone(&program),
+        selected_provider_plan_facts,
+    ));
+    let selected_provider_plan_facts = provider_source.plans();
     // Close the existing exact source association once. Native ABI publication
     // is not needed to count calling declarations and must not add early errors.
     let calling_requirements = external_providers.callbacks.calling_requirements(
@@ -115,11 +120,8 @@ pub fn prepare_selected_execution(
             .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
     );
     let callback_roots = {
-        let providers = provider_planning::prepare_callback_providers(
-            &program,
-            &selected_provider_plan_facts,
-            &external_providers.callbacks.declarations,
-        )?;
+        let providers =
+            provider_source.callback_providers(&external_providers.callbacks.declarations)?;
         let selected = provider_selection::select_callback_declarations(
             &external_providers.callbacks.declarations,
             &calling_requirements,
@@ -156,7 +158,7 @@ pub fn prepare_selected_execution(
         settlement.provider_candidates,
         &external_providers,
         &service_declarations,
-        &selected_provider_plan_facts,
+        selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
         settlement
             .provider_planning_target_profile
@@ -196,11 +198,10 @@ pub fn prepare_selected_execution(
         service_declarations,
         external_providers,
         native_provider_sources,
-        program,
+        provider_source,
         selected_target_profile: settlement.selected_target_profile,
         selected_program_entry: settlement.selected_program_entry,
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
-        selected_provider_plan_facts,
         selected_provider_grants,
         callback_roots,
         accepted_template_classifications,

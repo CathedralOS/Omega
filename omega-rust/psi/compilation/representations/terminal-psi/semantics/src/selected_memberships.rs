@@ -39,9 +39,7 @@ pub fn reference_source_memberships<'types>(
             ) {
                 let parent =
                     crate::qualification_path_carrier(types.clone(), root, &path[..position])
-                        .and_then(|carrier| {
-                            types.clone().find(|declaration| declaration.id == carrier)
-                        })
+                        .and_then(|carrier| crate::structural_declaration(types.clone(), carrier))
                         .ok_or("reference membership selection has no runtime carrier")?;
                 match parent.shape {
                     StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(0), .. } => {
@@ -92,7 +90,7 @@ pub fn reference_source_memberships<'types>(
             StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::AllElements
         ) {
             let parent = crate::qualification_path_carrier(types.clone(), root, &path[..position])
-                .and_then(|carrier| types.clone().find(|declaration| declaration.id == carrier))
+                .and_then(|carrier| crate::structural_declaration(types.clone(), carrier))
                 .ok_or("reference membership selection has no runtime carrier")?;
             let extent = match parent.shape {
                 StructuralTypeShape::FixedArray {

@@ -347,6 +347,19 @@ fn validate_identity_scope(
     Ok(())
 }
 
+/// A data member or case payload field may open with its stable identity
+/// (`#12 name: T`); without the `#` the member simply has none.
+fn take_optional_identity<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Option<u64>> {
+    if !input.at_punctuation(PunctuationKind::Hash) {
+        return Ok((None, input));
+    }
+    let after_hash = input.take_punctuation(PunctuationKind::Hash, "#")?;
+    let (identity, rest) = after_hash.take_identity()?;
+    Ok((Some(identity), rest))
+}
+
 fn parse_data_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
@@ -392,14 +405,7 @@ fn parse_data_member<'tokens, 'source>(
         }
     }
 
-    let identity = if input.at_punctuation(PunctuationKind::Hash) {
-        input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-        let (identity, next) = input.take_identity()?;
-        input = next;
-        Some(identity)
-    } else {
-        None
-    };
+    let (identity, mut input) = take_optional_identity(input)?;
     let (field_name, next) = input.take_identifier()?;
     let (relevance, next) = parse_binding_relevance_brackets(next, "data-field")?;
     input = next;
@@ -454,16 +460,9 @@ fn parse_data_member<'tokens, 'source>(
 
 fn parse_case_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    mut input: Input<'tokens, 'source>,
+    input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
-    let identity = if input.at_punctuation(PunctuationKind::Hash) {
-        input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-        let (identity, next) = input.take_identity()?;
-        input = next;
-        Some(identity)
-    } else {
-        None
-    };
+    let (identity, input) = take_optional_identity(input)?;
     let (case_name, mut input) = input.take_identifier()?;
 
     let (payload, retired_payload_identities) = if input.at_punctuation(PunctuationKind::LeftParen)
@@ -536,15 +535,8 @@ fn parse_case_payload_fields<'tokens, 'source>(
             }
             break;
         }
-        let identity = if input.at_punctuation(PunctuationKind::Hash) {
-            input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-            let (identity, next) = input.take_identity()?;
-            input = next;
-            Some(identity)
-        } else {
-            None
-        };
-        let (field_name, next) = input.take_identifier()?;
+        let (identity, after_identity) = take_optional_identity(input)?;
+        let (field_name, next) = after_identity.take_identifier()?;
         let (relevance, next) = parse_binding_relevance_brackets(next, "data-field")?;
         input = next.take_punctuation(PunctuationKind::Colon, ":")?;
         // Case payloads may also carry borrows (decision 15 stage 2).
@@ -773,10 +765,7 @@ fn rewrite_self_member_accesses(
             if value == cast.value {
                 return handle;
             }
-            ExpressionNode::Cast(syntax_trees::expression::TableCastExpression {
-                value,
-                ..cast
-            })
+            ExpressionNode::Cast(syntax_trees::expression::TableCastExpression { value, ..cast })
         }
         ExpressionNode::Indexed(indexed) => {
             let collection = rewrite_self_member_accesses(syntax, indexed.collection);
@@ -794,9 +783,10 @@ fn rewrite_self_member_accesses(
             if value == membership.value {
                 return handle;
             }
-            ExpressionNode::Membership(
-                syntax_trees::expression::TableMembershipExpression { value, ..membership },
-            )
+            ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
+                value,
+                ..membership
+            })
         }
         ExpressionNode::Borrow(borrow) => {
             let target = rewrite_self_member_accesses(syntax, borrow.target);

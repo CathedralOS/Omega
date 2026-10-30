@@ -38,7 +38,7 @@ pub(super) fn prepare(
     )
     .map_err(|errors| format!("provider choices checking: {errors:?}"))?;
     let context = provider_planning::ProviderPlanningContext::new(
-        &checked.execution().program.typed,
+        &checked.execution().provider_source.program().typed,
         source::DependencyScope::Product,
     );
     let inventory = TargetProviderInventoryRequest {
@@ -56,7 +56,8 @@ pub(super) fn prepare(
         overrides: &checked.build().config.provider_selections,
         assumed_bindings: checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings(),
         independent_components: &checked.providers().verified_independent_components,
         targets: &targets,

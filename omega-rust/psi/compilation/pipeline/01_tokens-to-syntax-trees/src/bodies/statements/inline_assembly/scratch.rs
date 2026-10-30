@@ -25,12 +25,14 @@ pub(super) fn unsigned_type(trees: &mut SyntaxTrees) -> syntax_trees::types::Typ
         .insert(TypeReferenceNode::Named(Identifier::generated("u32")))
 }
 
-fn cast(
+/// The cast node every scratch expression shares: only the target width and
+/// the arithmetic domain distinguish the u32 from the u64 builders.
+fn cast_to(
     trees: &mut SyntaxTrees,
     value: ExpressionHandle,
+    target_type: syntax_trees::types::TypeReferenceHandle,
     domain: ArithmeticDomain,
 ) -> ExpressionHandle {
-    let target_type = unsigned_type(trees);
     trees
         .expressions
         .insert(ExpressionNode::Cast(TableCastExpression {
@@ -42,6 +44,15 @@ fn cast(
             semantic_domain_arguments: HandleSpan::empty(),
             form: Default::default(),
         }))
+}
+
+fn cast(
+    trees: &mut SyntaxTrees,
+    value: ExpressionHandle,
+    domain: ArithmeticDomain,
+) -> ExpressionHandle {
+    let target_type = unsigned_type(trees);
+    cast_to(trees, value, target_type, domain)
 }
 
 pub(super) fn subtraction(
@@ -190,18 +201,7 @@ fn literal(trees: &mut SyntaxTrees, value: i64) -> ExpressionHandle {
 }
 fn wide_literal(trees: &mut SyntaxTrees, value: i64) -> ExpressionHandle {
     let value = literal(trees, value);
-    let target_type = wide_type(trees);
-    trees
-        .expressions
-        .insert(ExpressionNode::Cast(TableCastExpression {
-            value,
-            target_type,
-            target_label: HandleSpan::empty(),
-            domain: ArithmeticDomain::Exact,
-            semantic_domain: HandleSpan::empty(),
-            semantic_domain_arguments: HandleSpan::empty(),
-            form: Default::default(),
-        }))
+    wide_cast(trees, value)
 }
 fn binary(
     trees: &mut SyntaxTrees,
@@ -249,17 +249,7 @@ pub(super) fn preserve_sub_operands(
 }
 fn wide_cast(trees: &mut SyntaxTrees, value: ExpressionHandle) -> ExpressionHandle {
     let target_type = wide_type(trees);
-    trees
-        .expressions
-        .insert(ExpressionNode::Cast(TableCastExpression {
-            value,
-            target_type,
-            target_label: HandleSpan::empty(),
-            domain: ArithmeticDomain::Exact,
-            semantic_domain: HandleSpan::empty(),
-            semantic_domain_arguments: HandleSpan::empty(),
-            form: Default::default(),
-        }))
+    cast_to(trees, value, target_type, ArithmeticDomain::Exact)
 }
 fn masked_shift(
     trees: &mut SyntaxTrees,

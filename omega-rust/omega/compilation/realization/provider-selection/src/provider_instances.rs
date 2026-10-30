@@ -11,22 +11,30 @@ use language_semantics::provider_declarations::{
     ClosedProviderInstance, ProviderInstanceApplication,
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderInstanceRowDeclarations {
     pub inherited: Result<Vec<ProviderInstanceApplication<String>>, Vec<Diagnostic>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericProviderInstanceDeclarations {
     pub template: String,
     pub rows: Vec<Result<Vec<Result<ClosedProviderInstance<String>, String>>, Diagnostic>>,
     pub required_instances: Vec<String>,
 }
 
-/// Invocation-local correspondence borrows the original complete selected plan.
+/// Owned declaration payload, prepared once alongside the immutable plan roster.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderPlanInstanceDeclarations {
+    pub rows: Vec<ProviderInstanceRowDeclarations>,
+    pub generic_templates: Vec<GenericProviderInstanceDeclarations>,
+}
+
+/// Borrow the original plan and its owned declaration payload together.
 /// No checked program, source symbol or machine reference reaches this owner.
 pub struct ProviderInstanceDeclarations<'plan> {
     pub plan: &'plan ProviderPlan,
-    pub rows: Vec<ProviderInstanceRowDeclarations>,
-    pub generic_templates: Vec<GenericProviderInstanceDeclarations>,
+    pub instances: &'plan ProviderPlanInstanceDeclarations,
 }
 
 pub fn project_provider_instances(
@@ -42,12 +50,14 @@ pub fn project_provider_instances(
     let mut rows = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     for (plan, declaration) in selected.plans().iter().zip(declarations) {
-        if !std::ptr::eq(plan, declaration.plan) || declaration.rows.len() != plan.rows.len() {
+        if !std::ptr::eq(plan, declaration.plan)
+            || declaration.instances.rows.len() != plan.rows.len()
+        {
             return Err(vec![Diagnostic::error(
                 "provider instance declarations lost their original plan/row custody",
             )]);
         }
-        for (row, declaration) in plan.rows.iter().zip(&declaration.rows) {
+        for (row, declaration) in plan.rows.iter().zip(&declaration.instances.rows) {
             let applications = match &declaration.inherited {
                 Ok(applications) => applications,
                 Err(errors) => {
@@ -89,12 +99,12 @@ pub fn project_provider_instances(
                 }
             }
         }
-        let [template] = declaration.generic_templates.as_slice() else {
-            if declaration.generic_templates.len() > 1 {
+        let [template] = declaration.instances.generic_templates.as_slice() else {
+            if declaration.instances.generic_templates.len() > 1 {
                 diagnostics.push(Diagnostic::error(format!(
                     "selected provider plan `{}` binds {} generic requirement templates",
                     plan.name,
-                    declaration.generic_templates.len(),
+                    declaration.instances.generic_templates.len(),
                 )));
             }
             continue;

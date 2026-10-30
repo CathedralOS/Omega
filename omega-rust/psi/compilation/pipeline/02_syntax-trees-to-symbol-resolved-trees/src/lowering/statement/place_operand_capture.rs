@@ -17,6 +17,7 @@
 //! scalar carrier.
 
 use super::value_call_hoisting::expression_contains;
+use crate::lowering::expression::expression_table;
 use crate::lowering::statement::hoist_temps::{hoist_into_temp, hoist_operand_into_temp};
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
@@ -67,13 +68,7 @@ pub(super) fn capture_subject_address_operands(
     subject: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
 ) -> ExpressionHandle {
-    match lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(subject)
-    {
+    match expression_table(lowerer).expression(subject) {
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Borrow(_) => {
             capture_address_operands(lowerer, subject, hoisted)
         }
@@ -93,13 +88,7 @@ fn capture_formation(
     capture: bool,
     hoisted: &mut Vec<Statement>,
 ) {
-    let node = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(formation)
-        .clone();
+    let node = expression_table(lowerer).expression(formation).clone();
     match node {
         ExpressionNode::Borrow(mut borrow) => {
             borrow.target = capture_operands(lowerer, borrow.target, capture, hoisted);
@@ -121,13 +110,7 @@ fn capture_operands(
     capture: bool,
     hoisted: &mut Vec<Statement>,
 ) -> ExpressionHandle {
-    let node = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(address)
-        .clone();
+    let node = expression_table(lowerer).expression(address).clone();
     match node {
         ExpressionNode::Name(_) => address,
         ExpressionNode::Member(mut member) => {
@@ -181,13 +164,7 @@ fn capture_selector(
     if is_numeric_literal_expression(lowerer, selector) {
         return selector;
     }
-    let node = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(selector)
-        .clone();
+    let node = expression_table(lowerer).expression(selector).clone();
     match node {
         ExpressionNode::Range(mut range) => {
             let end_writes = range.end.is_valid() && operand_may_write(lowerer, range.end);
