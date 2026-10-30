@@ -528,6 +528,18 @@ pub(crate) fn validate_const_data_argument(
 ) {
     let carrier = carrier.resolved(program);
     let parameter_type = carrier.reference;
+    validate_const_argument_expression_formation(
+        program,
+        base_name,
+        parameter,
+        carrier,
+        argument,
+        type_parameter_scope,
+        prior_facts,
+        local_formation,
+        diagnostics,
+        formation_obligations,
+    );
     // Ordinary value binders retain a runtime subject, independently of its
     // carrier. Const binders continue through static admission below.
     if matches!(parameter.kind, TypeParameterKind::Value { .. })
@@ -574,19 +586,6 @@ pub(crate) fn validate_const_data_argument(
                 parameter.name, canonical_carrier_label(program, carrier),
             )));
         }
-        crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
-            program,
-            type_parameter_scope.lexical_owner,
-            &parameters,
-            prior_facts,
-            local_formation,
-            *expression,
-            program.primitive_type_reference(parameter_type),
-            program.arithmetic_domain_for_type_reference(parameter_type),
-            &format!("value argument `{}` of `{base_name}`", parameter.name),
-            diagnostics,
-            formation_obligations,
-        );
         return;
     }
     let primitive = program.type_reference_table.primitive_type(parameter_type);
@@ -750,6 +749,62 @@ pub(crate) fn validate_const_data_argument(
             type_reference_label(program, forwarded_type),
         )));
     }
+}
+
+/// Every expression operand forms before its receiving binder or selected
+/// implementation may use it. A pending const recipe retains evaluation work;
+/// it does not waive the supplying declaration's arithmetic obligations.
+pub(super) fn validate_const_argument_expression_formation(
+    program: &dyn crate::CheckingInput,
+    base_name: &str,
+    parameter: &TypeParameter,
+    carrier: AppliedValueCarrier<'_>,
+    argument: TypeReferenceHandle,
+    scope: TypeParameterScope<'_>,
+    prior_facts: &[typed_trees::expression::ExpressionHandle],
+    local_formation: Option<crate::proof_contracts::arithmetic_domains::LocalValueFormation<'_>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    let TypeReferenceNode::ConstExpression(expression) =
+        program.type_reference_table.type_reference(argument)
+    else {
+        return;
+    };
+    let carrier = carrier.resolved(program);
+    let mut parameters = declaration_parameters(program, scope.lexical_owner);
+    for parameter in scope.type_parameters {
+        let (type_reference, is_const) = match parameter.kind {
+            TypeParameterKind::Const { type_reference } => (type_reference, true),
+            TypeParameterKind::Value { type_reference } => (type_reference, false),
+            _ => continue,
+        };
+        if !parameters
+            .iter()
+            .any(|known| known.symbol == parameter.symbol)
+        {
+            parameters.push(typed_trees::signature::StateParameter {
+                symbol: parameter.symbol,
+                name: parameter.name.clone(),
+                type_reference,
+                is_const,
+                ..Default::default()
+            });
+        }
+    }
+    crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
+        program,
+        scope.lexical_owner,
+        &parameters,
+        prior_facts,
+        local_formation,
+        *expression,
+        program.primitive_type_reference(carrier.reference),
+        program.arithmetic_domain_for_type_reference(carrier.reference),
+        &format!("value argument `{}` of `{base_name}`", parameter.name),
+        diagnostics,
+        formation_obligations,
+    );
 }
 
 /// Replay one compiler-generated structured const atom against its exact typed

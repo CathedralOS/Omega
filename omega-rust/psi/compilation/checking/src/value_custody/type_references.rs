@@ -41,6 +41,7 @@ mod const_predicates;
 mod constraint_validation;
 mod formation;
 mod generic_arguments;
+mod implementation_arguments;
 mod open_index_expressions;
 mod static_argument_scope;
 
@@ -787,7 +788,15 @@ fn validate_type_reference_node(
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
                     match &parameter.kind {
                         TypeParameterKind::Implementation => {
-                            // The complete data evidence telescope is checked below.
+                            implementation_arguments::validate_operand_formation(
+                                program,
+                                *argument,
+                                symbols,
+                                owner.generic_argument(),
+                                type_parameter_scope,
+                                diagnostics,
+                                formation_obligations,
+                            );
                         }
                         TypeParameterKind::Const { type_reference }
                         | TypeParameterKind::Value { type_reference } => {
