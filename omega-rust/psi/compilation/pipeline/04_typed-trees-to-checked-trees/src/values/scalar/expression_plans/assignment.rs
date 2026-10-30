@@ -13,18 +13,20 @@ pub(crate) fn plan(
 ) {
     // An atomic carrier retains its authored operands,
     // never its arithmetic model (`atomic_operands.rs`).
-    if let Some(operands) = super::super::atomic_operands::lower(
-        planner.program,
-        planner.operators,
-        planner.machine,
-        planner.state,
-        assignment,
-        planner.scalar_parameters,
-        planner.parameters,
-        planner.parameter_types,
-        planner.locals,
-        planner.exact_integer_casts,
-    ) {
+    if let Some(carrier) = validation::atomic_assignment_carrier(planner.program, assignment)
+        && let Some(operands) = super::super::atomic_operands::lower_carrier(
+            planner.program,
+            planner.operators,
+            planner.machine,
+            planner.state,
+            carrier,
+            planner.scalar_parameters,
+            planner.parameters,
+            planner.parameter_types,
+            planner.locals,
+            planner.exact_integer_casts,
+        )
+    {
         retain_subslice_endpoints(
             operands,
             planner.state.symbol,
