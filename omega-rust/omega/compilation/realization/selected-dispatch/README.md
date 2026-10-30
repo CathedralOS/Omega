@@ -30,7 +30,7 @@ to execute.
 Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
-Callback roots use [source preparation](../provider-planning/src/provider_planning/provenance_replay/specialization_rows.rs)
+Callback roots use [source preparation](../provider-planning/src/provider_instances.rs)
 followed by [source-free selection](../provider-selection/src/callback_roots.rs).
 Psi freezes the complete final nominal-use roster once in its existing prepared
 declaration product, including dormant/symbolic uses, exact requirement and body
@@ -47,6 +47,10 @@ across the projection's clone and preserves dormant uses and duplicate order.
 Selected roots borrow the same canonical table instead of querying source
 signatures again. This is not native ABI placement or a claim that the instance
 producer is already Terminal-only.
+The same declaration route serves general checked-provider instance projection:
+Psi records inherited/generic candidates, while source-free provider selection
+judges counts, template rows and closed-instance coverage. It retains the original
+plan/row association and does not substitute the reviewed candidate for custody.
 Checked-provider binding prepares exact service declaration/schema records once.
 Resolved semantic bindings retain those records without source symbols; role and
 permission settlement read them directly. The invocation's catalog provides local

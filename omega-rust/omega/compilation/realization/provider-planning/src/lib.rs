@@ -35,10 +35,12 @@ mod sealed_placed_accessors;
 pub use sealed_placed_accessors::{SealedPlacedAccessor, SealedPlacedScalarOperation};
 pub mod program_entry;
 mod provider_identity;
+mod provider_instances;
 pub use provider_identity::{
     ProviderReceiverApplication, provider_receiver_application, provider_row_matches,
     provider_trait_application, provider_trait_requirement_matches,
 };
+pub use provider_instances::{prepare_callback_providers, project_checked_provider_instances};
 pub mod intrinsic_declarations;
 mod provider_planning;
 mod provider_settlement;
@@ -69,10 +71,10 @@ pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, derive_satisfies_plans,
-    exact_checked_adapter, prepare_callback_providers, prepare_selected_plan_declarations,
-    project_checked_provider_instances, same_semantic_name, satisfies_plan_name,
-    select_derived_provider_plans, selected_checked_operator_body, selected_provider_plan_facts,
-    selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
+    exact_checked_adapter, prepare_selected_plan_declarations, same_semantic_name,
+    satisfies_plan_name, select_derived_provider_plans, selected_checked_operator_body,
+    selected_provider_plan_facts, selected_requirement_checked_adapter, selected_requirement_plan,
+    selected_use_plan,
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,

@@ -9,8 +9,13 @@
 mod boundary_applications;
 mod boundary_review;
 mod callback_roots;
+mod provider_instances;
 pub use callback_roots::{
     CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
+};
+pub use provider_instances::{
+    GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
+    ProviderInstanceRowDeclarations, project_provider_instances,
 };
 mod selected_binding;
 pub use boundary_review::BoundaryProviderAdmission;
