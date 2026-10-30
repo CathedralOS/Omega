@@ -4522,6 +4522,12 @@ fail/domains/write_only_stored_reference_requires_qualification rejected 1702ms 
 	construction of `Holder` field `cell` is not proven in domain `Cell::Before` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/domains/zero_array_active_payload_unestablished rejected 1696ms expected @a92f16431042
 	cannot prove default-domain field requirement for call consume from main::entry: parameter frames[1]::Ready.value requires u64::PositiveSmall
+fail/domains/zero_case_default_common rejected 538ms expected @cb9658535ae4
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/domains/zero_case_default_excludes_first rejected 572ms expected @cb9658535ae4
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/domains/zero_case_default_payload rejected 559ms expected @cb9658535ae4
+	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/domains/zero_case_tag_replaced_rejected rejected 1979ms expected @a92f16431042
 	cannot prove requires contract for call require_empty from main: frames[1] == constructor:79:package:469ede43cef7447a076709d7fcff29b91c2f6384f8c4a3aee2eaa2650c26d034::Frame10:name:Empty (needs fact `frames[1] == Frame::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/zero_field_call_requires_establishment rejected 877ms expected @a92f16431042
@@ -35077,6 +35083,8 @@ run/domains/structural_qualification_cast_transitions checked 2500ms check-targe
 run/domains/structural_qualification_cast_values checked 2533ms check-target:macos_arm64 @a92f16431042
 run/domains/structural_qualification_nested_values checked 3019ms check-target:macos_arm64 @a92f16431042
 run/domains/vacuous_tag_call_arguments checked 2784ms check-target:macos_arm64 @a92f16431042
+run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
+run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2530ms check-target:macos_arm64 @a92f16431042
 run/dyn_finite_family_correlated checked 10113ms check-target:linux_x86_64 @a92f16431042
 run/dyn_finite_family_owned_carrier checked 10041ms check-target:linux_x86_64 @a92f16431042
