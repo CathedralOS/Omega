@@ -491,6 +491,7 @@ pub(super) struct StructuralJudge<'program> {
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
     active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
+    resolution_results: Option<Arc<resolution_queries::ResolutionResults<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -562,6 +563,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
             active_application: self.active_application.clone(),
+            resolution_results: self.resolution_results.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -1010,6 +1012,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
             active_application: None,
+            resolution_results: None,
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -1534,13 +1537,13 @@ impl<'program> StructuralJudge<'program> {
     /// fields resolve recursively under the same budget.
     /// Semantic term equality deliberately ignores observation authority and
     /// literal landing metadata. Resolution preserves those payloads, so an
-    /// equal term is not an interchangeable memoized result. Keep one general
-    /// resolver until a complete representation key and state custody exist.
+    /// equal term is not an interchangeable memoized result. Resolution reuse
+    /// retains the complete payload, context, depth and active question history.
     pub(super) fn resolve(&self, term: StructuralTerm) -> StructuralTerm {
         self.resolve_at(term, 0)
     }
 
-    fn resolve_at(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
+    fn resolve_uncached(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
         // A call-premise traversal also extracts locals and state arguments.
         // Keep its entire environment free of name-selected unfolding, not
         // just the final argument: a projected local could otherwise hide
