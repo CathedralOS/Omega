@@ -19,9 +19,18 @@ use typed_trees::types::TypeReferenceHandle;
 /// Its arguments belong to the borrow contract's separate argument owner;
 /// an enclosing telescope cannot capture a nested same-spelled fresh binder.
 #[derive(Clone, Copy)]
-pub struct CallableLifetimeApplication<'contract> {
-    pub declaration: SymbolHandle,
-    pub bindings: &'contract [StaticMachineLifetimeBinding],
+pub enum CallableLifetimeApplication<'contract> {
+    /// Apply an enclosing call without binding this contract's fresh telescope,
+    /// including when recursive nominal contracts share a declaration.
+    Enclosing {
+        declaration: SymbolHandle,
+        bindings: &'contract [StaticMachineLifetimeBinding],
+    },
+    /// These arguments supply this selected callable's own invocation binders.
+    Invocation {
+        declaration: SymbolHandle,
+        bindings: &'contract [StaticMachineLifetimeBinding],
+    },
 }
 
 pub struct CallableBorrowContract<'contract> {

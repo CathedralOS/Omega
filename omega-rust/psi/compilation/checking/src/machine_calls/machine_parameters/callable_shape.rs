@@ -477,7 +477,7 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_application: Some(CallableLifetimeApplication {
+            lifetime_application: Some(CallableLifetimeApplication::Enclosing {
                 declaration: program
                     .expression_table
                     .static_machine_application(applied.invocation)
@@ -498,7 +498,7 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_application: Some(CallableLifetimeApplication {
+            lifetime_application: Some(CallableLifetimeApplication::Invocation {
                 declaration: machine.symbol,
                 bindings: program
                     .expression_table
