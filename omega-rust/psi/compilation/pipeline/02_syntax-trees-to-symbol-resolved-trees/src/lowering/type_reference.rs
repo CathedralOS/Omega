@@ -261,7 +261,9 @@ fn lower_type_reference_node(
         }
         syntax::types::TypeReferenceNode::ConstExpression(expression) => {
             let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
-            Ok(TypeReference::ConstExpression(expression))
+            Ok(TypeReference::ConstExpression(
+                symbol_resolved_trees::types::ConstExpressionTypeReference::new(expression),
+            ))
         }
         syntax::types::TypeReferenceNode::DynamicTrait {
             trait_name,

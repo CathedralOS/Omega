@@ -107,7 +107,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
-                *expression,
+                expression.expression,
                 None,
             )?;
             Ok(typed_trees
@@ -152,6 +152,7 @@ pub(super) fn lower_type_reference_handle_with_context(
         typed_trees,
         reference,
         type_reference.supplied_operand_owner(),
+        type_reference.operand_lexical_owner(),
     )?;
     super::retain_computed_result_types(&source_trees.symbols, typed_trees, reference, None);
     Ok(reference)

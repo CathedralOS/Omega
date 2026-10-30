@@ -189,6 +189,11 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             .types
             .references
             .supplied_operand_owner(type_reference),
+        source_trees
+            .tables
+            .types
+            .references
+            .operand_lexical_owner(type_reference),
     )?;
     super::retain_computed_result_types(&source_trees.symbols, typed_trees, reference, None);
     Ok(reference)

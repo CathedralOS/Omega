@@ -469,7 +469,7 @@ impl SymbolCopy<'_, '_> {
                 application.arguments = self.type_span(application.arguments);
             }
             TypeReference::ConstExpression(expression) => {
-                *expression = self.expression(*expression)
+                expression.expression = self.expression(expression.expression)
             }
             TypeReference::DynamicTrait {
                 symbol, arguments, ..
@@ -614,7 +614,9 @@ mod tests {
             .tables
             .declarations
             .child_type_references
-            .insert_many([TypeReference::ConstExpression(name)]);
+            .insert_many([TypeReference::ConstExpression(
+                crate::types::ConstExpressionTypeReference::new(name),
+            )]);
         let application = program
             .tables
             .declarations
@@ -673,8 +675,11 @@ mod tests {
         else {
             panic!("copy must retain static expression");
         };
-        let ExpressionNode::Name(copied_path) =
-            program.tables.bodies.expressions.expression(*copied_name)
+        let ExpressionNode::Name(copied_path) = program
+            .tables
+            .bodies
+            .expressions
+            .expression(copied_name.expression)
         else {
             panic!("copy must retain name");
         };
