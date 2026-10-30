@@ -10,11 +10,32 @@ use diagnostics::Diagnostic;
 use facts::{PlaceRoot, PlaceSegment};
 use validation::CanonicalPlace;
 
+#[derive(Clone, Copy, Default)]
+enum AccessProof {
+    #[default]
+    Unchecked,
+    Checking,
+    Selected,
+    Rejected,
+}
+
 pub(super) fn check(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The input is frozen for this check. Each access owns one complete
+    // obligation, even when many possible backing places refer to it. Check
+    // that obligation once, retaining cycle rejection and checking each
+    // incoming edge's exact source membership before reusing its result.
+    let mut proofs: Vec<_> = facts
+        .flow
+        .control
+        .case_accesses
+        .iter()
+        .map(|(handle, _)| (handle, AccessProof::Unchecked))
+        .collect();
+    proofs.sort_unstable_by_key(|(handle, _)| (handle.generation(), handle.arena_index()));
     for (_, state) in facts.flow.control.states.iter() {
         for access in facts
             .flow
@@ -30,7 +51,7 @@ pub(super) fn check(
             let unavailable_subject = subjects
                 .iter()
                 .find(|subject| {
-                    !subject_cases_are_selected(program, facts, access, subject, &mut Vec::new())
+                    !subject_cases_are_selected(program, facts, access, subject, &mut proofs)
                 })
                 .map(|subject| {
                     canonical_subject(facts, subject).unwrap_or(CanonicalPlace {
@@ -89,10 +110,10 @@ fn recorded_access_is_selected(
     facts: &CheckFacts,
     handle: Handle<FlowCaseAccessFact>,
     expected: &FlowOperandReferent,
-    ancestors: &mut Vec<Handle<FlowCaseAccessFact>>,
+    proofs: &mut [(Handle<FlowCaseAccessFact>, AccessProof)],
 ) -> bool {
     let control = &facts.flow.control;
-    if !control.case_accesses.is_valid(handle) || ancestors.contains(&handle) {
+    if !control.case_accesses.is_valid(handle) {
         return false;
     }
     let access = control.case_accesses.get(handle);
@@ -109,11 +130,28 @@ fn recorded_access_is_selected(
     {
         return false;
     }
-    ancestors.push(handle);
+    // Page generations are part of identity. The scratch roster contains only
+    // this frozen arena's live handles, never an index from another page.
+    let Ok(position) = proofs.binary_search_by_key(
+        &(handle.generation(), handle.arena_index()),
+        |(handle, _)| (handle.generation(), handle.arena_index()),
+    ) else {
+        return false;
+    };
+    match proofs[position].1 {
+        AccessProof::Selected => return true,
+        AccessProof::Checking | AccessProof::Rejected => return false,
+        AccessProof::Unchecked => {}
+    }
+    proofs[position].1 = AccessProof::Checking;
     let selected = subjects
         .iter()
-        .all(|subject| subject_cases_are_selected(program, facts, access, subject, ancestors));
-    ancestors.pop();
+        .all(|subject| subject_cases_are_selected(program, facts, access, subject, proofs));
+    proofs[position].1 = if selected {
+        AccessProof::Selected
+    } else {
+        AccessProof::Rejected
+    };
     selected
 }
 
@@ -122,7 +160,7 @@ fn subject_cases_are_selected(
     facts: &CheckFacts,
     access: &FlowCaseAccessFact,
     subject: &FlowOperandReferent,
-    ancestors: &mut Vec<Handle<FlowCaseAccessFact>>,
+    proofs: &mut [(Handle<FlowCaseAccessFact>, AccessProof)],
 ) -> bool {
     let Some(place) = canonical_subject(facts, subject) else {
         return false;
@@ -200,13 +238,8 @@ fn subject_cases_are_selected(
         }
         let source = control.operand_referents.get(formation.source);
         if formation.source_access.is_valid() {
-            if !recorded_access_is_selected(
-                program,
-                facts,
-                formation.source_access,
-                source,
-                ancestors,
-            ) {
+            if !recorded_access_is_selected(program, facts, formation.source_access, source, proofs)
+            {
                 return false;
             }
         } else {
