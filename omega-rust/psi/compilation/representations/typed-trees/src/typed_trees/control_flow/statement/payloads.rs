@@ -488,7 +488,7 @@ impl TypedTreeTables {
             ProofFact::Proposition(application) => {
                 application.proposition = remapped(application.proposition, symbols);
                 for argument in &mut application.binder_arguments {
-                    argument.symbol = remapped(argument.symbol, symbols);
+                    argument.symbol = remapped(argument.symbol, symbols.authored());
                 }
             }
         }

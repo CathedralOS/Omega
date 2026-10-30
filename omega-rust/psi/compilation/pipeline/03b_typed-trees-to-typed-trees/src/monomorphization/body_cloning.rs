@@ -1581,7 +1581,7 @@ pub(super) fn copy_signature_contract<'scope>(
                                     path: argument.path.clone(),
                                     const_literal: argument.const_literal.clone(),
                                     evidence_projection: argument.evidence_projection.clone(),
-                                    symbol: remapped_symbol(argument.symbol, &symbols),
+                                    symbol: remapped_symbol(argument.symbol, symbols.authored()),
                                 },
                             )
                             .collect::<Vec<_>>()

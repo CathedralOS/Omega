@@ -24,7 +24,9 @@ impl<'scope> SymbolRebinding<'scope> {
         self.execution
     }
 
-    pub(crate) fn authored(self) -> &'scope SymbolPairs {
+    /// Correspondence for declaration-valued operands. Executable entry
+    /// specialization is excluded; lexical formals and captures still rebase.
+    pub fn authored(self) -> &'scope SymbolPairs {
         self.authored
     }
 }
