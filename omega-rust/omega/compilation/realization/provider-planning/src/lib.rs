@@ -59,7 +59,7 @@ pub use build_time_evaluation::provider_declarations::{
     TargetProviderDefaults,
 };
 pub use intrinsic_requirements::{
-    IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
+    CheckedNumericProviders, IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
