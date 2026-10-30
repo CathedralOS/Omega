@@ -5,7 +5,9 @@
 //! second time. This module keeps the typed body in the dependent program
 //! and reuses only that one entailment judgment, when a portable
 //! correspondence says the body, its contracts, its resolved calls and the
-//! correspondences of those callees are the ones already judged.
+//! correspondences of those callees are the ones already judged. The authored
+//! body hash is not that admission: package identity, dependency scope, and
+//! callee context must match as well.
 //!
 //! A specialization mixes its substitution identities into the correspondence.
 //! The first specialization may rewrite the template symbol in place; the
@@ -34,13 +36,24 @@ use super::statements::statement_source_span;
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct FrozenDependencyBody {
     pub identity: String,
-    pub correspondence: u64,
+    /// Authored body and contract text. Equal text is not admission.
+    pub body_hash: u64,
+    /// Package, dependency scope, callee identities, and substitutions.
+    /// A later consumer must match this context; the body hash does not.
+    pub dependency_context: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BodyAdmission {
+    body_hash: u64,
+    dependency_context: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DependencyBodyJudgment {
     pub identity: String,
-    pub correspondence: u64,
+    pub body_hash: u64,
+    pub dependency_context: u64,
     pub ensures_len: u32,
     pub proved_normal_return_ordinals: Vec<u32>,
     pub proved_entry_ordinals: Vec<u32>,
@@ -56,7 +69,8 @@ pub(super) struct CapturedEntailment {
 
 struct PriorJudgment {
     identity: String,
-    correspondence: u64,
+    body_hash: u64,
+    dependency_context: u64,
     ensures_len: u32,
     proved_normal_return_ordinals: Vec<u32>,
     proved_entry_ordinals: Vec<u32>,
@@ -67,7 +81,7 @@ pub(super) struct DependencyBodyIndex {
     active: bool,
     record: bool,
     identities: Vec<Option<String>>,
-    correspondences: Vec<Option<u64>>,
+    admissions: Vec<Option<BodyAdmission>>,
     callees: Vec<Vec<u32>>,
     priors: Vec<PriorJudgment>,
     frozen_priors: Vec<FrozenDependencyBody>,
@@ -79,7 +93,7 @@ impl DependencyBodyIndex {
             active: false,
             record: false,
             identities: Vec::new(),
-            correspondences: Vec::new(),
+            admissions: Vec::new(),
             callees: Vec::new(),
             priors: Vec::new(),
             frozen_priors: Vec::new(),
@@ -92,18 +106,26 @@ impl DependencyBodyIndex {
         frozen_priors: &[FrozenDependencyBody],
         record: bool,
     ) -> Self {
-        if priors.is_empty() && !record {
+        if priors.is_empty() && frozen_priors.is_empty() && !record {
             return Self::inactive();
         }
         let machines = program.machines();
         let machine_count = machines.len();
         let mut machine_of_symbol = Vec::new();
         for (machine_index, machine) in machines.iter().enumerate() {
-            let symbol_index = machine.symbol.arena_index() as usize;
-            if machine_of_symbol.len() <= symbol_index {
-                machine_of_symbol.resize(symbol_index + 1, u32::MAX);
+            let machine_index = u32::try_from(machine_index).unwrap_or(u32::MAX);
+            for symbol in std::iter::once(machine.symbol).chain(
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .map(|state| state.symbol),
+            ) {
+                let symbol_index = symbol.arena_index() as usize;
+                if machine_of_symbol.len() <= symbol_index {
+                    machine_of_symbol.resize(symbol_index + 1, u32::MAX);
+                }
+                machine_of_symbol[symbol_index] = machine_index;
             }
-            machine_of_symbol[symbol_index] = u32::try_from(machine_index).unwrap_or(u32::MAX);
         }
         let mut identities = Vec::with_capacity(machine_count);
         for machine in machines {
@@ -114,36 +136,46 @@ impl DependencyBodyIndex {
             );
         }
         let sources = program.symbols.source_map();
-        let mut correspondences = Vec::with_capacity(machine_count);
+        let mut body_hashes = Vec::with_capacity(machine_count);
         let mut callees = Vec::with_capacity(machine_count);
-        let mut other_symbols = Vec::new();
         for machine in machines {
-            let (correspondence, machine_callees) = local_correspondence(
-                program,
-                machine,
-                sources.as_deref(),
-                &identities,
-                &machine_of_symbol,
-                &mut other_symbols,
-            );
-            let correspondence = correspondence.and_then(|correspondence| {
-                substitution_correspondence(
+            let (body_hash, machine_callees) =
+                local_body_hash(program, machine, sources.as_deref(), &machine_of_symbol);
+            body_hashes.push(body_hash);
+            callees.push(machine_callees);
+        }
+        let mut admissions = Vec::with_capacity(machine_count);
+        let mut other_symbols = Vec::new();
+        for (machine_index, machine) in machines.iter().enumerate() {
+            let admission = body_hashes[machine_index].map(|body_hash| BodyAdmission {
+                body_hash,
+                dependency_context: dependency_context(
                     program,
                     machine,
-                    correspondence,
+                    &body_hashes,
+                    &callees[machine_index],
+                    &identities,
+                    &machine_of_symbol,
+                    &mut other_symbols,
+                ),
+            });
+            let admission = admission.and_then(|admission| {
+                substitution_context(
+                    program,
+                    machine,
+                    admission,
                     &identities,
                     &machine_of_symbol,
                     &mut other_symbols,
                 )
             });
-            correspondences.push(correspondence);
-            callees.push(machine_callees);
+            admissions.push(admission);
         }
         Self {
             active: true,
             record,
             identities,
-            correspondences,
+            admissions,
             callees,
             priors: collapse_prior_judgments(priors),
             frozen_priors: frozen_priors.to_vec(),
@@ -152,11 +184,7 @@ impl DependencyBodyIndex {
 
     /// The body text and its callee correspondences match a retained body.
     pub(super) fn admits_frozen_body(&self, machine_index: usize) -> bool {
-        let Some(correspondence) = self
-            .correspondences
-            .get(machine_index)
-            .and_then(Option::as_ref)
-        else {
+        let Some(admission) = self.admissions.get(machine_index).and_then(Option::as_ref) else {
             return false;
         };
         let Some(identity) = self.identities.get(machine_index).and_then(Option::as_ref) else {
@@ -164,7 +192,7 @@ impl DependencyBodyIndex {
         };
         self.frozen_priors
             .iter()
-            .any(|prior| prior.identity == *identity && prior.correspondence == *correspondence)
+            .any(|prior| prior.identity == *identity && same_body_and_context(prior, admission))
             && self.frozen_callees_match(machine_index)
     }
 
@@ -174,11 +202,13 @@ impl DependencyBodyIndex {
         }
         self.identities
             .iter()
-            .zip(&self.correspondences)
-            .filter_map(|(identity, correspondence)| {
+            .zip(&self.admissions)
+            .filter_map(|(identity, admission)| {
+                let admission = admission.as_ref()?;
                 Some(FrozenDependencyBody {
                     identity: identity.as_ref()?.clone(),
-                    correspondence: *correspondence.as_ref()?,
+                    body_hash: admission.body_hash,
+                    dependency_context: admission.dependency_context,
                 })
             })
             .collect()
@@ -190,8 +220,7 @@ impl DependencyBodyIndex {
         };
         for callee in callees {
             let callee = *callee as usize;
-            let Some(correspondence) = self.correspondences.get(callee).and_then(Option::as_ref)
-            else {
+            let Some(admission) = self.admissions.get(callee).and_then(Option::as_ref) else {
                 return false;
             };
             let Some(identity) = self.identities.get(callee).and_then(Option::as_ref) else {
@@ -200,7 +229,7 @@ impl DependencyBodyIndex {
             if !self
                 .frozen_priors
                 .iter()
-                .any(|prior| prior.identity == *identity && prior.correspondence == *correspondence)
+                .any(|prior| prior.identity == *identity && same_body_and_context(prior, admission))
             {
                 return false;
             }
@@ -224,10 +253,13 @@ impl DependencyBodyIndex {
         if !self.active || self.priors.is_empty() {
             return None;
         }
-        let correspondence = self.correspondences.get(machine_index)?.as_ref()?;
+        let admission = self.admissions.get(machine_index)?.as_ref()?;
         let identity = self.identities.get(machine_index)?.as_ref()?;
         let prior = find_prior(&self.priors, identity)?;
-        if prior.correspondence != *correspondence || !self.callees_match(machine_index) {
+        if prior.body_hash != admission.body_hash
+            || prior.dependency_context != admission.dependency_context
+            || !self.callees_match(machine_index)
+        {
             return None;
         }
         let ensures = ensures_expressions(program, machine);
@@ -258,7 +290,7 @@ impl DependencyBodyIndex {
         if !proven.conditional_content.is_empty() {
             return None;
         }
-        if self.correspondences.get(machine_index)?.is_none() {
+        if self.admissions.get(machine_index)?.is_none() {
             return None;
         }
         if self.identities.get(machine_index)?.is_none() {
@@ -288,16 +320,14 @@ impl DependencyBodyIndex {
             let Some(identity) = self.identities.get(machine_index).and_then(Option::as_ref) else {
                 continue;
             };
-            let Some(correspondence) = self
-                .correspondences
-                .get(machine_index)
-                .and_then(Option::as_ref)
+            let Some(admission) = self.admissions.get(machine_index).and_then(Option::as_ref)
             else {
                 continue;
             };
             judgments.push(DependencyBodyJudgment {
                 identity: identity.clone(),
-                correspondence: *correspondence,
+                body_hash: admission.body_hash,
+                dependency_context: admission.dependency_context,
                 ensures_len: captured.ensures_len,
                 proved_normal_return_ordinals: captured.proved_normal_return_ordinals.clone(),
                 proved_entry_ordinals: captured.proved_entry_ordinals.clone(),
@@ -307,7 +337,8 @@ impl DependencyBodyIndex {
             .into_iter()
             .map(|prior| DependencyBodyJudgment {
                 identity: prior.identity,
-                correspondence: prior.correspondence,
+                body_hash: prior.body_hash,
+                dependency_context: prior.dependency_context,
                 ensures_len: prior.ensures_len,
                 proved_normal_return_ordinals: prior.proved_normal_return_ordinals,
                 proved_entry_ordinals: prior.proved_entry_ordinals,
@@ -321,15 +352,16 @@ impl DependencyBodyIndex {
         };
         for callee in callees {
             let callee = *callee as usize;
-            let Some(correspondence) = self.correspondences.get(callee).and_then(Option::as_ref)
-            else {
+            let Some(admission) = self.admissions.get(callee).and_then(Option::as_ref) else {
                 return false;
             };
             let Some(identity) = self.identities.get(callee).and_then(Option::as_ref) else {
                 return false;
             };
             match find_prior(&self.priors, identity) {
-                Some(prior) if prior.correspondence == *correspondence => {}
+                Some(prior)
+                    if prior.body_hash == admission.body_hash
+                        && prior.dependency_context == admission.dependency_context => {}
                 _ => return false,
             }
         }
@@ -362,7 +394,8 @@ fn collapse_prior_judgments(judgments: &[DependencyBodyJudgment]) -> Vec<PriorJu
         let group = &ordered[index..end];
         let first = &group[0];
         let same = group.iter().all(|judgment| {
-            judgment.correspondence == first.correspondence
+            judgment.body_hash == first.body_hash
+                && judgment.dependency_context == first.dependency_context
                 && judgment.ensures_len == first.ensures_len
                 && judgment.proved_normal_return_ordinals == first.proved_normal_return_ordinals
                 && judgment.proved_entry_ordinals == first.proved_entry_ordinals
@@ -370,7 +403,8 @@ fn collapse_prior_judgments(judgments: &[DependencyBodyJudgment]) -> Vec<PriorJu
         if same {
             collapsed.push(PriorJudgment {
                 identity: first.identity.clone(),
-                correspondence: first.correspondence,
+                body_hash: first.body_hash,
+                dependency_context: first.dependency_context,
                 ensures_len: first.ensures_len,
                 proved_normal_return_ordinals: first.proved_normal_return_ordinals.clone(),
                 proved_entry_ordinals: first.proved_entry_ordinals.clone(),
@@ -381,17 +415,22 @@ fn collapse_prior_judgments(judgments: &[DependencyBodyJudgment]) -> Vec<PriorJu
     collapsed
 }
 
-/// Fold a fresh clone's substitution into the body correspondence. An
-/// in-place rewrite, or more than one specialization of the same symbol,
-/// has no portable correspondence.
-fn substitution_correspondence(
+fn same_body_and_context(prior: &FrozenDependencyBody, admission: &BodyAdmission) -> bool {
+    prior.body_hash == admission.body_hash
+        && prior.dependency_context == admission.dependency_context
+}
+
+/// Fold a fresh clone's substitution into the dependency context. The body
+/// hash stays the authored text. An in-place rewrite, or more than one
+/// specialization of the same symbol, has no portable context.
+fn substitution_context(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    correspondence: u64,
+    admission: BodyAdmission,
     identities: &[Option<String>],
     machine_of_symbol: &[u32],
     other_symbols: &mut Vec<Option<String>>,
-) -> Option<u64> {
+) -> Option<BodyAdmission> {
     let mut matched = None;
     for specialization in &program.machine_specializations {
         if specialization.instance != machine.symbol {
@@ -403,9 +442,9 @@ fn substitution_correspondence(
         matched = Some(specialization);
     }
     let Some(specialization) = matched else {
-        return Some(correspondence);
+        return Some(admission);
     };
-    let mut hash = semantic_vocabulary::Fnv1a::resume(correspondence);
+    let mut hash = semantic_vocabulary::Fnv1a::resume(admission.dependency_context);
     hash.byte(9);
     hash.string_terminated(&specialization.normalized_template_identity);
     for text in specialization
@@ -470,22 +509,82 @@ fn substitution_correspondence(
             }
         }
     }
-    Some(hash.finish())
+    Some(BodyAdmission {
+        body_hash: admission.body_hash,
+        dependency_context: hash.finish(),
+    })
 }
 
-fn local_correspondence(
+fn dependency_context(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    sources: Option<&source::SourceMap>,
+    body_hashes: &[Option<u64>],
+    callees: &[u32],
     identities: &[Option<String>],
     machine_of_symbol: &[u32],
     other_symbols: &mut Vec<Option<String>>,
+) -> u64 {
+    let mut context = semantic_vocabulary::Fnv1a::new();
+    hash_producer_context(&mut context, program, machine.symbol);
+    for callee in callees {
+        let callee = *callee as usize;
+        context.byte(1);
+        if let Some(identity) = identities.get(callee).and_then(Option::as_ref) {
+            context.string_terminated(identity);
+        } else {
+            context.byte(0);
+        }
+        match body_hashes.get(callee).and_then(Option::as_ref) {
+            Some(body_hash) => {
+                context.byte(1);
+                context.u64(*body_hash);
+            }
+            None => context.byte(0),
+        }
+        if let Some(machine) = program.machines().get(callee) {
+            hash_producer_context(&mut context, program, machine.symbol);
+        }
+    }
+    // Resolved call targets that are not program machines still name a dependency.
+    for (state_index, state) in program.machine_states(machine).iter().enumerate() {
+        for (statement_index, _) in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
+            for call in
+                crate::collect_call_sites_in_statement(program, machine, state, statement_index)
+            {
+                let target = call.target_symbol(program);
+                if machine_slot(machine_of_symbol, target).is_none() {
+                    hash_target(
+                        &mut context,
+                        program,
+                        target,
+                        identities,
+                        machine_of_symbol,
+                        other_symbols,
+                    );
+                }
+            }
+            let _ = state_index;
+        }
+    }
+    context.finish()
+}
+
+fn local_body_hash(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    sources: Option<&source::SourceMap>,
+    machine_of_symbol: &[u32],
 ) -> (Option<u64>, Vec<u32>) {
     let Some(sources) = sources else {
         return (None, Vec::new());
     };
-    let mut hash = semantic_vocabulary::Fnv1a::new();
-    hash_supply(&mut hash, machine.supply_mode);
+    let mut body = semantic_vocabulary::Fnv1a::new();
+    hash_supply(&mut body, machine.supply_mode);
     let mut authored_statements = 0u32;
     let mut statement_count = 0u32;
     let mut callees = Vec::new();
@@ -500,27 +599,19 @@ fn local_correspondence(
             match statement_source_span(program, statement) {
                 Some(span) => {
                     authored_statements = authored_statements.saturating_add(1);
-                    hash.byte(1);
-                    hash.string_terminated(sources.text_at(span));
+                    body.byte(1);
+                    body.string_terminated(sources.text_at(span));
                 }
-                None => hash.byte(0),
+                None => body.byte(0),
             }
             for call in
                 crate::collect_call_sites_in_statement(program, machine, state, statement_index)
             {
                 let target = call.target_symbol(program);
-                hash_target(
-                    &mut hash,
-                    program,
-                    target,
-                    identities,
-                    machine_of_symbol,
-                    other_symbols,
-                );
-                if let Some(callee) = machine_slot(machine_of_symbol, target) {
-                    if let Ok(callee) = u32::try_from(callee) {
-                        callees.push(callee);
-                    }
+                if let Some(callee) = machine_slot(machine_of_symbol, target)
+                    && let Ok(callee) = u32::try_from(callee)
+                {
+                    callees.push(callee);
                 }
             }
             let _ = state_index;
@@ -530,19 +621,45 @@ fn local_correspondence(
         return (None, callees);
     }
     for contract in program.machine_contracts(machine) {
-        hash.byte(match contract.kind {
+        body.byte(match contract.kind {
             SignatureContractKind::Requires => 1,
             SignatureContractKind::Ensures => 2,
             SignatureContractKind::EnsuresForResultCase { .. } => 3,
             SignatureContractKind::Crashes { .. } => 4,
         });
         for fact in contract.facts.handles() {
-            if !hash_fact(&mut hash, program, sources, fact) {
+            if !hash_fact(&mut body, program, sources, fact) {
                 return (None, callees);
             }
         }
     }
-    (Some(hash.finish()), callees)
+    (Some(body.finish()), callees)
+}
+
+fn hash_producer_context(
+    hash: &mut semantic_vocabulary::Fnv1a,
+    program: &dyn crate::CheckingInput,
+    symbol: symbols::SymbolHandle,
+) {
+    let Some(span) = program.symbols.symbol_provenance_source_span(symbol) else {
+        hash.byte(0);
+        return;
+    };
+    let Some(file) = program.symbols.source_file(span) else {
+        hash.byte(0);
+        return;
+    };
+    hash.byte(match file.dependency_scope {
+        source::DependencyScope::Product => 1,
+        source::DependencyScope::Build => 2,
+    });
+    match &file.package_identity {
+        Some(package) => {
+            hash.byte(1);
+            hash.bytes(&package.digest());
+        }
+        None => hash.byte(0),
+    }
 }
 
 fn hash_fact(
@@ -666,4 +783,35 @@ fn proved_from_ordinals(
             .push(*ensures.get(usize::try_from(*ordinal).ok()?)?);
     }
     Some(proven)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn index_for(context: u64) -> DependencyBodyIndex {
+        let body_hash = 41;
+        DependencyBodyIndex {
+            active: true,
+            record: false,
+            identities: vec![Some("package:aa::wrapper".to_owned())],
+            admissions: vec![Some(BodyAdmission {
+                body_hash,
+                dependency_context: context,
+            })],
+            callees: vec![Vec::new()],
+            priors: Vec::new(),
+            frozen_priors: vec![FrozenDependencyBody {
+                identity: "package:aa::wrapper".to_owned(),
+                body_hash,
+                dependency_context: 7,
+            }],
+        }
+    }
+
+    #[test]
+    fn same_body_hash_with_different_dependency_context_is_refused() {
+        assert!(!index_for(9).admits_frozen_body(0));
+        assert!(index_for(7).admits_frozen_body(0));
+    }
 }
