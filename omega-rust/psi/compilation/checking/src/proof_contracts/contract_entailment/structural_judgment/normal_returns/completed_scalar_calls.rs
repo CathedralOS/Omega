@@ -44,7 +44,11 @@ impl StructuralJudge<'_> {
     ) -> Option<(StructuralTerm, StructuralTerm, PrimitiveType)> {
         // A total-computation query owes the evaluation itself, even if an
         // earlier runtime normal return supplied an equal mathematical value.
-        if self.require_closed_computation || !self.runtime_body_values || self.case_facts_only {
+        if self.require_closed_computation
+            || !self.runtime_body_values
+            || self.case_facts_only
+            || self.has_resolution_dependency_collector()
+        {
             return None;
         }
         let mut selected = None;
@@ -78,7 +82,7 @@ impl StructuralJudge<'_> {
             let same_capture = self
                 .completed_scalar_observation(value, primitive)
                 .is_some_and(|(observed, _)| observed.same_resolution_payload(&captured));
-            if !same_capture && !equation.right.same_resolution_payload(value) {
+            if !same_capture && !self.same_completed_denotation(&equation.right, value) {
                 continue;
             }
             let Some(denotation) = self.single_completed_call_denotation(&captured) else {
@@ -88,13 +92,44 @@ impl StructuralJudge<'_> {
             break;
         }
         let (original, denotation, primitive, policy) = selected?;
+        // A composite value rewrite may have already unfolded a call
+        // during intake, erasing the marker that would relate it to this
+        // class. Keep the entire numeric context in the general namespace
+        // whenever such a value fact exists. Do not build a second rewrite
+        // normalization graph. Integer comparisons and Boolean operators
+        // remain predicates; Application predicates conservatively decline
+        // retention too, since their result need not be projected here.
+        if self
+            .rewrites
+            .iter()
+            .any(|(pattern, _)| match pattern.semantic_value() {
+                StructuralTerm::ScalarBinary {
+                    operator, meaning, ..
+                } => typed_trees::operator::builtin_integer_result_carrier(
+                    *operator,
+                    meaning.map(|(primitive, _)| primitive),
+                )
+                .is_some(),
+                StructuralTerm::MathematicalBinary { operator, .. } => !operator.is_comparison(),
+                StructuralTerm::Application { .. }
+                | StructuralTerm::CallProjection { .. }
+                | StructuralTerm::IndexedValue { .. }
+                | StructuralTerm::Projection { .. }
+                | StructuralTerm::CollectionMeasure { .. }
+                | StructuralTerm::ScalarRepresentation { .. } => true,
+                _ => false,
+            })
+        {
+            return None;
+        }
         let mut canonical = None;
         // Every admitted occurrence of this exact denotation shares one value
         // namespace. A mixed or ambiguous association keeps the general route
         // for the entire class; do not leave one capture opaque while a peer
         // resolves through a different executable/source identity.
         for equation in self.captured_result_equations.iter().filter(|equation| {
-            equation.completed_call_identity && equation.right.same_resolution_payload(denotation)
+            equation.completed_call_identity
+                && self.same_completed_denotation(&equation.right, denotation)
         }) {
             let (captured, candidate_policy) =
                 self.completed_scalar_observation(&equation.left, primitive)?;
@@ -102,7 +137,23 @@ impl StructuralJudge<'_> {
                 return None;
             }
             let candidate_denotation = self.single_completed_call_denotation(&captured)?;
-            if !candidate_denotation.same_resolution_payload(denotation) {
+            if !self.same_completed_denotation(candidate_denotation, denotation) {
+                return None;
+            }
+            // Current path facts need not be in the public-equation roster.
+            // Preserve any nonidentity capture rewrite and any Application
+            // rewrite through the unchanged general route for the whole class.
+            let canonical_denotation = self.canonical_completed_denotation(candidate_denotation);
+            if self
+                .rewrites
+                .find(&captured)
+                .is_some_and(|(_, replacement)| {
+                    !replacement.same_resolution_payload(candidate_denotation)
+                        && !replacement.same_resolution_payload(&canonical_denotation)
+                })
+                || self.rewrites.find(candidate_denotation).is_some()
+                || self.rewrites.find(&canonical_denotation).is_some()
+            {
                 return None;
             }
             // Explicit public recipes retain the complete original projection
@@ -119,6 +170,43 @@ impl StructuralJudge<'_> {
         canonical.map(|canonical| (original, canonical, primitive))
     }
 
+    /// Normalize only the independently equivalent full result recipe. No
+    /// argument, target, selection or observation payload is erased here.
+    fn canonical_completed_denotation(&self, term: &StructuralTerm) -> StructuralTerm {
+        let mut term = term.clone();
+        if let StructuralTerm::Application { result_type, .. } = &mut term {
+            *result_type = super::super::super::specification_calls::canonical_result_reference(
+                self.program,
+                *result_type,
+            );
+        }
+        term
+    }
+
+    fn same_completed_denotation(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
+        if left.same_resolution_payload(right) {
+            return true;
+        }
+        match (left, right) {
+            (
+                StructuralTerm::Application {
+                    target: left_target,
+                    arguments: left_arguments,
+                    ..
+                },
+                StructuralTerm::Application {
+                    target: right_target,
+                    arguments: right_arguments,
+                    ..
+                },
+            ) if left_target == right_target && left_arguments.len() == right_arguments.len() => {
+                self.canonical_completed_denotation(left)
+                    .same_resolution_payload(&self.canonical_completed_denotation(right))
+            }
+            _ => false,
+        }
+    }
+
     /// Distinct executable/source identities can require a larger equivalence
     /// closure. This optional shortcut declines them; the unchanged resolver
     /// still supports that operation. Repeated identical rows are unambiguous.
@@ -131,7 +219,7 @@ impl StructuralJudge<'_> {
             equation.completed_call_identity && equation.left.same_resolution_payload(captured)
         }) {
             if let Some(previous) = denotation {
-                if !previous.same_resolution_payload(&equation.right) {
+                if !self.same_completed_denotation(previous, &equation.right) {
                     return None;
                 }
             } else {

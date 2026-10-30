@@ -1,0 +1,1 @@
+data `NormalizedInstant` literal cannot prove the default domain
