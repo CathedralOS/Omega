@@ -203,6 +203,40 @@ macro_rules! validated_plan_carrier {
     };
 }
 
+/// The same carrier for an analysis that shares its admitted plan with a
+/// successor pass: the plan rides behind an `Arc`, and beside the receipt it
+/// keeps each function's share of the receipt identity so a successor plan
+/// that carries a function over unchanged need not hash it again. The row
+/// names the report-only fields the analysis keeps beside those shares.
+macro_rules! shared_plan_carrier {
+    (
+        $carrier:ident : $plan:ty, $receipt:ty {
+            $( $(#[$meta:meta])* $vis:vis $field:ident : $ty:ty ),* $(,)?
+        }
+    ) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $carrier {
+            pub(crate) plan: std::sync::Arc<$plan>,
+            pub(crate) receipt: $receipt,
+            /// Each function's share of the receipt identity, kept so a
+            /// successor plan that carries a function over unchanged need
+            /// not hash it again.
+            pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
+            $($(#[$meta])* $vis $field: $ty,)*
+        }
+
+        impl $carrier {
+            pub fn plan(&self) -> &$plan {
+                &self.plan
+            }
+
+            receipt_accessor_rows!(ref $carrier {
+                receipt: $receipt,
+            });
+        }
+    };
+}
+
 /// The whole seal of a freshly produced plan: every receipt row is copied from
 /// the plan root the producer just built, and that plan becomes the validated
 /// carrier. A bounded pass names its plan, carrier, receipt, identity function
@@ -373,4 +407,3 @@ pub(crate) use rewrites::{
 pub use rewrites::{
     FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,
 };
-

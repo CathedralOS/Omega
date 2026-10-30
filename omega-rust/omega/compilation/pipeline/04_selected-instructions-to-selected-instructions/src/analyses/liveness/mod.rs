@@ -50,24 +50,7 @@ copy_receipt! {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedLiveness {
-    pub(crate) plan: std::sync::Arc<LivenessPlan>,
-    pub(crate) receipt: LivenessValidationReceipt,
-    /// Each function's share of the receipt identity, kept so a successor
-    /// plan that carries a function over unchanged need not hash it again.
-    pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
-}
-
-impl ValidatedLiveness {
-    pub fn plan(&self) -> &LivenessPlan {
-        &self.plan
-    }
-
-    receipt_accessor_rows!(ref ValidatedLiveness {
-        receipt: LivenessValidationReceipt,
-    });
-}
+shared_plan_carrier!(ValidatedLiveness: LivenessPlan, LivenessValidationReceipt {});
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LivenessError {
