@@ -1213,8 +1213,7 @@ pass/contracts/nested_call_outer_preserves_storage_fact built 2904ms exit:0 inte
 pass/contracts/opaque_call_preserves_model rejected 2235ms interpreter:unchecked @5f668826adf3+wt
 	cannot prove requires contract for call exact_seven from after_call: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/contracts/policy_field_ensures checked 4405ms @5f668826adf3+wt
-pass/contracts/proof_fact_indexed_domain_application rejected 2345ms @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/contracts/proof_fact_indexed_domain_application checked 1458ms @ad7c6890a897+wt
 pass/contracts/range_requires_discharge checked 5611ms @5f668826adf3+wt
 pass/contracts/recurrent_call_prefix_preserves_model built 4964ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/contracts/requires_narrow_ceiling_unproven built 19545ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
@@ -1647,8 +1646,7 @@ pass/domains/executable_domain_membership_union_guard_exit built 15912ms exit:24
 pass/domains/explicit_domain_erasure checked 1641ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2275ms @5f668826adf3+wt
 pass/domains/inactive_impossible_payload_exit built 2883ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/domains/indexed_domain_fact rejected 1848ms @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_fact checked 1933ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit built 1852ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values built 2878ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/intersected_qualifiers checked 2259ms @5f668826adf3+wt
