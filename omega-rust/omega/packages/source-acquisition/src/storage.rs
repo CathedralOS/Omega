@@ -127,6 +127,21 @@ impl RetainedStorageLane {
             "private resolver lane pathname no longer identifies its retained directory",
         )
     }
+
+    #[cfg(windows)]
+    pub(crate) fn verify_direct_child_identity(
+        &self,
+        parent: &RetainedStorageRoot,
+    ) -> Result<(), SourceResolveError> {
+        super::custody::tree::verify_retained_cache_child_custody_root(
+            &parent.path,
+            &parent.directory,
+            &self.path,
+            self.kind,
+            &self.directory,
+            "private resolver lane pathname no longer identifies its retained directory",
+        )
+    }
 }
 
 #[cfg(target_os = "windows")]
