@@ -17,7 +17,8 @@ use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substit
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
 use crate::rules::control_flow_cleanup::scalar_cleanup_functions;
 use crate::rules::control_flow_cleanup::{
-    merge_candidates, provenance_realized_at, record_merged_node_positions, record_node_provenance,
+    merge_candidates, provenance_realized_at, record_block_provenance,
+    record_merged_node_positions, record_node_provenance,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -163,12 +164,7 @@ pub(super) fn adjacent_merge_accounting(
     record_merged_node_positions(function, predecessor, target, target_block, &mut realized)?;
     for block in function.blocks.iter().skip(target_position + 1) {
         affected.insert(block.id);
-        record_node_provenance(
-            function.machine,
-            block,
-            block.nodes.iter().enumerate(),
-            &mut realized,
-        )?;
+        record_block_provenance(function.machine, block, &mut realized)?;
     }
     let substituted_values = substitutions
         .iter()
