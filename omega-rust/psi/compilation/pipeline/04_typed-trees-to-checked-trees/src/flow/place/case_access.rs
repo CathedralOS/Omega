@@ -383,15 +383,26 @@ pub(crate) fn place_cases_are_selected_after(
     {
         return true;
     }
-    CaseEvidence::prepare(
+    let evidence = CaseEvidence::prepare(
         program,
         semantic,
         contexts,
         machine_symbol,
         state_symbol,
         statement_index,
-    )
-    .is_some_and(|evidence| evidence.cases_are_selected_after(subject, prefix_length))
+    );
+    if evidence.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "CHECKSITE case-scope-unavailable machine={machine_symbol:?} state={state_symbol:?} statement={statement_index} subject={subject:?} machine_present={} state_present={} state_in_machine={}",
+            program.machine_by_symbol(machine_symbol).is_some(),
+            program.state_by_symbol(state_symbol).is_some(),
+            program
+                .machine_by_symbol(machine_symbol)
+                .and_then(|machine| program.state_in_machine(machine, state_symbol))
+                .is_some(),
+        );
+    }
+    evidence.is_some_and(|evidence| evidence.cases_are_selected_after(subject, prefix_length))
 }
 
 /// A whole value owes a payload invariant only when its enclosing cases are
