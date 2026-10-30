@@ -13,10 +13,7 @@ use crate::snapshot::construction::{
 use crate::snapshot::metadata::{local_snapshot_metadata, verify_local_snapshot};
 use crate::snapshot::permissions::make_open_snapshot_read_only;
 use crate::snapshot::publication::PendingMaterializedSnapshot;
-use crate::tree::capture::{
-    CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy,
-    capture_local_source_from_open_root,
-};
+use crate::tree::capture::{CapturedLocalEntryKind, CapturedLocalTree, capture_exact_materialized};
 use crate::tree::filesystem::io_error;
 use cap_fs_ext::DirExt;
 use std::path::Path;
@@ -120,15 +117,7 @@ fn materialize_pending_local_snapshot(
         }
     }
 
-    let staged = capture_local_source_from_open_root(
-        source.clone(),
-        source_directory
-            .try_clone()
-            .map_err(|error| io_error(&source, error))?,
-        limits,
-        SourceTreePolicy::ExactMaterialized,
-    )?
-    .normalized;
+    let staged = capture_exact_materialized(&source, &source_directory, limits)?.normalized;
     if !same_source_identity(&staged, &captured.normalized) {
         return Err(local_snapshot_invalid(
             &source,
