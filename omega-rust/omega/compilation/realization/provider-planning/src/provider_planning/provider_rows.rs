@@ -175,7 +175,6 @@ pub struct DirectBoundaryInput {
     declaration_identity: String,
     callable_identity: String,
     realization_owner: String,
-    realization_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub mechanism: DirectBoundaryMechanism,
 }
 
@@ -197,20 +196,13 @@ impl DirectBoundaryInput {
         plan.schema.methods.retain(|method| {
             original.schema.identity_text(method.requirement_identity) == requirement
         });
-        let semantic_plan = plan.clone();
-        plan.schema.receiver_applications.clear();
-        plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
-        plan.provider_type = self.realization_owner.clone();
-        plan.provider_type_package_identity = self.realization_package;
-        plan.schema.trait_name = plan.schema.identities.intern(&self.callable_identity);
-        plan.schema.trait_package_identity = self.realization_package;
-        plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
-        let [method] = plan.schema.methods.as_mut_slice() else {
-            return Err(Diagnostic::error(
-                "boundary leaf does not bind one exact requirement contract",
-            ));
-        };
-        method.requirement_identity = plan.schema.identities.intern(&self.callable_identity);
+        let semantic_plan = plan;
+        let plan = backend_plan::DirectBoundaryLeaf::project_plan(
+            &semantic_plan,
+            &self.callable_identity,
+            &self.callable_identity,
+        )
+        .map_err(Diagnostic::error)?;
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
@@ -333,7 +325,6 @@ pub(crate) fn prepare(
             declaration_identity,
             callable_identity,
             realization_owner: typed.symbols.display_path(machine.symbol, "::"),
-            realization_package: typed.symbols.symbol_package_identity(machine.symbol),
             mechanism,
         });
     }
