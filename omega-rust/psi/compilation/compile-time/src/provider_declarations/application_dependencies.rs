@@ -18,7 +18,7 @@ pub(crate) fn source_application_dependencies(
     explicit: &[ProviderSelection],
     defaults: &[TargetProviderDefaults],
     candidates: &[(SymbolHandle, SymbolHandle)],
-) -> Result<Vec<(SymbolHandle, SymbolHandle)>, &'static str> {
+) -> Result<Vec<(SymbolHandle, SymbolHandle)>, String> {
     let applicable = |selection: &&ProviderSelection| {
         selection
             .target
@@ -46,17 +46,29 @@ pub(crate) fn source_application_dependencies(
             .provider_type
             .prepared_implementation_members(typed)?;
         let subject = Subject::new(typed, &selection.subject)?;
-        for member in members {
-            let template = typed
-                .captured_machine_applications
+        let members = members
+            .into_iter()
+            .map(|member| {
+                let template = typed
+                    .captured_machine_applications
+                    .iter()
+                    .find_map(|(_, capture)| {
+                        (capture.instance == member).then_some(capture.template)
+                    })
+                    .unwrap_or(member);
+                (template, member)
+            })
+            .collect::<Vec<_>>();
+        for &(requirement, realization) in candidates {
+            if !subject.contains(typed, requirement) {
+                continue;
+            }
+            for &(_, member) in members
                 .iter()
-                .find_map(|(_, capture)| (capture.instance == member).then_some(capture.template))
-                .unwrap_or(member);
-            for &(requirement, realization) in candidates {
+                .filter(|(template, _)| *template == realization)
+            {
                 let dependency = (requirement, member);
-                if realization == template
-                    && subject.contains(typed, requirement)
-                    && member_matches_subject(typed, selection, &subject, dependency)?
+                if member_matches_subject(typed, selection, &subject, dependency)?
                     && !dependencies.contains(&dependency)
                 {
                     dependencies.push(dependency);
@@ -79,13 +91,13 @@ impl<'program> Subject<'program> {
     fn new(
         typed: &'program TypedTrees,
         selected: &ProviderSelectionSubject,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, String> {
         match selected {
             ProviderSelectionSubject::BoundaryTrait(identity) => {
                 let scope = if identity.application.is_valid() {
                     let prepared = prepared_application(typed, identity)?;
                     if prepared.role != Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject) {
-                        return Err("layout dependency subject lost its boundary application role");
+                        return Err("layout dependency subject lost its boundary application role".into());
                     }
                     prepared.scope.scope(typed)
                 } else {
@@ -95,20 +107,18 @@ impl<'program> Subject<'program> {
                 };
                 scope
                     .map(Self::Trait)
-                    .ok_or("layout dependency subject lost its exact trait scope")
+                    .ok_or_else(|| "layout dependency subject lost its exact trait scope".into())
             }
             ProviderSelectionSubject::BoundaryRequirement(identity) => {
                 Ok(Self::Exact(vec![identity.symbol]))
             }
             ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                if !family
-                    .replay_against_typed(super::ProviderPlanningContext::new(
-                        typed,
-                        source::DependencyScope::Product,
-                    ))
-                    .is_empty()
-                {
-                    return Err("layout dependency subject lost its complete operator family");
+                let reasons = family.replay_against_typed(super::ProviderPlanningContext::new(
+                    typed,
+                    source::DependencyScope::Product,
+                ));
+                if !reasons.is_empty() {
+                    return Err(reasons.join("\n"));
                 }
                 Ok(Self::Exact(
                     family.coordinates().iter().map(|row| row.symbol).collect(),
@@ -137,19 +147,19 @@ impl<'program> Subject<'program> {
 fn prepared_application<'program>(
     typed: &'program TypedTrees,
     identity: &ProviderSelectionIdentity,
-) -> Result<&'program typed_trees::product_operand::ProductOperandApplication, &'static str> {
+) -> Result<&'program typed_trees::product_operand::ProductOperandApplication, String> {
     if !typed
         .product_operand_applications
         .is_valid(identity.application)
     {
-        return Err("layout dependency lost its prepared source application");
+        return Err("layout dependency lost its prepared source application".into());
     }
     let prepared = typed.product_operand_applications.get(identity.application);
     let actual = typed
         .product_operand_application_identity(identity.application)?
         .and_then(|identity| typed.type_identity_text(identity));
     if prepared.declaration != identity.symbol || actual != identity.application_identity {
-        return Err("layout dependency changed its complete source application");
+        return Err("layout dependency changed its complete source application".into());
     }
     Ok(prepared)
 }
@@ -159,7 +169,7 @@ fn member_matches_subject<'program>(
     selected: &ProviderSelection,
     subject: &Subject<'program>,
     (requirement, member): (SymbolHandle, SymbolHandle),
-) -> Result<bool, &'static str> {
+) -> Result<bool, String> {
     let Subject::Trait(expected) = subject else {
         return Ok(true);
     };
@@ -174,7 +184,7 @@ fn member_matches_subject<'program>(
             if prepared.role
                 != Some(language_semantics::declaration_selection::ProductOperandRole::Provider)
             {
-                return Err("layout dependency implementation lost its provider role");
+                return Err("layout dependency implementation lost its provider role".into());
             }
             prepared
                 .implementation
@@ -185,10 +195,10 @@ fn member_matches_subject<'program>(
         };
         return scope
             .map(matches)
-            .ok_or("layout dependency implementation lost its exact trait scope");
+            .ok_or_else(|| "layout dependency implementation lost its exact trait scope".into());
     }
     let Some(machine) = typed.machine_by_symbol(member) else {
-        return Err("layout dependency member lost its exact machine");
+        return Err("layout dependency member lost its exact machine".into());
     };
     Ok(typed
         .machine_trait_conformances(machine)
