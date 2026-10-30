@@ -14,6 +14,18 @@ use crate::{
     normalized_layout_plan_report_fingerprint,
 };
 
+macro_rules! bits {
+    ($container:literal => $width:literal => $destination:literal => $source:literal => $span:literal) => {
+        LayoutPlacementReport::Bits {
+            container: $container,
+            container_width: $width,
+            destination_lsb: $destination,
+            source_lsb: $source,
+            width: $span,
+        }
+    };
+}
+
 #[test]
 fn normalized_layout_report_fingerprint_is_order_independent_and_geometry_bound() {
     let forward = split_layout();
@@ -543,16 +555,7 @@ fn aggregate_materialization_applies_scalar_placements_beside_whole_extents() {
                     interpretation: IntegerInterpretation::Unsigned,
                 },
             ),
-            layout_field_entry(
-                "flags".into(),
-                LayoutPlacementReport::Bits {
-                    container: 2,
-                    container_width: 16,
-                    destination_lsb: 0,
-                    source_lsb: 0,
-                    width: 10,
-                },
-            ),
+            layout_field_entry("flags".into(), bits!(2 => 16 => 0 => 0 => 10)),
             layout_field_entry("pair".into(), LayoutPlacementReport::At { offset: 4 }),
             layout_field_entry("items".into(), LayoutPlacementReport::At { offset: 8 }),
             layout_field_entry("items".into(), LayoutPlacementReport::At { offset: 10 }),
@@ -613,26 +616,8 @@ fn aggregate_materialization_shares_fragment_bytes_but_rejects_bit_drift() {
     // Two fields may tile disjoint destination bits of one container byte.
     let shared = layout_report(
         vec![
-            layout_field_entry(
-                "low".into(),
-                LayoutPlacementReport::Bits {
-                    container: 4,
-                    container_width: 8,
-                    destination_lsb: 0,
-                    source_lsb: 0,
-                    width: 4,
-                },
-            ),
-            layout_field_entry(
-                "high".into(),
-                LayoutPlacementReport::Bits {
-                    container: 4,
-                    container_width: 8,
-                    destination_lsb: 4,
-                    source_lsb: 0,
-                    width: 4,
-                },
-            ),
+            layout_field_entry("low".into(), bits!(4 => 8 => 0 => 0 => 4)),
+            layout_field_entry("high".into(), bits!(4 => 8 => 4 => 0 => 4)),
         ],
         None,
         Some(8),
@@ -726,16 +711,7 @@ fn aggregate_fragment_overlap_uses_physical_bytes_in_both_byte_orders() {
             let layout = layout_report(
                 vec![
                     layout_field_entry("whole", LayoutPlacementReport::At { offset: whole_byte }),
-                    layout_field_entry(
-                        "fragment",
-                        LayoutPlacementReport::Bits {
-                            container: 0,
-                            container_width: 16,
-                            destination_lsb: 0,
-                            source_lsb: 0,
-                            width: 8,
-                        },
-                    ),
+                    layout_field_entry("fragment", bits!(0 => 16 => 0 => 0 => 8)),
                 ],
                 None,
                 Some(2),
@@ -794,16 +770,7 @@ fn aggregate_fragment_overlap_compares_different_container_widths() {
                             width: 8,
                         },
                     ),
-                    layout_field_entry(
-                        "wide",
-                        LayoutPlacementReport::Bits {
-                            container: 0,
-                            container_width: 16,
-                            destination_lsb: 0,
-                            source_lsb: 0,
-                            width: 8,
-                        },
-                    ),
+                    layout_field_entry("wide", bits!(0 => 16 => 0 => 0 => 8)),
                 ],
                 None,
                 Some(2),
@@ -858,16 +825,7 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
 
     let mixed = base(vec![
         layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
-        layout_field_entry(
-            "id",
-            LayoutPlacementReport::Bits {
-                container: 4,
-                container_width: 8,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 8,
-            },
-        ),
+        layout_field_entry("id", bits!(4 => 8 => 0 => 0 => 8)),
         layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
         layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
         layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
@@ -890,16 +848,7 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
 
     let fragmented_array = base(vec![
         layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
-        layout_field_entry(
-            "items",
-            LayoutPlacementReport::Bits {
-                container: 4,
-                container_width: 8,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 8,
-            },
-        ),
+        layout_field_entry("items", bits!(4 => 8 => 0 => 0 => 8)),
         layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
         layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
     ]);
@@ -923,16 +872,7 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
         layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
         layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
         layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
-        layout_field_entry(
-            "wide",
-            LayoutPlacementReport::Bits {
-                container: 16,
-                container_width: 64,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 64,
-            },
-        ),
+        layout_field_entry("wide", bits!(16 => 64 => 0 => 0 => 64)),
         layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
     ]);
     let error = materialize_aggregate_layout_into(
@@ -1022,28 +962,8 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
 fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity() {
     let layout = layout_report(
         vec![
-            numbered_layout_field_entry(
-                "legacy_counter".into(),
-                7,
-                LayoutPlacementReport::Bits {
-                    container: 0,
-                    container_width: 8,
-                    destination_lsb: 0,
-                    source_lsb: 0,
-                    width: 8,
-                },
-            ),
-            numbered_layout_field_entry(
-                "legacy_counter".into(),
-                7,
-                LayoutPlacementReport::Bits {
-                    container: 1,
-                    container_width: 8,
-                    destination_lsb: 0,
-                    source_lsb: 8,
-                    width: 8,
-                },
-            ),
+            numbered_layout_field_entry("legacy_counter".into(), 7, bits!(0 => 8 => 0 => 0 => 8)),
+            numbered_layout_field_entry("legacy_counter".into(), 7, bits!(1 => 8 => 0 => 8 => 8)),
             numbered_layout_field_entry(
                 "legacy_status".into(),
                 9,
@@ -1226,26 +1146,8 @@ fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
 fn scalar_materialization_is_complete_and_atomic() {
     let layout = layout_report(
         vec![
-            layout_field_entry(
-                "low".into(),
-                LayoutPlacementReport::Bits {
-                    container: 0,
-                    container_width: 8,
-                    destination_lsb: 0,
-                    source_lsb: 0,
-                    width: 4,
-                },
-            ),
-            layout_field_entry(
-                "high".into(),
-                LayoutPlacementReport::Bits {
-                    container: 0,
-                    container_width: 8,
-                    destination_lsb: 4,
-                    source_lsb: 0,
-                    width: 4,
-                },
-            ),
+            layout_field_entry("low".into(), bits!(0 => 8 => 0 => 0 => 4)),
+            layout_field_entry("high".into(), bits!(0 => 8 => 4 => 0 => 4)),
         ],
         None,
         Some(1),

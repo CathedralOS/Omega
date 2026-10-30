@@ -5,6 +5,12 @@
 
 use super::*;
 
+macro_rules! row {
+    ($a:expr => $b:expr => $c:expr => $d:expr) => {
+        ($a, $b, $c, $d)
+    };
+}
+
 /// Apple clang (`clang -target x86_64-apple-macos -c`, bytes read back with
 /// `otool -t`) assembled every Trapping realization from hand-written Intel
 /// assembly, independently of this encoder, in `TrappingForm::ALL` order for
@@ -848,30 +854,15 @@ fn trapping_decoded_forms_decide_the_named_boundary_cases() {
         (form(Add, I32), i128::from(i32::MAX), 1, None),
         (form(Add, I64), i128::from(i64::MAX), 1, None),
         (form(Add, I64), i128::from(i64::MIN), -1, None),
-        (
-            form(Add, I64),
-            i128::from(i64::MIN),
-            i128::from(i64::MAX),
-            Some(-1),
-        ),
+        row!(form(Add, I64) => i128::from(i64::MIN) => i128::from(i64::MAX) => Some(-1)),
         (form(Subtract, I64), i128::from(i64::MIN), 1, None),
-        (
-            form(Subtract, I64),
-            -1,
-            i128::from(i64::MIN),
-            Some(i128::from(i64::MAX)),
-        ),
+        row!(form(Subtract, I64) => -1 => i128::from(i64::MIN) => Some(i128::from(i64::MAX))),
         (form(Add, U8), 255, 0, Some(255)),
         (form(Add, U8), 255, 1, None),
         (form(Subtract, U32), 0, 1, None),
         (form(Subtract, U32), 1, 1, Some(0)),
         (form(Add, U64), i128::from(u64::MAX), 1, None),
-        (
-            form(Add, U64),
-            i128::from(u64::MAX) - 1,
-            1,
-            Some(i128::from(u64::MAX)),
-        ),
+        row!(form(Add, U64) => i128::from(u64::MAX) - 1 => 1 => Some(i128::from(u64::MAX))),
         (form(Subtract, U64), 0, 1, None),
         // Products just inside and just outside every class.
         (form(Multiply, I8), -128, 1, Some(-128)),
@@ -879,26 +870,11 @@ fn trapping_decoded_forms_decide_the_named_boundary_cases() {
         (form(Multiply, I32), 46341, 46341, None),
         (form(Multiply, I32), 46340, 46340, Some(46340 * 46340)),
         (form(Multiply, U32), 65536, 65536, None),
-        (
-            form(Multiply, U32),
-            65535,
-            65537,
-            Some(i128::from(u32::MAX)),
-        ),
+        row!(form(Multiply, U32) => 65535 => 65537 => Some(i128::from(u32::MAX))),
         (form(Multiply, I64), i128::from(i64::MIN), -1, None),
-        (
-            form(Multiply, I64),
-            i128::from(i64::MIN),
-            1,
-            Some(i128::from(i64::MIN)),
-        ),
+        row!(form(Multiply, I64) => i128::from(i64::MIN) => 1 => Some(i128::from(i64::MIN))),
         (form(Multiply, U64), 1 << 32, 1 << 32, None),
-        (
-            form(Multiply, U64),
-            (1 << 32) - 1,
-            (1 << 32) + 1,
-            Some(i128::from(u64::MAX)),
-        ),
+        row!(form(Multiply, U64) => (1 << 32) - 1 => (1 << 32) + 1 => Some(i128::from(u64::MAX))),
         // Zero divisors and the one overflowing quotient pair.
         (form(Divide, U8), 7, 0, None),
         (form(Remainder, U64), 7, 0, None),
@@ -910,29 +886,14 @@ fn trapping_decoded_forms_decide_the_named_boundary_cases() {
         (form(Remainder, I8), -128, 1, Some(0)),
         (form(Divide, I16), -32768, -1, None),
         (form(Divide, I32), i128::from(i32::MIN), -1, None),
-        (
-            form(Divide, I32),
-            i128::from(i32::MIN),
-            1,
-            Some(i128::from(i32::MIN)),
-        ),
+        row!(form(Divide, I32) => i128::from(i32::MIN) => 1 => Some(i128::from(i32::MIN))),
         (form(Divide, I64), i128::from(i64::MIN), -1, None),
-        (
-            form(Divide, I64),
-            i128::from(i64::MIN),
-            1,
-            Some(i128::from(i64::MIN)),
-        ),
+        row!(form(Divide, I64) => i128::from(i64::MIN) => 1 => Some(i128::from(i64::MIN))),
         (form(Divide, I64), -1, -1, Some(1)),
         (form(Remainder, I64), i128::from(i64::MIN), -1, None),
         (form(Remainder, I64), i128::from(i64::MIN) + 1, -1, Some(0)),
         (form(Remainder, I32), -7, 2, Some(-1)),
-        (
-            form(Divide, U64),
-            i128::from(u64::MAX),
-            1,
-            Some(i128::from(u64::MAX)),
-        ),
+        row!(form(Divide, U64) => i128::from(u64::MAX) => 1 => Some(i128::from(u64::MAX))),
         // Counts at width - 1 and width, negative counts, and value overflow.
         (form(ShiftLeft, I8), -1, 7, Some(-128)),
         (form(ShiftLeft, I8), 1, 7, None),
@@ -967,50 +928,20 @@ fn trapping_decoded_forms_decide_the_named_boundary_cases() {
         (convert(signed, I8), -129, 0, None),
         (convert(signed, I8), 128, 0, None),
         (convert(signed, I16), -32769, 0, None),
-        (
-            convert(signed, I32),
-            i128::from(i32::MIN),
-            0,
-            Some(i128::from(i32::MIN)),
-        ),
+        row!(convert(signed, I32) => i128::from(i32::MIN) => 0 => Some(i128::from(i32::MIN))),
         (convert(signed, I32), i128::from(i32::MAX) + 1, 0, None),
         (convert(signed, U64), -1, 0, None),
-        (
-            convert(signed, U64),
-            i128::from(i64::MAX),
-            0,
-            Some(i128::from(i64::MAX)),
-        ),
+        row!(convert(signed, U64) => i128::from(i64::MAX) => 0 => Some(i128::from(i64::MAX))),
         (convert(signed, U8), -1, 0, None),
         (convert(signed, U8), 255, 0, Some(255)),
         (convert(signed, U8), 256, 0, None),
         (convert(unsigned, U16), 65536, 0, None),
-        (
-            convert(unsigned, U32),
-            i128::from(u32::MAX),
-            0,
-            Some(i128::from(u32::MAX)),
-        ),
+        row!(convert(unsigned, U32) => i128::from(u32::MAX) => 0 => Some(i128::from(u32::MAX))),
         (convert(unsigned, U32), 1 << 32, 0, None),
         (convert(unsigned, I64), 1 << 63, 0, None),
-        (
-            convert(unsigned, I64),
-            (1 << 63) - 1,
-            0,
-            Some(i128::from(i64::MAX)),
-        ),
-        (
-            convert(signed, I64),
-            i128::from(i64::MIN),
-            0,
-            Some(i128::from(i64::MIN)),
-        ),
-        (
-            convert(unsigned, U64),
-            i128::from(u64::MAX),
-            0,
-            Some(i128::from(u64::MAX)),
-        ),
+        row!(convert(unsigned, I64) => (1 << 63) - 1 => 0 => Some(i128::from(i64::MAX))),
+        row!(convert(signed, I64) => i128::from(i64::MIN) => 0 => Some(i128::from(i64::MIN))),
+        row!(convert(unsigned, U64) => i128::from(u64::MAX) => 0 => Some(i128::from(u64::MAX))),
     ];
     for (form, left, right, expected) in cases {
         let expected = expected.map(|value| value as u64);

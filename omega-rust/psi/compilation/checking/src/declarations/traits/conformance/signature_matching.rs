@@ -729,6 +729,18 @@ pub(crate) fn type_references_match_for_trait_bindings(
         return true;
     }
 
+    macro_rules! match_types {
+        ($actual:expr, $required:expr $(,)?) => {
+            type_references_match_for_trait_bindings(
+                program,
+                $actual,
+                $required,
+                trait_type_parameters,
+                bindings,
+            )
+        };
+    }
+
     match (
         program.type_reference_table.type_reference(actual),
         program.type_reference_table.type_reference(required),
@@ -745,24 +757,9 @@ pub(crate) fn type_references_match_for_trait_bindings(
                 access: required_access,
                 lifetime: _,
             },
-        ) => {
-            actual_access == required_access
-                && type_references_match_for_trait_bindings(
-                    program,
-                    *actual_referee,
-                    *required_referee,
-                    trait_type_parameters,
-                    bindings,
-                )
-        }
+        ) => actual_access == required_access && match_types!(*actual_referee, *required_referee),
         typed_trees::constrained_type_reference_pair!(actual_base, required_base) => {
-            type_references_match_for_trait_bindings(
-                program,
-                *actual_base,
-                *required_base,
-                trait_type_parameters,
-                bindings,
-            )
+            match_types!(*actual_base, *required_base)
         }
         (
             TypeReferenceNode::FixedArray {
@@ -775,13 +772,7 @@ pub(crate) fn type_references_match_for_trait_bindings(
             },
         ) => {
             fixed_array_lengths_match(program, actual_length, required_length, bindings)
-                && type_references_match_for_trait_bindings(
-                    program,
-                    *actual_element,
-                    *required_element,
-                    trait_type_parameters,
-                    bindings,
-                )
+                && match_types!(*actual_element, *required_element)
         }
         (
             TypeReferenceNode::Slice {
@@ -790,13 +781,7 @@ pub(crate) fn type_references_match_for_trait_bindings(
             TypeReferenceNode::Slice {
                 element_type: required_element,
             },
-        ) => type_references_match_for_trait_bindings(
-            program,
-            *actual_element,
-            *required_element,
-            trait_type_parameters,
-            bindings,
-        ),
+        ) => match_types!(*actual_element, *required_element),
         (
             TypeReferenceNode::Generic {
                 base_symbol: actual_base_symbol,
@@ -838,13 +823,7 @@ pub(crate) fn type_references_match_for_trait_bindings(
                             .iter(),
                     )
                     .all(|(actual_argument, required_argument)| {
-                        type_references_match_for_trait_bindings(
-                            program,
-                            *actual_argument,
-                            *required_argument,
-                            trait_type_parameters,
-                            bindings,
-                        )
+                        match_types!(*actual_argument, *required_argument)
                     })
         }
         (
@@ -856,15 +835,7 @@ pub(crate) fn type_references_match_for_trait_bindings(
         ) if actual_symbol.is_valid() => {
             crate::declarations::data_queries::data_definition_by_symbol(program, *actual_symbol)
                 .and_then(|definition| definition.generic_instance)
-                .is_some_and(|origin| {
-                    type_references_match_for_trait_bindings(
-                        program,
-                        origin,
-                        required,
-                        trait_type_parameters,
-                        bindings,
-                    )
-                })
+                .is_some_and(|origin| match_types!(origin, required))
         }
         (TypeReferenceNode::ConstExpression(_), _) | (_, TypeReferenceNode::ConstExpression(_)) => {
             let pairs = bindings

@@ -5,6 +5,12 @@
 
 use super::*;
 
+macro_rules! row {
+    ($a:expr => $b:expr => $c:expr => $d:expr) => {
+        ($a, $b, $c, $d)
+    };
+}
+
 const SATURATING_OPERATIONS: [SaturatingOperation; 5] = [
     SaturatingOperation::Add,
     SaturatingOperation::Subtract,
@@ -97,12 +103,7 @@ fn independently_assembled_saturating_forms() -> Vec<(
     use SaturatingCarrier::*;
     use SaturatingOperation::*;
     vec![
-        (
-            Multiply,
-            I8,
-            low4.clone(),
-            signed_narrow_multiply_low(i8_maximum, i8_minimum),
-        ),
+        row!(Multiply => I8 => low4.clone() => signed_narrow_multiply_low(i8_maximum, i8_minimum)),
         // The i8 clang bytes with the i16 bound immediates substituted.
         (
             Multiply,
@@ -180,52 +181,17 @@ fn independently_assembled_saturating_forms() -> Vec<(
         ),
         // clang: mov rax, rdi; add rax, rsi; movabs rcx, 0x7f; cmp rax, rcx;
         // cmovg rax, rcx; movabs rcx, -0x80; cmp rax, rcx; cmovl rax, rcx.
-        (
-            Add,
-            I8,
-            low4.clone(),
-            signed_narrow_low(i8_maximum, i8_minimum, 0x01),
-        ),
+        row!(Add => I8 => low4.clone() => signed_narrow_low(i8_maximum, i8_minimum, 0x01)),
         // The i8 clang bytes with the i16 bound immediates substituted.
-        (
-            Add,
-            I16,
-            low4.clone(),
-            signed_narrow_low(i16_maximum, i16_minimum, 0x01),
-        ),
-        (
-            Add,
-            I32,
-            low4.clone(),
-            signed_narrow_low(i32_maximum, i32_minimum, 0x01),
-        ),
+        row!(Add => I16 => low4.clone() => signed_narrow_low(i16_maximum, i16_minimum, 0x01)),
+        row!(Add => I32 => low4.clone() => signed_narrow_low(i32_maximum, i32_minimum, 0x01)),
         // The i8 clang bytes with `sub` (0x29) in place of `add` (0x01).
-        (
-            Subtract,
-            I8,
-            low4.clone(),
-            signed_narrow_low(i8_maximum, i8_minimum, 0x29),
-        ),
-        (
-            Subtract,
-            I16,
-            low4.clone(),
-            signed_narrow_low(i16_maximum, i16_minimum, 0x29),
-        ),
-        (
-            Subtract,
-            I32,
-            low4.clone(),
-            signed_narrow_low(i32_maximum, i32_minimum, 0x29),
-        ),
+        row!(Subtract => I8 => low4.clone() => signed_narrow_low(i8_maximum, i8_minimum, 0x29)),
+        row!(Subtract => I16 => low4.clone() => signed_narrow_low(i16_maximum, i16_minimum, 0x29)),
+        row!(Subtract => I32 => low4.clone() => signed_narrow_low(i32_maximum, i32_minimum, 0x29)),
         // The i64 clang high assignment (r8, r11, r10, r9) with the narrow
         // clamp sequence in place of the overflow select.
-        (
-            Add,
-            I8,
-            high4.clone(),
-            signed_narrow_high(i8_maximum, i8_minimum, 0x01),
-        ),
+        row!(Add => I8 => high4.clone() => signed_narrow_high(i8_maximum, i8_minimum, 0x01)),
         (
             Subtract,
             I16,
@@ -240,18 +206,8 @@ fn independently_assembled_saturating_forms() -> Vec<(
             low4.clone(),
             unsigned_narrow_low([0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0]),
         ),
-        (
-            Add,
-            U8,
-            low4.clone(),
-            unsigned_narrow_low([0xff, 0, 0, 0, 0, 0, 0, 0]),
-        ),
-        (
-            Add,
-            U16,
-            low4.clone(),
-            unsigned_narrow_low([0xff, 0xff, 0, 0, 0, 0, 0, 0]),
-        ),
+        row!(Add => U8 => low4.clone() => unsigned_narrow_low([0xff, 0, 0, 0, 0, 0, 0, 0])),
+        row!(Add => U16 => low4.clone() => unsigned_narrow_low([0xff, 0xff, 0, 0, 0, 0, 0, 0])),
         // The clang high assignment of the signed narrow add with the u16
         // bound and no lower clamp.
         (Add, U16, high4.clone(), {
@@ -300,24 +256,9 @@ fn independently_assembled_saturating_forms() -> Vec<(
         (Divide, U16, high_divide.clone(), vec![0x49, 0xf7, 0xf1]),
         (Divide, U32, high_divide.clone(), vec![0x49, 0xf7, 0xf1]),
         // clang: cqo; idiv rsi; movabs rdx, 0x7fff; cmp rax, rdx; cmovg rax, rdx.
-        (
-            Divide,
-            I16,
-            low_divide.clone(),
-            signed_narrow_divide_low(i16_maximum),
-        ),
-        (
-            Divide,
-            I8,
-            low_divide.clone(),
-            signed_narrow_divide_low(i8_maximum),
-        ),
-        (
-            Divide,
-            I32,
-            low_divide.clone(),
-            signed_narrow_divide_low(i32_maximum),
-        ),
+        row!(Divide => I16 => low_divide.clone() => signed_narrow_divide_low(i16_maximum)),
+        row!(Divide => I8 => low_divide.clone() => signed_narrow_divide_low(i8_maximum)),
+        row!(Divide => I32 => low_divide.clone() => signed_narrow_divide_low(i32_maximum)),
         // clang: cqo; idiv r9; movabs rdx, 0x7fffffff; cmp rax, rdx; cmovg rax, rdx.
         (
             Divide,

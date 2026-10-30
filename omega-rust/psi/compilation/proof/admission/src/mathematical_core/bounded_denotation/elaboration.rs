@@ -31,6 +31,12 @@ pub(super) struct Elaboration<'a> {
     semantic_axioms: PremiseRoster,
 }
 
+macro_rules! certificate {
+    ($error:expr) => {
+        BoundedDenotationError::Certificate($error)
+    };
+}
+
 impl<'a> Elaboration<'a> {
     pub(super) fn new(
         context: &'a PropositionContext,
@@ -118,14 +124,13 @@ impl<'a> Elaboration<'a> {
         if self.steps > MAX_ELABORATION_NODES {
             return Err(BoundedDenotationError::DepthLimitExceeded);
         }
-        self.context.validate(&proof.conclusion).map_err(|error| {
-            BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
-        })?;
+        self.context
+            .validate(&proof.conclusion)
+            .map_err(|error| certificate!(ProofError::MalformedProposition(error)))?;
         match &proof.rule {
             ProofRule::Primitive(judgment) => {
-                decide_primitive(self.context, &proof.conclusion, *judgment).map_err(|error| {
-                    BoundedDenotationError::Certificate(ProofError::PrimitiveJudgment(error))
-                })?;
+                decide_primitive(self.context, &proof.conclusion, *judgment)
+                    .map_err(|error| certificate!(ProofError::PrimitiveJudgment(error)))?;
                 self.rules.insert(AcceptedProofRule::Primitive);
                 let denoted = self.denotation.denote(&proof.conclusion)?;
                 // Reuse the checked inhabitants used by predicate conversion:
@@ -141,14 +146,12 @@ impl<'a> Elaboration<'a> {
             ProofRule::Assumption { index } => self.cited(*index, &proof.conclusion),
             ProofRule::SemanticAxiom { index } => {
                 let Some(axiom) = self.semantic_axiom(*index) else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::UnknownSemanticAxiom(*index),
-                    ));
+                    return Err(certificate!(ProofError::UnknownSemanticAxiom(*index)));
                 };
                 if !propositions_match(&axiom, &proof.conclusion) {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::SemanticAxiomConclusionMismatch(*index),
-                    ));
+                    return Err(certificate!(ProofError::SemanticAxiomConclusionMismatch(
+                        *index
+                    )));
                 }
                 self.same_denotation(&axiom, &proof.conclusion)?;
                 self.rules.insert(AcceptedProofRule::SemanticAxiom);
@@ -160,14 +163,12 @@ impl<'a> Elaboration<'a> {
             }
             ProofRule::ConjunctionIntroduction(children) => {
                 let Proposition::Conjunction(expected) = &proof.conclusion else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::RuleConclusionMismatch("conjunction introduction"),
-                    ));
+                    return Err(certificate!(ProofError::RuleConclusionMismatch(
+                        "conjunction introduction"
+                    )));
                 };
                 if children.len() != expected.len() {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::ConjunctionArityMismatch,
-                    ));
+                    return Err(certificate!(ProofError::ConjunctionArityMismatch));
                 }
                 let mut terms = Vec::with_capacity(children.len());
                 for child in children {
@@ -175,9 +176,7 @@ impl<'a> Elaboration<'a> {
                 }
                 for (child, expected) in children.iter().zip(expected.iter()) {
                     if &child.conclusion != expected {
-                        return Err(BoundedDenotationError::Certificate(
-                            ProofError::ConjunctConclusionMismatch,
-                        ));
+                        return Err(certificate!(ProofError::ConjunctConclusionMismatch));
                     }
                 }
                 self.rules
@@ -197,20 +196,15 @@ impl<'a> Elaboration<'a> {
             } => {
                 let pair = self.node(conjunction)?;
                 let Proposition::Conjunction(conjuncts) = &conjunction.conclusion else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::RulePremiseMismatch("conjunction elimination"),
-                    ));
+                    return Err(certificate!(ProofError::RulePremiseMismatch(
+                        "conjunction elimination"
+                    )));
                 };
-                let selected =
-                    conjuncts
-                        .get(*conjunct)
-                        .ok_or(BoundedDenotationError::Certificate(
-                            ProofError::UnknownConjunct(*conjunct),
-                        ))?;
+                let selected = conjuncts
+                    .get(*conjunct)
+                    .ok_or(certificate!(ProofError::UnknownConjunct(*conjunct)))?;
                 if *selected != proof.conclusion {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::ConjunctConclusionMismatch,
-                    ));
+                    return Err(certificate!(ProofError::ConjunctConclusionMismatch));
                 }
                 self.rules.insert(AcceptedProofRule::ConjunctionElimination);
                 // In `Σ(d₀, Σ(d₁, … dₙ₋₁))` conjunct `i` is `fst` after
@@ -228,20 +222,16 @@ impl<'a> Elaboration<'a> {
             }
             ProofRule::DisjunctionIntroduction { disjunct, index } => {
                 let Proposition::Disjunction(disjuncts) = &proof.conclusion else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::RuleConclusionMismatch("disjunction introduction"),
-                    ));
+                    return Err(certificate!(ProofError::RuleConclusionMismatch(
+                        "disjunction introduction"
+                    )));
                 };
                 if *index >= disjuncts.len() {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::UnknownDisjunct(*index),
-                    ));
+                    return Err(certificate!(ProofError::UnknownDisjunct(*index)));
                 }
                 let disjunct_term = self.node(disjunct)?;
                 if disjuncts[*index] != disjunct.conclusion {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::DisjunctConclusionMismatch,
-                    ));
+                    return Err(certificate!(ProofError::DisjunctConclusionMismatch));
                 }
                 self.rules
                     .insert(AcceptedProofRule::DisjunctionIntroduction);
@@ -253,21 +243,19 @@ impl<'a> Elaboration<'a> {
             } => {
                 let scrutinee = self.node(disjunction)?;
                 let Proposition::Disjunction(disjuncts) = &disjunction.conclusion else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::RulePremiseMismatch("disjunction elimination"),
-                    ));
+                    return Err(certificate!(ProofError::RulePremiseMismatch(
+                        "disjunction elimination"
+                    )));
                 };
                 if branches.len() != disjuncts.len() {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::DisjunctionArityMismatch,
-                    ));
+                    return Err(certificate!(ProofError::DisjunctionArityMismatch));
                 }
                 let conclusion = self.denotation.denote(&proof.conclusion)?;
                 let term = self.disjunction_elim(disjuncts, branches, scrutinee, conclusion)?;
                 for branch in branches {
                     if branch.conclusion != proof.conclusion {
-                        return Err(BoundedDenotationError::Certificate(
-                            ProofError::DisjunctionBranchConclusionMismatch,
+                        return Err(certificate!(
+                            ProofError::DisjunctionBranchConclusionMismatch
                         ));
                     }
                 }
@@ -280,17 +268,15 @@ impl<'a> Elaboration<'a> {
                     conclusion,
                 } = &proof.conclusion
                 else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::RuleConclusionMismatch("implication introduction"),
-                    ));
+                    return Err(certificate!(ProofError::RuleConclusionMismatch(
+                        "implication introduction"
+                    )));
                 };
                 let domain = self.denotation.denote(premise)?;
                 let premise = premise.clone();
                 let term = self.with_hypothesis(&premise, domain, |this| this.node(body))?;
                 if &body.conclusion != conclusion.as_ref() {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::ImplicationConclusionMismatch,
-                    ));
+                    return Err(certificate!(ProofError::ImplicationConclusionMismatch));
                 }
                 self.rules
                     .insert(AcceptedProofRule::ImplicationIntroduction);
@@ -307,19 +293,15 @@ impl<'a> Elaboration<'a> {
                     conclusion,
                 } = &implication.conclusion
                 else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::RulePremiseMismatch("implication elimination"),
-                    ));
+                    return Err(certificate!(ProofError::RulePremiseMismatch(
+                        "implication elimination"
+                    )));
                 };
                 if premise.conclusion != **required {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::ImplicationPremiseMismatch,
-                    ));
+                    return Err(certificate!(ProofError::ImplicationPremiseMismatch));
                 }
                 if &proof.conclusion != conclusion.as_ref() {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::ImplicationConclusionMismatch,
-                    ));
+                    return Err(certificate!(ProofError::ImplicationConclusionMismatch));
                 }
                 self.rules.insert(AcceptedProofRule::ImplicationElimination);
                 Ok(self
@@ -330,14 +312,12 @@ impl<'a> Elaboration<'a> {
             ProofRule::EqualitySymmetry { equality } => {
                 let proof_term = self.node(equality)?;
                 let Proposition::Equal(left, right) = &equality.conclusion else {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::RulePremiseMismatch("equality symmetry"),
-                    ));
+                    return Err(certificate!(ProofError::RulePremiseMismatch(
+                        "equality symmetry"
+                    )));
                 };
                 if proof.conclusion != Proposition::Equal(right.clone(), left.clone()) {
-                    return Err(BoundedDenotationError::Certificate(
-                        ProofError::EqualityConclusionMismatch,
-                    ));
+                    return Err(certificate!(ProofError::EqualityConclusionMismatch));
                 }
                 self.rules.insert(AcceptedProofRule::EqualitySymmetry);
                 let premise_ty = self.denotation.denote(&equality.conclusion)?;
@@ -977,14 +957,12 @@ impl<'a> Elaboration<'a> {
         conclusion: &Proposition,
     ) -> Result<TermHandle, BoundedDenotationError> {
         let Some(assumption) = self.roster.get(index).cloned() else {
-            return Err(BoundedDenotationError::Certificate(
-                ProofError::UnknownAssumption(index),
-            ));
+            return Err(certificate!(ProofError::UnknownAssumption(index)));
         };
         if !propositions_match(&assumption, conclusion) {
-            return Err(BoundedDenotationError::Certificate(
-                ProofError::AssumptionConclusionMismatch(index),
-            ));
+            return Err(certificate!(ProofError::AssumptionConclusionMismatch(
+                index
+            )));
         }
         self.same_denotation(&assumption, conclusion)?;
         self.rules.insert(AcceptedProofRule::Assumption);
@@ -1039,14 +1017,10 @@ impl<'a> Elaboration<'a> {
         index: usize,
     ) -> Result<(Proposition, TermHandle), BoundedDenotationError> {
         let Some(proposition) = self.roster.get(index).cloned() else {
-            return Err(BoundedDenotationError::Certificate(
-                ProofError::UnknownAssumption(index),
-            ));
+            return Err(certificate!(ProofError::UnknownAssumption(index)));
         };
         if index >= self.ambient {
-            return Err(BoundedDenotationError::Certificate(
-                ProofError::UnknownAssumption(index),
-            ));
+            return Err(certificate!(ProofError::UnknownAssumption(index)));
         }
         self.assumptions.record(index, &proposition);
         let position = self.positions[index];
@@ -1062,9 +1036,7 @@ impl<'a> Elaboration<'a> {
         index: usize,
     ) -> Result<(Proposition, TermHandle), BoundedDenotationError> {
         let Some(proposition) = self.axioms.get(index).cloned() else {
-            return Err(BoundedDenotationError::Certificate(
-                ProofError::UnknownSemanticAxiom(index),
-            ));
+            return Err(certificate!(ProofError::UnknownSemanticAxiom(index)));
         };
         self.semantic_axioms.record(index, &proposition);
         let position = u32::try_from(self.ambient + index)

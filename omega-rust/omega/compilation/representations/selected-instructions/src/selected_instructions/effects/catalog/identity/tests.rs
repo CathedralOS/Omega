@@ -25,6 +25,12 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
     }
 }
 
+macro_rules! eq {
+    ($left:expr => $right:expr) => {
+        assert_eq!($left, $right);
+    };
+}
+
 #[test]
 fn crash_identity_tags_do_not_alias_other_instruction_families() {
     for semantic in MachineSemanticKind::ALL {
@@ -380,14 +386,8 @@ fn zero_fill_catalog_identity_binds_key_and_dynamic_operands() {
 #[test]
 fn wrapping_add_catalog_reuses_the_add_constraint_without_exact_semantics() {
     assert_eq!(semantic_kind_tag(MachineSemanticKind::WrappingAddI64), 58);
-    assert_eq!(
-        alternative_family_tag(MachineAlternativeFamily::WrappingAddI64),
-        58
-    );
-    assert_eq!(
-        keys().for_semantic(MachineSemanticKind::WrappingAddI64),
-        Some(keys().add_i64)
-    );
+    eq!(alternative_family_tag(MachineAlternativeFamily::WrappingAddI64) => 58);
+    eq!(keys().for_semantic(MachineSemanticKind::WrappingAddI64) => Some(keys().add_i64));
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
     let mut changed = source;
@@ -401,18 +401,9 @@ fn wrapping_add_catalog_reuses_the_add_constraint_without_exact_semantics() {
 #[test]
 fn remainder_catalog_identity_binds_its_key_and_distinct_semantic_family() {
     assert_eq!(semantic_kind_tag(MachineSemanticKind::ExactDivideU64), 56);
-    assert_eq!(
-        semantic_kind_tag(MachineSemanticKind::WrappingRemainderI64),
-        57
-    );
-    assert_eq!(
-        alternative_family_tag(MachineAlternativeFamily::ExactDivideU64),
-        56
-    );
-    assert_eq!(
-        alternative_family_tag(MachineAlternativeFamily::WrappingRemainderI64),
-        57
-    );
+    eq!(semantic_kind_tag(MachineSemanticKind::WrappingRemainderI64) => 57);
+    eq!(alternative_family_tag(MachineAlternativeFamily::ExactDivideU64) => 56);
+    eq!(alternative_family_tag(MachineAlternativeFamily::WrappingRemainderI64) => 57);
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
     let mut changed = source.clone();
@@ -447,37 +438,16 @@ fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
         (MachineSemanticKind::ExactRemainderI64, 113),
     ] {
         assert_eq!(semantic_kind_tag(semantic), tag);
-        assert_eq!(
-            alternative_family_tag(MachineAlternativeFamily::from(semantic)),
-            tag
-        );
+        eq!(alternative_family_tag(MachineAlternativeFamily::from(semantic)) => tag);
         assert!(MachineSemanticKind::ALL.contains(&semantic));
     }
     let keys = keys();
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::ExactRemainderU64),
-        Some(keys.remainder_u64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::WrappingDivideI64),
-        Some(keys.divide_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::WrappingSubtractI64),
-        Some(keys.subtract_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::WrappingMultiplyI64),
-        Some(keys.multiply_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::BitwiseOrI64),
-        Some(keys.subtract_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::BitwiseNotI64),
-        Some(keys.copy_i64)
-    );
+    eq!(keys.for_semantic(MachineSemanticKind::ExactRemainderU64) => Some(keys.remainder_u64));
+    eq!(keys.for_semantic(MachineSemanticKind::WrappingDivideI64) => Some(keys.divide_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::WrappingSubtractI64) => Some(keys.subtract_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::WrappingMultiplyI64) => Some(keys.multiply_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::BitwiseOrI64) => Some(keys.subtract_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::BitwiseNotI64) => Some(keys.copy_i64));
     for semantic in [
         MachineSemanticKind::WrappingShiftLeftI64,
         MachineSemanticKind::WrappingShiftRightI64,
@@ -541,10 +511,7 @@ fn integer_float_conversions_select_their_exact_control_constraint() {
             domain: IeeeFloatToIntegerDomain::Trapping,
         },
     ] {
-        assert_eq!(
-            keys.for_semantic(semantic(operation)),
-            keys.ieee_float_conversion_control
-        );
+        eq!(keys.for_semantic(semantic(operation)) => keys.ieee_float_conversion_control);
     }
     for operation in [
         IeeeFloatArithmeticOperation::Negate,
@@ -558,10 +525,7 @@ fn integer_float_conversions_select_their_exact_control_constraint() {
             domain: IeeeFloatToIntegerDomain::Saturating,
         },
     ] {
-        assert_eq!(
-            keys.for_semantic(semantic(operation)),
-            keys.ieee_float_unary
-        );
+        eq!(keys.for_semantic(semantic(operation)) => keys.ieee_float_unary);
     }
 
     let mut aliased = keys;
@@ -581,26 +545,11 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
     use crate::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
     // The forms that existed before the family was widened keep their tags;
     // every (operation, carrier) pair has one tag and no two pairs collide.
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::U64),
-        54
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::U64),
-        55
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::I32),
-        60
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::I32),
-        61
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Divide, SaturatingCarrier::I32),
-        62
-    );
+    eq!(saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::U64) => 54);
+    eq!(saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::U64) => 55);
+    eq!(saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::I32) => 60);
+    eq!(saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::I32) => 61);
+    eq!(saturating_family_tag(SaturatingOperation::Divide, SaturatingCarrier::I32) => 62);
     let mut tags = Vec::new();
     for carrier in SaturatingCarrier::ALL {
         for (semantic, family, operation) in [
@@ -757,10 +706,7 @@ fn identity_distinguishes_call_arity_order_and_role_boundaries() {
         .selected_keys
         .call_scalar
         .insert(0, structural_key);
-    assert_eq!(
-        source.selected_keys.in_identity_order(),
-        relabeled.selected_keys.in_identity_order()
-    );
+    eq!(source.selected_keys.in_identity_order() => relabeled.selected_keys.in_identity_order());
     assert_ne!(baseline, machine_effect_catalog_identity(&relabeled));
 }
 
@@ -773,10 +719,7 @@ fn identity_distinguishes_foreign_call_and_return_role_boundaries() {
     // while moving the key across the call/return roster boundary.
     let call_key = relabeled.selected_keys.call_normalized_foreign.remove(0);
     relabeled.selected_keys.return_aggregate.insert(0, call_key);
-    assert_eq!(
-        source.selected_keys.in_identity_order(),
-        relabeled.selected_keys.in_identity_order()
-    );
+    eq!(source.selected_keys.in_identity_order() => relabeled.selected_keys.in_identity_order());
     assert_ne!(
         machine_effect_catalog_identity(&source),
         machine_effect_catalog_identity(&relabeled)
@@ -801,6 +744,12 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
         }
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
     }
+}
+
+macro_rules! row {
+    ($a:expr => $b:expr) => {
+        ($a, $b)
+    };
 }
 
 /// Expected tags ported verbatim from the eighty-one-arm copy of this table
@@ -885,144 +834,42 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 137] = [
     (MachineAlternativeFamily::MaterializeBooleanEqual, 41),
     (MachineAlternativeFamily::MaterializeBooleanU64LessThan, 42),
     (MachineAlternativeFamily::MaterializeBooleanI64LessThan, 43),
-    (
-        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
-        44,
-    ),
-    (
-        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
-        45,
-    ),
+    row!(MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44),
+    row!(MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45),
     (MachineAlternativeFamily::WrappingRemainderI64, 57),
     (MachineAlternativeFamily::WrappingAddI64, 58),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I8),
-        63,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I16),
-        64,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I32),
-        60,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I64),
-        66,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U8),
-        67,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U16),
-        68,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U32),
-        69,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
-        55,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I8),
-        71,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I16),
-        72,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I32),
-        61,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I64),
-        74,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U8),
-        75,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U16),
-        76,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U32),
-        77,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
-        54,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I8),
-        79,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I16),
-        80,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I32),
-        62,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I64),
-        82,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U8),
-        83,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U16),
-        84,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U32),
-        85,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U64),
-        86,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I8),
-        95,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I16),
-        96,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I32),
-        97,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I64),
-        98,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U8),
-        99,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U16),
-        100,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U32),
-        101,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U64),
-        102,
-    ),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I8) => 63),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I16) => 64),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I32) => 60),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I64) => 66),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U8) => 67),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U16) => 68),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U32) => 69),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64) => 55),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I8) => 71),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I16) => 72),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I32) => 61),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I64) => 74),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U8) => 75),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U16) => 76),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U32) => 77),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64) => 54),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I8) => 79),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I16) => 80),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I32) => 62),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I64) => 82),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U8) => 83),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U16) => 84),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U32) => 85),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U64) => 86),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I8) => 95),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I16) => 96),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I32) => 97),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I64) => 98),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U8) => 99),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U16) => 100),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U32) => 101),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U64) => 102),
     (MachineAlternativeFamily::NormalizedForeignCall, 87),
     (MachineAlternativeFamily::ExactMultiplyI64, 88),
     (MachineAlternativeFamily::ExactRemainderU64, 89),
@@ -1041,38 +888,14 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 137] = [
     (MachineAlternativeFamily::ExactShiftRightU64, 110),
     (MachineAlternativeFamily::ExactDivideI64, 112),
     (MachineAlternativeFamily::ExactRemainderI64, 113),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I8),
-        114,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I16),
-        115,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I32),
-        116,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I64),
-        117,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U8),
-        118,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U16),
-        119,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U32),
-        120,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U64),
-        121,
-    ),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I8) => 114),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I16) => 115),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I32) => 116),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I64) => 117),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U8) => 118),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U16) => 119),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U32) => 120),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U64) => 121),
 ];
 
 #[test]
@@ -1133,10 +956,7 @@ fn trapping_family_tags_are_dense_distinct_and_pinned() {
         let form = TrappingForm { operation, carrier };
         let family = MachineAlternativeFamily::TrappingInteger(form);
         assert_eq!(alternative_family_tag(family), expected, "{form:?}");
-        assert_eq!(
-            semantic_kind_tag(MachineSemanticKind::TrappingInteger(form)),
-            expected
-        );
+        eq!(semantic_kind_tag(MachineSemanticKind::TrappingInteger(form)) => expected);
     }
     let fixed = PINNED_ALTERNATIVE_FAMILY_TAGS
         .iter()
@@ -1168,10 +988,7 @@ fn atomic_family_tags_and_encoded_widths_are_pinned() {
             alternative_family_tag(MachineAlternativeFamily::AtomicAccess(form)),
             u16::from(tag)
         );
-        assert_eq!(
-            semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)),
-            u16::from(tag)
-        );
+        eq!(semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)) => u16::from(tag));
         let encoded = pinned_effects(
             MachineEncodedMemoryEffect::AtomicPointerV1 {
                 pointer_operand: 0x0201,
@@ -1417,14 +1234,8 @@ fn encoded_trap_behavior_identity_bytes_are_pinned() {
 fn encoded_control_effect_identity_bytes_are_pinned() {
     let cases: [(MachineEncodedControlEffect, &[u8]); 13] = [
         (MachineEncodedControlEffect::FallThroughV1, &[0]),
-        (
-            MachineEncodedControlEffect::ConditionalRelativeBranchV1,
-            &[1],
-        ),
-        (
-            MachineEncodedControlEffect::ReturnFromActivationStackV1,
-            &[2],
-        ),
+        row!(MachineEncodedControlEffect::ConditionalRelativeBranchV1 => &[1]),
+        row!(MachineEncodedControlEffect::ReturnFromActivationStackV1 => &[2]),
         (
             MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
                 target: RegisterViewId(0x0201),
@@ -1432,10 +1243,7 @@ fn encoded_control_effect_identity_bytes_are_pinned() {
             &[3, 0x01, 0x02],
         ),
         (MachineEncodedControlEffect::DirectRelativeCallV1, &[4]),
-        (
-            MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
-            &[5],
-        ),
+        row!(MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => &[5]),
         (MachineEncodedControlEffect::HostedWriteReturnOrTrapV1, &[6]),
         (MachineEncodedControlEffect::HostedExitOrTrapV1, &[7]),
         (MachineEncodedControlEffect::HostedReadReturnOrTrapV1, &[8]),
@@ -1660,10 +1468,7 @@ fn float_result_policy_identities_and_constraint_selection_are_exact() {
         assert_eq!(semantic_kind_tag(semantic), 231);
         assert_eq!(alternative_family_tag(family), 231);
         assert_eq!(super::semantic_kind_payload(semantic), Some(form.ordinal()));
-        assert_eq!(
-            super::alternative_family_payload(family),
-            Some(form.ordinal())
-        );
+        eq!(super::alternative_family_payload(family) => Some(form.ordinal()));
         let mut bytes = Vec::new();
         encode_machine_alternative_key_identity(
             &mut bytes,
@@ -1683,15 +1488,9 @@ fn float_result_policy_identities_and_constraint_selection_are_exact() {
     let extended_inventory = selected_keys.in_identity_order();
     selected_keys.float_result_trapping = None;
     selected_keys.float_result_saturating = None;
-    assert_eq!(
-        &extended_inventory[..extended_inventory.len() - 2],
-        selected_keys.in_identity_order()
-    );
+    eq!(&extended_inventory[..extended_inventory.len() - 2] => selected_keys.in_identity_order());
     for form in FloatResultPolicyForm::ALL {
-        assert_eq!(
-            selected_keys.for_semantic(MachineSemanticKind::FloatResultPolicy(form)),
-            None
-        );
+        eq!(selected_keys.for_semantic(MachineSemanticKind::FloatResultPolicy(form)) => None);
     }
     assert!(MachineSemanticKind::ALL.is_sorted());
     let mut trapping_only = catalog();

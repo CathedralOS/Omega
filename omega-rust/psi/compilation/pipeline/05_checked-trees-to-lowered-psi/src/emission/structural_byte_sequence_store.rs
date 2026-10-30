@@ -948,6 +948,18 @@ impl ByteEmission<'_> {
         Ok(length)
     }
 
+    fn shared_whole_length(
+        &mut self,
+        source: semantic_vocabulary::PlaceId,
+    ) -> Result<semantic_vocabulary::ValueId, LoweringError> {
+        self.length(OperationKind::ByteSequenceLength {
+            source: terminal_psi::StructuralArgument::whole(
+                source,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ),
+        })
+    }
+
     fn literal(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -964,12 +976,7 @@ impl ByteEmission<'_> {
         )?;
         let capacity = u64::try_from(bytes.len())
             .map_err(|_| LoweringError::Unsupported("byte literal length overflow"))?;
-        let length = self.length(OperationKind::ByteSequenceLength {
-            source: terminal_psi::StructuralArgument::whole(
-                source,
-                terminal_psi::StructuralAccess::SharedBorrow,
-            ),
-        })?;
+        let length = self.shared_whole_length(source)?;
         Ok((
             ByteSequenceOperand::Whole {
                 source: terminal_psi::StructuralArgument::whole(
@@ -1183,12 +1190,7 @@ impl ValueEmitter<'_> {
             self.emission
                 .concatenate(left, right, structural_type, Vec::new())?;
         self.emission.places.push(declaration);
-        let length = self.emission.length(OperationKind::ByteSequenceLength {
-            source: terminal_psi::StructuralArgument::whole(
-                result.place,
-                terminal_psi::StructuralAccess::SharedBorrow,
-            ),
-        })?;
+        let length = self.emission.shared_whole_length(result.place)?;
         Ok((result.place, length))
     }
 
@@ -1229,12 +1231,7 @@ impl ValueEmitter<'_> {
                     return unsupported("byte call result lost exact completed owned custody");
                 }
                 let source = produced.place;
-                let length = self.emission.length(OperationKind::ByteSequenceLength {
-                    source: terminal_psi::StructuralArgument::whole(
-                        source,
-                        terminal_psi::StructuralAccess::SharedBorrow,
-                    ),
-                })?;
+                let length = self.emission.shared_whole_length(source)?;
                 Ok((
                     ByteSequenceOperand::Whole {
                         source: terminal_psi::StructuralArgument::whole(
@@ -1306,12 +1303,7 @@ impl ValueEmitter<'_> {
                 }) {
                     return unsupported("whole byte source has a different capacity");
                 }
-                let length = self.emission.length(OperationKind::ByteSequenceLength {
-                    source: terminal_psi::StructuralArgument::whole(
-                        source,
-                        terminal_psi::StructuralAccess::SharedBorrow,
-                    ),
-                })?;
+                let length = self.emission.shared_whole_length(source)?;
                 Ok((
                     ByteSequenceOperand::Whole {
                         source: terminal_psi::StructuralArgument::whole(

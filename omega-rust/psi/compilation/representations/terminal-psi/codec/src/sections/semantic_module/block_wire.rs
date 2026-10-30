@@ -552,8 +552,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => call_operations::encode_call_unit(
+        } => call_operations::encode_tagged_module_invocation(
             writer,
+            operation_tags::CALL_UNIT,
             callee,
             arguments,
             erased_arguments,
@@ -572,8 +573,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => call_operations::encode_call_structural_scalar(
+        } => call_operations::encode_tagged_module_invocation(
             writer,
+            operation_tags::CALL_STRUCTURAL_SCALAR,
             callee,
             arguments,
             erased_arguments,

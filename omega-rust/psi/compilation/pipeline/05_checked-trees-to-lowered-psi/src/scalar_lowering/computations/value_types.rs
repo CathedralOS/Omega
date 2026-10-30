@@ -42,6 +42,19 @@ fn value_type(
         return unsupported("scalar computation type has a stale or cyclic dependency");
     }
     active.push(handle);
+    macro_rules! child_type {
+        ($handle:expr $(,)?) => {
+            value_type(
+                identities,
+                checked,
+                qualifications,
+                $handle,
+                bindings,
+                source_types,
+                active,
+            )
+        };
+    }
     let node = plans.nodes.get(handle);
     let result = match &node.kind {
         CheckedScalarComputationKind::CaseMembership { .. }
@@ -70,29 +83,12 @@ fn value_type(
             // The conversion result is a bare fixed-integer carrier; the
             // Boolean operand must be unqualified, matching Select's
             // condition convention.
-            if value_type(
-                identities,
-                checked,
-                qualifications,
-                *operand,
-                bindings,
-                source_types,
-                active,
-            )? != ScalarType::Boolean.into()
-            {
+            if child_type!(*operand)? != ScalarType::Boolean.into() {
                 return unsupported("Boolean-to-integer operand is not a scalar Boolean");
             }
             terminal_scalar_type(node.primitive_type)?.into()
         }
-        CheckedScalarComputationKind::WithOperands { operand, .. } => value_type(
-            identities,
-            checked,
-            qualifications,
-            *operand,
-            bindings,
-            source_types,
-            active,
-        )?,
+        CheckedScalarComputationKind::WithOperands { operand, .. } => child_type!(*operand)?,
         CheckedScalarComputationKind::Apply { .. }
         | CheckedScalarComputationKind::StorageObservation { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {
@@ -103,24 +99,8 @@ fn value_type(
             when_false,
             ..
         } => {
-            let left = value_type(
-                identities,
-                checked,
-                qualifications,
-                *when_true,
-                bindings,
-                source_types,
-                active,
-            )?;
-            let right = value_type(
-                identities,
-                checked,
-                qualifications,
-                *when_false,
-                bindings,
-                source_types,
-                active,
-            )?;
+            let left = child_type!(*when_true)?;
+            let right = child_type!(*when_false)?;
             if left != right {
                 return unsupported("scalar selection joins incompatible qualifications");
             }
@@ -135,15 +115,7 @@ fn value_type(
                 ))?;
             let mut result = None;
             for arm in arms {
-                let value = value_type(
-                    identities,
-                    checked,
-                    qualifications,
-                    arm.value,
-                    bindings,
-                    source_types,
-                    active,
-                )?;
+                let value = child_type!(arm.value)?;
                 if result.is_some_and(|expected| expected != value) {
                     return unsupported("scalar dispatch joins incompatible qualifications");
                 }

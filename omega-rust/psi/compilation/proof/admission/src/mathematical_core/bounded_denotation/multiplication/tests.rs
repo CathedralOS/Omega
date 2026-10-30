@@ -97,6 +97,12 @@ fn fixture(
     }
 }
 
+macro_rules! row {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        fixture($a, $b, $c, $d, $e, $f)
+    };
+}
+
 fn check(fixture: &Fixture, laws: &[Law]) {
     verify_bounded_certificate(
         &fixture.context,
@@ -140,14 +146,7 @@ fn check(fixture: &Fixture, laws: &[Law]) {
 #[test]
 fn correlated_multiply_negative_minimum() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let fixture = fixture(
-        integer,
-        IntegerValue::Signed(-128),
-        true,
-        false,
-        false,
-        false,
-    );
+    let fixture = row!(integer => IntegerValue::Signed(-128) => true => false => false => false);
     check(
         &fixture,
         &[Law::AntitoneNegative, Law::DivideLowerNegative(integer)],
@@ -158,14 +157,7 @@ fn correlated_multiply_negative_minimum() {
 #[test]
 fn correlated_multiply_positive_maximum() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let fixture = fixture(
-        integer,
-        IntegerValue::Signed(127),
-        false,
-        true,
-        false,
-        false,
-    );
+    let fixture = row!(integer => IntegerValue::Signed(127) => false => true => false => false);
     check(
         &fixture,
         &[Law::MonotonePositive, Law::DivideUpperPositive(integer)],
@@ -176,14 +168,7 @@ fn correlated_multiply_positive_maximum() {
 #[test]
 fn correlated_multiply_negative_maximum() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let fixture = fixture(
-        integer,
-        IntegerValue::Signed(127),
-        false,
-        false,
-        false,
-        false,
-    );
+    let fixture = row!(integer => IntegerValue::Signed(127) => false => false => false => false);
     check(
         &fixture,
         &[Law::AntitoneNegative, Law::DivideUpperNegative(integer)],
@@ -234,14 +219,7 @@ fn correlated_multiply_rejects_mutated_premise_and_goal() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
     let scalar = ScalarType::Integer(integer);
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
-    let fixture = fixture(
-        integer,
-        IntegerValue::Signed(-128),
-        true,
-        true,
-        false,
-        false,
-    );
+    let fixture = row!(integer => IntegerValue::Signed(-128) => true => true => false => false);
     // The bound conjunct flipped: `l ≤ root` is the wrong orientation
     // for a positive-divisor minimum.
     let mut flipped = fixture.proof.clone();

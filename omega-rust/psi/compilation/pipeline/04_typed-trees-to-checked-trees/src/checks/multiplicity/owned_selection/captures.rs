@@ -12,6 +12,12 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableMatchArm};
 use typed_trees::types::TypeReferenceHandle;
 
+macro_rules! selection {
+    ($message:literal) => {
+        return Err(Diagnostic::error($message))
+    };
+}
+
 pub(in crate::checks::multiplicity) struct CapturedOwner {
     pub expression: ExpressionHandle,
     pub source_arm: Handle<TableMatchArm>,
@@ -147,9 +153,7 @@ impl SelectionProduction {
             return Ok(None);
         }
         if owners.is_empty() {
-            return Err(Diagnostic::error(
-                "completed owned selection has no captured storage frontier",
-            ));
+            selection!("completed owned selection has no captured storage frontier");
         }
         Ok(Some(Self {
             value: capture,
@@ -213,9 +217,7 @@ impl SelectionProduction {
                 symbol,
                 call_frames,
             ) {
-                return Err(Diagnostic::error(
-                    "selected source has an incompletely attributed retained output",
-                ));
+                selection!("selected source has an incompletely attributed retained output");
             }
             let declaration = program
                 .state_by_symbol(state)
@@ -336,23 +338,17 @@ impl SelectionProduction {
                     if inactive.next().is_some() && inactive.next().is_none() {
                         continue;
                     }
-                    return Err(Diagnostic::error(
-                        "selected completion has no exact consumed claim occurrence",
-                    ));
+                    selection!("selected completion has no exact consumed claim occurrence");
                 };
                 if matches.next().is_some() {
-                    return Err(Diagnostic::error(
-                        "selected completion has ambiguous claim custody",
-                    ));
+                    selection!("selected completion has ambiguous claim custody");
                 }
                 if let Some(places) = evaluated_places {
                     let mut matching = places
                         .iter()
                         .filter(|place| place.root == owner.source.root && place.path == path);
                     let (Some(place), None) = (matching.next(), matching.next()) else {
-                        return Err(Diagnostic::error(
-                            "selected claim has no unique evaluated source custody",
-                        ));
+                        selection!("selected claim has no unique evaluated source custody");
                     };
                     if !place.live
                         || !place.ever_established
@@ -364,9 +360,7 @@ impl SelectionProduction {
                         || place.provenance.unwrap_or(PermissionProvenance::Unknown)
                             != event.provenance
                     {
-                        return Err(Diagnostic::error(
-                            "selected claim disagrees with its evaluated source custody",
-                        ));
+                        selection!("selected claim disagrees with its evaluated source custody");
                     }
                 }
                 // The exact consuming occurrence transports the current home.
@@ -417,9 +411,7 @@ impl SelectionProduction {
                         ) && (!place.live || !place.ever_established || place.case_excluded)
                     })
                 }) {
-                    return Err(Diagnostic::error(
-                        "selected copy has no live evaluated source custody",
-                    ));
+                    selection!("selected copy has no live evaluated source custody");
                 }
                 (
                     PermissionProvenance::Unknown,
@@ -445,14 +437,10 @@ impl SelectionProduction {
                         && place.multiplicity == Multiplicity::Affine
                 });
                 let (Some(place), None) = (matching.next(), matching.next()) else {
-                    return Err(Diagnostic::error(
-                        "selected descriptor has ambiguous evaluated carrier custody",
-                    ));
+                    selection!("selected descriptor has ambiguous evaluated carrier custody");
                 };
                 if !place.live || !place.ever_established {
-                    return Err(Diagnostic::error(
-                        "selected descriptor has no live evaluated carrier custody",
-                    ));
+                    selection!("selected descriptor has no live evaluated carrier custody");
                 }
                 (
                     place.provenance.unwrap_or(PermissionProvenance::Unknown),
@@ -497,9 +485,7 @@ impl SelectionProduction {
                         });
                         let origin = origins.next().unwrap_or_default();
                         if origins.next().is_some() {
-                            return Err(Diagnostic::error(
-                                "selected source has ambiguous receiving custody",
-                            ));
+                            selection!("selected source has ambiguous receiving custody");
                         }
                         Ok(origin)
                     },
@@ -658,9 +644,7 @@ pub(in crate::checks::multiplicity) fn evaluated_source_custody<'evaluation>(
     });
     if let Some(snapshot) = snapshots.next() {
         if snapshots.next().is_some() {
-            return Err(Diagnostic::error(
-                "selected source has multiple evaluated transfer snapshots",
-            ));
+            selection!("selected source has multiple evaluated transfer snapshots");
         }
         return Ok((
             &snapshot.places,
@@ -675,9 +659,7 @@ pub(in crate::checks::multiplicity) fn evaluated_source_custody<'evaluation>(
         .iter()
         .filter(|snapshot| snapshot.expression == expression && snapshot.place == *source);
     let (Some(snapshot), None) = (snapshots.next(), snapshots.next()) else {
-        return Err(Diagnostic::error(
-            "selected source has no unique evaluated read or transfer snapshot",
-        ));
+        selection!("selected source has no unique evaluated read or transfer snapshot");
     };
     Ok((&snapshot.places, &snapshot.remaining, snapshot.cut))
 }
@@ -729,9 +711,7 @@ fn collect(
                 if !alternative.source_arm.is_valid()
                     || !facts.flow.control.operands.is_valid(alternative.value)
                 {
-                    return Err(Diagnostic::error(
-                        "owned selection has an unavailable completed arm",
-                    ));
+                    selection!("owned selection has an unavailable completed arm");
                 }
                 collect(
                     program,
@@ -836,9 +816,7 @@ fn collect(
                 PlaceSegment::FixedIndex { .. } | PlaceSegment::Case { .. }
             )
     }) {
-        return Err(Diagnostic::error(
-            "completed owned selection has an unresolved source projection",
-        ));
+        selection!("completed owned selection has an unresolved source projection");
     }
     owners.push(CapturedOwner {
         expression: operand.expression,

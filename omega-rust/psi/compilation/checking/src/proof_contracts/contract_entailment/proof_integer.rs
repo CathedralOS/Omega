@@ -198,18 +198,23 @@ fn validate_proof_integer_formation(
     if !expression.is_valid() {
         return;
     }
+    macro_rules! form_child {
+        ($expression:expr, $selections:expr $(,)?) => {
+            validate_proof_integer_formation(
+                program,
+                owner_symbol,
+                $expression,
+                hypotheses,
+                $selections,
+                owner,
+                builtin_arithmetic,
+                diagnostics,
+            )
+        };
+    }
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
         let diagnostics_before = diagnostics.len();
-        validate_proof_integer_formation(
-            program,
-            owner_symbol,
-            dispatch.subject,
-            hypotheses,
-            selections,
-            owner,
-            builtin_arithmetic,
-            diagnostics,
-        );
+        form_child!(dispatch.subject, selections);
         let subject_formed = diagnostics.len() == diagnostics_before;
         // A proof position does not itself establish an empty write frame.
         // Consume the same selected callees' complete frames, including for
@@ -237,16 +242,7 @@ fn validate_proof_integer_formation(
             &initial,
             |context, pattern| {
                 let diagnostics_before = diagnostics.len();
-                validate_proof_integer_formation(
-                    program,
-                    owner_symbol,
-                    pattern,
-                    hypotheses,
-                    context,
-                    owner,
-                    builtin_arithmetic,
-                    diagnostics,
-                );
+                form_child!(pattern, context);
                 subject_formed && diagnostics.len() == diagnostics_before
             },
             |context, selection| {
@@ -261,16 +257,7 @@ fn validate_proof_integer_formation(
             .iter()
             .zip(&contexts)
         {
-            validate_proof_integer_formation(
-                program,
-                owner_symbol,
-                arm.value,
-                hypotheses,
-                context,
-                owner,
-                builtin_arithmetic,
-                diagnostics,
-            );
+            form_child!(arm.value, context);
         }
         return;
     }
@@ -280,16 +267,7 @@ fn validate_proof_integer_formation(
         program,
         program.expression_table.expression(expression),
         |child| {
-            validate_proof_integer_formation(
-                program,
-                owner_symbol,
-                child,
-                hypotheses,
-                selections,
-                owner,
-                builtin_arithmetic,
-                diagnostics,
-            );
+            form_child!(child, selections);
         },
     );
     match program.expression_table.expression(expression) {

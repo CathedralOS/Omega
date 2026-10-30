@@ -59,13 +59,13 @@ pub(super) fn prepare(
     let mut bytes = Vec::new();
     let mut fields = Vec::new();
     let mut failures = Vec::new();
-    pointer(
-        &mut bytes,
-        &mut fields,
-        &[0x48, 0x89, 0x25],
-        storage.scratch,
-        0,
-    );
+    macro_rules! ptr {
+        ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr) => {
+            pointer($a, $b, $c, $d, $e)
+        };
+    }
+
+    ptr!(&mut bytes => &mut fields => &[0x48, 0x89, 0x25] => storage.scratch => 0);
     bytes.extend([0x48, 0x83, 0xe4, 0xf0]); // Win32 calls retain the loader's guarded stack.
     bytes.extend([0x48, 0x81, 0xec, 0, 1, 0, 0]); // Separate bridge frame, aligned for all Win32 calls.
     for (index, byte) in b"OMEGA_PRIVATE_OBSERVATION_PIPE\0".iter().enumerate() {
@@ -89,20 +89,8 @@ pub(super) fn prepare(
     call(&mut bytes, &mut fields, imports[1]);
     bytes.extend([0x48, 0x83, 0xf8, 0xff]);
     failure(&mut bytes, &mut failures, 0x84);
-    pointer(
-        &mut bytes,
-        &mut fields,
-        &[0x48, 0x89, 0x05],
-        storage.scratch,
-        8,
-    );
-    pointer(
-        &mut bytes,
-        &mut fields,
-        &[0x48, 0x8d, 0x25],
-        storage.stack_top,
-        0,
-    );
+    ptr!(&mut bytes => &mut fields => &[0x48, 0x89, 0x05] => storage.scratch => 8);
+    ptr!(&mut bytes => &mut fields => &[0x48, 0x8d, 0x25] => storage.stack_top => 0);
     bytes.extend([0x48, 0x83, 0xec, 64]); // Private semantic stack: shadow space and fifth pointer.
     for (recipe, symbol) in binding.private_entry_ram.iter().zip(&storage.private_ram) {
         initialize(&mut bytes, &mut fields, *symbol, recipe.contents());
@@ -118,25 +106,13 @@ pub(super) fn prepare(
             4 => [0x48, 0x8d, 0x05],
             _ => return Err(invalid()),
         };
-        pointer(
-            &mut bytes,
-            &mut fields,
-            &prefix,
-            storage.private_ram[index],
-            0,
-        );
+        ptr!(&mut bytes => &mut fields => &prefix => storage.private_ram[index] => 0);
         if ordinal == 4 {
             bytes.extend([0x48, 0x89, 0x44, 0x24, 32]);
         }
     }
     call(&mut bytes, &mut fields, artifact.entry_function().symbol);
-    pointer(
-        &mut bytes,
-        &mut fields,
-        &[0x48, 0x8b, 0x25],
-        storage.scratch,
-        0,
-    );
+    ptr!(&mut bytes => &mut fields => &[0x48, 0x8b, 0x25] => storage.scratch => 0);
     bytes.extend([0x48, 0x83, 0xe4, 0xf0, 0x48, 0x83, 0xec, 64]);
     for ((recipe, original), header) in binding
         .private_entry_ram
@@ -150,13 +126,7 @@ pub(super) fn prepare(
             (*header, contents.len()),
             (*original, recipe.contents().len()),
         ] {
-            pointer(
-                &mut bytes,
-                &mut fields,
-                &[0x48, 0x8b, 0x0d],
-                storage.scratch,
-                8,
-            );
+            ptr!(&mut bytes => &mut fields => &[0x48, 0x8b, 0x0d] => storage.scratch => 8);
             pointer(&mut bytes, &mut fields, &[0x48, 0x8d, 0x15], symbol, 0);
             bytes.extend([0x41, 0xb8]);
             bytes.extend((length as u32).to_le_bytes());
@@ -173,13 +143,7 @@ pub(super) fn prepare(
     }
     // Flush waits for the authenticated parent to consume the complete pipe before retirement.
     for symbol in &imports[3..] {
-        pointer(
-            &mut bytes,
-            &mut fields,
-            &[0x48, 0x8b, 0x0d],
-            storage.scratch,
-            8,
-        );
+        ptr!(&mut bytes => &mut fields => &[0x48, 0x8b, 0x0d] => storage.scratch => 8);
         call(&mut bytes, &mut fields, *symbol);
         bytes.extend([0x85, 0xc0]);
         failure(&mut bytes, &mut failures, 0x84);
@@ -187,13 +151,7 @@ pub(super) fn prepare(
     bytes.extend([0x31, 0xc0, 0xeb, 5]);
     let failed = bytes.len();
     bytes.extend([0xb8, 200, 0, 0, 0]);
-    pointer(
-        &mut bytes,
-        &mut fields,
-        &[0x48, 0x8b, 0x25],
-        storage.scratch,
-        0,
-    );
+    ptr!(&mut bytes => &mut fields => &[0x48, 0x8b, 0x25] => storage.scratch => 0);
     bytes.push(0xc3);
     for field in failures {
         let delta = i32::try_from(failed as i64 - field as i64 - 4).map_err(|_| invalid())?;
