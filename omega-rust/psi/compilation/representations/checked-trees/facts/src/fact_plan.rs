@@ -143,12 +143,23 @@ impl FactPlan {
     /// The declaration inventory alone does not create a grant obligation.
     pub fn admitted_qualification_issuers(
         &self,
-    ) -> impl Iterator<Item = &language_semantics::BoundaryQualificationIssuer> {
-        self.facts.iter().filter_map(|(_, fact)| {
-            (fact.evidence.origin
-                == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt)
-                .then(|| &self.qualification_issuers.get(fact.evidence.issuer).issuer)
-        })
+    ) -> Result<Vec<&language_semantics::BoundaryQualificationIssuer>, &'static str> {
+        let mut issuers = Vec::new();
+        for (_, fact) in self.facts.iter().filter(|(_, fact)| {
+            fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+        }) {
+            if !self.qualification_issuers.is_valid(fact.evidence.issuer) {
+                return Err("admitted qualification evidence has no retained issuer");
+            }
+            let record = self.qualification_issuers.get(fact.evidence.issuer);
+            if record.source_symbol != fact.evidence.source_symbol
+                || record.requirement_symbol != fact.evidence.requirement_symbol
+            {
+                return Err("admitted qualification evidence does not name its retained issuer");
+            }
+            issuers.push(&record.issuer);
+        }
+        Ok(issuers)
     }
 
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {

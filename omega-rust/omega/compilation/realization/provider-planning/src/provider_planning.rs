@@ -81,7 +81,10 @@ pub fn bind_selected_provider_plan_facts(
         )
         .map_err(|diagnostic| vec![diagnostic])?;
     provider_selection::validate_qualification_grants(
-        check_facts.semantic.admitted_qualification_issuers(),
+        check_facts
+            .semantic
+            .admitted_qualification_issuers()
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?,
         &facts,
         &provider_grants,
     )?;
