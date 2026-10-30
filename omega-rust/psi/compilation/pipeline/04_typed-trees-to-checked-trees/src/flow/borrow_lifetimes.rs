@@ -58,6 +58,87 @@ pub(crate) fn filter_expired_borrow_loans(
     })
 }
 
+/// Borrow the current state's completed installation records. The semantic
+/// destination is published only for a stable exact store, after RHS effects;
+/// it can refine a coarse descriptor owner but never supply new loan authority.
+#[derive(Clone, Copy)]
+pub(crate) struct LoanStorageHomes<'a> {
+    pub control: &'a checked_trees::FlowControlFacts,
+    pub semantic: &'a facts::FactPlan,
+    pub statements: arena::HandleSpan<checked_trees::FlowStatementFact>,
+    pub order: &'a typed_trees::statement::StatementExecutionOrder,
+}
+
+impl LoanStorageHomes<'_> {
+    fn covers(
+        &self,
+        program: &dyn validation::CheckingInput,
+        borrow: &BorrowFacts,
+        loan: &checked_trees::BorrowLoanFact,
+        destination: &[facts::PlaceSegment],
+    ) -> bool {
+        if crate::borrow::place_path_covers_owner(
+            program,
+            destination,
+            borrow.loan_owner_path(loan),
+        ) {
+            return true;
+        }
+        self.installed_owner(program, borrow, loan)
+            .is_some_and(|owner| {
+                crate::borrow::place_path_covers_owner(program, destination, &owner)
+            })
+    }
+
+    fn installed_owner(
+        &self,
+        program: &dyn validation::CheckingInput,
+        borrow: &BorrowFacts,
+        loan: &checked_trees::BorrowLoanFact,
+    ) -> Option<Vec<checked_trees::BorrowLoanOwnerSegment>> {
+        let position = self.order.position(loan.statement_index)?;
+        if position >= self.statements.count() as usize {
+            return None;
+        }
+        let completed = self
+            .control
+            .statements
+            .get(self.statements.handle_at(position as u32));
+        if completed.statement_index != loan.statement_index
+            || !self.control.operands.is_valid(completed.stored_value)
+            || !self.semantic.places.is_valid(completed.stored_destination)
+        {
+            return None;
+        }
+        let value = self.control.operands.get(completed.stored_value);
+        if value.expression != loan.formation_expression
+            || value.statement_index != loan.statement_index
+        {
+            return None;
+        }
+        let projection = borrow.owner_segments.span(loan.formation_owner_path?)?;
+        let installed = crate::flow::canonical_place_from_semantic_place(
+            program,
+            self.semantic,
+            self.semantic.places.get(completed.stored_destination),
+        )?;
+        if installed.root != loan.storage_owner {
+            return None;
+        }
+        let segments = facts::project_captured_view_segments(
+            &installed.segments,
+            &crate::borrow::owner_place_segments(projection),
+        )?;
+        if !crate::borrow::owner_path_selects_leaf(program, borrow.loan_owner_path(loan), &segments)
+        {
+            return None;
+        }
+        Some(crate::borrow::owner_path_from_place_segments(
+            program, &segments,
+        ))
+    }
+}
+
 /// The destination is already resolved by completed operand capture and must
 /// name one exact, still-current slot. Both flow construction and independent
 /// replay prepare their resolver before
@@ -68,6 +149,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
+    homes: LoanStorageHomes<'_>,
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     captured_destination: Option<CanonicalPlace>,
@@ -128,11 +210,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     !effect.may_select
                         && active.storage_owner
                             == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                        && crate::borrow::place_path_covers_owner(
-                            program,
-                            &effect.destination.local_segments,
-                            borrow.loan_owner_path(active),
-                        )
+                        && homes.covers(program, borrow, active, &effect.destination.local_segments)
                 });
             if replaced {
                 borrow_weakenings.append(FlowBorrowWeakeningFact {
@@ -217,11 +295,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                         && authored_carrier.as_ref() == Some(&destination)
                         && borrow.loan_owner_path(active).len() == destination.segments.len())
                     || active.statement_index == statement_index
-                    || !crate::borrow::place_path_covers_owner(
-                        program,
-                        &destination.segments,
-                        borrow.loan_owner_path(active),
-                    );
+                    || !homes.covers(program, borrow, active, &destination.segments);
                 if !keep {
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
                         source: FlowInvalidationSource::Statement { statement_index },

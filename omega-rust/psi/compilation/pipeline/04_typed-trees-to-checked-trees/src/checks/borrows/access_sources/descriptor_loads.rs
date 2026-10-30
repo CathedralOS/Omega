@@ -303,7 +303,7 @@ fn descriptor_lookup(
         }
         crate::borrow::owner_place_segments(owner)
     } else {
-        if !crate::borrow::incoming_owner_selects(program, owner, &place.incoming_owner_path) {
+        if !crate::borrow::owner_path_selects_leaf(program, owner, &place.incoming_owner_path) {
             return None;
         }
         place.incoming_owner_path.clone()

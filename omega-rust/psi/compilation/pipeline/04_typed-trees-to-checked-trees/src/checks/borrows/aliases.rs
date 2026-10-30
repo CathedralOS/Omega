@@ -499,7 +499,7 @@ pub(in crate::checks::borrows) fn unchanged_incoming_leaf(
             .ok_or("the incoming descriptor has an incomplete owner path")?;
         if incoming.place_root() != source.root
             || !owner.contains(&BorrowLoanOwnerSegment::DynamicIndex)
-            || !crate::borrow::incoming_owner_selects(program, owner, &source.segments)
+            || !crate::borrow::owner_path_selects_leaf(program, owner, &source.segments)
         {
             continue;
         }

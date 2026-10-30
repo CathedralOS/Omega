@@ -226,10 +226,10 @@ pub(crate) fn place_path_covers_owner(
             })
 }
 
-/// Select one descriptor occurrence from an admitted incoming leaf family.
-/// This is a roster join only: callers still owe current-storage eligibility,
-/// bounds, formation and the original incoming permission.
-pub(crate) fn incoming_owner_selects(
+/// Select one exact descriptor leaf from its declared owner path, including
+/// a collection's abstract leaf family. This is a shape join only: callers
+/// still owe current-storage eligibility, bounds, formation and permission.
+pub(crate) fn owner_path_selects_leaf(
     program: &dyn ::validation::CheckingInput,
     owner: &[BorrowOwnerSegment],
     selected: &[facts::PlaceSegment],
