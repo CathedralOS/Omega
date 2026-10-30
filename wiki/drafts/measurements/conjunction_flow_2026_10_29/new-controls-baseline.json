@@ -1,0 +1,29 @@
+[
+  {
+    "group": "pass",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\conjunctive_return_bound_projection_exit\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "35c7845b4396a945f4106a24a15fc5b212717324c51a014debd4975be88facd4",
+    "build_sha256": "31dc64cf0b675986be9277ae7f481fa72cbfabda5ce61c8c37f32868bae380a7"
+  },
+  {
+    "group": "fail",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\conjunctive_return_bound_projection_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "output": "cannot compile admitted project: checked compilation failed for package `conjunctive_return_bound_projection_rejected` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `second` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `projected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).\n    in package `conjunctive_return_bound_projection_rejected`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\conjunctive_return_bound_projection_rejected\\main.omg:10:39\n",
+    "source_sha256": "de4c1ace17d1762646804902f7be5bed972326542629fab522a8cdc3278f0b8f",
+    "build_sha256": "25da8e5ab87767bcd855f0699b1a3fbf468577bb46d1318faed5a7fb27bd2bde"
+  }
+]

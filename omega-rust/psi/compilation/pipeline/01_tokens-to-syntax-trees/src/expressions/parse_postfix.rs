@@ -724,6 +724,15 @@ fn try_parse_static_argument<'tokens, 'source>(
             try_parse_static_symbol_application(syntax_trees, input)?
         {
             input = rest;
+            let mut application = application;
+            if input.at_punctuation(PunctuationKind::ColonColon) {
+                let next = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let Some((member, rest)) = try_parse_static_argument(syntax_trees, next)? else {
+                    return Ok(None);
+                };
+                application.member = syntax_trees.expressions.insert_static_member(member);
+                input = rest;
+            }
             Some(application)
         } else {
             None
@@ -918,6 +927,7 @@ fn parse_static_symbol_application<'tokens, 'source>(
             cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
             break Ok(Some((
                 Box::new(syntax_trees::expression::StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
                     lifetime_arguments: lifetime_arguments.into_boxed_slice(),
                     arguments: arguments.into_boxed_slice(),
                 }),

@@ -1,0 +1,37 @@
+[
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "native_sha256": "7ccbfb89151d286167c97d51c39092b03e33ccf79762dbd9802205578209eb66",
+    "terminal_sha256": "c51e2213b93eefe67d7239ec197dfd921ea9bf3191fdf547c9033a8f91048706",
+    "directory": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-883300-0",
+    "exit": 0
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "native_sha256": "e7062df5782867db94d35677266e65773b72185ce932098ace4f6e188956c4d2",
+    "terminal_sha256": "4eeadfe9f3622ab4b95694d6794fc03257da1ed8adf10ac2da6791ae6c173b23",
+    "directory": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-850364-0",
+    "exit": 0
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "native_sha256": "3c8ff49dd9e22cfbf449f5951d6df2d709bed4f321a9c8c9c59a8481cc72cf85",
+    "terminal_sha256": "c3a28debe9bfb068484946326778a3a5d5fc28d091df7052df9ca83df40de541",
+    "directory": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-879480-0",
+    "exit": 0
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "native_sha256": "008150fa7f10c960a7b55fb502dff4d149bc772cc0687ab25845da2a58908764",
+    "terminal_sha256": "12ed0619a66f7fa77a8b23d60b817f68b8e3a79caba5ed9252972263c966cb78",
+    "directory": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-884520-0",
+    "exit": 0
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "native_sha256": "586bc5ac68c2b3cf85bb23491370e83398cff813cfbe671968c751e2b30dc1a0",
+    "terminal_sha256": "af7e9297fdde6b38a8a8bc49b0529f6d160af57fd9193af8d78e0c0e8ca7cd59",
+    "directory": "C:\\Users\\User\\AppData\\Local\\Temp\\omega-probe-884300-0",
+    "exit": 0
+  }
+]

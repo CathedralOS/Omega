@@ -1,23 +1,19 @@
 //! Checked execution lifecycle: choose authority, run a scoped worker, retain outcomes.
 //!
 //! Full-program execution starts at `interpret_entry`, keyed by
-//! [`BuildMachineEntry`]. Pure returned
-//! values, observed final arguments, and filesystem-granted arguments keep separate
-//! execution paths because their authority and failure evidence differ.
+//! [`BuildMachineEntry`]. The remaining early jobs return pure values.
+//! Build activations and their mutable argument custody run through Terminal Psi.
 
 mod evaluator;
 use crate::{
-    BuildEvaluationSponsor, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
-    BuildTimeOperationEvaluation, EvaluationObservations, EvaluationUsage, FilesystemAccess,
-    FilesystemMetadataLayout, InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
-    SelectedBuildTimeBinaryOperator,
+    BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess, FilesystemMetadataLayout,
+    InterpretOutcome, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
 };
 use build_time_values::BuildTimeValue;
 use checked_trees::CheckedTrees;
-use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
+use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::product_operand::ProductEntryCompatibility;
 
 /// Options for [`interpret_entry`]. `Default` selects the hermetic
 /// virtual filesystem and the compiler host's checked standard metadata
@@ -189,15 +185,13 @@ impl SelectedBuildTimeMachineBody {
 /// build-time operators a structured evaluation may call, and the sponsor an
 /// argument evaluation charges for its result custody.
 ///
-/// Product-entry descriptions additionally require an explicit compatibility
-/// owner. Ordinary constant evaluation has no product selection authority.
+/// This is a pure value request: it carries no host grants, sponsor, or product
+/// selection authority. Build activation has its own Terminal host.
 pub struct BuildMachineEvaluationRequest<'a> {
     pub entry: BuildMachineEntry<'a>,
     pub arguments: Vec<BuildTimeValue>,
     pub operators: &'a [SelectedBuildTimeBinaryOperator],
     pub machine_bodies: &'a [SelectedBuildTimeMachineBody],
-    pub sponsor: Option<&'a BuildEvaluationSponsor>,
-    pub product_entry_compatibility: Option<&'a dyn ProductEntryCompatibility>,
 }
 
 /// The immutable source and facts available to a compiler invocation. Early
@@ -236,8 +230,6 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             arguments,
             operators: &[],
             machine_bodies: &[],
-            sponsor: None,
-            product_entry_compatibility: None,
         }
     }
 
@@ -249,8 +241,6 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             arguments,
             operators: &[],
             machine_bodies: &[],
-            sponsor: None,
-            product_entry_compatibility: None,
         }
     }
 }
@@ -315,40 +305,6 @@ pub fn evaluate_prepared_build_time_machine(
         request.entry,
         request.arguments,
         request.operators,
-        request.machine_bodies,
-    )
-}
-
-/// Evaluate one build-time machine for its observed argument values without
-/// a filesystem grant, charging the sponsor when one is given.
-pub fn evaluate_build_machine_arguments(
-    program: BuildMachineProgram<'_>,
-    request: BuildMachineEvaluationRequest<'_>,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
-    evaluate_observed_arguments(
-        program,
-        request.entry,
-        request.arguments,
-        request.sponsor.cloned(),
-        request.product_entry_compatibility,
-        request.machine_bodies,
-    )
-}
-
-/// Evaluate one build-time machine for its observed argument values under
-/// the filesystem grant in `options`, charging the sponsor when one is given.
-pub fn evaluate_granted_build_machine_arguments(
-    program: BuildMachineProgram<'_>,
-    request: BuildMachineEvaluationRequest<'_>,
-    options: InterpretOptions,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
-    evaluate_granted_arguments(
-        program,
-        request.entry,
-        request.arguments,
-        options,
-        request.sponsor.cloned(),
-        request.product_entry_compatibility,
         request.machine_bodies,
     )
 }
@@ -437,276 +393,6 @@ fn evaluate_structured_return(
             .expect("spawn build-time evaluation worker thread")
             .join()
             .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
-    })
-}
-
-fn evaluate_observed_arguments(
-    program: BuildMachineProgram<'_>,
-    entry: BuildMachineEntry<'_>,
-    arguments: Vec<build_time_values::BuildTimeValue>,
-    sponsor: Option<BuildEvaluationSponsor>,
-    product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
-    machine_bodies: &[SelectedBuildTimeMachineBody],
-) -> Result<MeasuredBuildMachineEvaluation<Vec<build_time_values::BuildTimeValue>>, String> {
-    SelectedBuildTimeMachineBody::validate_all(program.typed(), machine_bodies)?;
-    std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .stack_size(256 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                let mut evaluator = Evaluator::new_build(program);
-                evaluator.selected_build_time_machine_bodies = machine_bodies;
-                evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
-                evaluator.product_entry_compatibility = product_entry_compatibility;
-                let result = match entry {
-                    BuildMachineEntry::Name(machine_name) => {
-                        evaluator.run_build_time_machine_arguments(machine_name, arguments)
-                    }
-                    BuildMachineEntry::Symbol(machine_symbol) => evaluator
-                        .run_build_time_machine_symbol_arguments(machine_symbol, arguments),
-                };
-                evaluator.finish_cell_usage();
-                use std::io::Write as _;
-                if !evaluator.build_log.is_empty() {
-                    let _ = std::io::stdout().write_all(&evaluator.build_log);
-                    let _ = std::io::stdout().flush();
-                }
-                let mut usage = evaluator.usage;
-                let observations = EvaluationObservations::from_build_run(
-                    Vec::new(),
-                    Vec::new(),
-                    std::mem::take(&mut evaluator.build_log),
-                    std::mem::take(&mut evaluator.output_obligations),
-                    std::mem::take(&mut evaluator.output_receipts),
-                );
-                match result {
-                    Ok(values) => {
-                        let (result_cells, result_text_bytes) =
-                            build_time_result_custody(&values).ok_or_else(|| {
-                            "build-time evaluator result-cell count overflowed".to_owned()
-                        })?;
-                        if let Some(sponsor) = &evaluator.build_evaluation_sponsor {
-                            sponsor.charge_result_custody(result_cells, result_text_bytes)?;
-                        }
-                        usage.record_result_custody(result_cells, result_text_bytes);
-                        Ok(MeasuredBuildMachineEvaluation::new(
-                            values,
-                            usage,
-                            observations,
-                            std::mem::take(&mut evaluator.executed_source_selections),
-                            std::mem::take(&mut evaluator.executed_behavior_exclusions),
-                            std::mem::take(&mut evaluator.executed_build_selections),
-                            std::mem::take(&mut evaluator.executed_wire_demands),
-                        ))
-                    }
-                    Err(Halt::Exit(code)) => Err(format!(
-                        "the machine attempted to exit the process (code {code}) instead of returning"
-                    )),
-                    Err(Halt::Crash(cause, site)) => Err(format!("explicit crash {cause:?} at {site}")),
-                    Err(Halt::Unsupported(message))
-                    | Err(Halt::Trap(message))
-                    | Err(Halt::Resource(message)) => Err(message),
-                }
-            })
-            .expect("spawn build-time evaluation worker thread")
-            .join()
-            .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
-    })
-}
-
-fn evaluate_granted_arguments(
-    program: BuildMachineProgram<'_>,
-    entry: BuildMachineEntry<'_>,
-    arguments: Vec<build_time_values::BuildTimeValue>,
-    options: InterpretOptions,
-    sponsor: Option<BuildEvaluationSponsor>,
-    product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
-    machine_bodies: &[SelectedBuildTimeMachineBody],
-) -> Result<
-    MeasuredBuildMachineEvaluation<Vec<build_time_values::BuildTimeValue>>,
-    BuildMachineEvaluationFailure,
-> {
-    SelectedBuildTimeMachineBody::validate_all(program.typed(), machine_bodies).map_err(
-        |reason| {
-            BuildMachineEvaluationFailure::without_evidence(
-                BuildMachineEvaluationFailureKind::Unsupported,
-                reason,
-            )
-        },
-    )?;
-    std::thread::scope(|scope| {
-        let worker = std::thread::Builder::new()
-            .stack_size(256 * 1024 * 1024)
-            .spawn_scoped(scope, move || {
-                let mut evaluator = Evaluator::new_build(program);
-                evaluator.selected_build_time_machine_bodies = machine_bodies;
-                evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
-                evaluator.product_entry_compatibility = product_entry_compatibility;
-                evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
-                if !options.virtual_clock_bindings.is_empty() {
-                    return Err(BuildMachineEvaluationFailure::without_evidence(
-                        BuildMachineEvaluationFailureKind::Unsupported,
-                        "runtime virtual wait bindings cannot enter build evaluation".to_owned(),
-                    ));
-                }
-                match options.filesystem {
-                    FilesystemAccess::Virtual => {}
-                    FilesystemAccess::RealUnscoped => {
-                        evaluator.real_fs = Some(
-                            crate::interpreter::evaluator::filesystem::real::RealFs::new(None, None)
-                                .expect("unscoped filesystem has no grant configuration"),
-                        );
-                    }
-                    FilesystemAccess::RealScoped(grants) => {
-                        evaluator.real_fs = Some(crate::interpreter::evaluator::filesystem::real::RealFs::new(Some(grants), None).map_err(
-                            |message| {
-                                BuildMachineEvaluationFailure::without_evidence(
-                                    BuildMachineEvaluationFailureKind::InvalidFilesystemGrant,
-                                    message,
-                                )
-                            },
-                        )?);
-                    }
-                    FilesystemAccess::CapturedScoped { inputs, grants, sponsor } => {
-                        evaluator.real_fs = Some(crate::interpreter::evaluator::filesystem::real::RealFs::with_captured_inputs(grants, sponsor, inputs).map_err(|message| {
-                            BuildMachineEvaluationFailure::without_evidence(BuildMachineEvaluationFailureKind::InvalidFilesystemGrant, message)
-                        })?);
-                    }
-                    FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
-                        evaluator.real_fs = Some(
-                            crate::interpreter::evaluator::filesystem::real::RealFs::new(Some(grants), Some(sponsor)).map_err(
-                                |message| {
-                                    BuildMachineEvaluationFailure::without_evidence(
-                                        BuildMachineEvaluationFailureKind::InvalidFilesystemGrant,
-                                        message,
-                                    )
-                                },
-                            )?,
-                        );
-                    }
-                }
-                let result = match entry {
-                    BuildMachineEntry::Name(machine_name) => evaluator
-                        .run_build_machine_arguments_with_policy(machine_name, arguments, true),
-                    BuildMachineEntry::Symbol(machine_symbol) => evaluator
-                        .run_build_machine_symbol_arguments_with_policy(
-                            machine_symbol,
-                            arguments,
-                            true,
-                        ),
-                };
-                evaluator.finish_cell_usage();
-                // Build logging reaches the REAL streams (owner answer #5:
-                // "the interpreter should never just catch it") -- including
-                // on failure, where the partial log is the diagnostic.
-                use std::io::Write as _;
-                if !evaluator.stdout.is_empty() {
-                    let _ = std::io::stdout().write_all(&evaluator.stdout);
-                    let _ = std::io::stdout().flush();
-                }
-                if !evaluator.stderr.is_empty() {
-                    let _ = std::io::stderr().write_all(&evaluator.stderr);
-                    let _ = std::io::stderr().flush();
-                }
-                if !evaluator.build_log.is_empty() {
-                    let _ = std::io::stdout().write_all(&evaluator.build_log);
-                    let _ = std::io::stdout().flush();
-                }
-                let mut usage = evaluator.usage;
-                let observations = EvaluationObservations::from_build_run(
-                    std::mem::take(&mut evaluator.filesystem_operation_attempts),
-                    std::mem::take(&mut evaluator.build_included_sources),
-                    std::mem::take(&mut evaluator.build_log),
-                    std::mem::take(&mut evaluator.output_obligations),
-                    std::mem::take(&mut evaluator.output_receipts),
-                );
-                match result {
-                    Ok(values) => {
-                        let Some((result_cells, result_text_bytes)) =
-                            build_time_result_custody(&values)
-                        else {
-                            return Err(BuildMachineEvaluationFailure::with_evidence(
-                                BuildMachineEvaluationFailureKind::ResultAccountingOverflow,
-                                "build-time evaluator result-cell count overflowed".to_owned(),
-                                usage,
-                                observations,
-                            ));
-                        };
-                        if let Some(sponsor) = &evaluator.build_evaluation_sponsor
-                            && let Err(message) = sponsor
-                                .charge_result_custody(result_cells, result_text_bytes)
-                        {
-                            return Err(BuildMachineEvaluationFailure::with_evidence(
-                                BuildMachineEvaluationFailureKind::ResourceExhausted,
-                                message,
-                                usage,
-                                observations,
-                            ));
-                        }
-                        usage.record_result_custody(result_cells, result_text_bytes);
-                        Ok(MeasuredBuildMachineEvaluation::new(
-                            values,
-                            usage,
-                            observations,
-                            std::mem::take(&mut evaluator.executed_source_selections),
-                            std::mem::take(&mut evaluator.executed_behavior_exclusions),
-                            std::mem::take(&mut evaluator.executed_build_selections),
-                            std::mem::take(&mut evaluator.executed_wire_demands),
-                        ))
-                    }
-                    Err(Halt::Exit(code)) => Err(BuildMachineEvaluationFailure::with_evidence(
-                        BuildMachineEvaluationFailureKind::Exit,
-                        format!(
-                            "the machine attempted to exit the process (code {code}) instead of returning"
-                        ),
-                        usage,
-                        observations,
-                    )),
-                    Err(Halt::Unsupported(message)) => {
-                        Err(BuildMachineEvaluationFailure::with_evidence(
-                            BuildMachineEvaluationFailureKind::Unsupported,
-                            message,
-                            usage,
-                            observations,
-                        ))
-                    }
-                    Err(Halt::Trap(message)) => {
-                        Err(BuildMachineEvaluationFailure::with_evidence(
-                            BuildMachineEvaluationFailureKind::Trap,
-                            message,
-                            usage,
-                            observations,
-                        ))
-                    }
-                    Err(Halt::Crash(cause, site)) => {
-                        Err(BuildMachineEvaluationFailure::with_evidence(
-                            BuildMachineEvaluationFailureKind::Trap,
-                            format!("explicit crash {cause:?} at {site}"),
-                            usage,
-                            observations,
-                        ))
-                    }
-                    Err(Halt::Resource(message)) => {
-                        Err(BuildMachineEvaluationFailure::with_evidence(
-                            BuildMachineEvaluationFailureKind::ResourceExhausted,
-                            message,
-                            usage,
-                            observations,
-                        ))
-                    }
-                }
-            })
-            .map_err(|error| {
-                BuildMachineEvaluationFailure::without_evidence(
-                    BuildMachineEvaluationFailureKind::WorkerUnavailable,
-                    format!("failed to spawn granted build evaluator thread: {error}"),
-                )
-            })?;
-        worker.join().unwrap_or_else(|_| {
-            Err(BuildMachineEvaluationFailure::without_evidence(
-                BuildMachineEvaluationFailureKind::WorkerPanicked,
-                "granted build evaluator thread panicked".to_owned(),
-            ))
-        })
     })
 }
 

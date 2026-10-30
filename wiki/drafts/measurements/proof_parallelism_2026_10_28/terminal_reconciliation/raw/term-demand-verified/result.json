@@ -1,0 +1,39 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\terminal-demand\\omega.exe",
+    "run",
+    "--both",
+    "--keep",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 16.88155359999655,
+  "exit_code": 0,
+  "cpu_seconds": 22.1875,
+  "peak_working_set_bytes": 4098600960,
+  "peak_commit_bytes": 4937601024,
+  "producer": "terminal-demand",
+  "compiler_sha256": "76fa5c6e6df8b2128fda5d7b5691d3f2471609b9a32334018ebffe760bcc214c",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "99670982354bc534a83b071e7e9995c848e331d9f6c104c94712ca7f318c0f3c",
+  "cache_mode": "shared user cache",
+  "reconciliation_mode": "off",
+  "entry_detail": false,
+  "attribution": {
+    "rows": [],
+    "totals_ns": {},
+    "membership_parts": {},
+    "windows": {},
+    "graphs": [],
+    "cache": {},
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    }
+  },
+  "terminal_stdout_agrees": true,
+  "retained_image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8"
+}

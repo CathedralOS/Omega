@@ -292,11 +292,11 @@ pub enum CallOperationalAcknowledgementOrigin {
     CompilerSynthesized,
 }
 
-/// Whether a declared domain carries an explicit predicate body.
+/// Whether a declared domain carries predicate obligations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
-pub enum DomainPredicateBody {
+pub enum DomainPredicatePresence {
     #[default]
-    Bodyless,
+    Absent,
     Present,
 }
 
@@ -372,15 +372,32 @@ impl DomainClassification {
     }
 }
 
-impl DomainPredicateBody {
+impl DomainPredicatePresence {
     pub const fn is_present(self) -> bool {
         matches!(self, Self::Present)
     }
 
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Bodyless => "bodyless",
+            Self::Absent => "bodyless",
             Self::Present => "present",
         }
+    }
+}
+
+#[cfg(test)]
+mod domain_predicate_presence_tests {
+    use super::DomainPredicatePresence;
+
+    #[test]
+    fn absence_and_presence_preserve_canonical_encoding_tags() {
+        assert_eq!(
+            DomainPredicatePresence::default(),
+            DomainPredicatePresence::Absent
+        );
+        assert!(!DomainPredicatePresence::Absent.is_present());
+        assert!(DomainPredicatePresence::Present.is_present());
+        assert_eq!(DomainPredicatePresence::Absent.as_str(), "bodyless");
+        assert_eq!(DomainPredicatePresence::Present.as_str(), "present");
     }
 }

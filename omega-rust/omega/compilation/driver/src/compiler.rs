@@ -1,8 +1,8 @@
-//! Compose shared source checking, product planning, Terminal production and realization.
+//! Compose shared source checking, product planning and Terminal preparation.
 //!
 //! The batch retains every target's position and failure. Products that need no
 //! executable artifact finish at planning; the others share portable production
-//! before their target-local installation and native work. Owners expose typed
+//! before transferring source-free native work to application Build. Owners expose typed
 //! results here rather than independent mode flags and partially filled slots.
 
 use crate::checked::run_on_compile_thread;
@@ -11,7 +11,7 @@ use crate::product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, CompilationWork, ProductRequest,
 };
 use crate::terminal::produce_retained_terminal_artifacts;
-use crate::{CompileOutcomes, CompileRequest, CompileTargetOutcome};
+use crate::{CompileRequest, TargetProductOutcome};
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
 use compilation_products::{CheckedProductSource, RequestedCompileProduct};
 use diagnostics::Diagnostic;
@@ -73,12 +73,13 @@ impl crate::CompilationSession {
     }
 
     /// Join the actual returned Build, check its Product source once, then
-    /// produce every requested target. Failure never drops a sibling's outcome.
+    /// prepare every requested target. Native results await application completion;
+    /// failure never drops a sibling's outcome.
     pub fn complete_compilation(
         &mut self,
         prepared: PreparedCompilation,
         returned: Result<Option<build_evaluation::ReturnedBuild>, crate::CompileFailure>,
-    ) -> Result<CompileOutcomes, Vec<Diagnostic>> {
+    ) -> Result<Vec<TargetProductOutcome>, Vec<Diagnostic>> {
         run_on_compile_thread(|| {
             let PreparedCompilation {
                 shared,
@@ -108,18 +109,11 @@ impl crate::CompilationSession {
                 ));
             }
 
-            let mut outcomes = Vec::with_capacity(products.len());
-            for (profile, product) in produce_products(products) {
-                let report = match product {
-                    Ok(output) => output.into_report(),
-                    Err(error) => Err(error),
-                };
-                outcomes.push(CompileTargetOutcome::new(
-                    profile,
-                    report.map_err(CompilationProductError::into_diagnostics),
-                ));
-            }
-            Ok(CompileOutcomes::new(outcomes))
+            let outcomes = produce_products(products)
+                .into_iter()
+                .map(|(target, result)| TargetProductOutcome { target, result })
+                .collect();
+            Ok(outcomes)
         })
     }
 }

@@ -35,6 +35,12 @@ pub fn has_builtin_parameter_bound_expression_meaning(
         pending.push((expression, true));
         match program.expression_table.expression(expression) {
             ExpressionNode::Binary(binary) => {
+                // A type proposition has fixed static meaning. Its operands
+                // are types, so they do not participate in value-operator
+                // selection or contribute runtime reads.
+                if program.static_type_predicate_operands(expression).is_some() {
+                    continue;
+                }
                 if binary.operator == BinaryOperator::CaseMembership {
                     return false;
                 }

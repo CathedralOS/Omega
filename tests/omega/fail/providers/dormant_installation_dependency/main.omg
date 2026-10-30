@@ -1,0 +1,9 @@
+boundary trait Service { machine touch() reaches Service; }
+boundary trait Missing { machine call() reaches <= Service; }
+boundary trait Selected { machine call() reaches <= Service; }
+SelectedProvider satisfies Selected {
+    machine call() { Missing::call(); }
+}
+
+// A selected but uncalled row still owes its complete installation closure.
+machine main() {}

@@ -101,26 +101,7 @@ pub(super) fn build(
                 ..Default::default()
             },
         )?;
-        // A checked completion has no normal successor even if a malformed
-        // installed body returns. Keep the same physical fail-stop used for
-        // an admitted non-returning foreign call.
-        builder.emit(
-            SelectedInstructionKind::Crash,
-            builder.constraints.keys.crash,
-            &[],
-            SelectedInstructionProvenance {
-                edges: vec![*psi_edge],
-                ..Default::default()
-            },
-        )?;
-        return Ok(Some(SelectedTerminator::HostedExitProcess {
-            instruction: builder
-                .instructions
-                .last()
-                .cloned()
-                .ok_or_else(SelectedInstructionError::custody)?,
-            completion_edge: *psi_edge,
-        }));
+        return exit_after(builder, *psi_edge).map(Some);
     }
     let target_operations::ExternalCompletionBinding::Boundary(binding) = binding else {
         return Err(SelectedInstructionError::custody());
@@ -167,26 +148,7 @@ pub(super) fn build(
             environment,
             builder,
         )?;
-        // The selected provider promises external completion. If it violates
-        // that premise and returns, trap physically; this is not a source Crash
-        // outcome and cannot establish crash permission or a normal successor.
-        builder.emit(
-            SelectedInstructionKind::Crash,
-            builder.constraints.keys.crash,
-            &[],
-            SelectedInstructionProvenance {
-                edges: vec![*psi_edge],
-                ..Default::default()
-            },
-        )?;
-        return Ok(Some(SelectedTerminator::HostedExitProcess {
-            instruction: builder
-                .instructions
-                .last()
-                .cloned()
-                .ok_or(SelectedInstructionError::custody())?,
-            completion_edge: *psi_edge,
-        }));
+        return exit_after(builder, *psi_edge).map(Some);
     }
     if !matches!(
         binding.realization,
@@ -231,12 +193,36 @@ pub(super) fn build(
             ..Default::default()
         },
     )?;
-    Ok(Some(SelectedTerminator::HostedExitProcess {
-        instruction: builder
-            .instructions
-            .last()
-            .cloned()
-            .ok_or(SelectedInstructionError::custody())?,
-        completion_edge: *psi_edge,
-    }))
+    exit_terminator(builder, *psi_edge).map(Some)
+}
+
+/// Physical fail-stop shared by both admitted completion forms: the completed
+/// call has no normal successor even if a malformed body returns, and the trap
+/// is not a source Crash outcome, so it establishes no crash permission.
+fn exit_after(
+    builder: &mut Builder<'_>,
+    psi_edge: semantic_vocabulary::EdgeId,
+) -> Result<SelectedTerminator, SelectedInstructionError> {
+    builder.emit(
+        SelectedInstructionKind::Crash,
+        builder.constraints.keys.crash,
+        &[],
+        SelectedInstructionProvenance {
+            edges: vec![psi_edge],
+            ..Default::default()
+        },
+    )?;
+    exit_terminator(builder, psi_edge)
+}
+
+/// The exit terminator names the instruction just emitted for this edge.
+fn exit_terminator(
+    builder: &Builder<'_>,
+    psi_edge: semantic_vocabulary::EdgeId,
+) -> Result<SelectedTerminator, SelectedInstructionError> {
+    let instruction = builder.instructions.last().cloned();
+    Ok(SelectedTerminator::HostedExitProcess {
+        instruction: instruction.ok_or_else(SelectedInstructionError::custody)?,
+        completion_edge: psi_edge,
+    })
 }

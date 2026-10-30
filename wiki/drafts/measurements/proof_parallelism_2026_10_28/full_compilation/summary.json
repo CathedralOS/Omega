@@ -1,0 +1,623 @@
+{
+  "full-detail-a": {
+    "producer": "baseline",
+    "wall_seconds": 16.558599000003596,
+    "cpu_seconds": 22.765625,
+    "cache_mode": "fresh private cache",
+    "phase_profile": true
+  },
+  "full-off-a": {
+    "producer": "full-profile",
+    "wall_seconds": 25.25163210000028,
+    "cpu_seconds": 32.25,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-off-b": {
+    "producer": "full-profile",
+    "wall_seconds": 26.4026887,
+    "cpu_seconds": 32.140625,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-off-c": {
+    "producer": "full-profile",
+    "wall_seconds": 23.387077899998985,
+    "cpu_seconds": 29.921875,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-on-a": {
+    "producer": "full-profile",
+    "wall_seconds": 21.89595260000351,
+    "cpu_seconds": 28.5,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false,
+    "cli_ns": 21631062700,
+    "disjoint_ns": {
+      "other CLI work": 1547500,
+      "package orchestration and cleanup": 1886061800,
+      "project preparation": 33502600,
+      "source discovery and Build execution": 335146900,
+      "retained graph restore requests": 15772600,
+      "source and frontend preparation": 5648688800,
+      "typed preparation and checking": 7916319900,
+      "Terminal lowering": 3804530100,
+      "native production": 1033303100,
+      "retained graph persistence": 852445200,
+      "native publication": 103744200
+    },
+    "outside_cli_seconds": 0.2648899000035101,
+    "detail_ns": {
+      "source and frontend preparation": {
+        "untraced remainder": 5648688800
+      },
+      "typed preparation and checking": {
+        "untraced remainder": 59006700,
+        "05.c.prepare_typed_trees": 1206796400,
+        "05.d.2.prepare_typed_program": 508995800,
+        "05.d.3.build_check_facts": 2312632800,
+        "05.d.4_6.quotients_borrows_identities": 12541900,
+        "05.d.7.check_checked_facts": 1594588600,
+        "05.d.8_10.finalize_execution_identities": 1828398400,
+        "05.d.11_13.selections_custody_types_boundaries": 393359300
+      },
+      "Terminal lowering": {
+        "untraced remainder": 3949800,
+        "05.01_lower_selected_machine": 1937823800,
+        "05.10_reconcile_and_residences": 1862756500
+      },
+      "retained graph persistence": {
+        "untraced remainder": 16155300,
+        "cache.encode.preparation": 202909700,
+        "cache.encode.sources": 97045100,
+        "cache.encode.checks": 268107700,
+        "cache.stage_hash_and_write": 268046300,
+        "cache.prune": 181100
+      },
+      "package orchestration and cleanup": {
+        "untraced remainder": 1886061800
+      }
+    },
+    "counts": {
+      "source.graph.cold": 1,
+      "source.graph.preparation.bytes": 85024175,
+      "source.graph.sources.bytes": 27362321,
+      "source.graph.checks.bytes": 117881745,
+      "source.graph.retained": 1
+    }
+  },
+  "full-on-b": {
+    "producer": "full-profile",
+    "wall_seconds": 24.669786500002374,
+    "cpu_seconds": 31.703125,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false,
+    "cli_ns": 24423875200,
+    "disjoint_ns": {
+      "other CLI work": 1461700,
+      "package orchestration and cleanup": 1983988300,
+      "project preparation": 29568600,
+      "source discovery and Build execution": 254639600,
+      "retained graph restore requests": 14412900,
+      "source and frontend preparation": 5466004500,
+      "typed preparation and checking": 10451249000,
+      "Terminal lowering": 3998299800,
+      "native production": 1341197100,
+      "retained graph persistence": 815289100,
+      "native publication": 67764600
+    },
+    "outside_cli_seconds": 0.2459113000023727,
+    "detail_ns": {
+      "source and frontend preparation": {
+        "untraced remainder": 5466004500
+      },
+      "typed preparation and checking": {
+        "untraced remainder": 61135700,
+        "05.c.prepare_typed_trees": 1498722000,
+        "05.d.2.prepare_typed_program": 747190400,
+        "05.d.3.build_check_facts": 3373627800,
+        "05.d.4_6.quotients_borrows_identities": 14496000,
+        "05.d.7.check_checked_facts": 2287257300,
+        "05.d.8_10.finalize_execution_identities": 2059399000,
+        "05.d.11_13.selections_custody_types_boundaries": 409420800
+      },
+      "Terminal lowering": {
+        "untraced remainder": 4170900,
+        "05.01_lower_selected_machine": 1911831600,
+        "05.10_reconcile_and_residences": 2082297300
+      },
+      "retained graph persistence": {
+        "untraced remainder": 18148000,
+        "cache.encode.preparation": 214800800,
+        "cache.encode.sources": 86864500,
+        "cache.encode.checks": 252767200,
+        "cache.stage_hash_and_write": 242588200,
+        "cache.prune": 120400
+      },
+      "package orchestration and cleanup": {
+        "untraced remainder": 1983988300
+      }
+    },
+    "counts": {
+      "source.graph.cold": 1,
+      "source.graph.preparation.bytes": 85024175,
+      "source.graph.sources.bytes": 27362321,
+      "source.graph.checks.bytes": 117881745,
+      "source.graph.retained": 1
+    }
+  },
+  "full-on-c": {
+    "producer": "full-profile",
+    "wall_seconds": 17.765897999997833,
+    "cpu_seconds": 23.65625,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false,
+    "cli_ns": 17527508000,
+    "disjoint_ns": {
+      "other CLI work": 1131400,
+      "package orchestration and cleanup": 1463624300,
+      "project preparation": 26398200,
+      "source discovery and Build execution": 247242600,
+      "retained graph restore requests": 13519100,
+      "source and frontend preparation": 3719968100,
+      "typed preparation and checking": 6264876600,
+      "Terminal lowering": 3939973000,
+      "native production": 1063175300,
+      "retained graph persistence": 727939600,
+      "native publication": 59659800
+    },
+    "outside_cli_seconds": 0.23838999999783184,
+    "detail_ns": {
+      "source and frontend preparation": {
+        "untraced remainder": 3719968100
+      },
+      "typed preparation and checking": {
+        "untraced remainder": 42460100,
+        "05.c.prepare_typed_trees": 834593700,
+        "05.d.2.prepare_typed_program": 384606500,
+        "05.d.3.build_check_facts": 1813309800,
+        "05.d.4_6.quotients_borrows_identities": 8620300,
+        "05.d.7.check_checked_facts": 1382612900,
+        "05.d.8_10.finalize_execution_identities": 1451880600,
+        "05.d.11_13.selections_custody_types_boundaries": 346792700
+      },
+      "Terminal lowering": {
+        "untraced remainder": 4355100,
+        "05.01_lower_selected_machine": 2076922000,
+        "05.10_reconcile_and_residences": 1858695900
+      },
+      "retained graph persistence": {
+        "untraced remainder": 16724800,
+        "cache.encode.preparation": 190592200,
+        "cache.encode.sources": 78934700,
+        "cache.encode.checks": 222023600,
+        "cache.stage_hash_and_write": 219558300,
+        "cache.prune": 106000
+      },
+      "package orchestration and cleanup": {
+        "untraced remainder": 1463624300
+      }
+    },
+    "counts": {
+      "source.graph.cold": 1,
+      "source.graph.preparation.bytes": 85024175,
+      "source.graph.sources.bytes": 27362321,
+      "source.graph.checks.bytes": 117881745,
+      "source.graph.retained": 1
+    }
+  },
+  "full-original-a": {
+    "producer": "baseline",
+    "wall_seconds": 17.791676999993797,
+    "cpu_seconds": 24.359375,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-original-b": {
+    "producer": "baseline",
+    "wall_seconds": 17.432923899999878,
+    "cpu_seconds": 24.09375,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-original-c": {
+    "producer": "baseline",
+    "wall_seconds": 28.76504649999697,
+    "cpu_seconds": 34.0625,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-original-d": {
+    "producer": "baseline",
+    "wall_seconds": 18.309583499998553,
+    "cpu_seconds": 24.46875,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-original-e": {
+    "producer": "baseline",
+    "wall_seconds": 17.541892299996107,
+    "cpu_seconds": 23.375,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-refined-a": {
+    "producer": "full-profile-detail",
+    "wall_seconds": 17.531589699996402,
+    "cpu_seconds": 22.609375,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false,
+    "cli_ns": 17263601200,
+    "disjoint_ns": {
+      "other CLI work": 1460200,
+      "package orchestration and cleanup": 1517072400,
+      "project preparation": 38395100,
+      "source discovery and Build execution": 326720500,
+      "retained graph restore requests": 19124700,
+      "source and frontend preparation": 4115142000,
+      "typed preparation and checking": 6119112000,
+      "Terminal lowering": 3356965500,
+      "native production": 981316800,
+      "retained graph persistence": 726293500,
+      "native publication": 61998500
+    },
+    "outside_cli_seconds": 0.2679884999964024,
+    "detail_ns": {
+      "source and frontend preparation": {
+        "frontend.capture_context": 8479900,
+        "untraced remainder": 55195800,
+        "frontend.select_activation": 242446100,
+        "frontend.clone_retained_program": 7659200,
+        "frontend.resolve_base_for_extension": 6972100,
+        "frontend.pre_resolution_evaluation": 2906365200,
+        "frontend.resolve_initial": 1493800,
+        "frontend.seed_typing": 3949100,
+        "frontend.exclude_completed_work": 2258400,
+        "frontend.retain_frontend": 2800,
+        "frontend.resolve_and_type_extension": 681920200,
+        "frontend.complete_build_bodies": 198399400
+      },
+      "typed preparation and checking": {
+        "untraced remainder": 40213100,
+        "05.c.prepare_typed_trees": 1057498100,
+        "05.d.2.prepare_typed_program": 507812800,
+        "05.d.3.build_check_facts": 1706816800,
+        "05.d.4_6.quotients_borrows_identities": 8170500,
+        "05.d.7.check_checked_facts": 1092082900,
+        "05.d.8_10.finalize_execution_identities": 1361624000,
+        "05.d.11_13.selections_custody_types_boundaries": 344893800
+      },
+      "Terminal lowering": {
+        "untraced remainder": 3963700,
+        "05.01_lower_selected_machine": 1518600100,
+        "05.10_reconcile_and_residences": 1834401700
+      },
+      "retained graph persistence": {
+        "untraced remainder": 16022400,
+        "cache.encode.preparation": 187083700,
+        "cache.encode.sources": 74608600,
+        "cache.encode.checks": 232760400,
+        "cache.stage_hash_and_write": 215713800,
+        "cache.prune": 104600
+      },
+      "package orchestration and cleanup": {
+        "untraced remainder": 51880800,
+        "orchestration.settle_returned_builds": 850400,
+        "orchestration.admit_products": 21183700,
+        "orchestration.compile_packages": 1430297900,
+        "orchestration.complete_outcomes": 12859600
+      }
+    },
+    "counts": {
+      "source.graph.cold": 1,
+      "source.graph.preparation.bytes": 85024175,
+      "source.graph.sources.bytes": 27362321,
+      "source.graph.checks.bytes": 117881745,
+      "source.graph.retained": 1
+    }
+  },
+  "full-refined-b": {
+    "producer": "full-profile-detail",
+    "wall_seconds": 16.03705720000289,
+    "cpu_seconds": 22.75,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false,
+    "cli_ns": 15817420400,
+    "disjoint_ns": {
+      "other CLI work": 1282900,
+      "package orchestration and cleanup": 1407336000,
+      "project preparation": 28722800,
+      "source discovery and Build execution": 237630200,
+      "retained graph restore requests": 14597800,
+      "source and frontend preparation": 3283362500,
+      "typed preparation and checking": 5668235600,
+      "Terminal lowering": 3400827900,
+      "native production": 1005514200,
+      "retained graph persistence": 708918400,
+      "native publication": 60992100
+    },
+    "outside_cli_seconds": 0.21963680000289187,
+    "detail_ns": {
+      "source and frontend preparation": {
+        "untraced remainder": 42944500,
+        "frontend.capture_context": 6843900,
+        "frontend.select_activation": 233367900,
+        "frontend.clone_retained_program": 6059800,
+        "frontend.resolve_base_for_extension": 6704300,
+        "frontend.pre_resolution_evaluation": 2181759900,
+        "frontend.resolve_initial": 1154400,
+        "frontend.seed_typing": 3326100,
+        "frontend.exclude_completed_work": 1889600,
+        "frontend.retain_frontend": 2400,
+        "frontend.resolve_and_type_extension": 611887900,
+        "frontend.complete_build_bodies": 187421800
+      },
+      "typed preparation and checking": {
+        "untraced remainder": 39868900,
+        "05.c.prepare_typed_trees": 789195700,
+        "05.d.2.prepare_typed_program": 384893800,
+        "05.d.3.build_check_facts": 1671723200,
+        "05.d.4_6.quotients_borrows_identities": 7481700,
+        "05.d.7.check_checked_facts": 1074816800,
+        "05.d.8_10.finalize_execution_identities": 1356443700,
+        "05.d.11_13.selections_custody_types_boundaries": 343811800
+      },
+      "Terminal lowering": {
+        "untraced remainder": 3980000,
+        "05.01_lower_selected_machine": 1548585100,
+        "05.10_reconcile_and_residences": 1848262800
+      },
+      "retained graph persistence": {
+        "untraced remainder": 15778400,
+        "cache.encode.preparation": 183113800,
+        "cache.encode.sources": 74427200,
+        "cache.encode.checks": 231724800,
+        "cache.stage_hash_and_write": 203729000,
+        "cache.prune": 145200
+      },
+      "package orchestration and cleanup": {
+        "untraced remainder": 53265500,
+        "orchestration.settle_returned_builds": 598500,
+        "orchestration.admit_products": 18818200,
+        "orchestration.compile_packages": 1324804900,
+        "orchestration.complete_outcomes": 9848900
+      }
+    },
+    "counts": {
+      "source.graph.cold": 1,
+      "source.graph.preparation.bytes": 85024175,
+      "source.graph.sources.bytes": 27362321,
+      "source.graph.checks.bytes": 117881745,
+      "source.graph.retained": 1
+    }
+  },
+  "full-refined-c": {
+    "producer": "full-profile-detail",
+    "wall_seconds": 16.720659099999466,
+    "cpu_seconds": 23.5625,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false,
+    "cli_ns": 16505889300,
+    "disjoint_ns": {
+      "other CLI work": 1050300,
+      "package orchestration and cleanup": 1525419700,
+      "project preparation": 27397900,
+      "source discovery and Build execution": 251118000,
+      "retained graph restore requests": 14998100,
+      "source and frontend preparation": 3531674000,
+      "typed preparation and checking": 5962457400,
+      "Terminal lowering": 3415945600,
+      "native production": 991471500,
+      "retained graph persistence": 725083600,
+      "native publication": 59273200
+    },
+    "outside_cli_seconds": 0.21476979999946622,
+    "detail_ns": {
+      "source and frontend preparation": {
+        "frontend.capture_context": 8147900,
+        "untraced remainder": 46394600,
+        "frontend.select_activation": 240333500,
+        "frontend.clone_retained_program": 6146100,
+        "frontend.resolve_base_for_extension": 7126100,
+        "frontend.pre_resolution_evaluation": 2226357100,
+        "frontend.resolve_initial": 794600,
+        "frontend.seed_typing": 3263100,
+        "frontend.exclude_completed_work": 3947500,
+        "frontend.retain_frontend": 2400,
+        "frontend.resolve_and_type_extension": 747147700,
+        "frontend.complete_build_bodies": 242013400
+      },
+      "typed preparation and checking": {
+        "untraced remainder": 43872500,
+        "05.c.prepare_typed_trees": 1006455200,
+        "05.d.2.prepare_typed_program": 400422600,
+        "05.d.3.build_check_facts": 1705079600,
+        "05.d.4_6.quotients_borrows_identities": 7704300,
+        "05.d.7.check_checked_facts": 1073988600,
+        "05.d.8_10.finalize_execution_identities": 1371506500,
+        "05.d.11_13.selections_custody_types_boundaries": 353428100
+      },
+      "Terminal lowering": {
+        "untraced remainder": 3976800,
+        "05.01_lower_selected_machine": 1539542600,
+        "05.10_reconcile_and_residences": 1872426200
+      },
+      "retained graph persistence": {
+        "untraced remainder": 16183000,
+        "cache.encode.preparation": 189460700,
+        "cache.encode.sources": 76248100,
+        "cache.encode.checks": 225084300,
+        "cache.stage_hash_and_write": 217991500,
+        "cache.prune": 116000
+      },
+      "package orchestration and cleanup": {
+        "untraced remainder": 52650600,
+        "orchestration.settle_returned_builds": 552900,
+        "orchestration.admit_products": 18909600,
+        "orchestration.compile_packages": 1443448900,
+        "orchestration.complete_outcomes": 9857700
+      }
+    },
+    "counts": {
+      "source.graph.cold": 1,
+      "source.graph.preparation.bytes": 85024175,
+      "source.graph.sources.bytes": 27362321,
+      "source.graph.checks.bytes": 117881745,
+      "source.graph.retained": 1
+    }
+  },
+  "full-refined-off": {
+    "producer": "full-profile-detail",
+    "wall_seconds": 16.507701200003794,
+    "cpu_seconds": 23.09375,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-refined-original": {
+    "producer": "baseline",
+    "wall_seconds": 16.148939500002598,
+    "cpu_seconds": 21.484375,
+    "cache_mode": "fresh private cache",
+    "phase_profile": false
+  },
+  "full-refined-verified": {
+    "producer": "full-profile-detail",
+    "wall_seconds": 16.07172089999949,
+    "cpu_seconds": 22.21875,
+    "cache_mode": "shared user cache",
+    "phase_profile": false
+  },
+  "full-refined-warm-a": {
+    "producer": "full-profile-detail",
+    "wall_seconds": 7.342896299996937,
+    "cpu_seconds": 7.296875,
+    "cache_mode": "warm reuse of prior private cache",
+    "phase_profile": false,
+    "cli_ns": 7182517500,
+    "disjoint_ns": {
+      "other CLI work": 1161700,
+      "package orchestration and cleanup": 955070600,
+      "project preparation": 26045600,
+      "source discovery and Build execution": 224506400,
+      "retained graph restore requests": 825776800,
+      "typed preparation and checking": 22651200,
+      "Terminal lowering": 4081830200,
+      "native production": 979168700,
+      "native publication": 66306300
+    },
+    "outside_cli_seconds": 0.16037879999693683,
+    "detail_ns": {
+      "source and frontend preparation": {},
+      "typed preparation and checking": {
+        "untraced remainder": 22651200
+      },
+      "Terminal lowering": {
+        "untraced remainder": 4109600,
+        "05.01_lower_selected_machine": 1522101800,
+        "05.10_reconcile_and_residences": 2555618800
+      },
+      "retained graph persistence": {},
+      "package orchestration and cleanup": {
+        "untraced remainder": 34410700,
+        "orchestration.settle_returned_builds": 582400,
+        "orchestration.admit_products": 20186600,
+        "orchestration.compile_packages": 889710100,
+        "orchestration.complete_outcomes": 10180800
+      }
+    },
+    "counts": {
+      "source.graph.loaded": 1,
+      "source.graph.prepared_hits": 2
+    }
+  },
+  "full-refined-warm-b": {
+    "producer": "full-profile-detail",
+    "wall_seconds": 7.173392799995781,
+    "cpu_seconds": 7.125,
+    "cache_mode": "warm reuse of prior private cache",
+    "phase_profile": false,
+    "cli_ns": 7034391300,
+    "disjoint_ns": {
+      "other CLI work": 1006700,
+      "package orchestration and cleanup": 944841300,
+      "project preparation": 22618500,
+      "source discovery and Build execution": 220485400,
+      "retained graph restore requests": 811120100,
+      "typed preparation and checking": 21737600,
+      "Terminal lowering": 3987538200,
+      "native production": 966450300,
+      "native publication": 58593200
+    },
+    "outside_cli_seconds": 0.13900149999578115,
+    "detail_ns": {
+      "source and frontend preparation": {},
+      "typed preparation and checking": {
+        "untraced remainder": 21737600
+      },
+      "Terminal lowering": {
+        "untraced remainder": 3815900,
+        "05.01_lower_selected_machine": 1440400000,
+        "05.10_reconcile_and_residences": 2543322300
+      },
+      "retained graph persistence": {},
+      "package orchestration and cleanup": {
+        "untraced remainder": 35658900,
+        "orchestration.settle_returned_builds": 667300,
+        "orchestration.admit_products": 18057500,
+        "orchestration.compile_packages": 879972200,
+        "orchestration.complete_outcomes": 10485400
+      }
+    },
+    "counts": {
+      "source.graph.loaded": 1,
+      "source.graph.prepared_hits": 2
+    }
+  },
+  "full-verified": {
+    "producer": "full-profile",
+    "wall_seconds": 17.97613029999775,
+    "cpu_seconds": 23.296875,
+    "cache_mode": "shared user cache",
+    "phase_profile": false
+  },
+  "full-warm-a": {
+    "producer": "full-profile",
+    "wall_seconds": 10.76574580000306,
+    "cpu_seconds": 10.234375,
+    "cache_mode": "warm reuse of prior private cache",
+    "phase_profile": false,
+    "cli_ns": 10447002500,
+    "disjoint_ns": {
+      "other CLI work": 1201600,
+      "package orchestration and cleanup": 1121709400,
+      "project preparation": 27834900,
+      "source discovery and Build execution": 257956000,
+      "retained graph restore requests": 950053400,
+      "typed preparation and checking": 29525900,
+      "Terminal lowering": 6787945700,
+      "native production": 1200706600,
+      "native publication": 70069000
+    },
+    "outside_cli_seconds": 0.31874330000306017,
+    "detail_ns": {
+      "source and frontend preparation": {},
+      "typed preparation and checking": {
+        "untraced remainder": 29525900
+      },
+      "Terminal lowering": {
+        "untraced remainder": 6159800,
+        "05.01_lower_selected_machine": 3375050700,
+        "05.10_reconcile_and_residences": 3406735200
+      },
+      "retained graph persistence": {},
+      "package orchestration and cleanup": {
+        "untraced remainder": 1121709400
+      }
+    },
+    "counts": {
+      "source.graph.loaded": 1,
+      "source.graph.prepared_hits": 2
+    }
+  }
+}

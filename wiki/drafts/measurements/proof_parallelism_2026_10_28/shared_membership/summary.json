@@ -1,0 +1,190 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "order": [
+        "original",
+        "hoisted"
+      ],
+      "original": {
+        "wall_seconds": 19.483927499997662,
+        "cpu_seconds": 26.703125,
+        "source_replay_ms": 1886.7899,
+        "membership_ms": 2539.2013,
+        "peak_working_set_bytes": 1903038464,
+        "peak_commit_bytes": 3529891840
+      },
+      "hoisted": {
+        "wall_seconds": 18.92014449999988,
+        "cpu_seconds": 23.96875,
+        "source_replay_ms": 1338.6478,
+        "membership_ms": 2168.65,
+        "peak_working_set_bytes": 2125545472,
+        "peak_commit_bytes": 3499814912
+      },
+      "change_percent": {
+        "wall_seconds": -2.893579849328898,
+        "cpu_seconds": -10.239906377998832,
+        "source_replay_ms": -29.051570606775034
+      }
+    },
+    {
+      "round": 2,
+      "order": [
+        "hoisted",
+        "original"
+      ],
+      "original": {
+        "wall_seconds": 16.567030199999863,
+        "cpu_seconds": 22.796875,
+        "source_replay_ms": 1250.6467,
+        "membership_ms": 1837.9942,
+        "peak_working_set_bytes": 1922236416,
+        "peak_commit_bytes": 3575275520
+      },
+      "hoisted": {
+        "wall_seconds": 17.336450499999046,
+        "cpu_seconds": 23.6875,
+        "source_replay_ms": 1178.7347,
+        "membership_ms": 1764.0579,
+        "peak_working_set_bytes": 1908928512,
+        "peak_commit_bytes": 3526127616
+      },
+      "change_percent": {
+        "wall_seconds": 4.644286216120919,
+        "cpu_seconds": 3.9067854694996518,
+        "source_replay_ms": -5.7499851876633095
+      }
+    },
+    {
+      "round": 3,
+      "order": [
+        "original",
+        "hoisted"
+      ],
+      "original": {
+        "wall_seconds": 16.765707899998233,
+        "cpu_seconds": 23.21875,
+        "source_replay_ms": 1229.5436,
+        "membership_ms": 1824.7066,
+        "peak_working_set_bytes": 1908662272,
+        "peak_commit_bytes": 3526807552
+      },
+      "hoisted": {
+        "wall_seconds": 17.277173700000276,
+        "cpu_seconds": 23.125,
+        "source_replay_ms": 1182.3193,
+        "membership_ms": 1839.4381,
+        "peak_working_set_bytes": 1919713280,
+        "peak_commit_bytes": 3539746816
+      },
+      "change_percent": {
+        "wall_seconds": 3.050666294872628,
+        "cpu_seconds": -0.40376850605652326,
+        "source_replay_ms": -3.8407991388023865
+      }
+    },
+    {
+      "round": 4,
+      "order": [
+        "hoisted",
+        "original"
+      ],
+      "original": {
+        "wall_seconds": 18.737810300001,
+        "cpu_seconds": 25.34375,
+        "source_replay_ms": 1256.625,
+        "membership_ms": 2316.4156,
+        "peak_working_set_bytes": 2154319872,
+        "peak_commit_bytes": 3485454336
+      },
+      "hoisted": {
+        "wall_seconds": 17.57787589999498,
+        "cpu_seconds": 24.53125,
+        "source_replay_ms": 1263.0892,
+        "membership_ms": 1878.739,
+        "peak_working_set_bytes": 2136113152,
+        "peak_commit_bytes": 3487502336
+      },
+      "change_percent": {
+        "wall_seconds": -6.190341248176479,
+        "cpu_seconds": -3.205918618988901,
+        "source_replay_ms": 0.5144096289664724
+      }
+    },
+    {
+      "round": 5,
+      "order": [
+        "original",
+        "hoisted"
+      ],
+      "original": {
+        "wall_seconds": 19.082421999999497,
+        "cpu_seconds": 25.796875,
+        "source_replay_ms": 1866.4653,
+        "membership_ms": 2660.83,
+        "peak_working_set_bytes": 2129879040,
+        "peak_commit_bytes": 3489579008
+      },
+      "hoisted": {
+        "wall_seconds": 23.82839179999428,
+        "cpu_seconds": 30.65625,
+        "source_replay_ms": 1716.1983,
+        "membership_ms": 2695.4325,
+        "peak_working_set_bytes": 2143956992,
+        "peak_commit_bytes": 3494875136
+      },
+      "change_percent": {
+        "wall_seconds": 24.870898463491198,
+        "cpu_seconds": 18.837068443367656,
+        "source_replay_ms": -8.050886346507491
+      }
+    },
+    {
+      "round": 6,
+      "order": [
+        "hoisted",
+        "original"
+      ],
+      "original": {
+        "wall_seconds": 25.963226799998665,
+        "cpu_seconds": 32.640625,
+        "source_replay_ms": 2038.9491,
+        "membership_ms": 3019.3182,
+        "peak_working_set_bytes": 2135535616,
+        "peak_commit_bytes": 3567046656
+      },
+      "hoisted": {
+        "wall_seconds": 24.119628299995384,
+        "cpu_seconds": 30.28125,
+        "source_replay_ms": 1874.5325,
+        "membership_ms": 2763.3183,
+        "peak_working_set_bytes": 2112233472,
+        "peak_commit_bytes": 3532898304
+      },
+      "change_percent": {
+        "wall_seconds": -7.100806514556101,
+        "cpu_seconds": -7.228338918142652,
+        "source_replay_ms": -8.06379129326965
+      }
+    }
+  ],
+  "medians": {
+    "original": {
+      "wall_seconds": 18.91011615000025,
+      "cpu_seconds": 25.5703125,
+      "source_replay_ms": 1561.54515,
+      "membership_ms": 2427.80845,
+      "peak_working_set_bytes": 2026057728.0,
+      "peak_commit_bytes": 3528349696.0
+    },
+    "hoisted": {
+      "wall_seconds": 18.24901019999743,
+      "cpu_seconds": 24.25,
+      "source_replay_ms": 1300.8685,
+      "membership_ms": 2023.6945,
+      "peak_working_set_bytes": 2118889472.0,
+      "peak_commit_bytes": 3512971264.0
+    }
+  }
+}

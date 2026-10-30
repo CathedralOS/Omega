@@ -39,7 +39,9 @@ mod referent_predicates;
 pub(crate) use referent_predicates::referent_predicates_preserved;
 mod call_result_bounds;
 mod deferred_bounds;
+mod deferred_observations;
 pub(crate) use call_result_bounds::normal_return_referent_interval;
+pub(crate) use deferred_observations::deferred_integer_observation;
 mod call_result_measures;
 pub use call_result_measures::normal_return_length_collection;
 mod cast_ranges;
@@ -59,10 +61,12 @@ mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
 pub(crate) use declaration_values::{LocalValueFormation, validate_declaration_value_range};
+pub(crate) use expression_analysis::TrappingReceiptDemand;
 mod float_arithmetic;
 mod float_contracts;
 pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};
 mod guard_narrowing;
+pub(crate) use guard_narrowing::ReturnInference;
 mod guard_requirements;
 mod integer_carriers;
 mod integer_ranges;
@@ -83,6 +87,7 @@ mod selected_scalar_intervals;
 mod slice_lengths;
 pub use bigint_interval::{BigIntInterval, bitwise_carrier_bounds, floor_shift_right};
 pub use interval::Interval;
+pub(crate) use return_ranges::infer_return_interval;
 pub use return_ranges::normal_return_integer_bounds;
 pub(crate) use selected_scalar_intervals::binary as selected_integer_binary_interval;
 pub use selected_scalar_intervals::{
@@ -130,7 +135,7 @@ pub(crate) use integer_ranges::{
     integer_bit_width, integer_source_bounds, literal_i64, primitive_range,
     validate_anonymous_address_landing, validate_anonymous_integer_primitive_range,
     validate_anonymous_integer_range, validate_value_range,
-    validate_value_range_retaining_decisions,
+    validate_value_range_retaining_decisions, validate_value_range_retaining_obligations,
 };
 pub(crate) use invariant_bounds::{
     call_result_interval, immutable_integer_expression_interval, standing_integer_interval,

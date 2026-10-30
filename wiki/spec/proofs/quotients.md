@@ -196,8 +196,8 @@ A named proof implementation owns its entire telescope, like every conformance:
 
 ```omega
 TogetherEvidence<machine Left, machine Right> satisfies ConvergenceEvidence<Left, Right>
-where machine Left(index: Nat) -> Rat;
-where machine Right(index: Nat) -> Rat;
+requires machine Left(index: Nat) -> Rat;
+requires machine Right(index: Nat) -> Rat;
 {
     // one closed row for every inherited requirement
 }

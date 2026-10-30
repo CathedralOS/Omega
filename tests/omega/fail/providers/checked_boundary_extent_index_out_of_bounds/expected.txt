@@ -1,0 +1,2 @@
+constant checking: scalar predicate is false
+index `8` of `main.bytes`

@@ -4,8 +4,9 @@
 //! input. The older raw storage query has only a borrowed input address and
 //! declines that descriptor load. Both consumers use the same complete body
 //! relation; neither replays a declaration initializer or creates loan authority.
-//! Callee-local dynamic selectors and recast presentations are not executable
-//! caller coordinates and remain unavailable to this exact-address adapter.
+//! Callee-local selectors never become caller coordinates. Closed-array
+//! geometry retains every possible slot when an immutable actual cannot narrow
+//! the selection; recast presentations still require their own correspondence.
 
 use validation::CanonicalPlace;
 
@@ -69,7 +70,7 @@ fn call_result_candidates(
 ) -> Option<Vec<CanonicalPlace>> {
     let mut candidates = Vec::new();
     let arguments = program.expression_table.expression_handles(call.arguments);
-    for source in call_result_leaf_sources(program, call, call_frames)? {
+    for source in call_result_leaf_sources(program, call, call_frames, &[])? {
         // This query has no completed descriptor inventory. An owned formal's
         // field denotes a stored descriptor, not its pointee address; only the
         // evaluated Flow consumer can load that leaf from its captured value.
@@ -194,8 +195,9 @@ pub(in crate::flow) fn call_result_leaf_sources(
     program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    indices: &[Option<usize>],
 ) -> Option<Vec<ReferenceResultSource>> {
-    let sources = call_result_captured_sources(program, call, call_frames, &[])?;
+    let sources = call_result_captured_sources(program, call, call_frames, indices)?;
     sources
         .into_iter()
         .map(|source| {
@@ -278,6 +280,7 @@ pub(in crate::flow) fn call_result_captured_sources(
                     PlaceSegment::Field { .. }
                         | PlaceSegment::Case { .. }
                         | PlaceSegment::FixedIndex { .. }
+                        | PlaceSegment::Index { .. }
                 )
             })
         {
@@ -287,17 +290,27 @@ pub(in crate::flow) fn call_result_captured_sources(
             .iter()
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == source.root)?;
-        sources.push(ReferenceResultSource {
-            kind,
-            result_path: crate::borrow::structural_owner_path(
-                program,
-                &crate::borrow::owner_path_from_place_segments(program, &result_path),
-            )?,
-            argument_index,
-            parameter_type: parameter.type_reference,
-            collection_coarse: source.collection_coarse,
-            segments: source.segments,
-        });
+        let result_path = crate::borrow::structural_owner_path(
+            program,
+            &crate::borrow::owner_path_from_place_segments(program, &result_path),
+        )?;
+        // This is a complete alternative roster, not a claim that all slots
+        // were selected. The descriptor observation owns the selected value;
+        // every possible backing remains a loan/invalidation obligation.
+        for segments in validation::completed_storage::finite_projection_paths(
+            program,
+            parameter.type_reference,
+            &source.segments,
+        )? {
+            sources.push(ReferenceResultSource {
+                kind,
+                result_path: result_path.clone(),
+                argument_index,
+                parameter_type: parameter.type_reference,
+                collection_coarse: source.collection_coarse,
+                segments,
+            });
+        }
     }
     (!sources.is_empty()).then_some(sources)
 }

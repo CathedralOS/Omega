@@ -1,0 +1,38 @@
+// Expected exit: 0
+// A selected terminal Unit call preserves its prefix and call effects, then cleans its owned local exactly once.
+data Effects { prefixes: u64 in Wrapping; calls: u64 in Wrapping; observed: u64; }
+data Cleanup { calls: u64 in Wrapping; }
+data Frame dropped by release_frame { passes: u64; cleanup: &mut Cleanup; }
+machine release_frame(frame: &mut Frame) {
+    frame.cleanup.calls = frame.cleanup.calls + 1;
+}
+machine drive(effects: &mut Effects, cleanup: &mut Cleanup) {
+    effects.prefixes = effects.prefixes + 1;
+    let mut frame: Frame = Frame { passes: 41, cleanup: cleanup };
+    let take_first: bool = false;
+    transition take_first {
+        true -> first(effects, &mut frame)
+        _ -> advance(effects, &mut frame)
+    }
+    machine first(effects: &mut Effects, frame: &mut Frame) {
+        effects.calls = effects.calls + 1;
+        frame.passes = 32;
+        effects.observed = frame.passes;
+    }
+    machine advance(effects: &mut Effects, frame: &mut Frame) {
+        effects.calls = effects.calls + 1;
+        frame.passes = 42;
+        effects.observed = frame.passes;
+    }
+}
+machine main() crashes Trap {
+    let mut effects: Effects = Effects { prefixes: 0, calls: 0, observed: 0 };
+    let mut cleanup: Cleanup = Cleanup { calls: 0 };
+    drive(&mut effects, &mut cleanup);
+    transition effects.prefixes == 1 && effects.calls == 1 && effects.observed == 42 && cleanup.calls == 1 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

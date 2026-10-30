@@ -21,6 +21,31 @@ use machine_code::{
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
 
+/// Assemble one unresolved row's bytes, effects and architecture-neutral
+/// fixup from the target-owned fixup. Both ISAs spell the same row offsets,
+/// boundary binding and patch width; only the fixup kind and callback
+/// encoding are target-owned.
+macro_rules! selected_unresolved_fixup {
+    ($encoded:expr, $fixup:expr, $kind:expr, $state:expr, $callbacks:expr) => {
+        (
+            $encoded.bytes().to_vec(),
+            $encoded.effects().clone(),
+            SelectedFormNormalizedForeignCallFixup {
+                kind: $kind,
+                state: $state,
+                boundary: $fixup.boundary,
+                ordinal: $fixup.ordinal,
+                opcode_row_offset: $fixup.opcode_byte_offset,
+                patch_row_offset: $fixup.patch_byte_offset,
+                reference_row_offset: $fixup.reference_byte_offset,
+                patch_byte_width: $fixup.patch_byte_width,
+                addend: 0,
+                callbacks: $callbacks,
+            },
+        )
+    };
+}
+
 /// Resolve one selected `{boundary, ordinal}` binding onto its selected
 /// function's normalized-foreign-call roster row, admitting only the row that
 /// names this instruction, boundary and target with a valid entry mechanism.
@@ -67,11 +92,7 @@ pub(super) fn encode(
     selected_function: &SelectedFunction,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
-    let views = machine
-        .operands
-        .iter()
-        .map(|operand| operand.view)
-        .collect::<Vec<_>>();
+    let views = super::operand_views(machine);
     let accesses = machine
         .operands
         .iter()
@@ -214,22 +235,7 @@ pub(super) fn encode(
                         },
                 })
                 .collect();
-            (
-                encoded.bytes().to_vec(),
-                encoded.effects().clone(),
-                SelectedFormNormalizedForeignCallFixup {
-                    kind,
-                    state,
-                    boundary: target_fixup.boundary,
-                    ordinal: target_fixup.ordinal,
-                    opcode_row_offset: target_fixup.opcode_byte_offset,
-                    patch_row_offset: target_fixup.patch_byte_offset,
-                    reference_row_offset: target_fixup.reference_byte_offset,
-                    patch_byte_width: target_fixup.patch_byte_width,
-                    addend: 0,
-                    callbacks,
-                },
-            )
+            selected_unresolved_fixup!(encoded, target_fixup, kind, state, callbacks)
         }
         Architecture::Aarch64 => {
             let destinations = destinations
@@ -299,22 +305,7 @@ pub(super) fn encode(
                         },
                 })
                 .collect();
-            (
-                encoded.bytes().to_vec(),
-                encoded.effects().clone(),
-                SelectedFormNormalizedForeignCallFixup {
-                    kind,
-                    state,
-                    boundary: target_fixup.boundary,
-                    ordinal: target_fixup.ordinal,
-                    opcode_row_offset: target_fixup.opcode_byte_offset,
-                    patch_row_offset: target_fixup.patch_byte_offset,
-                    reference_row_offset: target_fixup.reference_byte_offset,
-                    patch_byte_width: target_fixup.patch_byte_width,
-                    addend: 0,
-                    callbacks,
-                },
-            )
+            selected_unresolved_fixup!(encoded, target_fixup, kind, state, callbacks)
         }
     };
     super::validated_encoded_draft(

@@ -116,25 +116,19 @@ impl EdgeReach {
                         .any(|member| member.machine == machine.symbol)
             })),
             Self::Specialization(template) => {
-                // Specialization owns the ordered template-to-instance state
-                // correspondence; the map's entry above must remain its origin.
-                let receipts = typed
-                    .machine_specializations
-                    .iter()
-                    .filter(|receipt| {
-                        receipt.template == *template && receipt.instance == machine.symbol
-                    })
-                    .count();
-                if receipts == 0 {
-                    return Ok(false);
-                }
-                let states = typed
+                let source = typed
                     .machine(*template)
-                    .map_or(0, |template| typed.machine_states(template).len());
-                if receipts != 1 || typed.machine_states(machine).len() != states {
-                    return unsupported("named provider lost its exact specialization entry");
-                }
-                Ok(true)
+                    .and_then(|machine| typed.machine_states(machine).first());
+                let target = typed.machine_states(machine).first();
+                let (Some(source), Some(target)) = (source, target) else {
+                    return unsupported("named provider lost its instantiated entry");
+                };
+                Ok(typed.instantiated_machine_state_matches(
+                    machine.symbol,
+                    *template,
+                    source.symbol,
+                    target.symbol,
+                ))
             }
         }
     }
@@ -157,7 +151,6 @@ fn edge_carriers<'a>(typed: &'a TypedTrees, machine: &'a Machine) -> Vec<EdgeCar
     let mut carriers = typed
         .conformances()
         .iter()
-        .filter(|implementation| implementation.type_parameters.is_empty())
         .map(EdgeCarrier::ConformanceMap)
         .collect::<Vec<_>>();
     // A specialization instance is realized through the authored template that

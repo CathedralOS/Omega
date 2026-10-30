@@ -73,7 +73,7 @@ pub(crate) struct PackageReviewDomainShape {
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) target_type: PackageReviewTypeIdentity,
     pub(crate) index_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) predicate_body: language_semantics::DomainPredicateBody,
+    pub(crate) predicate_presence: language_semantics::DomainPredicatePresence,
     pub(crate) predicate_facts: Vec<PackageReviewContractFact>,
     pub(crate) alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
     pub(crate) classification: Option<PackageReviewDomainClassification>,

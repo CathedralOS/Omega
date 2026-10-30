@@ -1,6 +1,21 @@
 //! Resolve a Build operation's static operand path to its declaration symbol
 //! over the typed program.
 
+mod input_selections;
+pub use input_selections::{
+    ProductArgumentStep, ProductInputSelection, ProductInputSelectionTarget,
+    ProductTypeSelectionSlot,
+};
+
+mod applications;
+pub use applications::{ProductApplicationDemand, ProductOperandApplication};
+
+mod occurrences;
+pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
+
+mod static_environment;
+pub use static_environment::{capture_closed_operand, capture_static_environment};
+
 use crate::expression::StaticMachineArgument;
 use crate::typed_trees::TypedTrees;
 use symbols::{JoinedPath, SymbolHandle};
@@ -118,10 +133,6 @@ fn product_candidates(
                 program
                     .conformances()
                     .iter()
-                    .filter(|definition| {
-                        definition.type_parameters.is_empty()
-                            && definition.lifetime_parameters.is_empty()
-                    })
                     .map(|definition| (definition.symbol, definition.is_public)),
             )
             .collect(),
@@ -150,24 +161,7 @@ fn product_candidates(
     Some(candidates)
 }
 
-/// Source-signature compatibility for the narrowly designated product-entry
-/// query. The build owner supplies target meaning; Psi retains lexical lookup
-/// and exact-symbol selection without depending on target or native crates.
-/// This check must not execute the entry or require the build's unfinished
-/// provider, receiver-provision, or layout settlement. Final admission rechecks
-/// the selected declaration after the build completes.
-/// Every declaration handle and parameter must come from the supplied program;
-/// sharing a Rust lifetime alone does not establish arena identity.
-pub trait ProductEntryCompatibility: Sync {
-    fn validate_entry(
-        &self,
-        program: &TypedTrees,
-        declaration: ProductEntryDeclaration<'_>,
-        slot: &str,
-    ) -> Result<(), String>;
-}
-
-/// Declaration data needed by the Build owner's entry-slot judgment. This view
+/// Declaration data needed by Psi's source entry-slot judgment. This view
 /// carries no executable state or statement span. The query issuer retains the
 /// exact selected symbol and its lexical authority separately; this is neither
 /// an issued description nor evidence that the product has been admitted.
@@ -354,4 +348,51 @@ pub fn native_binding_formation(
             resolution_stratum: source.resolution_stratum,
         },
     )
+}
+
+impl TypedTrees {
+    /// Exact source correspondence, followed by whole owned-graph equality.
+    /// Equal display paths or numeric SourceIds cannot replace this join.
+    pub fn same_product_operand_source(
+        &self,
+        left: &language_semantics::declaration_selection::ProductDeclarationOperand,
+        right: &language_semantics::declaration_selection::ProductDeclarationOperand,
+    ) -> bool {
+        if left.path != right.path
+            || self.symbols.rejoin_product_occurrence(left.source_span)
+                != self.symbols.rejoin_product_occurrence(right.source_span)
+        {
+            return false;
+        }
+        match (&left.application, &right.application) {
+            (None, None) => true,
+            (Some(left), Some(right)) => {
+                if std::sync::Arc::ptr_eq(left, right) {
+                    return true;
+                }
+                let mut left = left.as_ref().clone();
+                let mut right = right.as_ref().clone();
+                left.remap_source_spans(|span| self.symbols.rejoin_product_occurrence(span));
+                right.remap_source_spans(|span| self.symbols.rejoin_product_occurrence(span));
+                left == right
+            }
+            _ => false,
+        }
+    }
+
+    pub fn same_product_request_source(
+        &self,
+        left: &language_semantics::declaration_selection::ProductDeclarationRequest,
+        right: &language_semantics::declaration_selection::ProductDeclarationRequest,
+    ) -> bool {
+        left.operation == right.operation
+            && self.symbols.rejoin_product_occurrence(left.source_span)
+                == self.symbols.rejoin_product_occurrence(right.source_span)
+            && left.operands.len() == right.operands.len()
+            && left
+                .operands
+                .iter()
+                .zip(right.operands.iter())
+                .all(|(left, right)| self.same_product_operand_source(left, right))
+    }
 }

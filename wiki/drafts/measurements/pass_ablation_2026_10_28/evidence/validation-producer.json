@@ -1,0 +1,8 @@
+{
+  "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+  "sha256": "64983946d8bccabbfa18efcc9a25e8339ff8a5aa6cc297d044b1454bcda4308d",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  }
+}

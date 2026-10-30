@@ -28,7 +28,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     GameView::render_title();
 
     transition {
-        _ -> enter_room(game)
+        _ -> block enter_room(game)
     }
 
 
@@ -47,38 +47,38 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_commands();
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
     machine prompt(game: &mut Game) {
         transition game.dungeon.player.health == 0 {
-            true -> game_over(game)
-            false -> read_command(game)
+            true -> block game_over(game)
+            false -> block read_command(game)
         }
     }
 
     machine read_command(game: &mut Game) {
         GameView::render_prompt();
         transition block Console::read_line(&mut game.input) {
-            LineReadResult::LineComplete { count } -> received_command(game, count)
-            LineReadResult::EndOfInput { count } -> received_command(game, count)
+            LineReadResult::LineComplete { count } -> block received_command(game, count)
+            LineReadResult::EndOfInput { count } -> block received_command(game, count)
             // Full and Invalid do not establish a completed command.
-            _ -> invalid_command(game)
+            _ -> block invalid_command(game)
         }
     }
 
     machine received_command(game: &mut Game, count: u64) {
         transition count <= 256 && count <= game.input.len {
-            true -> bounded_command(game, count)
-            false -> invalid_command(game)
+            true -> block bounded_command(game, count)
+            false -> block invalid_command(game)
         }
     }
 
     machine bounded_command(game: &mut Game, count: u64) requires count <= 256 {
         transition count > 0 {
-            true -> inspect_line_end(game, count)
-            false -> finished(game)
+            true -> block inspect_line_end(game, count)
+            false -> block finished(game)
         }
     }
 
@@ -89,29 +89,29 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     machine inspect_line_end(game: &mut Game, count: u64) requires count > 0 requires count <= 256 {
         let last_index: u64 = count - 1;
         transition last_index <= 255 && game.input[last_index] == 10 {
-            true -> without_line_feed(game, last_index)
-            false -> dispatch_command(game, count)
+            true -> block without_line_feed(game, last_index)
+            false -> block dispatch_command(game, count)
         }
     }
 
     machine without_line_feed(game: &mut Game, count: u64) requires count <= 255 {
         transition count > 0 {
-            true -> inspect_carriage_return(game, count)
-            false -> finished(game)
+            true -> block inspect_carriage_return(game, count)
+            false -> block finished(game)
         }
     }
 
     machine inspect_carriage_return(game: &mut Game, count: u64) requires count > 0 requires count <= 255 {
         let last_index: u64 = count - 1;
         transition last_index <= 254 && game.input[last_index] == 13 {
-            true -> without_carriage_return(game, last_index)
-            false -> dispatch_command(game, count)
+            true -> block without_carriage_return(game, last_index)
+            false -> block dispatch_command(game, count)
         }
     }
 
     machine without_carriage_return(game: &mut Game, count: u64) requires count <= 254 {
         transition {
-            _ -> dispatch_command(game, count)
+            _ -> block dispatch_command(game, count)
         }
     }
 
@@ -120,35 +120,35 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         let command: &[u8] = game.input[0..count];
 
         transition {
-            command == "" -> finished(game)
-            command == "quit" -> finished(game)
-            command == "exit" -> finished(game)
-            command == "look" -> look(game)
-            command == "info" -> look(game)
-            command == "paths" -> exits(game)
-            command == "help" -> exits(game)
-            command == "inventory" -> inventory(game)
-            command == "inv" -> inventory(game)
-            command == "char" -> character(game)
-            command == "character" -> character(game)
-            command == "stats" -> character(game)
-            command == "use" -> use_event(game)
-            command == "fight" -> fight(game)
-            game.dungeon.current_cell == CellId::R00 && command == "north" -> move_r01(game)
-            game.dungeon.current_cell == CellId::R01 && command == "south" -> move_r00(game)
-            game.dungeon.current_cell == CellId::R01 && command == "north" -> move_r02(game)
-            game.dungeon.current_cell == CellId::R01 && command == "east" -> move_r05(game)
-            game.dungeon.current_cell == CellId::R02 && command == "south" -> move_r01(game)
-            game.dungeon.current_cell == CellId::R02 && command == "north" -> move_r03(game)
-            game.dungeon.current_cell == CellId::R02 && command == "west" -> move_r06(game)
-            game.dungeon.current_cell == CellId::R03 && command == "south" -> move_r02(game)
-            game.dungeon.current_cell == CellId::R03 && command == "north" -> move_r04(game)
-            game.dungeon.current_cell == CellId::R03 && command == "east" -> move_r07(game)
-            game.dungeon.current_cell == CellId::R04 && command == "south" -> move_r03(game)
-            game.dungeon.current_cell == CellId::R05 && command == "west" -> move_r01(game)
-            game.dungeon.current_cell == CellId::R06 && command == "east" -> move_r02(game)
-            game.dungeon.current_cell == CellId::R07 && command == "west" -> move_r03(game)
-            _ -> invalid_command(game)
+            command == "" -> block finished(game)
+            command == "quit" -> block finished(game)
+            command == "exit" -> block finished(game)
+            command == "look" -> block look(game)
+            command == "info" -> block look(game)
+            command == "paths" -> block exits(game)
+            command == "help" -> block exits(game)
+            command == "inventory" -> block inventory(game)
+            command == "inv" -> block inventory(game)
+            command == "char" -> block character(game)
+            command == "character" -> block character(game)
+            command == "stats" -> block character(game)
+            command == "use" -> block use_event(game)
+            command == "fight" -> block fight(game)
+            game.dungeon.current_cell == CellId::R00 && command == "north" -> block move_r01(game)
+            game.dungeon.current_cell == CellId::R01 && command == "south" -> block move_r00(game)
+            game.dungeon.current_cell == CellId::R01 && command == "north" -> block move_r02(game)
+            game.dungeon.current_cell == CellId::R01 && command == "east" -> block move_r05(game)
+            game.dungeon.current_cell == CellId::R02 && command == "south" -> block move_r01(game)
+            game.dungeon.current_cell == CellId::R02 && command == "north" -> block move_r03(game)
+            game.dungeon.current_cell == CellId::R02 && command == "west" -> block move_r06(game)
+            game.dungeon.current_cell == CellId::R03 && command == "south" -> block move_r02(game)
+            game.dungeon.current_cell == CellId::R03 && command == "north" -> block move_r04(game)
+            game.dungeon.current_cell == CellId::R03 && command == "east" -> block move_r07(game)
+            game.dungeon.current_cell == CellId::R04 && command == "south" -> block move_r03(game)
+            game.dungeon.current_cell == CellId::R05 && command == "west" -> block move_r01(game)
+            game.dungeon.current_cell == CellId::R06 && command == "east" -> block move_r02(game)
+            game.dungeon.current_cell == CellId::R07 && command == "west" -> block move_r03(game)
+            _ -> block invalid_command(game)
         }
     }
 
@@ -165,7 +165,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         );
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
@@ -179,7 +179,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_commands();
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
@@ -187,7 +187,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_inventory(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
@@ -195,7 +195,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_character(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
@@ -205,7 +205,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_line(&game.output);
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
@@ -215,8 +215,8 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_line(&game.output);
 
         transition game.dungeon.player.health == 0 {
-            true -> game_over(game)
-            false -> prompt(game)
+            true -> block game_over(game)
+            false -> block prompt(game)
         }
     }
 
@@ -224,8 +224,8 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         let destination: CellId = game.dungeon.navigation.destination;
 
         transition Dungeon::can_travel_to(destination) {
-            true -> move_player(game)
-            false -> blocked_by_enemy(game)
+            true -> block move_player(game)
+            false -> block blocked_by_enemy(game)
         }
     }
 
@@ -234,7 +234,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, destination);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -242,7 +242,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R00);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -250,7 +250,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R01);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -258,7 +258,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R02);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -266,7 +266,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R03);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -274,7 +274,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R04);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -282,7 +282,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R05);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -290,7 +290,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R06);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -298,7 +298,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Dungeon::move_to(&mut game.dungeon, CellId::R07);
 
         transition {
-            _ -> enter_room(game)
+            _ -> block enter_room(game)
         }
     }
 
@@ -307,7 +307,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_line(&game.output);
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
@@ -315,7 +315,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_invalid_command();
 
         transition {
-            _ -> prompt(game)
+            _ -> block prompt(game)
         }
     }
 
@@ -324,7 +324,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         GameView::render_game_over();
 
         transition {
-            _ -> finished(game)
+            _ -> block finished(game)
         }
     }
 

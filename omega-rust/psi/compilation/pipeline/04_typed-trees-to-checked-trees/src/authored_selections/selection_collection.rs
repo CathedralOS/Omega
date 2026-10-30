@@ -101,6 +101,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
         });
         if let Some(target) = target {
             push_consistent_resolution(
+                program,
                 resolutions,
                 AuthoredSelectionResolution {
                     occurrence,
@@ -235,6 +236,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                     continue;
                 }
                 push_consistent_resolution(
+                    program,
                     resolutions,
                     AuthoredSelectionResolution {
                         occurrence,
@@ -334,6 +336,7 @@ pub(crate) fn collect_checked_statement_selections(
                     && let Some(target) = resolution_target
                 {
                     push_consistent_resolution(
+                        program,
                         resolutions,
                         AuthoredSelectionResolution {
                             occurrence,

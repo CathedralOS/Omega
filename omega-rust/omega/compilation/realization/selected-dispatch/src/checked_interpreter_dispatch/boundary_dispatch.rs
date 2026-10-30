@@ -131,6 +131,22 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     let product_references =
         typed_trees::references::collect_selected_program_references(typed, &product_roots);
 
+    // A receiver contributes dispatch only when a selected adapter or generic
+    // requirement supplies it; every other receiver stays out of the plan.
+    let retains_receiver = |receiver: &BoundaryField| {
+        adapters
+            .iter()
+            .any(|adapter| receiver.supplies_adapter(typed, adapter))
+            || generic_requirements.iter().any(|selected| {
+                receiver.supplies_requirement(
+                    typed,
+                    selected.provider_plan_digest,
+                    selected.receiver_trait,
+                    selected.requirement_symbol,
+                )
+            })
+    };
+
     // Exact typed field symbol -> exact boundary-trait symbol. Field spellings
     // may repeat across data owners and never participate in dispatch.
     let mut boundary_fields = Vec::new();
@@ -187,18 +203,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 application,
                 provider_plan_digest,
             };
-            if !adapters
-                .iter()
-                .any(|adapter| receiver.supplies_adapter(typed, adapter))
-                && !generic_requirements.iter().any(|selected| {
-                    receiver.supplies_requirement(
-                        typed,
-                        selected.provider_plan_digest,
-                        selected.receiver_trait,
-                        selected.requirement_symbol,
-                    )
-                })
-            {
+            if !retains_receiver(&receiver) {
                 continue;
             }
             if !field.symbol.is_valid() {
@@ -378,18 +383,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 application: Some(application.environment()),
                 provider_plan_digest: Some(*plan.identity_digest().as_bytes()),
             };
-            if !adapters
-                .iter()
-                .any(|adapter| receiver.supplies_adapter(typed, adapter))
-                && !generic_requirements.iter().any(|selected| {
-                    receiver.supplies_requirement(
-                        typed,
-                        selected.provider_plan_digest,
-                        selected.receiver_trait,
-                        selected.requirement_symbol,
-                    )
-                })
-            {
+            if !retains_receiver(&receiver) {
                 continue;
             }
             if let Some(existing) = boundary_fields

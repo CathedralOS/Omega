@@ -1,0 +1,18 @@
+// Expected exit: 0.
+// A target-dependent bound retains its exact application inside a contract
+// with an ordinary runtime parameter; closing the bound does not erase it.
+data Cell { code: u64; tag: u64; }
+machine require_size(value: u64) -> u64
+requires value == size_of<Cell>()
+requires value >= align_of<Cell>()
+ensures result == size_of<Cell>()
+{ value }
+
+machine main() crashes Trap {
+    let observed: u64 = require_size(16u64);
+    transition observed == 16u64 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() { crash Trap; }
+}

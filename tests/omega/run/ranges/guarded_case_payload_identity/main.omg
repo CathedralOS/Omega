@@ -1,0 +1,32 @@
+// Expected exit: 0.
+// Each guarded payload keeps its own bound despite reusing field names.
+data Text
+    requires (self in Text::Empty)
+        || ((self in Text::Short) && self.length <= 4u64)
+        || ((self in Text::Long) && self.length <= 8u64)
+{
+    case Empty;
+    case Short(bytes: [u8; 4], length: u64);
+    case Long(bytes: [u8; 8], length: u64);
+}
+machine length(text: &Text) -> u64 {
+    transition text {
+        Text::Short { bytes, length } -> read(&bytes[0..length])
+        Text::Long { bytes, length } -> read(&bytes[0..length])
+        Text::Empty -> 0u64
+    }
+    machine read(bytes: &[u8]) -> u64 { bytes.len }
+}
+machine main() crashes Trap {
+    let short_bytes: [u8; 4];
+    let long_bytes: [u8; 8];
+    let short: Text = Text::Short { bytes: short_bytes, length: 3u64 };
+    let long: Text = Text::Long { bytes: long_bytes, length: 7u64 };
+    let empty: Text = Text::Empty;
+    transition length(&short) == 3u64 && length(&long) == 7u64 && length(&empty) == 0u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

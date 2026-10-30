@@ -161,6 +161,30 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
     engine.integer_comparisons_unsatisfiable(normalized)
 }
 
+/// One scalar observation of an exact completed aggregate result. Geometry
+/// comes from the selected public return declaration; the observation supplies
+/// no value bound until ordinary independent call guarantees establish it.
+#[derive(Clone)]
+pub struct ScopedCallResultObservation {
+    pub expression: ExpressionHandle,
+    pub path: Vec<facts::PlaceSegment>,
+    pub primitive_type: typed_trees::types::PrimitiveType,
+    pub value: ScopedArithmeticValue,
+    /// Frozen backing and loaded-slot footprints. An owned inline result has
+    /// none; a pointee observation expires when any supplier may change.
+    pub read_dependencies: Vec<String>,
+    pub(crate) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
+}
+
+pub fn scoped_call_result_observations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Vec<ScopedCallResultObservation> {
+    calls::result_observations::result_observations(program, machine, state, expression)
+}
+
 /// One completed call's retained caller observations. Source ordinal belongs
 /// to the invocation itself, not the later proof point consuming its facts.
 /// A statement completion has no result value; its Result clauses stay unbound.
@@ -171,6 +195,7 @@ pub struct ScopedCallCompletion<'scope> {
     pub actuals: &'scope [ScopedArithmeticBinding],
     pub machine_values: &'scope [(symbols::SymbolHandle, ScopedArithmeticValue)],
     pub result: Option<ScopedArithmeticValue>,
+    pub result_observations: &'scope [ScopedCallResultObservation],
 }
 
 /// Published arithmetic guarantees for one already completed call. Actuals

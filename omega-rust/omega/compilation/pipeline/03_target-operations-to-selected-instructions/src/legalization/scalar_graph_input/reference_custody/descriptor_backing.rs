@@ -20,13 +20,14 @@ pub(super) enum Backing {
         // Geometry is conservative; it grants no authority or disjointness.
         origin: DescriptorSourceOrigin,
         geometry: DescriptorCallOrigin,
-        address: Option<Vec<StructuralPathSegment>>,
+        return_path: Option<Vec<ReferenceOriginProjection>>,
     },
 }
 
 type Observation = (OperationId, PlaceId, Vec<StructuralPathSegment>);
 #[derive(Default)]
 pub(super) struct Observations {
+    pub(super) borrowed_live: Option<BTreeMap<BlockId, BTreeSet<PlaceId>>>,
     pub(super) flow:
         BTreeMap<DescriptorPosition, terminal_semantics::descriptor_results::FlowFeasibility>,
     pub(super) edges: BTreeMap<
@@ -107,6 +108,7 @@ pub(super) fn prepare(
         return Ok(observations);
     };
     let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
+    observations.borrowed_live = borrowed_arrivals::live_coordinates(function);
     // Record actual case queries at every program point, including empty
     // forwarding blocks where an inactive payload is never read. The roster
     // comes from evaluated case conditions, not guessed descriptor absence.
@@ -217,7 +219,7 @@ pub(super) fn prepare(
                                 Some(Backing::Descriptor {
                                     origin,
                                     geometry,
-                                    address: None,
+                                    return_path: None,
                                 })
                             })
                             .collect()
@@ -361,7 +363,7 @@ pub(super) fn capture(
                         source: backing_root,
                         projection,
                     },
-                address,
+                return_path,
                 ..
             } = origin
             {
@@ -369,7 +371,7 @@ pub(super) fn capture(
                 // refine an inexact parent into another storage coordinate.
                 *projection =
                     projection.then(&Projection::new(&source.path[path.len()..]).at(position));
-                *address = projection.fixed_address(
+                *return_path = projection.reference_origin_path(
                     custody
                         .descriptor_backing
                         .ordering
@@ -451,8 +453,9 @@ pub(super) fn overlaps(
     }
 }
 
-/// Exact return identity, separate from conservative storage interference.
-/// Every possible captured origin must name an admitted formal coordinate.
+/// Complete captured origin coverage, separate from storage interference.
+/// Families preserve a selected dimension without claiming a fixed address.
+/// Definite-overlap consumers independently reject such non-exact coordinates.
 pub(super) fn matches_return(backing: &[Backing], declared: &impl Fn(&Root) -> bool) -> bool {
     !backing.is_empty()
         && backing.iter().all(|origin| match origin {
@@ -460,12 +463,14 @@ pub(super) fn matches_return(backing: &[Backing], declared: &impl Fn(&Root) -> b
             Backing::Descriptor {
                 origin: DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { .. }),
                 geometry: DescriptorCallOrigin::Argument { source, .. },
-                address: Some(path),
-            } => declared(&if path.is_empty() {
-                Root::Place(*source)
-            } else {
-                Root::Ingress(*source, path.clone())
-            }),
+                return_path: Some(path),
+            } => declared(&Root::Alternatives(vec![
+                target_operations::TargetReferenceOrigin {
+                    base: target_operations::TargetReferenceOriginBase::Storage { root: *source },
+                    path: path.clone(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                },
+            ])),
             _ => false,
         })
 }

@@ -42,7 +42,7 @@ pub(super) fn initializer_satisfies_predicate_domain(
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
-    if !domain.predicate_body.is_present() {
+    if !domain.predicate_presence.is_present() {
         return false;
     }
     let entry_constraints = facts

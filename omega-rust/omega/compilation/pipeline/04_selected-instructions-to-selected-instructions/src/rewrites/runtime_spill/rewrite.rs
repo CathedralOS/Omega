@@ -113,9 +113,11 @@ pub fn spill_selected_runtime_value_with_crossing_status(
         )
     })?;
     let crossed_unit_write = admitted.crossed_unit_write;
-    let transformed = phase_profile::scope("06.1.d.05.spill.mutate", || -> Result<_, RuntimeSpillError> {
-        let mut transformed = source.selected_plan().clone();
-        transformed
+    let transformed = phase_profile::scope(
+        "06.1.d.05.spill.mutate",
+        || -> Result<_, RuntimeSpillError> {
+            let mut transformed = source.selected_plan().clone();
+            transformed
             .functions
             .mutate_preserving_register_prefix(
                 function_index,
@@ -423,6 +425,23 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                     // Terminator operand uses reload after the last block instruction.
                     // Their pairs occupy the end-of-block gap, so the closing boundary and
                     // instruction positions are pushed only after they are appended.
+                    // Every sink below reads the victim at that same closing boundary
+                    // position: one emission step appends each pair after the terminator's
+                    // own, and no closing pair joins a span's shared pair (`unshared`).
+                    let mut unshared = None;
+                    let mut end_of_block_reload = |register: VirtualRegisterId| {
+                        reload_for_use(
+                            &admitted,
+                            admitted.assignment.end_of_block_slot(block_index),
+                            register,
+                            false,
+                            &mut unshared,
+                            virtual_registers,
+                            &mut instructions,
+                            &mut next_instruction,
+                            &mut next_register,
+                        )
+                    };
                     let mut terminator = block.terminator.clone();
                     for operand in &mut super::control_mut(&mut terminator).operands {
                         if operand.virtual_register != register
@@ -430,18 +449,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         {
                             continue;
                         }
-                        let reload = admission::reload(
-                            &admitted,
-                            admitted.assignment.end_of_block_slot(block_index),
-                            register,
-                            &mut next_instruction,
-                            &mut next_register,
-                        )?;
-                        let reloaded = reload.reload_register.id;
-                        let (registers, sequence) = reload.into_streams();
-                        virtual_registers.extend(registers);
-                        instructions.extend(sequence);
-                        operand.virtual_register = reloaded;
+                        operand.virtual_register = end_of_block_reload(register)?;
                     }
                     // Edge-transport arguments read at the same end-of-block position,
                     // after the terminator instruction executes. Their pairs follow any
@@ -459,17 +467,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                             {
                                 continue;
                             }
-                            let reload = admission::reload(
-                                &admitted,
-                                admitted.assignment.end_of_block_slot(block_index),
-                                register,
-                                &mut next_instruction,
-                                &mut next_register,
-                            )?;
-                            let reloaded = reload.reload_register.id;
-                            let (registers, sequence) = reload.into_streams();
-                            virtual_registers.extend(registers);
-                            instructions.extend(sequence);
+                            let reloaded = end_of_block_reload(register)?;
                             let SelectedValueTransport::Registers { argument, .. } =
                                 &mut binding.transport
                             else {
@@ -493,17 +491,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                         register,
                                     )
                             {
-                                let reload = admission::reload(
-                                    &admitted,
-                                    admitted.assignment.end_of_block_slot(block_index),
-                                    register,
-                                    &mut next_instruction,
-                                    &mut next_register,
-                                )?;
-                                let reloaded = reload.reload_register.id;
-                                let (registers, sequence) = reload.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
+                                let reloaded = end_of_block_reload(register)?;
                                 *base = selected_instructions::SelectedAddressBase::Register(
                                     reloaded,
                                 );
@@ -535,18 +523,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 return Err(RuntimeSpillError::SourceMismatch);
                             };
                             let reloaded = if pending.dedicated_reload {
-                                let reload = admission::reload(
-                                    &admitted,
-                                    admitted.assignment.end_of_block_slot(block_index),
-                                    register,
-                                    &mut next_instruction,
-                                    &mut next_register,
-                                )?;
-                                let reloaded = reload.reload_register.id;
-                                let (registers, sequence) = reload.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
-                                reloaded
+                                end_of_block_reload(register)?
                             } else {
                                 pending
                                     .loads
@@ -575,17 +552,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 {
                                     continue;
                                 }
-                                let reload = admission::reload(
-                                    &admitted,
-                                    admitted.assignment.end_of_block_slot(block_index),
-                                    register,
-                                    &mut next_instruction,
-                                    &mut next_register,
-                                )?;
-                                let reloaded = reload.reload_register.id;
-                                let (registers, sequence) = reload.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
+                                let reloaded = end_of_block_reload(register)?;
                                 let SelectedCasePayloadTransport::Registers { argument, .. } =
                                     &mut payload.transport
                                 else {
@@ -639,8 +606,9 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                 Ok(())
             },
         )?;
-        Ok(transformed)
-    })?;
+            Ok(transformed)
+        },
+    )?;
     let sealed = phase_profile::scope("06.1.d.05.spill.seal", || {
         super::validation::seal_runtime_spill_with_span_policy(source, transformed)
     })?;

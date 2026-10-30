@@ -52,12 +52,19 @@ pub(super) fn account<'calls>(
     )],
     operations: &mut [CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
+    selected_exit: Option<checked_trees::FlowClaimJoinExit>,
+    completion: checked_trees::CheckedNormalCompletion,
     trace: &control::LocalConstructionTrace,
 ) -> Option<()> {
+    if selected_exit.is_some_and(|exit| {
+        exit.state_symbol != state.symbol
+            || exit.kind != checked_trees::FlowClaimJoinExitKind::TransitionTarget
+    }) {
+        return None;
+    }
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
-    let has_normal_continuation =
-        terminator.has_normal_continuation(operations, &facts.flow.guarded_exits)?;
+    let has_normal_continuation = completion == checked_trees::CheckedNormalCompletion::Possible;
     // The first guard executes before selecting any exit. Later ordered
     // guards execute only on a remaining path; their transfers cannot stand
     // in for unconditional ownership. The retained computation itself owns
@@ -87,6 +94,15 @@ pub(super) fn account<'calls>(
     // Keeping those inventories separate avoids counting sibling transfers
     // as sequential consumption or overlooking a direct returned local.
     let return_arms = terminator.return_arms();
+    // Graph arrivals still execute, including fused calls that cannot return.
+    // Only returning source paths owe the caller's lexical result disposition.
+    // This does not authorize abandonment or bypass operand/transfer custody.
+    let has_normal_caller_completion = has_normal_continuation
+        && (successors.is_empty()
+            || successors
+                .iter()
+                .any(|edge| edge.has_normal_caller_completion())
+            || return_arms.iter().any(|arm| arm.has_normal_continuation()));
     let return_construction_uses = return_arms
         .iter()
         .map(|arm| construction_local_uses(facts, state.symbol, arm.operation_dependencies()))
@@ -488,6 +504,12 @@ pub(super) fn account<'calls>(
         let release_owned_view = affine_view && owns_local_view_claim;
         let has_captured_view_loans = release_owned_view && has_captured_view_loans;
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
+            // A closed dispatch retains the selected arm even after its call
+            // becomes an ordinary completion. Never infer its disposal from
+            // the number of canonical (including inactive) source exits.
+            let statement = statement.or_else(|| {
+                selected_exit.and_then(|exit| u32::try_from(exit.statement_index).ok())
+            });
             !retired_whole
                 && reference_releases == 0
                 // A scheduled loan release is the one checked disposition of
@@ -506,7 +528,11 @@ pub(super) fn account<'calls>(
                         continuation,
                     ))
         };
-        if release_owned_view && successor_moves.iter().any(|(_, moves)| *moves > 1) {
+        if result.multiplicity != Multiplicity::Unrestricted
+            && successor_moves.iter().any(|(_, moves)| *moves > 1)
+        {
+            trace.phase("state graph: structural result has duplicate successor transfers");
+            trace.statement(Some(result.statement_index));
             return None;
         }
         // A successor moves the result either as a direct transfer or, for
@@ -640,8 +666,16 @@ pub(super) fn account<'calls>(
             };
         // With no normal exit there is no transfer/disposal owner here to
         // count beside an earlier in-sequence consumption.
-        let has_normal_exit = !terminator.successors().is_empty()
+        let has_normal_exit = successors
+            .iter()
+            .any(|edge| edge.has_normal_caller_completion())
             || return_arms.iter().any(|arm| arm.has_normal_continuation());
+        // A nonreturning invocation may leave residual caller ownership
+        // suspended, but its actual moves still count beside any earlier
+        // consumption. Otherwise a previous call plus an edge move could
+        // escape the ordinary duplicate-disposition total below.
+        let has_selected_disposition = has_normal_exit
+            || (!release_owned_view && successor_moves.iter().any(|(_, moves)| *moves != 0));
         let mut closed_sum_all_reference_returns = false;
         // Every normal completion owes its own transfer or exact cleanup
         // receipt. A move in one alternative cannot cover a sibling return.
@@ -761,9 +795,10 @@ pub(super) fn account<'calls>(
                 // conversely, a moving arm cannot cover an uncovered sibling.
                 // The source checker owns move validity; normal-edge cleanup
                 // retains the exact disposal schedule for each coordinate.
-                has_normal_exit
+                has_selected_disposition
                     && terminator.successors().iter().all(|edge| {
                         transferred(edge)
+                            || !edge.has_normal_caller_completion()
                             || permits_disposal(Some(edge.statement_ordinal), edge.is_continuation)
                     })
                     && return_arms
@@ -784,7 +819,7 @@ pub(super) fn account<'calls>(
                         && cases.iter().all(|case| match &case.outcome {
                             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(
                                 successor,
-                            ) => transferred(successor) || permits_disposal(Some(successor.statement_ordinal), successor.is_continuation),
+                            ) => !successor.has_normal_caller_completion() || transferred(successor) || permits_disposal(Some(successor.statement_ordinal), successor.is_continuation),
                             checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
                                 let exact_reborrow = matches!(arm,
                                     CheckedConditionalReturnArm::Structural(returned)
@@ -843,7 +878,7 @@ pub(super) fn account<'calls>(
                         && !stored
                         && result.multiplicity == Multiplicity::Unrestricted
                 } else {
-                    has_normal_exit && complete_partition
+                    has_selected_disposition && complete_partition
                 }
             }
             // A crash abandons custody; it owns no normal disposal.
@@ -1003,7 +1038,7 @@ pub(super) fn account<'calls>(
             + construction_transfers
             + reference_releases
             + independent_view_releases;
-        if total != 1 && !(total == 0 && !has_normal_continuation) {
+        if total != 1 && !(total == 0 && !has_normal_caller_completion) {
             trace.phase(if total == 0 {
                 "state graph: structural result has no selected disposition"
             } else if construction_transfers != 0 && reference_releases != 0 {

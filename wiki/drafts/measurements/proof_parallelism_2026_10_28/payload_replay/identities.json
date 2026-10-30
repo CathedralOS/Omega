@@ -1,0 +1,56 @@
+[
+  {
+    "producer": "payload",
+    "compiler_sha256": "a8b34dd48282e8b3bbf0695892d8efd967fa06835cdbafb9dc744c1ab805166f",
+    "accepted_lock_sha256": "3b9b89dc7bc2717fb706df6237a580d95a9c4d9beda26a0bfa88a2c43059c271",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "producer": "payload-index",
+    "compiler_sha256": "eba2c88fa08cd82af07a668cdf4c252fcf401f1e10d84b151fbe780a6f7b0ba6",
+    "accepted_lock_sha256": "5a990d61af91a0450b2396a3883d6e47265e72ebda716a4e93d5a337ea627001",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "producer": "payload-rosters",
+    "compiler_sha256": "ab3e80038e76062860ed6520d6b810b6863f0f4dee933819538331bbeceedeb1",
+    "accepted_lock_sha256": "609e5a44bb1ed35a55dfb829579a7424ec7725d24baf5eaef202a8e0ffcdf571",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "producer": "payload-entry",
+    "compiler_sha256": "b64effe687497fa8fe19c04f2f86b6749c206d0d76586f5da233b60621b26f59",
+    "accepted_lock_sha256": "607f57370161b7557aa821f826ced07a74189f894b72ff7c4819090f8c62eaaf",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "producer": "payload-core",
+    "compiler_sha256": "3813821a2c1272d85880b7bd2d0b549ee2ffcc9e0f53116a30d1df96e569e633",
+    "accepted_lock_sha256": "87f6a0c15ff23d95abfcd056e2fce7313038d5d785e2196c2f11ba868d4738d1",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "producer": "payload-transfer",
+    "compiler_sha256": "dcc67da82120672133f50935793af829b424baeec7f5c60bc70e4cfcba5d674b",
+    "accepted_lock_sha256": "ac56790e5ff2c9da7e4ddd9ee78582ee031fe6243f24ffff4b84a4c80e278b9c",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+]

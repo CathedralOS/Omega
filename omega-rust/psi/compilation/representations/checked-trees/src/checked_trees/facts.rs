@@ -29,6 +29,16 @@ mod blocking;
 mod checked_crash_operator_site;
 mod content;
 mod contract_plans;
+mod declaration_descriptions;
+mod proof_applications;
+pub use declaration_descriptions::{
+    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
+    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+};
+pub use proof_applications::{
+    ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
+    ProofDeclarationDependencies,
+};
 mod mutation;
 mod qualifications;
 mod service_reaches;
@@ -103,7 +113,7 @@ pub use contextual_cleanup::{
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
     CheckedMachineResourceEnvelopes, CheckedResourceAxisAnchor,
-    CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject,
+    CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject, CheckedTrappingSite,
     ClosedFloatRangeRequirement, ClosedIntegerRangeRequirement, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, CrashCallSiteLocation, CrashCause, CrashContractCapsule,
     CrashInterface, CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
@@ -156,9 +166,9 @@ pub use termination::{
     CheckedProofRecursiveTransitionLane, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
-    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
-    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence, MachineTerminationFact,
-    TerminationFacts,
+    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
+    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    MachineTerminationFact, TerminationFacts,
 };

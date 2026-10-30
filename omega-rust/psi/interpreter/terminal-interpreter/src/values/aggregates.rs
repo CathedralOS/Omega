@@ -161,7 +161,10 @@ impl<'declaration> ScalarAggregatePlan<'declaration> {
                     }
                     (Shape::Record(members), count, false)
                 }
-                StructuralTypeShape::FixedArray { element, length } => {
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } => {
                     let element = child(*element)?;
                     let count = if *length == 0 {
                         Some(0)

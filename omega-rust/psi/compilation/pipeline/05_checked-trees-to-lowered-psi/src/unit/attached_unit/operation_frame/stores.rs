@@ -1129,13 +1129,14 @@ impl OperationFrame<'_, '_> {
             &store.destination.path,
         )? {
             let logical = self.receiving_place(captured.original_source, captured.original_path)?;
+            let write = self.proven_store_path(store, &logical.path);
             if !terminal_semantics::store_preserves_domain_content(
                 self.structural_types.declarations().iter(),
                 self.callees.domain_declarations.iter(),
                 &identities.snapshot(),
                 &logical.qualifications,
                 &logical.projected_qualifications,
-                &logical.path,
+                &write,
             ) {
                 return unsupported("captured scalar store changes logical conserved Content");
             }
@@ -1228,7 +1229,7 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "scalar store has no field declaration",
             ))?;
-            let mut written = path.clone();
+            let mut written = self.proven_store_path(store, &path);
             written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
             if !terminal_semantics::store_preserves_domain_content(
                 self.structural_types.declarations().iter(),
@@ -1251,6 +1252,38 @@ impl OperationFrame<'_, '_> {
         )?;
         self.push_unit(kind);
         Ok(())
+    }
+
+    /// The checked destination path's proven assignment coordinates are the
+    /// authoritative write geometry: a runtime selector checking proved to one
+    /// coordinate stays disjoint from every other element's conserved Content.
+    /// An unproven selector keeps its conservative overlap exactly as checking
+    /// saw it. Positions mirror the checked destination path one for one.
+    fn proven_store_path(
+        &self,
+        store: &CheckedStorePlan,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Vec<terminal_psi::StructuralPathSegment> {
+        let mut write = path.to_vec();
+        for (position, segment) in write.iter_mut().enumerate() {
+            let (
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                )),
+            ) = (&*segment, store.destination.path.get(position))
+            else {
+                continue;
+            };
+            if let Some(coordinate) = self.checked.facts.assignment_index_coordinate(
+                self.state,
+                store.statement_index,
+                *depth,
+            ) {
+                *segment = terminal_psi::StructuralPathSegment::FixedIndex(coordinate);
+            }
+        }
+        write
     }
 
     /// Resolve a complete receiving contract at the retained place. A type

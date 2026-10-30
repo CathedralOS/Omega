@@ -47,10 +47,6 @@ impl HistoricalPackagePolicyDecision {
             _ => None,
         }
     }
-
-    pub const fn disposition(&self) -> ReviewOnlyRootPolicyDisposition {
-        self.disposition
-    }
 }
 
 /// Inert policy history for one exact source subject, including its target.
@@ -74,12 +70,6 @@ impl HistoricalPackagePolicyDecisions {
 
     pub fn decisions(&self) -> &[HistoricalPackagePolicyDecision] {
         &self.decisions
-    }
-
-    /// Prior source association, absent for fresh review and version 1 history.
-    /// Read this alongside `comparison` to distinguish those cases.
-    pub const fn baseline_source_subject(&self) -> Option<[u8; 32]> {
-        self.baseline_source_subject
     }
 }
 

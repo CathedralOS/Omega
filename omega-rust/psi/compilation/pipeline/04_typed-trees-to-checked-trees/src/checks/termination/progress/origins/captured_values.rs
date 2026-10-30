@@ -105,6 +105,7 @@ pub(super) fn at_call(
             capture,
             reference,
             projection,
+            ..
         }) => {
             if !reference.is_valid() {
                 return CapturedOrigins::Unavailable;

@@ -146,6 +146,7 @@ pub(super) fn saturating_multiply_zero_annihilation_classify(
 }
 
 pub(super) fn bitwise_neutral_literal_classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
+    use TotalScalarIdentityKind as Kind;
     match operation {
         O::IntegerBitwiseAnd {
             psi_operation,
@@ -153,14 +154,14 @@ pub(super) fn bitwise_neutral_literal_classify(operation: &O) -> Vec<TotalScalar
             scalar_type,
             left,
             right,
-        } => bitwise_neutral_pair(
+        } => bitwise_pair_shapes(
             *psi_operation,
             *result,
             *scalar_type,
-            *left,
-            *right,
-            TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft,
-            TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight,
+            [
+                (*right, *left, Kind::IntegerBitwiseAndAllOnesLeft),
+                (*left, *right, Kind::IntegerBitwiseAndAllOnesRight),
+            ],
             all_ones(*scalar_type),
         ),
         O::IntegerBitwiseOr {
@@ -169,14 +170,14 @@ pub(super) fn bitwise_neutral_literal_classify(operation: &O) -> Vec<TotalScalar
             scalar_type,
             left,
             right,
-        } => bitwise_neutral_pair(
+        } => bitwise_pair_shapes(
             *psi_operation,
             *result,
             *scalar_type,
-            *left,
-            *right,
-            TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft,
-            TotalScalarIdentityKind::IntegerBitwiseOrZeroRight,
+            [
+                (*right, *left, Kind::IntegerBitwiseOrZeroLeft),
+                (*left, *right, Kind::IntegerBitwiseOrZeroRight),
+            ],
             scalar_type.zero(),
         ),
         O::IntegerBitwiseXor {
@@ -185,55 +186,48 @@ pub(super) fn bitwise_neutral_literal_classify(operation: &O) -> Vec<TotalScalar
             scalar_type,
             left,
             right,
-        } => bitwise_neutral_pair(
+        } => bitwise_pair_shapes(
             *psi_operation,
             *result,
             *scalar_type,
-            *left,
-            *right,
-            TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft,
-            TotalScalarIdentityKind::IntegerBitwiseXorZeroRight,
+            [
+                (*right, *left, Kind::IntegerBitwiseXorZeroLeft),
+                (*left, *right, Kind::IntegerBitwiseXorZeroRight),
+            ],
             scalar_type.zero(),
         ),
         _ => Vec::new(),
     }
 }
 
-fn bitwise_neutral_pair(
+/// The two candidate identities of one bitwise pair: each row names the operand
+/// the rule replaces, the operand it keeps as the law operand, and its kind.
+fn bitwise_pair_shapes(
     source_operation: OperationId,
     result: ValueId,
     scalar_type: IntegerType,
-    left: ValueId,
-    right: ValueId,
-    left_identity: TotalScalarIdentityKind,
-    right_identity: TotalScalarIdentityKind,
+    candidates: [(ValueId, ValueId, TotalScalarIdentityKind); 2],
     law_value: IntegerValue,
 ) -> Vec<TotalScalarIdentityShape> {
-    vec![
-        TotalScalarIdentityShape {
-            source_operation,
-            result,
-            replacement: right,
-            law_operand: left,
-            scalar_type,
-            law_operand_type: scalar_type,
-            identity: left_identity,
-            expected_law_value: law_value,
-        },
-        TotalScalarIdentityShape {
-            source_operation,
-            result,
-            replacement: left,
-            law_operand: right,
-            scalar_type,
-            law_operand_type: scalar_type,
-            identity: right_identity,
-            expected_law_value: law_value,
-        },
-    ]
+    candidates
+        .into_iter()
+        .map(
+            |(replacement, law_operand, identity)| TotalScalarIdentityShape {
+                source_operation,
+                result,
+                replacement,
+                law_operand,
+                scalar_type,
+                law_operand_type: scalar_type,
+                identity,
+                expected_law_value: law_value,
+            },
+        )
+        .collect()
 }
 
 pub(super) fn bitwise_absorbing_literal_classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
+    use TotalScalarIdentityKind as Kind;
     match operation {
         O::IntegerBitwiseAnd {
             psi_operation,
@@ -241,14 +235,14 @@ pub(super) fn bitwise_absorbing_literal_classify(operation: &O) -> Vec<TotalScal
             scalar_type,
             left,
             right,
-        } => bitwise_absorbing_pair(
+        } => bitwise_pair_shapes(
             *psi_operation,
             *result,
             *scalar_type,
-            *left,
-            *right,
-            TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft,
-            TotalScalarIdentityKind::IntegerBitwiseAndZeroRight,
+            [
+                (*left, *left, Kind::IntegerBitwiseAndZeroLeft),
+                (*right, *right, Kind::IntegerBitwiseAndZeroRight),
+            ],
             scalar_type.zero(),
         ),
         O::IntegerBitwiseOr {
@@ -257,50 +251,16 @@ pub(super) fn bitwise_absorbing_literal_classify(operation: &O) -> Vec<TotalScal
             scalar_type,
             left,
             right,
-        } => bitwise_absorbing_pair(
+        } => bitwise_pair_shapes(
             *psi_operation,
             *result,
             *scalar_type,
-            *left,
-            *right,
-            TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft,
-            TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight,
+            [
+                (*left, *left, Kind::IntegerBitwiseOrAllOnesLeft),
+                (*right, *right, Kind::IntegerBitwiseOrAllOnesRight),
+            ],
             all_ones(*scalar_type),
         ),
         _ => Vec::new(),
     }
-}
-
-fn bitwise_absorbing_pair(
-    source_operation: OperationId,
-    result: ValueId,
-    scalar_type: IntegerType,
-    left: ValueId,
-    right: ValueId,
-    left_identity: TotalScalarIdentityKind,
-    right_identity: TotalScalarIdentityKind,
-    law_value: IntegerValue,
-) -> Vec<TotalScalarIdentityShape> {
-    vec![
-        TotalScalarIdentityShape {
-            source_operation,
-            result,
-            replacement: left,
-            law_operand: left,
-            scalar_type,
-            law_operand_type: scalar_type,
-            identity: left_identity,
-            expected_law_value: law_value,
-        },
-        TotalScalarIdentityShape {
-            source_operation,
-            result,
-            replacement: right,
-            law_operand: right,
-            scalar_type,
-            law_operand_type: scalar_type,
-            identity: right_identity,
-            expected_law_value: law_value,
-        },
-    ]
 }

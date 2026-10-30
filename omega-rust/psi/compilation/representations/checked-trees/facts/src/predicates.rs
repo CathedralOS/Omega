@@ -49,6 +49,51 @@ impl CheckedStorageRoot {
     }
 }
 
+/// A source selector or a closed coordinate. Closed slice coordinates still
+/// require an observation of their own descriptor extent; they are not static
+/// array geometry and never borrow an unrelated authored indexing occurrence.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedEntryIndexSelector {
+    Expression(typed_trees::expression::ExpressionHandle),
+    Constant(u64),
+}
+
+/// An indexed entry observation whose formation was proved in its own
+/// invocation telescope. Geometry-only queries never produce this record.
+/// The exact selector and collection are retained through rank publication;
+/// lowering consumes the decision without assuming a later branch guard.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedEntryIndexBound {
+    pub state: SymbolHandle,
+    pub parameter: SymbolHandle,
+    pub path_step: u32,
+    pub selector: CheckedEntryIndexSelector,
+    pub collection_path: Vec<crate::PlaceSegment>,
+    pub collection_type: typed_trees::types::TypeReferenceHandle,
+    pub element_type: typed_trees::types::TypeReferenceHandle,
+    /// None denotes the exact collection_path descriptor's checked entry length.
+    pub extent: Option<u64>,
+    pub primitive_type: typed_trees::types::PrimitiveType,
+}
+
+impl Default for CheckedEntryIndexBound {
+    fn default() -> Self {
+        Self {
+            state: SymbolHandle::invalid(),
+            parameter: SymbolHandle::invalid(),
+            path_step: 0,
+            selector: CheckedEntryIndexSelector::Expression(
+                typed_trees::expression::ExpressionHandle::invalid(),
+            ),
+            collection_path: Vec::new(),
+            collection_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            element_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            extent: Some(0),
+            primitive_type: typed_trees::types::PrimitiveType::U64,
+        }
+    }
+}
+
 /// One evaluated selector and the authored indexing occurrence it selects for.
 /// The occurrence names `collection[index]`, not its index operand: equal
 /// operands can select different extents. Generated selectors use the zero
@@ -58,6 +103,9 @@ impl CheckedStorageRoot {
 pub struct CheckedScalarSelector {
     pub expression: CheckedScalarExpression,
     pub occurrence: typed_trees::expression::ExpressionHandle,
+    /// Generated entry observations retain their independently checked bound.
+    /// Authored reads instead use `occurrence`; the two authorities are exclusive.
+    pub entry_bound: Option<CheckedEntryIndexBound>,
 }
 
 /// Scalar read paths retain evaluated selectors beside static member geometry.
@@ -91,6 +139,15 @@ impl CheckedScalarReadProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarExpression {
+    /// An admitted constant application whose value belongs to target closure.
+    /// This is not an unknown runtime value or permission to evaluate source.
+    /// Contract composition preserves the exact recipe and carrier until the
+    /// value owner supplies a closed atom; publication cannot erase this leaf.
+    ConstantApplication {
+        recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+        owner: symbols::SymbolHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
     /// Exact u64 live count at one storage projection, never its capacity.
     /// The root counts authored structural positions; selectors keep their
     /// consuming scalar namespace and indexing proof occurrence. Element views
@@ -178,8 +235,12 @@ pub enum CheckedScalarExpression {
         /// excluded `MIN / -1` pair; an Exact sum, difference or product's
         /// representability). Lowering marks the emitted operation so its
         /// obligation consumes the decision; false keeps the certificate
-        /// search.
+        /// search. This is independent of permitted runtime traps.
         formation_decided: bool,
+        /// Checking proved this occurrence's Exact counterpart forms over all
+        /// observed arrivals. This excludes runtime Trap while preserving the
+        /// selected Trapping policy and its separate formation obligation.
+        trap_free: bool,
     },
     IntegerBitwiseNot {
         primitive_type: typed_trees::types::PrimitiveType,
@@ -289,39 +350,62 @@ impl CheckedScalarExpression {
     /// Boolean subterms are inspected through their integer
     /// comparisons.
     pub fn contains_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(false)
+    }
+
+    /// Runtime trap possibilities after independently checked formation.
+    pub fn contains_possible_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(true)
+    }
+
+    pub(crate) fn contains_trapping_operation_with_certificates(
+        &self,
+        use_certificates: bool,
+    ) -> bool {
         match self {
             Self::IntegerBinary {
-                kind, left, right, ..
+                kind,
+                left,
+                right,
+                trap_free,
+                ..
             } => {
-                kind.is_trapping()
-                    || left.contains_trapping_operation()
-                    || right.contains_trapping_operation()
+                (kind.is_trapping() && !(use_certificates && *trap_free))
+                    || left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerBitwiseNot { operand, .. }
             | Self::IntegerWiden { operand, .. }
             | Self::IntegerExactCast { operand, .. }
-            | Self::RepresentationView { operand, .. } => operand.contains_trapping_operation(),
+            | Self::RepresentationView { operand, .. } => {
+                operand.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::StructuralParameterIndexedRead {
                 index,
                 element_path,
                 ..
             } => {
-                index.expression.contains_trapping_operation()
+                index
+                    .expression
+                    .contains_trapping_operation_with_certificates(use_certificates)
                     || element_path.iter().any(|projection| match projection {
                         CheckedScalarReadProjection::Static(_) => false,
-                        CheckedScalarReadProjection::RuntimeIndex(selector) => {
-                            selector.expression.contains_trapping_operation()
-                        }
+                        CheckedScalarReadProjection::RuntimeIndex(selector) => selector
+                            .expression
+                            .contains_trapping_operation_with_certificates(use_certificates),
                     })
             }
-            Self::Boolean(expression) => expression.contains_trapping_operation(),
+            Self::Boolean(expression) => {
+                expression.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::StructuralSequenceLength { path, .. } => path.iter().any(|step| match step {
                 CheckedScalarReadProjection::Static(_) => false,
-                CheckedScalarReadProjection::RuntimeIndex(selector) => {
-                    selector.expression.contains_trapping_operation()
-                }
+                CheckedScalarReadProjection::RuntimeIndex(selector) => selector
+                    .expression
+                    .contains_trapping_operation_with_certificates(use_certificates),
             }),
-            Self::StorageRead { .. }
+            Self::ConstantApplication { .. }
+            | Self::StorageRead { .. }
             | Self::Parameter { .. }
             | Self::ErasedParameter { .. }
             | Self::Local { .. }
@@ -338,7 +422,8 @@ impl CheckedScalarExpression {
         use typed_trees::types::PrimitiveType;
         match self {
             Self::StructuralSequenceLength { .. } => Some(PrimitiveType::U64),
-            Self::Parameter { primitive_type, .. }
+            Self::ConstantApplication { primitive_type, .. }
+            | Self::Parameter { primitive_type, .. }
             | Self::ErasedParameter { primitive_type, .. }
             | Self::StorageRead { primitive_type, .. }
             | Self::Local { primitive_type, .. }
@@ -529,17 +614,34 @@ impl CheckedBooleanExpression {
     /// Whether evaluating this condition executes a Trapping primitive in
     /// one of its integer operands.
     pub fn contains_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(false)
+    }
+
+    /// Runtime trap possibilities after independently checked formation.
+    pub fn contains_possible_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(true)
+    }
+
+    pub(crate) fn contains_trapping_operation_with_certificates(
+        &self,
+        use_certificates: bool,
+    ) -> bool {
         match self {
-            Self::Not(operand) => operand.contains_trapping_operation(),
+            Self::Not(operand) => {
+                operand.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::Equal { left, right } | Self::And { left, right } | Self::Or { left, right } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerComparison { left, right, .. }
             | Self::ScalarIeeeFloatComparison { left, right, .. } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerMathComparison { left, right, .. } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::StorageRead { .. }
             | Self::Constant(_)

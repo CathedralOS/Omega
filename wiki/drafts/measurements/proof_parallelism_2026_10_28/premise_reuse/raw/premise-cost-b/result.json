@@ -1,0 +1,126 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\premise-probe\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\premise-cost-b\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 18.792145600000367,
+  "exit_code": 0,
+  "cpu_seconds": 25.859375,
+  "peak_working_set_bytes": 2164596736,
+  "peak_commit_bytes": 3577708544,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.12923310000041965,
+  "producer": "premise-probe",
+  "compiler_sha256": "2430aefa3bfe1d7a326989886d545fab807811a0b02b61baa9d80b766915756f",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "831e5d996b3e7959364489482257f84b241720fdc0a288d5aaabf95ecbd43fd5",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "timing",
+  "reconciliation": [
+    {
+      "operation": "places",
+      "machines": 7,
+      "wall_ns": 10100,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 7,
+      "wall_ns": 10700,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 7,
+      "wall_ns": 1100,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 2,
+      "wall_ns": 2200,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 2,
+      "wall_ns": 4300,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 2,
+      "wall_ns": 200,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 202,
+      "wall_ns": 217600,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 202,
+      "wall_ns": 54000,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 202,
+      "wall_ns": 2826294700,
+      "metrics": {
+        "analysis_drop_ns": 1865700,
+        "discovery_ns": 88000,
+        "graph_drop_ns": 1676200,
+        "graph_preparation_ns": 168346600,
+        "history_creation_ns": 25200,
+        "history_drop_ns": 13332300,
+        "leaf_query_formation_ns": 58200,
+        "leaf_root_lookup_ns": 268500,
+        "merge_ns": 1227700,
+        "operand_queries_ns": 31808500,
+        "payload_contract_queries_ns": 4938500,
+        "payload_target_queries_ns": 3976500,
+        "reachability_drop_ns": 100,
+        "reference_context_drop_ns": 4572600,
+        "reference_queries_ns": 443720800,
+        "source_contract_queries_ns": 2131596100,
+        "types_drop_ns": 9600,
+        "view_queries_ns": 4524400
+      }
+    }
+  ],
+  "premise_mode": "timing",
+  "premise": {
+    "windows": 418,
+    "hot": {},
+    "global_counts": {},
+    "hot_cost": {
+      "rows": 3140756,
+      "kept": 3139864,
+      "setup_ns": 491400,
+      "retirement_ns": 174682100,
+      "substitution_ns": 165413600,
+      "equalities_ns": 1205900
+    },
+    "global_cost": {
+      "rows": 3142008,
+      "kept": 3141045,
+      "setup_ns": 499400,
+      "retirement_ns": 174759000,
+      "substitution_ns": 165492400,
+      "equalities_ns": 1232800
+    },
+    "hot_scopes": 0,
+    "peak_unique_rows_per_query": 0
+  }
+}

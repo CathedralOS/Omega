@@ -529,6 +529,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             };
             let mut requirement_parameters = predicate_parameters.to_vec();
             let mut static_substitution = Vec::new();
+            let mut type_substitution = Vec::new();
             if let Some(site) = self.call_site {
                 let Some(owner) = super::specification_calls::selected_call_site_contract(
                     program,
@@ -556,6 +557,18 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.proven = false;
                     return;
                 };
+                let Some(application) =
+                    super::specification_calls::AppliedProofBindings::for_call_site(
+                        program,
+                        machine.symbol,
+                        &owner,
+                        site,
+                    )
+                else {
+                    self.proven = false;
+                    return;
+                };
+                type_substitution = application.types;
                 for (parameter, value) in bindings {
                     static_substitution.push((parameter.name.to_string(), value));
                     requirement_parameters.push(parameter);
@@ -660,6 +673,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.inherited
                         .as_ref()
                         .map_or(&[], |predicate| predicate.selections.as_slice()),
+                    &type_substitution,
                     Some((machine, state)),
                 ),
                 StructuralJudgment::Proven,
@@ -696,7 +710,7 @@ fn runtime_equality_fact(
         );
     }
     match binary.operator {
-        BinaryOperator::And => {
+        BinaryOperator::And | BinaryOperator::Or => {
             runtime_equality_fact(program, machine, state, binary.left)
                 && runtime_equality_fact(program, machine, state, binary.right)
         }
@@ -728,14 +742,21 @@ fn runtime_fact_for_parameters(
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
+    // Static equations have no mutable runtime operand. Recognizing their
+    // exact term only admits the question; the applied tuple and prior
+    // premises still owe its truth in the ordinary prefix judgment.
+    if program.static_type_predicate_operands(expression).is_some() {
+        return super::structural_terms::static_type_predicate_term(program, expression, &[])
+            .is_some();
+    }
     if let Some(binary) = program.expression_table.binary_node(expression) {
-        if binary.operator == BinaryOperator::And {
+        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
             return runtime_fact_for_parameters(program, owner, parameters, binary.left)
                 && runtime_fact_for_parameters(program, owner, parameters, binary.right);
         }
         if super::structural_terms::is_case_observation(program, expression) {
-            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
-                program, parameters, expression, binary,
+            return crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
+                program, owner, parameters, expression, binary,
             );
         }
     }

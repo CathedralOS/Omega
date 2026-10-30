@@ -41,6 +41,50 @@ impl TypedTrees {
         crate::references::collect_program_conformance_occurrences(self)
     }
 
+    /// Prepared Product rows remain source-owned: the current declaration/body
+    /// census must still contain their exact authored operand and role. Cloned
+    /// helper bodies retain their original author; an arena row alone supplies
+    /// neither an occurrence nor authority to select an implementation.
+    pub fn live_product_operand_applications(
+        &self,
+    ) -> Vec<Handle<crate::product_operand::ProductOperandApplication>> {
+        if self.product_operand_applications.is_empty() {
+            return Vec::new();
+        }
+        let occurrences = crate::product_operand::collect_product_selection_occurrences(self);
+        let mut live = self
+            .product_operand_applications
+            .iter()
+            .filter_map(|(handle, selected)| {
+                let role = selected.role?;
+                let author = self.symbols.authored_origin(selected.owner);
+                occurrences
+                    .iter()
+                    .any(|occurrence| {
+                        self.symbols.authored_origin(occurrence.machine) == author
+                            && occurrence.request.operands.iter().enumerate().any(
+                                |(ordinal, operand)| {
+                                    occurrence.request.operation.product_operand_role(ordinal)
+                                        == Some(role)
+                                        && self
+                                            .same_product_operand_source(operand, &selected.operand)
+                                },
+                            )
+                    })
+                    .then_some(handle)
+            })
+            .collect::<Vec<_>>();
+        for handle in self
+            .retained_product_application_handles
+            .span_or_empty(self.roots.retained_product_applications)
+        {
+            if self.product_operand_applications.is_valid(*handle) && !live.contains(handle) {
+                live.push(*handle);
+            }
+        }
+        live
+    }
+
     /// Census of occurrence/evidence selections, preserving each source anchor.
     pub fn closed_conformance_application_sites(
         &self,
@@ -163,6 +207,24 @@ impl TypedTrees {
                 &selected.application,
             ));
         }
+        for handle in self.live_product_operand_applications() {
+            let selected = self.product_operand_applications.get(handle);
+            let Some(application) = selected.implementation.as_ref() else {
+                continue;
+            };
+            let source = self
+                .expression_table
+                .static_machine_application(selected.supplying_application);
+            if !includes_owner(source.lexical_owner) {
+                continue;
+            }
+            sites.push((
+                super::ClosedConformanceApplicationSite::ProductOperand(handle),
+                source.lexical_owner,
+                selected.supplying_application,
+                application,
+            ));
+        }
         sites
     }
 
@@ -171,6 +233,11 @@ impl TypedTrees {
         site: super::ClosedConformanceApplicationSite,
     ) -> Option<&mut super::ClosedConformanceApplication> {
         match site {
+            super::ClosedConformanceApplicationSite::ProductOperand(handle) => self
+                .product_operand_applications
+                .get_mut(handle)
+                .implementation
+                .as_mut(),
             super::ClosedConformanceApplicationSite::TraitArgument(handle) => Some(
                 &mut self
                     .trait_implementation_applications
@@ -298,11 +365,15 @@ impl TypedTrees {
         &'a self,
         owner: symbols::SymbolHandle,
         selection_application: crate::static_applications::StaticMachineApplicationHandle,
+        evidence_parameter: symbols::SymbolHandle,
         requirement: symbols::SymbolHandle,
         report_fingerprint: u64,
         commitment: super::ClosedConformanceApplicationCommitment,
     ) -> Vec<&'a super::ClosedConformanceApplication> {
         if selection_application.is_valid() {
+            if evidence_parameter.is_valid() {
+                return Vec::new();
+            }
             let source = self
                 .expression_table
                 .static_machine_application(selection_application);
@@ -343,6 +414,44 @@ impl TypedTrees {
                 return Vec::new();
             }
             return vec![application];
+        }
+        if evidence_parameter.is_valid() {
+            // Instance evidence applications and the conformance bindings of
+            // its retained substitution have the same declaration order.
+            // Select the exact binder before checking the commitment; equal
+            // implementations in other slots cannot make this call ambiguous.
+            let mut selected = Vec::new();
+            for specialization in self
+                .machine_specializations
+                .iter()
+                .filter(|specialization| specialization.instance == owner)
+            {
+                let bindings = self
+                    .expression_table
+                    .static_machine_application_bindings(specialization.binding_application)
+                    .iter()
+                    .filter(|binding| {
+                        matches!(
+                            binding.value,
+                            crate::static_applications::StaticMachineBindingValue::Conformance(_)
+                        )
+                    });
+                if bindings.clone().count() != specialization.conformance_applications.len() {
+                    return Vec::new();
+                }
+                for (binding, application) in bindings.zip(&specialization.conformance_applications)
+                {
+                    if binding.parameter == evidence_parameter {
+                        if application.report_fingerprint != report_fingerprint
+                            || application.commitment != commitment
+                        {
+                            return Vec::new();
+                        }
+                        selected.push(application);
+                    }
+                }
+            }
+            return selected;
         }
         super::closed_conformance_applications_of(
             &self.machine_specializations,
@@ -489,7 +598,10 @@ impl TypedTrees {
                 continue;
             }
             if let [capture] = captures.as_slice() {
-                if &capture.conformance_application != application {
+                if !self.closed_conformance_applications_match(
+                    &capture.conformance_application,
+                    application,
+                ) {
                     return None;
                 }
                 let selecting = self.conformance_by_symbol(application.declaration)?;
@@ -580,6 +692,28 @@ impl TypedTrees {
             .find(|declaration| declaration.symbol == symbol)
     }
 
+    /// The constant whose complete initializer is evaluated by this entry.
+    /// Generated spelling and source-span equality do not establish ownership.
+    /// Preparation may replace the machine row while retaining its symbol, so
+    /// the detached declaration handle identifies the entry, not its latest body.
+    pub fn const_declaration_for_evaluation_entry(
+        &self,
+        entry: symbols::SymbolHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        if !entry.is_valid() {
+            return None;
+        }
+        self.const_declarations().iter().find(|declaration| {
+            self.tables.machines.is_valid(declaration.evaluation_entry)
+                && self
+                    .tables
+                    .machines
+                    .get(declaration.evaluation_entry)
+                    .symbol
+                    == entry
+        })
+    }
+
     /// The declaration selected by this substituted value occurrence. An alias
     /// retains transitive initializer selections, but only the current authored
     /// use supplies its complete declared type and proved qualification.
@@ -609,6 +743,23 @@ impl TypedTrees {
             declaration = Some(current);
         }
         declaration
+    }
+
+    /// Retain an original unresolved type token for later ordinary checking.
+    /// This produces occurrence custody, never a resolved declaration choice.
+    pub fn record_late_bound_authored_declaration_selection(
+        &mut self,
+        source_span: source::SourceSpan,
+        exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+        binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+    ) -> Result<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionRecordError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .record_late_bound(source_span, exposure, kind, binding)
     }
 
     pub fn record_resolved_authored_declaration_selection_once(
@@ -1211,5 +1362,36 @@ impl TypedTrees {
     /// The operator's `::`-joined path string for diagnostics and lookups.
     pub fn operator_path_string(&self, span: HandleSpan<crate::name::Identifier>) -> String {
         self.operator_path_members(span).joined_path()
+    }
+}
+
+impl TypedTrees {
+    pub fn retain_designated_static_type_argument(
+        &mut self,
+        owner: symbols::SymbolHandle,
+        reference: crate::types::TypeReferenceHandle,
+        source_span: source::SourceSpan,
+    ) {
+        let row = super::DesignatedStaticTypeArgument {
+            owner,
+            reference,
+            source_span,
+        };
+        if !self
+            .tables
+            .designated_static_type_arguments
+            .iter()
+            .any(|(_, prior)| prior == &row)
+        {
+            self.tables.designated_static_type_arguments.insert(row);
+        }
+    }
+    pub fn designated_static_type_arguments(
+        &self,
+    ) -> impl Iterator<Item = &super::DesignatedStaticTypeArgument> {
+        self.tables
+            .designated_static_type_arguments
+            .iter()
+            .map(|(_, row)| row)
     }
 }

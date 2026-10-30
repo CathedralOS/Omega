@@ -10,27 +10,75 @@ machine verify(diff: u64) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-linux_x86_64 machine exercise(masked: u64) requires masked <= 255u64 crashes Trap {
-    let diff: u64 = 255u64 - masked;
-    verify(diff);
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(masked: u64) requires masked <= 255u64 crashes Trap {
-    let diff: u64 = 255u64 - masked;
-    verify(diff);
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine exercise(masked: u64) requires masked <= 255u64 crashes Trap {
-    let diff: u64 = 255u64 - masked;
-    verify(diff);
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine exercise(masked: u64) requires masked <= 255u64 crashes Trap {
-    let diff: u64 = 255u64 - masked;
-    verify(diff);
+boundary trait SelectedProbe {
+    machine exercise(masked: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires masked <= 255u64 crashes Trap;
 }
 
-machine main() crashes Trap {
+X86Probe satisfies SelectedProbe {
+    machine exercise(masked: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires masked <= 255u64 crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let diff: u64 = 255u64 - masked;
+        verify(diff);
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(masked: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        requires masked <= 255u64 crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let diff: u64 = 255u64 - masked;
+        verify(diff);
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let val: u64 = 466u64;
-    exercise(val & 255u64);
+    SelectedProbe::exercise(val & 255u64);
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -206,6 +206,7 @@ fn endpoint_stand_in(carrier: Option<PrimitiveType>, minimum: bool) -> (bool, &'
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub(crate) struct PendingEndpoint {
     pub(crate) expression: ExpressionHandle,
     pub(crate) root: ExpressionHandle,
@@ -218,17 +219,63 @@ pub(crate) struct PendingEndpoint {
     pub(crate) contract_expression: bool,
 }
 
-struct IntegerRoot {
-    constrained_type: Option<TypeReferenceHandle>,
-    expression: ExpressionHandle,
+pub(crate) struct IntegerRoot {
+    pub(crate) position: IntegerRootPosition,
+    pub(crate) expression: ExpressionHandle,
+}
+
+/// Range endpoints are exact mathematical integers; contract expressions have
+/// the scalar carrier derived in their lexical scope. Do not manufacture that
+/// carrier from the range's constrained type.
+pub(crate) enum IntegerRootPosition {
+    Range(TypeReferenceHandle),
+    Contract(typed_trees::constant_recipes::ConstantExpressionContext),
 }
 
 /// Every nonliteral bound is a candidate for the shared evaluator. Calls
 /// separately name required constant invocations and provider dependencies;
 /// an unclosed call-free bound remains owned by ordinary range validation.
-struct IntegerRootPlan {
-    roots: Vec<IntegerRoot>,
-    calls: Vec<PendingEndpoint>,
+pub(crate) struct IntegerRootPlan {
+    pub(crate) roots: Vec<IntegerRoot>,
+    pub(crate) calls: Vec<PendingEndpoint>,
+}
+
+impl IntegerRootPlan {
+    /// The legacy source fold writes expression storage once. Its work list
+    /// is separate from the complete lexical context roster retained for
+    /// portable entries; sharing work never discards an owner's context.
+    fn evaluation_roots(&self) -> impl Iterator<Item = &IntegerRoot> {
+        let mut visited = std::collections::HashSet::new();
+        self.roots
+            .iter()
+            .filter(move |root| visited.insert(root.expression))
+    }
+}
+
+#[cfg(test)]
+mod root_plan_tests {
+    use super::*;
+    use typed_trees::constant_recipes::ConstantExpressionContext;
+
+    #[test]
+    fn constant_expression_contexts_share_legacy_folds_without_losing_owners() {
+        let expression = ExpressionHandle::from_parts(17, 1);
+        let plan = IntegerRootPlan {
+            roots: [23, 29]
+                .map(|owner| IntegerRoot {
+                    expression,
+                    position: IntegerRootPosition::Contract(ConstantExpressionContext {
+                        owner: symbols::SymbolHandle::from_parts(owner, 1),
+                        result_type: TypeReferenceHandle::from_parts(31, 1),
+                        ..Default::default()
+                    }),
+                })
+                .into(),
+            calls: Vec::new(),
+        };
+        assert_eq!(plan.evaluation_roots().count(), 1);
+        assert_eq!(plan.roots.len(), 2);
+    }
 }
 
 pub fn evaluate_const_range_endpoints(
@@ -496,7 +543,7 @@ fn evaluate_round(
         diagnostics: Vec::new(),
     };
     let mut originals = Vec::new();
-    for endpoint in &plan.roots {
+    for endpoint in plan.evaluation_roots() {
         let result = evaluate_root(
             typed,
             execution,
@@ -524,15 +571,15 @@ fn evaluate_round(
                 if !required {
                     continue;
                 }
-                let position = endpoint.constrained_type.map_or_else(
-                    || "contract integer expression".to_owned(),
-                    |reference| {
+                let position = match endpoint.position {
+                    IntegerRootPosition::Contract(_) => "contract integer expression".to_owned(),
+                    IntegerRootPosition::Range(reference) => {
                         format!(
                             "range endpoint of `{}`",
                             typed.type_reference_table.display_name(reference)
                         )
-                    },
-                );
+                    }
+                };
                 round.diagnostics.push(
                     Diagnostic::error(format!("{position}: const evaluation failed: {reason}",))
                         .with_source_span(typed.expression_table.source_span(endpoint.expression)),
@@ -592,7 +639,7 @@ pub(crate) fn pending_endpoints(
     Ok(integer_root_plan(typed, domain)?.calls)
 }
 
-fn integer_root_plan(
+pub(crate) fn integer_root_plan(
     typed: &TypedTrees,
     domain: &EvaluationDomain,
 ) -> Result<IntegerRootPlan, Vec<Diagnostic>> {
@@ -644,7 +691,7 @@ fn integer_root_plan(
                     )
                 {
                     roots.push(IntegerRoot {
-                        constrained_type: Some(constrained_type),
+                        position: IntegerRootPosition::Range(constrained_type),
                         expression: root,
                     });
                 }
@@ -665,10 +712,14 @@ fn integer_root_plan(
     }
     for root in super::contract_expressions::roots(typed, domain) {
         roots.push(IntegerRoot {
-            constrained_type: None,
+            position: IntegerRootPosition::Contract(root.context),
             expression: root.expression,
         });
-        pending.extend(root.invocations);
+        for invocation in root.invocations {
+            if !pending.contains(&invocation) {
+                pending.push(invocation);
+            }
+        }
     }
     Ok(IntegerRootPlan {
         roots,

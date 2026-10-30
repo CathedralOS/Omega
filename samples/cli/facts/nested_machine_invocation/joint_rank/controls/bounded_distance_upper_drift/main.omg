@@ -1,0 +1,18 @@
+// Both coordinates advance: Distance stays constant despite a finite loop.
+machine count(cursor: u64, limit: u64)
+requires cursor <= limit && limit <= 100
+terminates;
+terminates by (cursor, limit) -> Nat::BoundedDistance;
+{
+    transition limit < 100 {
+        true -> forward(cursor, limit)
+        false -> done()
+    }
+    machine forward(position: u64, cap: u64)
+    requires position <= cap && cap < 100
+    {
+        transition { _ -> count(position + 1, cap + 1) }
+    }
+    machine done() {}
+}
+machine main() { count(0, 7); }

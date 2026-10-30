@@ -85,6 +85,7 @@ pub fn selected_call_arguments<'program>(
     let applications = program.selected_conformance_applications(
         caller,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
@@ -191,7 +192,7 @@ pub fn selected_call_arguments<'program>(
                 .machine_by_symbol(dispatch.realization_machine)
                 .ok_or("selected Value argument lost its authored machine")?;
             let source_binders = program.machine_type_parameters(source_machine);
-            let declared_binders = program.state_signature_type_parameters(declared);
+            let declared_binders = program.requirement_invocation_contract_parameters(declared);
             if source_binders.len() != declared_binders.len() {
                 return Err("selected Value argument lost its admitted member telescope");
             }
@@ -211,7 +212,7 @@ pub fn selected_call_arguments<'program>(
                 )
                 .ok_or("selected Value argument lost its applied public binder")?;
             let public_binder = program
-                .state_signature_type_parameters(applied)
+                .requirement_invocation_contract_parameters(applied)
                 .iter()
                 .find(|binder| binder.symbol == logical_parameter)
                 .ok_or("selected Value argument has no applied public carrier")?;
@@ -387,7 +388,7 @@ pub(crate) fn call_binding_correspondence(
             .machine_by_symbol(dispatch.realization_machine)
             .ok_or("the selected header lost its authored realization")?;
         let source_header = program.machine_type_parameters(source);
-        let declared_header = program.state_signature_type_parameters(declared);
+        let declared_header = program.requirement_invocation_contract_parameters(declared);
         if source_header.len() != declared_header.len() || header.len() != source_header.len() {
             return Err("the selected header changed its declared telescope");
         }
@@ -406,7 +407,7 @@ pub(crate) fn call_binding_correspondence(
                 .applied_signature_parameter(declared, public, declared_header[position].symbol)
                 .ok_or("the selected header parameter has no public binder")?;
             let public_parameter = program
-                .state_signature_type_parameters(public)
+                .requirement_invocation_contract_parameters(public)
                 .iter()
                 .find(|parameter| parameter.symbol == logical)
                 .ok_or("the selected header parameter has no public declaration")?;
@@ -625,8 +626,8 @@ fn requirement_binding_correspondence(
         }
         (declared, public, declared.symbol)
     };
-    let header = program.state_signature_type_parameters(declared);
-    let logical = program.state_signature_type_parameters(public);
+    let header = program.requirement_invocation_contract_parameters(declared);
+    let logical = program.requirement_invocation_contract_parameters(public);
     let retained = program
         .expression_table
         .static_machine_application_bindings(handle);

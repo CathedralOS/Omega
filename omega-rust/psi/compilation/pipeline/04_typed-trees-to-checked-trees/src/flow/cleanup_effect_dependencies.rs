@@ -373,11 +373,7 @@ fn visit(
             // whole array still owes no cleanup when one element owes none
             // and no custody endpoint names an element; any leaf would carry
             // an extent the shared judgment cannot spell.
-            None if program
-                .constant_recipe_for_array_length(reference)
-                .is_valid()
-                && removed.is_empty() =>
-            {
+            None if program.declared_array_extent(reference).is_some() && removed.is_empty() => {
                 let mut element_leaves = Vec::new();
                 let mut element_erased = false;
                 path.push(PlaceSegment::FixedIndex { index: 0 });

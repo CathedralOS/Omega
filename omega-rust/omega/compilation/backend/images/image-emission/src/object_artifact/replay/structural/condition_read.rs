@@ -12,6 +12,16 @@ use super::super::instruction_loads::{
     x86_replay_memory_load, x86_replay_rsp_load, x86_terminal_register,
 };
 
+fn covering_location(placement: &ValuePlacement, field_byte_offset: u32) -> Option<&ValueLocation> {
+    placement.locations.iter().find(|location| match location {
+        calling_conventions::register_or_stack_pair_pattern!(value_byte_offset, byte_size, ..) => {
+            let start = *value_byte_offset;
+            field_byte_offset >= start && field_byte_offset < start + (*byte_size)
+        }
+        ValueLocation::Indirect { .. } => false,
+    })
+}
+
 pub(crate) fn condition_stack_depth_before(
     evidence: &ScalarStackEvidence,
     condition_start: usize,
@@ -66,18 +76,7 @@ pub(crate) fn replay_x86_boolean_structural_read(
         };
         x86_replay_memory_load(&mut bytes, 0, base, field_byte_offset);
     } else {
-        let location = placement.locations.iter().find(|location| match location {
-            calling_conventions::register_or_stack_pair_pattern!(
-                value_byte_offset,
-                byte_size,
-                ..
-            ) => {
-                let start = *value_byte_offset;
-                field_byte_offset >= start && field_byte_offset < start + (*byte_size)
-            }
-            ValueLocation::Indirect { .. } => false,
-        })?;
-        match *location {
+        match *covering_location(placement, field_byte_offset)? {
             ValueLocation::Register {
                 register,
                 value_byte_offset,
@@ -140,18 +139,7 @@ pub(crate) fn replay_aarch64_boolean_structural_read(
         };
         instructions.push(aarch64_replay_memory_load(0, base, field_byte_offset)?);
     } else {
-        let location = placement.locations.iter().find(|location| match location {
-            calling_conventions::register_or_stack_pair_pattern!(
-                value_byte_offset,
-                byte_size,
-                ..
-            ) => {
-                let start = *value_byte_offset;
-                field_byte_offset >= start && field_byte_offset < start + (*byte_size)
-            }
-            ValueLocation::Indirect { .. } => false,
-        })?;
-        match *location {
+        match *covering_location(placement, field_byte_offset)? {
             ValueLocation::Register {
                 register,
                 value_byte_offset,

@@ -35,6 +35,86 @@ pub struct PreparedNativeExecution {
     local_adapters: Vec<crate::SelectedProviderAdapter>,
 }
 
+impl PreparedNativeExecution {
+    /// Lower another callable in this prepared execution namespace. In
+    /// particular, callbacks preserve separately emitted component crossings;
+    /// they cannot restore the proposal's excluded local provider bodies.
+    pub fn lower_callable(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        proposal: &TerminalNativeRealizationProposal,
+        entry: terminal_psi::TargetMachineCallable,
+        scalar_applications: Option<crate::NativeScalarApplications<'_>>,
+    ) -> Result<crate::VerifiedNativeArtifactInput, Vec<Diagnostic>> {
+        let selection = crate::NativeExecutionSelection {
+            scalar_applications,
+            providers: &self.local_adapters,
+            plans: &proposal.providers().selection,
+            callbacks: &proposal.occurrences().callbacks,
+            entry_call: None,
+        };
+        let scope = crate::artifact_admission::NativeScopePreparation::prepare(
+            artifact,
+            proposal.target_profile(),
+            entry,
+            &selection,
+        )
+        .map_err(crate::native_admission::artifact_lowering_error)?;
+        let input = scope
+            .lower(artifact, &[], &selection)
+            .map_err(crate::native_admission::artifact_lowering_error)?;
+        input
+            .bind_selected_provider_coordinates(artifact, &self.selection)
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+}
+
+/// Selected native work and its original proposal, retained across scalar
+/// completion. Lowering consumes this preparation; it does not select again.
+pub struct PreparedNativeWork<'input> {
+    artifact: &'input terminal_codec::CanonicalTerminalArtifact,
+    proposal: &'input TerminalNativeRealizationProposal,
+    scope: crate::artifact_admission::NativeScopePreparation,
+    execution: PreparedNativeExecution,
+    entry_call: Option<crate::SelectedProgramEntryCall>,
+    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+}
+
+impl PreparedNativeWork<'_> {
+    /// Scalar reads, entry obligations and physical storage extents of this
+    /// exact native work domain. Unselected catalog types impose no demand.
+    pub fn scalar_application_demand(&self) -> &[semantic_vocabulary::ScalarApplicationId] {
+        &self.scope.scalar_demand
+    }
+
+    pub fn lower(
+        self,
+        scalar_applications: Option<crate::NativeScalarApplications<'_>>,
+    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
+    {
+        let input = self
+            .scope
+            .lower_with_private_entry_ram(
+                self.artifact,
+                &self.private_entry_ram,
+                &crate::NativeExecutionSelection {
+                    scalar_applications,
+                    providers: &self.execution.local_adapters,
+                    // Scalar completion consumed the original whole companion,
+                    // not the native-only direct-leaf augmentation below.
+                    plans: &self.proposal.providers().selection,
+                    callbacks: &self.proposal.occurrences().callbacks,
+                    entry_call: self.entry_call.as_ref(),
+                },
+            )
+            .map_err(crate::native_admission::artifact_lowering_error)?;
+        let input = input
+            .bind_selected_provider_coordinates(self.artifact, &self.execution.selection)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        Ok((input, self.execution))
+    }
+}
+
 /// Invocation-owned preparation, not provider or publication authority.
 /// Native admission independently checks every borrowed settlement.
 pub struct PreparedRetainedNativeProviders<'input> {
@@ -104,13 +184,12 @@ impl TerminalNativeRealizationProposal {
     /// A checked component crossing is an executable scope boundary. Its
     /// producer closure is emitted separately, never added to the receiver's
     /// local provider roots. Admission still owes the selected call settlement.
-    pub fn prepare_native_execution_with_components(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    pub fn prepare_native_execution_with_components<'input>(
+        &'input self,
+        artifact: &'input terminal_codec::CanonicalTerminalArtifact,
         private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         components: &[&super::AdmittedNativeComponentCall<'_>],
-    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
-    {
+    ) -> Result<PreparedNativeWork<'input>, Vec<Diagnostic>> {
         if components.iter().any(|component| {
             component.selection().receiver()
                 != &terminal_codec::TerminalExecutionIdentity::portable(artifact.view().identity())
@@ -161,70 +240,83 @@ impl TerminalNativeRealizationProposal {
             &self.providers().intrinsic_executions,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let input = crate::VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
+        let scope = crate::artifact_admission::NativeScopePreparation::prepare(
             artifact,
             self.target_profile(),
             root,
-            private_entry_ram,
+            &crate::NativeExecutionSelection {
+                scalar_applications: None,
+                providers: &local_adapters,
+                plans: &self.providers().selection,
+                callbacks: &self.occurrences().callbacks,
+                entry_call: semantic_call.as_ref(),
+            },
         )
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "native execution input: {error:?}"
             ))]
-        })?
-        .bind_program_entry_call(semantic_call)
-        .select_target_execution(
+        })?;
+        let execution = self.prepare_native_provider_demand(artifact, &scope, local_adapters)?;
+        Ok(PreparedNativeWork {
             artifact,
-            self.target_profile(),
-            &local_adapters,
-            &self.providers().selection,
-            &self.occurrences().callbacks,
-        )
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        self.finish_native_execution(artifact, input, local_adapters)
+            proposal: self,
+            scope,
+            execution,
+            entry_call: semantic_call,
+            private_entry_ram: private_entry_ram.to_vec(),
+        })
     }
 
     /// Prepare an exported callable with ordinary parameter/result transport,
     /// independently of the component's application ProgramEntry. This chooses
     /// demand only; it grants no externally callable address or resource supply.
-    pub fn prepare_native_callable_execution(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    pub fn prepare_native_callable_execution<'input>(
+        &'input self,
+        artifact: &'input terminal_codec::CanonicalTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
-    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
-    {
-        let input = crate::VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
+    ) -> Result<PreparedNativeWork<'input>, Vec<Diagnostic>> {
+        let scope = crate::artifact_admission::NativeScopePreparation::prepare(
             artifact,
             self.target_profile(),
             entry,
-            &[],
+            &crate::NativeExecutionSelection {
+                scalar_applications: None,
+                providers: &self.providers().checked_adapters,
+                plans: &self.providers().selection,
+                callbacks: &self.occurrences().callbacks,
+                entry_call: None,
+            },
         )
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "component callable execution input: {error:?}",
             ))]
-        })?
-        .select_target_execution(
+        })?;
+        let execution = self.prepare_native_provider_demand(
             artifact,
-            self.target_profile(),
-            &self.providers().checked_adapters,
-            &self.providers().selection,
-            &self.occurrences().callbacks,
-        )
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        self.finish_native_execution(artifact, input, self.providers().checked_adapters.clone())
+            &scope,
+            self.providers().checked_adapters.clone(),
+        )?;
+        Ok(PreparedNativeWork {
+            artifact,
+            proposal: self,
+            scope,
+            execution,
+            entry_call: None,
+            private_entry_ram: Vec::new(),
+        })
     }
 
     /// Retain the selected body's exact boundary demand and its original whole
     /// plans. Program and callable entries share this operation; neither route
     /// substitutes all catalog declarations for the executable demand closure.
-    fn finish_native_execution(
+    fn prepare_native_provider_demand(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        input: crate::VerifiedNativeArtifactInput,
+        scope: &crate::artifact_admission::NativeScopePreparation,
         local_adapters: Vec<crate::SelectedProviderAdapter>,
-    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
-    {
+    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
         let module = artifact.semantic_module();
         let identity = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
             module
@@ -240,7 +332,11 @@ impl TerminalNativeRealizationProposal {
         let mut demands = BTreeSet::new();
         let mut direct_demands = BTreeSet::new();
         let mut family_members = Vec::new();
-        for boundary in &input.plan().boundary_machines {
+        for boundary in module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| scope.scope.contains_boundary(boundary.id))
+        {
             let name = identity(boundary)?;
             demands.insert(name.to_owned());
             if self
@@ -251,10 +347,12 @@ impl TerminalNativeRealizationProposal {
             {
                 continue;
             }
-            match input
-                .optimization_input()
-                .target_family_member(boundary.id)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
+            match crate::optimization::target_family_member(
+                module,
+                Some(&scope.targets),
+                boundary.id,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
             {
                 Some(terminal_psi::TargetMachineCallable::Boundary(member)) => {
                     let member = module.boundary_machine(member).ok_or_else(|| {
@@ -310,13 +408,11 @@ impl TerminalNativeRealizationProposal {
         selection = selection
             .with_family_realization_rows(family_rows, &identities.build())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let input = input
-            .bind_selected_provider_coordinates(artifact, &selection)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         // Selection may reorder plans when executable direct dependencies
         // join. Rejoin complete plans, then derive every builtin in that one
         // namespace; no saved plan ordinal crosses this selection boundary.
         let non_intrinsic_execution = [None];
+        let non_authored_realization = [None];
         let intrinsic_provenance = selection
             .plans()
             .iter()
@@ -337,10 +433,20 @@ impl TerminalNativeRealizationProposal {
                                 "native execution lost original intrinsic row custody",
                             )]
                         })?;
+                    let row_numeric_realizations = self
+                        .providers()
+                        .numeric_realizations
+                        .get(position)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "native execution lost selected external declaration custody",
+                            )]
+                        })?;
                     return Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan,
                         semantic_schema: &plan.schema,
                         row_executions,
+                        row_numeric_realizations,
                     });
                 }
                 let leaf = self
@@ -366,6 +472,7 @@ impl TerminalNativeRealizationProposal {
                     plan,
                     semantic_schema: &leaf.satisfied_schema,
                     row_executions,
+                    row_numeric_realizations: &non_authored_realization,
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -388,16 +495,13 @@ impl TerminalNativeRealizationProposal {
                     .to_owned()
             })
             .collect();
-        Ok((
-            input,
-            PreparedNativeExecution {
-                selection,
-                external_bindings,
-                demands,
-                compiler_builtins,
-                local_adapters,
-            },
-        ))
+        Ok(PreparedNativeExecution {
+            selection,
+            external_bindings,
+            demands,
+            compiler_builtins,
+            local_adapters,
+        })
     }
 
     /// Rejoin retained plans to exact package acceptance and execution inputs.

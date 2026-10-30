@@ -1,0 +1,12 @@
+// Expected exit: 0
+data Case {first:u64 in Trapping; count:u64 in Trapping;}
+data Member [copy] {case Field(field:u64 in Trapping);case None;}
+machine locate(selected:Case,member:Member)->u64 in Trapping {
+ transition member {Member::Field{field}->payload(selected,field) _->none(selected)}
+ machine payload(selected:Case,field:u64 in Trapping)->u64 in Trapping {
+  transition field>=selected.first && field-selected.first<selected.count {true->slot(field-selected.first) _->none(selected)}
+ }
+ machine slot(offset:u64 in Trapping)->u64 in Trapping{offset}
+ machine none(selected:Case)->u64 in Trapping{selected.count}
+}
+machine main() crashes Trap {let first:u64 in Trapping=locate(Case{first:3,count:4},Member::Field{field:4}); let absent:u64 in Trapping=locate(Case{first:3,count:4},Member::Field{field:2}); transition first==1 && absent==4 {true->{} false->bad()} machine bad() crashes Trap {crash Trap;}}

@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 203 even when every table
+order below. This layout uses semantic format marker 212 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -136,6 +136,89 @@ same-carrier addition or subset erasure under the
 An ordinary qualification-change edge introduces only predicate-free, route-free
 atoms; introducing predicate or routed membership requires its checked return
 completion instead. Erasure retains the existing strict subset rule.
+
+### Retained scalar conditions and application scope
+
+The reference compiler's target-closure migration retains scalar applications,
+captured integer and Boolean conditions, and their declaration scope before the folded
+constant table. These rows are outstanding requirements, not successful proof
+or execution authority. The migration's unresolved-execution fences remain
+until a receiving target can discharge the complete requirements.
+
+The condition section encodes counted integer-range rows, counted predicate
+rows, then counted completion rows. A predicate row contains its subject, diagnostic description,
+counted graph nodes and root coordinate. Node tags are integer literal (1),
+Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
+binary operator (6). Binary operators are `and`, `or`, equality, inequality,
+less, less-or-equal, greater, greater-or-equal (tags 1 through 8). Child and
+root coordinates are zero-based positions in that row's node list, not arena
+handles; every child precedes its parent. Integer payloads use the canonical
+sign/magnitude encoding also used by bound steps.
+
+Ingress checks every operand's kind and requires a Boolean root, including
+operands that selective evaluation may skip. Observations currently denote
+integers; Boolean constants and combinations retain their selected builtin
+meaning. Evaluation shares the ordinary scalar-predicate evaluator and cannot
+establish formation by short-circuiting. Recipe equality retains both independent
+application operands; success of one application does not discharge the other.
+An explicitly unscoped recipe requirement retains a module-wide subject; a
+failed lookup for an authored owner never becomes module authority.
+
+A completion row contains its condition subject and exact scalar-application
+identity. An evaluation application must return normally; a layout observation
+must produce its defined measurement. The application kind remains explicit:
+an observation does not acquire a synthetic executable entry. The requirement
+exists even when no comparison consumes the result. Retention alone, a crash,
+or an absent result does not discharge it. Completion neither proves the
+enclosing predicate nor excuses the application's own formation conditions.
+Optimizers retain the named application and any real entry it owns.
+
+A condition subject is tagged as module-wide (1), a `u32` proof-declaration
+coordinate (2), or a scalar application (4). Tag 3 is retired: a data owner's
+structural type cannot replace its declaration for formation applicability. Declaration
+coordinates are one-based positions in this artifact's scope catalog; zero is
+absence. They are neither executable machine IDs nor source arena coordinates.
+Each declaration retains a nominal identity (tag 1), the complete checked
+callable description (tag 2), an unavailable-description reason (tag 3), or
+an exact boundary operator requirement (tag 4: nominal owner, overload and package).
+Equal nominal names do not merge distinct graph coordinates. An unavailable
+description cannot supply an exact external callable join.
+
+Scope publication retains, in order: declaration descriptions; emitted callable
+associations; obligation flags;
+machine/state/binder and legacy target-family relationships; declaration
+formation dependencies; declaration and obligation-owner rosters; discovery-only
+provider candidates; and operational call summaries. Each summary retains calls,
+recursive static argument bindings, and cleanup dependencies. Every repeated
+collection is counted; spans encode their contents, never arena generations.
+Machine summaries may be absent, which differs from a present empty summary.
+Static binding nesting has the ordinary 256-level encoding bound.
+
+Each emitted callable association contains a proof-declaration coordinate and
+the ordinary tagged machine/boundary callable coordinate. Both directions are
+unique. Ingress checks existence and exact checked-declaration equality when
+the emitted callable carries that description. A same-name overload or another
+specialization cannot stand in. A descriptor-less operator must match its exact
+nominal owner and canonical overload, and any retained call demand must name that
+same requirement. Synthetic absence cannot satisfy this operator join. Provider
+satisfaction and application admission remain separate checks.
+Removing dead code removes its emitted association, not the declaration graph.
+
+Membership consumes explicitly settled provider edges, not discovery candidates.
+Product eligibility is independent of retained descriptions. Declaring a proof
+owner does not root an executable body; actual evaluation entries and observed
+entry results still retain their bodies. Receiving validation rejects dangling
+coordinates, ambiguous state ownership, repeated static parameters, malformed
+family correspondence, and missing spans. The legacy family rows remain
+migration metadata, not authorization to retain target-prefixed source syntax.
+
+Target-scoped membership selects fixed ranges and predicates by their exact
+recorded owner. Address-model ranges and completion requirements additionally include the selected declaration
+closure and, in the primary value scope, retained ground declarations. Generated
+entry conditions apply only to demanded scalar applications. Neither a catalog
+entry nor an available provider candidate is itself an execution demand.
+
+### Scalar and structural operation rows
 
 IEEE scalar comparison uses operation tag 65, followed by a one-byte relation
 (`Equal`, `NotEqual`, `Less`, `LessOrEqual`, `Greater`, `GreaterOrEqual` as 0–5)
@@ -664,7 +747,7 @@ A terminator row is a `u8` tag followed by its fields.
 | 18 | ReturnStructural | edge id + source place id + counted bindings (claim id + structural path relative to the returned value) + counted trivial discards |
 | 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
 | 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
-| 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted affine cleanup actions) |
+| 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted structural arguments + counted affine cleanup actions) |
 | 19 | InvokeNoNormal | edge id + `bool` static-reach presence (when present `u32` binder) + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 
 A Jump with no residual affine discards uses tag 1; a nonempty residual list
@@ -705,10 +788,12 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 203 + `u16` vocabulary
-marker 130 + the entry callable, followed by the module tables in the
-declaration order below. The entry callable uses its ordinary machine-or-boundary
-tag and identifier encoding.
+Module bytes are `PSITERM\0` + `u16` format marker 212 + `u16` vocabulary
+marker 130 + a Boolean default-entry presence flag, followed by the entry
+callable when present and the module tables in the declaration order below.
+The entry callable uses its ordinary machine-or-boundary tag and identifier
+encoding. An absent default entry requires empty root-service reach; it does
+not authorize implicit selection of another retained machine.
 
 A `Reference` type is stored pointer data. Element and byte view descriptors
 with access `Some(access)` likewise retain their stored permission ceiling;
@@ -1366,6 +1451,13 @@ nonempty. Numeric meaning agrees with any corresponding callable boundary.
 These are checked satisfaction edges, not provider choices or external execution
 grants. Authored target membership retains the existing family migration
 vocabulary; it is never inferred from a normalized overload's spelling.
+
+Marker 204 adds counted structural arguments to each structural-case successor,
+after its payload field ids and before its affine cleanup actions. These are
+simultaneous bindings in the selected edge's ordinary source namespace, using
+the same structural-argument encoding as other successors. The selected case,
+payload fields and cleanup actions keep their existing meaning. Marker 204 also
+retains all marker-203 fields; either earlier layout rejects.
 
 Marker 203 adds the requirement-schema presence Boolean followed, when present,
 by three identity-table indices: expected provider schema, method name, and

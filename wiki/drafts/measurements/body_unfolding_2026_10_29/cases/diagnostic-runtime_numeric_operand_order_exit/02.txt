@@ -1,0 +1,4 @@
+compiler source record: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\body-unfolding\cases\diagnostic-runtime_numeric_operand_order_exit\cache\CathedralOS\Omega\source\v1\external-local-sources\compiled-review-cache\source-graphs\702a8c0bc897eae75c2604142b1d5a22b6e90ad908e280a3b6cf9120b64e4f76.rec
+native exit 0
+interp exit: 0
+build dir kept: C:\Users\User\AppData\Local\Temp\omega-probe-1245036-0

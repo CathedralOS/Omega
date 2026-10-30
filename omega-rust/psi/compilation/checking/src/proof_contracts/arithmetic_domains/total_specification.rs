@@ -63,6 +63,7 @@ pub(crate) fn validate_total_specification_arithmetic(
         ArithmeticDomain::Exact,
         owner,
         true,
+        false,
         &mut formation_diagnostics,
     );
     // Runtime-only unconditional-Trapping warnings have no meaning in Prop;
@@ -84,6 +85,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             ArithmeticDomain::Exact,
             owner,
             true,
+            false,
             &mut ignored_diagnostics,
         )
     };
@@ -881,6 +883,22 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         // machine frame. Reuse their exact symbols for call substitution.
         let mut parameters = bindings.parameters.to_vec();
         if let Some(domain) = bindings.domain {
+            parameters.extend(program.domain_type_parameters(domain).iter().filter_map(
+                |parameter| {
+                    let (typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference }) =
+                        parameter.kind
+                    else {
+                        return None;
+                    };
+                    Some(typed_trees::signature::StateParameter {
+                        symbol: parameter.symbol,
+                        name: parameter.name.clone(),
+                        type_reference,
+                        ..Default::default()
+                    })
+                },
+            ));
             parameters.push(typed_trees::signature::StateParameter {
                 symbol: domain.subject_symbol,
                 name: domain.subject_name.clone(),

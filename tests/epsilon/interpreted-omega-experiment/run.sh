@@ -115,13 +115,13 @@ def add_customer(name, members, expected_size, expected_digest, expected_output)
     controls[name] = (source, b"", expected_output)
 
 add_customer("Omega D lexical helpers", (
-    (compiler / "representations.epsilon", 32026,
-     "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee"),
+    (compiler / "representations.epsilon", 31906,
+     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
     (compiler / "lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     (test_directory / "customers/omega_lexical/main.epsilon", 1486,
      "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2"),
-), 36032, "463aeb99dcfccc937b9b3ba55aa05d5d89ddc006757e38c244985a582461814a", b"\x00\x00\x00\x00\x00A")
+), 35912, "50fdad5c4d105f1fc43ca5e51453c8a90d1af5fb411bc4e785c7916042604a5b", b"\x00\x00\x00\x00\x00A")
 
 # Independent literal oracle, not a host encoder. Only the actual successful
 # observation's suffix is stamped below. Offsets follow Alpha SEMANTICS.md.
@@ -140,46 +140,46 @@ alpha_program = bytes.fromhex(
     "14"                     # 78: ret
 )
 add_customer("Omega D Alpha tape buffers", (
-    (compiler / "representations.epsilon", 32026,
-     "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee"),
+    (compiler / "representations.epsilon", 31906,
+     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
     (compiler / "alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
     (test_directory / "customers/omega_alpha_tape/main.epsilon", 7274,
      "a186166b32d38cfafdc02fc47f1ad46f2af7d18ed15b5bb0f18b0caa525bb35d"),
-), 70132, "d9b2cf034d21d4575f3ef71f2dc92e8bd18cfaaa55121b9faab7b8c931f13e91",
+), 70012, "4f4aef0eab15d29b1a4307577a66d453cd6876a7fd9fb545b6bcc53e3c5406f4",
     b"\x00\x00\x00\x00\x00ABCDEFGH\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14"
     + alpha_program)
 
 add_customer("Omega D request and UTF-8", (
-    (compiler / "representations.epsilon", 32026,
-     "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee"),
+    (compiler / "representations.epsilon", 31906,
+     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
     (compiler / "request_and_utf8.epsilon", 23678,
      "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
     (test_directory / "customers/omega_request/main.epsilon", 9510,
      "0f838c478d6497cb4ca92d35f2aeed167b61eca4ab245847fa04da0fc2f7b0b7"),
-), 65214, "7e42622802efb866699579f86d7de6f938989e36cf7db761cea4b6f38dba079f", b"\x00\x00\x00\x00\x00A\n")
+), 65094, "8e513a78b90527fb1992d051f9c70c790f397e06e8dea35f33d1ae95fe08680e", b"\x00\x00\x00\x00\x00A\n")
 
 add_customer("Omega D request invocation fields", (
-    (compiler / "representations.epsilon", 32026,
-     "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee"),
+    (compiler / "representations.epsilon", 31906,
+     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
     (compiler / "request_and_utf8.epsilon", 23678,
      "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
     (test_directory / "customers/omega_request_invocation/main.epsilon", 5930,
      "b02e8f6f973a55ead1131a28cb939af0d6c31501d38bd7b15cba2cff4e6710bd"),
-), 61634, "01e1585b6f85414393166c08ff45b77982826c5d08281350a30ab5f08ff99c29", b"\x00\x00\x00\x00\x00A\n")
+), 61514, "9b5c158538d2c25ace49339b5e9a0994c05d489c6ed8d5bffb1dd1a05458398c", b"\x00\x00\x00\x00\x00A\n")
 
 add_customer("Omega D numeric-base sums", (
-    (compiler / "representations.epsilon", 32026,
-     "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee"),
+    (compiler / "representations.epsilon", 31906,
+     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
     (compiler / "lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     (test_directory / "customers/omega_numeric_base/main.epsilon", 1479,
      "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386"),
-), 36025, "ec1ad469c5a6d8d3505020f7104f5f8a7590ee27056d2a24270785edaacaa97f", b"\x00\x00\x00\x00\x00A")
+), 35905, "85ef36c1c2f2055391338d8d467b0cac1f99865e5efddcfdff410719e79b56c1", b"\x00\x00\x00\x00\x00A")
 
 add_customer("Omega D lexer", (
-    (compiler / "representations.epsilon", 32026,
-     "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee"),
+    (compiler / "representations.epsilon", 31906,
+     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
     (compiler / "request_and_utf8.epsilon", 23678,
      "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
     (compiler / "lexical_classification.epsilon", 2520,
@@ -188,7 +188,7 @@ add_customer("Omega D lexer", (
      "e16e7a42ee0848ff56b06dff4e9900569ae57724a281c0d3bada847717412ba6"),
     (test_directory / "customers/omega_lexer/main.epsilon", 6771,
      "e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06"),
-), 109644, "95b15745e93609a5c164b5842218782653edc779280ea932a6293fda7deede4f", b"\x00\x00\x00\x00\x00A")
+), 109524, "71a078bab91b0ea9b5a41efb42f3614ce227361c6cd476bc6e1b912f75bd23b0", b"\x00\x00\x00\x00\x00A")
 
 selected_customer = os.environ["EPSILON_SELECTED_CUSTOMER"]
 if selected_customer:

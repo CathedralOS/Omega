@@ -225,6 +225,18 @@ pub fn shape(
         .map(|entry| &entry.shape)
 }
 
+/// The `Record`/`Mixed` common-field roster of `current`, or `None` when the
+/// shape carries no roster.
+fn record_fields(
+    unit: &PsiOptimizationUnit,
+    current: StructuralTypeId,
+) -> Option<&[StructuralFieldDeclaration]> {
+    match shape(unit, current)? {
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => Some(fields),
+        _ => None,
+    }
+}
+
 /// The field `identity` names inside `current`'s `Record`/`Mixed`
 /// common-field roster, with the structural type the field declares.
 /// `None` when the shape has no common-field roster, the name is absent, or
@@ -256,10 +268,7 @@ pub(crate) fn descended_field_matching(
     current: StructuralTypeId,
     matching: impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    let fields = match shape(unit, current)? {
-        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-        _ => return None,
-    };
+    let fields = record_fields(unit, current)?;
     let field = fields.iter().find(|field| matching(field))?;
     match field.field_type {
         StructuralFieldType::Structural(next) => Some((field.id, next)),
@@ -285,17 +294,17 @@ pub(crate) fn canonicalize_ordinary_path(
         match segment {
             StructuralPathSegment::AllElements => return None,
             StructuralPathSegment::Field(identity) => {
-                let fields = match shape(unit, current)? {
-                    terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                    _ => return None,
-                };
+                let fields = record_fields(unit, current)?;
                 let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 let next = field.field_type.as_structural()?;
                 canonical.push(CanonicalStructuralPathSegment::Field(field.id));
                 current = next;
             }
             StructuralPathSegment::FixedIndex(index) => match shape(unit, current)? {
-                StructuralTypeShape::FixedArray { element, length } if index < length => {
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } if index < length => {
                     canonical.push(CanonicalStructuralPathSegment::FixedIndex(*index));
                     current = *element;
                 }
@@ -399,10 +408,7 @@ impl<'a> Position<'a> {
                 }
             }
             (Self::Type(current), CanonicalStructuralPathSegment::Field(identity)) => {
-                let fields = match shape(unit, current)? {
-                    terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                    _ => return None,
-                };
+                let fields = record_fields(unit, current)?;
                 match fields
                     .iter()
                     .find(|field| field.id == *identity)?
@@ -452,11 +458,8 @@ impl<'a> Position<'a> {
         field: StructuralFieldId,
     ) -> Option<&'a StructuralFieldDeclaration> {
         let fields = match self {
-            Self::Type(current) => match shape(unit, current)? {
-                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                _ => return None,
-            },
-            Self::CasePayload(case) => &case.fields,
+            Self::Type(current) => record_fields(unit, current)?,
+            Self::CasePayload(case) => case.fields.as_slice(),
         };
         fields.iter().find(|declaration| declaration.id == field)
     }
@@ -743,10 +746,7 @@ pub(crate) fn descended_type(
         )
         .map(|declaration| declaration.id),
         StructuralPathSegment::Field(identity) => {
-            let fields = match shape {
-                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                _ => return None,
-            };
+            let fields = record_fields(unit, current)?;
             match terminal_psi::field_by_identity(fields, *identity)?.field_type {
                 StructuralFieldType::Structural(next) => Some(next),
                 _ => None,
@@ -1547,6 +1547,47 @@ fn establishment_scalar(
     let mut segments = path.to_vec();
     let mut visiting = BTreeSet::from([place]);
     loop {
+        // A producer that stores a field child whole crosses into it, whether
+        // an `EstablishRecord` reaches its `Field` carrier or an
+        // `EstablishCase` reaches the payload child it stores whole through
+        // the `Case` then `Field` pair naming the case it establishes. The
+        // same custody applies to both: the declared carrier must be exactly
+        // the child place's declared type, reached as one owned, complete
+        // structural argument. A different observed case never crosses — its
+        // payload overlays storage this establishment did not write — and a
+        // `FixedIndex` never crosses: an `EstablishScalarArray` element is not
+        // a placed child.
+        let crossing = match (producer, segments.as_slice()) {
+            (
+                RootProducer::Variant(operation, result_case),
+                [
+                    CanonicalStructuralPathSegment::Case(observed_case),
+                    CanonicalStructuralPathSegment::Field(identity),
+                    ..,
+                ],
+            ) if result_case == *observed_case => Some((operation, *identity, 2)),
+            (
+                RootProducer::Record(operation),
+                [CanonicalStructuralPathSegment::Field(identity), ..],
+            ) => Some((operation, *identity, 1)),
+            _ => None,
+        };
+        if let Some((operation, identity, depth)) = crossing {
+            let mut position = Position::Type(declared?);
+            for segment in &segments[..depth] {
+                position = position.descend(unit, segment)?;
+            }
+            let Position::Type(next) = position else {
+                return None;
+            };
+            let (child, child_producer) =
+                descended_field_child(function, operation, place, identity, next, &mut visiting)?;
+            place = child;
+            producer = child_producer;
+            declared = Some(next);
+            segments.drain(..depth);
+            continue;
+        }
         match (producer, segments.as_slice()) {
             (RootProducer::Record(producer), []) => {
                 // An `EstablishRecord` proves its declaration-ordered field
@@ -1578,69 +1619,6 @@ fn establishment_scalar(
                 // initializers for exactly the case it establishes.
                 return case_field_initializer(function, producer, place, field)
                     .map(|initializer| EstablishmentScalar::Initializer(producer, initializer));
-            }
-            (
-                RootProducer::Variant(operation, result_case),
-                [
-                    CanonicalStructuralPathSegment::Case(observed_case),
-                    CanonicalStructuralPathSegment::Field(identity),
-                    ..,
-                ],
-            ) if result_case == *observed_case => {
-                // A `Case` then `Field` pair descends into the payload child
-                // an `EstablishCase` stores whole — the structural-case
-                // establishment. The same custody as a record child applies:
-                // the payload carrier must be exactly the child place's
-                // declared type, reached as one owned, complete structural
-                // argument. A different observed case never crosses: its
-                // payload overlays storage this establishment did not write.
-                let identity = *identity;
-                let Position::Type(next) = Position::Type(declared?)
-                    .descend(unit, &segments[0])?
-                    .descend(unit, &segments[1])?
-                else {
-                    return None;
-                };
-                let (child, child_producer) = descended_field_child(
-                    function,
-                    operation,
-                    place,
-                    identity,
-                    next,
-                    &mut visiting,
-                )?;
-                place = child;
-                producer = child_producer;
-                declared = Some(next);
-                segments.drain(..2);
-            }
-            (
-                RootProducer::Record(operation),
-                [CanonicalStructuralPathSegment::Field(identity), ..],
-            ) => {
-                // A `Field` segment descends into the nested carrier the
-                // record stores whole: the declared carrier must be exactly
-                // the child place's declared type, and the child must reach
-                // this producer's initializer as one owned, complete
-                // structural argument. A `FixedIndex` segment never crosses —
-                // an `EstablishScalarArray` element is not a placed child.
-                let identity = *identity;
-                let Position::Type(next) = Position::Type(declared?).descend(unit, &segments[0])?
-                else {
-                    return None;
-                };
-                let (child, child_producer) = descended_field_child(
-                    function,
-                    operation,
-                    place,
-                    identity,
-                    next,
-                    &mut visiting,
-                )?;
-                place = child;
-                producer = child_producer;
-                declared = Some(next);
-                segments.drain(..1);
             }
             (RootProducer::None, _) => {
                 // A leaf copy — the case-payload place a `Case { payload }`

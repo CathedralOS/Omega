@@ -56,14 +56,6 @@ impl<'relations> IndexedOrderGraph<'relations> {
 const MAXIMUM_TERMS: usize = 256;
 const MAXIMUM_COMPARISONS: usize = 65_536;
 
-pub(in crate::proof_contracts::arithmetic_domains) fn same_value(
-    relations: &[Relation],
-    left: &Operand,
-    right: &Operand,
-) -> bool {
-    EqualityQuery::new(relations, left, right).same_value(left, right)
-}
-
 /// One immutable relation set owns its exact ordering graph. Direct constructor
 /// comparisons and bounded congruence closure share the lazily prepared rows;
 /// no cache survives a write, join or rebinding of that relation set.
@@ -450,19 +442,22 @@ impl<'terms> Equalities<'terms> {
                 }
             }
         }
+        // Resolve symbolic endpoints once; the immutable graph owns these indices.
+        let graph_indices = endpoints
+            .iter()
+            .map(|&endpoint| differences.operand_index(terms[endpoint].operand))
+            .collect::<Option<Vec<_>>>()?;
         let mut comparisons = MAXIMUM_COMPARISONS;
         let mut reachable = vec![Vec::new(); terms.len()];
-        for &source in &endpoints {
-            for &destination in &endpoints {
+        for (&source, &graph_source) in endpoints.iter().zip(&graph_indices) {
+            for (&destination, &graph_destination) in endpoints.iter().zip(&graph_indices) {
                 if !consume_comparison(&mut comparisons) {
                     return None;
                 }
                 // Only exact ordering endpoints seed equivalence. Cached rows
                 // retain the original relation order, finite round bound and
                 // checked gaps; constructor closure cannot add ordering edges.
-                if differences
-                    .mutual_nonnegative_gap(terms[source].operand, terms[destination].operand)
-                {
+                if differences.mutual_nonnegative_gap_indexed(graph_source, graph_destination) {
                     reachable[source].push(destination);
                 }
             }
@@ -563,7 +558,9 @@ fn collect_term<'terms>(
         children: Vec::new(),
     });
     let children: Vec<&Operand> = match operand {
-        Operand::Place { .. } | Operand::Integer(..) | Operand::CompletedCall { .. } => Vec::new(),
+        Operand::Place { .. } | Operand::Integer(..) => Vec::new(),
+        #[cfg(test)]
+        Operand::CompletedCall { .. } => Vec::new(),
         Operand::Field { receiver, .. } | Operand::CollectionLength(receiver) => vec![receiver],
         Operand::Indexed {
             collection, index, ..

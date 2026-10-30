@@ -89,6 +89,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             statement_index,
             storage_snapshot,
             value_observations: HandleSpan::empty(),
+            operator_invocations: HandleSpan::empty(),
             stored_value: Handle::invalid(),
             store_target: Handle::invalid(),
             stored_destination: Handle::invalid(),
@@ -316,6 +317,14 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             &mut build.contexts.constraint_refs,
             entry_constraints,
             borrow,
+            validation::completed_storage::InstalledLoanHomes {
+                control: &build.control,
+                semantic,
+                statements: previous_statements,
+                order: execution_order,
+                borrow,
+                state: state.symbol,
+            },
             program,
             machine,
             reassigned_place,
@@ -405,6 +414,18 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             );
         }
 
+        let final_storage_writes = if statement.as_assignment().is_some() {
+            super::storage_footprints::assignment(
+                program,
+                machine,
+                statement,
+                &build.control,
+                build.control.statements.get(statement_fact).store_target,
+                build.call_frames,
+            )
+        } else {
+            None
+        };
         let storage_writes = if let Some(write) = write.as_ref()
             && statement.as_assignment().is_some()
         {
@@ -421,9 +442,10 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 }
             })
         } else if statement.as_assignment().is_some() {
-            // A failed address capture supplies no exact destination and no
-            // preservation theorem. Clear live observations conservatively.
-            None
+            // Exact value establishment still needs StatementWrite. A complete
+            // captured may-write footprint can independently preserve unrelated
+            // facts; missing geometry remains an unknown write.
+            final_storage_writes.clone()
         } else if statement.as_local_data().is_some() {
             // The chronological initializer evaluator already published every
             // nested effect, including atomic attempts. A new local's store
@@ -445,14 +467,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // invalidation only needs a complete physical may-write enclosure;
         // losing the former must not withdraw every disjoint descriptor.
         let final_storage_writes = if statement.as_assignment().is_some() {
-            super::storage_footprints::assignment(
-                program,
-                machine,
-                statement,
-                &build.control,
-                build.control.statements.get(statement_fact).store_target,
-                build.call_frames,
-            )
+            final_storage_writes
         } else {
             storage_writes.clone()
         };
@@ -941,7 +956,7 @@ fn statement_record_ranges(
         let range = ranges
             .get_mut(statement)
             .expect("borrow record names its source frame or exit");
-        if range.is_empty() {
+        if std::ops::Range::<usize>::is_empty(range) {
             *range = ordinal..ordinal + 1;
         } else {
             assert_eq!(

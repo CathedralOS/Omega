@@ -36,13 +36,13 @@ mod unit_plans;
 pub use affine_cleanup_plans::{
     CheckedCleanupCaseCondition, CheckedCleanupControlPlans,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedReferenceOwnerCleanup, CheckedStructuralCallCustodyPlan,
-    CheckedStructuralResultClaimPlan, CheckedUnitClaimTransferPlan,
-    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
-    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedValueCompletionPlan,
+    CheckedNormalCleanupAction, CheckedNormalCompletion, CheckedNormalExitCleanupPlan,
+    CheckedNormalExitCleanups, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupPlans, CheckedReferenceOwnerCleanup,
+    CheckedStructuralCallCustodyPlan, CheckedStructuralResultClaimPlan,
+    CheckedUnitClaimTransferPlan, CheckedUnitNominalAffineCallerRequirementPlan,
+    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedValueCompletionPlan,
 };
 pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 pub use boundary_machine_plans::{
@@ -57,8 +57,9 @@ pub use composed_unit_control_plans::{
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
-    CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan,
-    CheckedScalarReturnPlan, CheckedStateContractRequirement, CheckedStateNaturalRank,
+    CheckedNaturalRankFunction, CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate,
+    CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan, CheckedStateContractRequirement,
+    CheckedStateNaturalRank,
 };
 pub use dynamic_slot_plans::{CheckedDynamicClaimPath, CheckedDynamicSlotPlan};
 pub use place_loan_plans::{CheckedPlaceLoanPlan, CheckedPlaceLoanRoot};
@@ -80,6 +81,7 @@ pub use structural_control_plans::{
     CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedSuccessorCompletion,
 };
 pub use structural_return::{
     CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedReferenceOriginSourcePlan,
@@ -109,10 +111,10 @@ pub use unit_call_plans::{
     CheckedUnitCallTarget, CheckedUnitCallTransfers,
 };
 pub use unit_effect_plans::{
-    CheckedOperandSequence, CheckedStructuralValueCall, CheckedUnitCallableEntry,
-    CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan,
-    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
-    CheckedUnitSelectedReferenceRetirementPlan,
+    CheckedLayoutObservation, CheckedOperandSequence, CheckedStructuralValueCall,
+    CheckedUnitCallableEntry, CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan,
+    CheckedUnitParameterStoragePlan, CheckedUnitPlanGap, CheckedUnitPlanGapReason,
+    CheckedUnitScalarControlPlan, CheckedUnitSelectedReferenceRetirementPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

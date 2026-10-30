@@ -1,0 +1,7 @@
+// Expected exit: 0
+data Kind [copy] {case A; case B;} data Cell {value:u64; kind:Kind;} machine read(cell:&Cell)->Kind{cell.kind}
+machine run(cell: &mut Cell, place: u64 in Trapping) { transition place > 0 { true -> typed(cell, place) false -> {} }
+ machine typed(cell: &mut Cell, place: u64 in Trapping) {let observed:Kind=read(cell); transition observed == Kind::A {true -> capture(cell, place - 1) false -> {}}}
+ machine capture(cell: &mut Cell,index: u64 in Trapping) requires index < 256 {cell.value=index as u64;}
+}
+machine main() {let mut cell:Cell=Cell{value:0,kind:Kind::A}; run(&mut cell, 3);}

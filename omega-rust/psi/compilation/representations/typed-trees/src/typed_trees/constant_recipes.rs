@@ -9,21 +9,21 @@
 //! declaration it applies. Checking judges the shared program once against
 //! the symbolic nodes and records what it needs from each recipe.
 //!
-//! Closure happens under one target capsule: realization evaluates every
-//! recipe under its selected rows and publishes the values here, beside the
-//! realization receipts that make two closures distinct even when their
-//! values agree. A closed copy of the program carries the closure; the
-//! shared program carries none. Numeric consumers ask
-//! `TypedTrees::closed_fixed_array_length` and the sibling queries instead
-//! of matching the literal node, so one query answers the shared program
-//! (unknown) and every closed copy (its own value) alike.
+//! Product completion evaluates canonical Terminal applications under selected
+//! providers and target geometry; it does not rewrite a private typed forest.
+//! The source representation still retains closure metadata and numeric queries
+//! for its checking/lowering readers. Those carriers do not expose a second
+//! source evaluator or a target-specific checked-program publication API.
 
 use crate::expression::ExpressionHandle;
 use crate::name::Identifier;
 use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
-use arena::{Arena, Handle};
+use arena::Handle;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
+
+mod evaluation_entries;
+pub use evaluation_entries::{ConstantEvaluationEntry, create_evaluation_entry};
 
 /// Which authored node a recipe keeps symbolic.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -45,17 +45,61 @@ pub enum RetainedConstantPosition {
     },
 }
 
+impl RetainedConstantPosition {
+    /// The complete authored expression, when the position retains a graph.
+    /// Array lengths retain their distinct zero-argument invocation instead.
+    pub fn expression(&self) -> ExpressionHandle {
+        match *self {
+            Self::RangeEndpoint(expression)
+            | Self::ContractExpression(expression)
+            | Self::ConstApplication {
+                root: expression, ..
+            } => expression,
+            Self::None | Self::ArrayLength(_) => ExpressionHandle::invalid(),
+        }
+    }
+}
+
 /// One retained symbolic constant application.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RetainedConstantRecipe {
     pub position: RetainedConstantPosition,
+    /// Every lexical use of this complete expression, with its exact typed
+    /// result carrier. Shared expression storage does not imply shared scope.
+    pub contexts: arena::HandleSpan<ConstantExpressionContext>,
     /// Exact nested value calls whose admission the contract root owns.
     pub invocations: arena::HandleSpan<ExpressionHandle>,
-    /// The zero-argument machine the position applies, resolved in the
-    /// authored scope; diagnostics and receipts name it.
+    /// The first authored callable dependency, when present. A primitive
+    /// observation has no authored callee and keeps the invalid handle.
+    /// This is a reachability/debug anchor, not the complete root's entry.
     pub machine: SymbolHandle,
     pub name: Identifier,
     pub source_span: source::SourceSpan,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ConstantExpressionContext {
+    pub owner: SymbolHandle,
+    pub result_type: TypeReferenceHandle,
+    /// Produced by executable preparation, never inherited by a specialization.
+    pub evaluation_entry: SymbolHandle,
+    pub evaluation_expression: ExpressionHandle,
+}
+
+impl ConstantExpressionContext {
+    pub const fn new(owner: SymbolHandle, result_type: TypeReferenceHandle) -> Self {
+        Self {
+            owner,
+            result_type,
+            evaluation_entry: SymbolHandle::invalid(),
+            evaluation_expression: ExpressionHandle::invalid(),
+        }
+    }
+
+    /// Entry materialization does not create another lexical use of a root.
+    pub fn same_scope(&self, other: &Self) -> bool {
+        self.owner == other.owner && self.result_type == other.result_type
+    }
 }
 
 pub type ConstantRecipeHandle = Handle<RetainedConstantRecipe>;
@@ -170,7 +214,8 @@ impl crate::TypedTrees {
             FixedArrayLength::Literal(length) => u64::try_from(*length)
                 .ok()
                 .map(DeclaredArrayExtent::Literal),
-            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::Expression(_) => None,
+            FixedArrayLength::ConstParameter { .. } => None,
+            FixedArrayLength::Expression(argument) => self.declared_constant_extent(*argument),
             FixedArrayLength::ConstCall { .. } => {
                 let recipe = self.constant_recipe_for_array_length(type_reference);
                 recipe
@@ -178,6 +223,29 @@ impl crate::TypedTrees {
                     .then_some(DeclaredArrayExtent::Recipe(recipe))
             }
         }
+    }
+
+    /// A const actual supplies either its literal extent or its exact retained
+    /// application. Substituted fields and structural plans share this query.
+    pub fn declared_constant_extent(
+        &self,
+        argument: TypeReferenceHandle,
+    ) -> Option<DeclaredArrayExtent> {
+        let literal = match self.type_reference_table.type_reference(argument) {
+            TypeReferenceNode::Named { name, .. } => name.as_str().parse::<u64>().ok(),
+            TypeReferenceNode::ConstExpression(expression) => self
+                .expression_table
+                .constant_integer_value(*expression)
+                .and_then(|value| u64::try_from(value).ok()),
+            _ => None,
+        };
+        if let Some(value) = literal {
+            return Some(DeclaredArrayExtent::Literal(value));
+        }
+        let recipe = self.constant_recipe_for_const_application(argument);
+        recipe
+            .is_valid()
+            .then_some(DeclaredArrayExtent::Recipe(recipe))
     }
 
     /// The recipe retained for the exact `FixedArray` node, or the invalid handle.
@@ -284,87 +352,15 @@ impl crate::TypedTrees {
         };
         match length {
             FixedArrayLength::Literal(length) => Some(*length),
-            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::Expression(_) => None,
+            FixedArrayLength::ConstParameter { .. } => None,
+            FixedArrayLength::Expression(argument) => self
+                .declared_constant_extent(*argument)
+                .and_then(|extent| extent.closed(self))
+                .and_then(|value| usize::try_from(value).ok()),
             FixedArrayLength::ConstCall { .. } => self
                 .closed_constant_recipe_value(self.constant_recipe_for_array_length(type_reference))
                 .and_then(BigInt::to_u64)
                 .and_then(|value| usize::try_from(value).ok()),
-        }
-    }
-
-    /// Read every retained recipe's value from `evaluated`, a copy of this
-    /// program whose deferred continuation folded under selected rows. A
-    /// position the fold left symbolic names the recipe that did not close.
-    pub fn read_constant_recipe_closure(
-        &self,
-        evaluated: &crate::TypedTrees,
-        receipts: Vec<ConstantRecipeDependencyReceipt>,
-    ) -> Result<ConstantRecipeClosure, Vec<diagnostics::Diagnostic>> {
-        let mut values = Vec::with_capacity(self.constant_recipes.len());
-        let mut unclosed = Vec::new();
-        for (handle, recipe) in self.constant_recipes.iter() {
-            let value = match recipe.position {
-                RetainedConstantPosition::None => continue,
-                RetainedConstantPosition::ArrayLength(type_reference) => {
-                    match evaluated
-                        .type_reference_table
-                        .type_reference(type_reference)
-                    {
-                        TypeReferenceNode::FixedArray {
-                            length: FixedArrayLength::Literal(length),
-                            ..
-                        } => u64::try_from(*length).ok().map(BigInt::from_u64),
-                        _ => None,
-                    }
-                }
-                RetainedConstantPosition::RangeEndpoint(expression) => evaluated
-                    .expression_table
-                    .constant_integer_value(expression)
-                    .map(BigInt::from_i64),
-                RetainedConstantPosition::ContractExpression(expression) => {
-                    evaluated.closed_integer_expression_value(expression)
-                }
-                // The fold rewrites the argument node to the literal's
-                // canonical spelling; the authored root expression stays.
-                RetainedConstantPosition::ConstApplication { site, root } => {
-                    match evaluated.type_reference_table.type_reference(site) {
-                        TypeReferenceNode::Named { name, .. } => {
-                            BigInt::from_str_radix(name.as_str(), 10)
-                        }
-                        TypeReferenceNode::ConstExpression(expression) => evaluated
-                            .expression_table
-                            .constant_integer_value(*expression)
-                            .map(BigInt::from_i64),
-                        _ => evaluated
-                            .expression_table
-                            .constant_integer_value(root)
-                            .map(BigInt::from_i64),
-                    }
-                }
-            };
-            match value {
-                Some(value) => values.push(ClosedConstantRecipe {
-                    recipe: handle,
-                    value,
-                }),
-                None => unclosed.push(
-                    diagnostics::Diagnostic::error(format!(
-                        "constant recipe `{}` did not close under the selected target realization",
-                        recipe.name.as_str()
-                    ))
-                    .with_source_span(recipe.source_span),
-                ),
-            }
-        }
-        if unclosed.is_empty() {
-            Ok(ConstantRecipeClosure {
-                target_bodies: Vec::new(),
-                values,
-                receipts,
-                ..Default::default()
-            })
-        } else {
-            Err(unclosed)
         }
     }
 
@@ -400,27 +396,80 @@ impl crate::TypedTrees {
             self.constant_recipes.free(handle);
         }
     }
-
-    /// This program with `closure` installed: the closed copy a target's
-    /// Terminal production and realization consume.
-    pub fn with_constant_recipe_closure(mut self, closure: ConstantRecipeClosure) -> Self {
-        self.constant_recipe_closure = closure;
-        self
-    }
 }
 
 /// The roster entries deferred evaluation retains; the evaluator appends them
 /// as it marks each position pending.
 pub fn retain_constant_recipes(
-    roster: &mut Arena<RetainedConstantRecipe>,
+    program: &mut crate::TypedTrees,
     recipes: impl IntoIterator<Item = RetainedConstantRecipe>,
 ) {
     for recipe in recipes {
-        let duplicate = roster
+        let retained = program
+            .constant_recipes
             .iter()
-            .any(|(_, retained)| retained.position == recipe.position);
-        if !duplicate {
-            roster.insert(recipe);
+            .find(|(_, retained)| retained.position == recipe.position)
+            .map(|(handle, _)| handle);
+        if let Some(handle) = retained {
+            let retained = program.constant_recipes.get(handle);
+            let mut contexts = program
+                .constant_expression_contexts
+                .span_or_empty(retained.contexts)
+                .to_vec();
+            let previous_count = contexts.len();
+            for context in program
+                .constant_expression_contexts
+                .span_or_empty(recipe.contexts)
+            {
+                if !contexts.iter().any(|retained| retained.same_scope(context)) {
+                    contexts.push(*context);
+                }
+            }
+            if contexts.len() != previous_count {
+                program.constant_recipes.get_mut(handle).contexts =
+                    program.constant_expression_contexts.insert_many(contexts);
+            }
+        } else {
+            program.constant_recipes.insert(recipe);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_expression_contexts_preserve_all_owners_and_carriers() {
+        let mut program = crate::TypedTrees::default();
+        let expression = ExpressionHandle::from_parts(17, 1);
+        let first = ConstantExpressionContext {
+            owner: SymbolHandle::from_parts(23, 1),
+            result_type: TypeReferenceHandle::from_parts(31, 1),
+            ..Default::default()
+        };
+        let second = ConstantExpressionContext {
+            owner: SymbolHandle::from_parts(29, 1),
+            result_type: TypeReferenceHandle::from_parts(37, 1),
+            ..Default::default()
+        };
+        let rebound = ConstantExpressionContext {
+            result_type: TypeReferenceHandle::from_parts(41, 1),
+            ..first
+        };
+        for context in [first, second, first, rebound] {
+            let recipe = RetainedConstantRecipe {
+                position: RetainedConstantPosition::ContractExpression(expression),
+                contexts: program.constant_expression_contexts.insert_many([context]),
+                ..Default::default()
+            };
+            retain_constant_recipes(&mut program, [recipe]);
+        }
+        assert_eq!(program.constant_recipes.len(), 1);
+        let recipe = program.constant_recipe_for_contract_expression(expression);
+        let contexts = program
+            .constant_expression_contexts
+            .span_or_empty(program.constant_recipes.get(recipe).contexts);
+        assert_eq!(contexts, &[first, second, rebound]);
     }
 }

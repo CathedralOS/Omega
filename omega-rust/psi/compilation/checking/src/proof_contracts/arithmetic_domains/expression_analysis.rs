@@ -22,6 +22,8 @@ mod folded_values;
 mod place;
 mod scope;
 mod trap_coverage;
+mod trapping_receipts;
+pub(crate) use trapping_receipts::TrappingReceiptDemand;
 mod unary;
 mod unsigned_constants;
 
@@ -92,8 +94,12 @@ pub(crate) struct ArithmeticDecisions {
     /// selected policy was proven: a nonzero divisor and, for an Exact signed
     /// division, the excluded `MIN / -1` pair; a representable Exact sum,
     /// difference or product; an in-width shift count plus any Exact
-    /// left-shift representability condition.
+    /// left-shift representability condition. Runtime trap freedom is a
+    /// separate receipt, never implied by selected-policy formation.
     pub(crate) decided_formations: Vec<ExpressionHandle>,
+    /// Exact-counterpart formation for each evaluated Trapping occurrence.
+    /// Every observed path participates; a failed judgment remains possible.
+    pub(crate) trapping_decisions: Vec<(ExpressionHandle, bool)>,
     /// The interval of each integer expression this walk checked, in the
     /// branch-local environment it was checked in: the left operand of `&&`
     /// or `||` and refuted earlier arms narrow what follows. Checking clients
@@ -112,6 +118,7 @@ impl ArithmeticDecisions {
         self.exact_integer_casts.extend(other.exact_integer_casts);
         self.integer_assignments.extend(other.integer_assignments);
         self.decided_formations.extend(other.decided_formations);
+        self.trapping_decisions.extend(other.trapping_decisions);
         self.expression_values.extend(other.expression_values);
     }
 }
@@ -160,9 +167,11 @@ pub(super) fn analyze(
     target_domain: ArithmeticDomain,
     owner: &str,
     infer_call_bodies: bool,
+    retain_trap_receipts: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
     let mut decisions = ArithmeticDecisions::default();
+    let return_ranges = super::ReturnInference::default();
     let value = ExpressionWalk {
         program,
         machine: Some(machine),
@@ -174,9 +183,10 @@ pub(super) fn analyze(
         target_primitive,
         target_domain,
         owner,
-        infer_call_bodies,
+        return_ranges: infer_call_bodies.then_some(&return_ranges),
         checks_trap_coverage: true,
         checks_occurrence_fit: true,
+        retain_trap_receipts,
     }
     .analyze(expression, diagnostics, &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -209,9 +219,10 @@ pub(super) fn analyze_declaration(
         target_primitive,
         target_domain,
         owner,
-        infer_call_bodies: false,
+        return_ranges: None,
         checks_trap_coverage: true,
         checks_occurrence_fit: false,
+        retain_trap_receipts: false,
     }
     .analyze(expression, diagnostics, &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -235,7 +246,7 @@ pub(super) fn analyze_arrival(
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
-    infer_call_bodies: bool,
+    return_ranges: Option<&super::ReturnInference>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
     let mut decisions = ArithmeticDecisions::default();
@@ -250,9 +261,10 @@ pub(super) fn analyze_arrival(
         target_primitive,
         target_domain,
         owner,
-        infer_call_bodies,
+        return_ranges,
         checks_trap_coverage: false,
         checks_occurrence_fit: false,
+        retain_trap_receipts: false,
     }
     .analyze(expression, diagnostics, &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -286,9 +298,10 @@ pub(super) fn analyze_meaning(
         target_primitive: None,
         target_domain: ArithmeticDomain::Exact,
         owner,
-        infer_call_bodies: false,
+        return_ranges: None,
         checks_trap_coverage: false,
         checks_occurrence_fit: false,
+        retain_trap_receipts: false,
     }
     .analyze(expression, &mut Vec::new(), &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -301,6 +314,9 @@ struct ExpressionWalk<'a> {
     /// Meaning-only queries must not recursively execute the runtime-prefix
     /// proof owner. Only the validating walk publishes formation decisions.
     checks_occurrence_fit: bool,
+    /// Optional execution receipts are requested by a retained-decision
+    /// consumer, never by type/range queries that discard their output.
+    retain_trap_receipts: bool,
     program: &'a dyn crate::CheckingInput,
     machine: Option<&'a Machine>,
     lexical_owner: symbols::SymbolHandle,
@@ -311,11 +327,10 @@ struct ExpressionWalk<'a> {
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &'a str,
-    /// Body inference captures one callee only. Descendant calls retain their
-    /// declared guarantees without recursively deriving another body bound.
-    /// Carrier-only queries also decline body inference: a range is not type
-    /// selection authority, and their re-entry must not restart that capture.
-    infer_call_bodies: bool,
+    /// An outer request owns recursion and complete return joins. Meaning-only
+    /// queries carry no body-inference authority; every ordinary/terminal
+    /// descendant of a value query shares the same invocation context.
+    return_ranges: Option<&'a super::ReturnInference>,
     /// Whether a Trapping operation must prove its trap fits the machine's
     /// published Trap ceiling. A coverage re-analysis under the route
     /// complement only asks whether one node forms; its nested operations

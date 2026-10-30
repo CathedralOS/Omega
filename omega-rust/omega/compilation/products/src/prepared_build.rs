@@ -86,7 +86,6 @@ pub struct PreparedProductSource {
     /// reused paths. Generated admission and Build charges remain independent.
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
-    pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,
@@ -100,6 +99,17 @@ pub struct PreparedProductSource {
 pub struct CheckedProductSource {
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
+    /// One lazy declaration product for this immutable checked owner. Delaying
+    /// preparation preserves provider-failure order and avoids unused work for
+    /// consumers that do not request external declarations.
+    pub external_declarations: Arc<
+        std::sync::OnceLock<
+            Result<
+                Arc<psi_compiler::PreparedExternalProviderDeclarations>,
+                Vec<diagnostics::Diagnostic>,
+            >,
+        >,
+    >,
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
@@ -110,6 +120,4 @@ pub struct CheckedProductSource {
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub retained_checks: crate::RetainedCompilationChecks,
     pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
-    /// Psi-owned deferred work and its authored storage, captured before checking.
-    pub constants: Option<build_time_evaluation::RetainedConstantEvaluation>,
 }

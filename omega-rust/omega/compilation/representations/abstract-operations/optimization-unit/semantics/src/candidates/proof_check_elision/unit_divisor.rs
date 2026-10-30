@@ -7,10 +7,11 @@
 use super::integer_constant_law::{
     IndependentIntegerConstantLawShape, accepted_law_obligation, constant_law_shape,
 };
+use super::literal_operand::materialized_integer_constant;
 use abstract_operations::{AbstractOperation as O, IntegerArithmeticOperator};
 use optimization_unit::{
     OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate,
-    ScalarConstantValue, ValueDefinitionSite, literal_scalar_constant_fact_identity,
+    ScalarConstantValue, literal_scalar_constant_fact_identity,
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ScalarType};
 
@@ -97,39 +98,16 @@ pub(super) fn materialized_divisor_evidence(
     if right_definition.scalar_type != ScalarType::Integer(shape.scalar_type) {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     }
-    let ValueDefinitionSite::Node {
-        block: literal_block,
-        node: literal_node,
-    } = right_definition.site
-    else {
-        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
-    };
-    let literal = function
-        .block(literal_block)
-        .and_then(|block| {
-            usize::try_from(literal_node)
-                .ok()
-                .and_then(|node| block.nodes.get(node))
-        })
-        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-    let O::IntegerConstant {
-        psi_operation: literal_support,
-        result: literal_result,
-        scalar_type: literal_type,
-        value: literal_value,
-    } = literal.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
-    };
-    if literal_result != shape.right
-        || literal_type != ScalarType::Integer(shape.scalar_type)
-        || literal_value != expected_divisor
+    let literal = materialized_integer_constant(function, right_definition)?;
+    if literal.result != shape.right
+        || literal.scalar_type != ScalarType::Integer(shape.scalar_type)
+        || literal.value != expected_divisor
         || !shape.scalar_type.admits(expected_divisor)
         || !function.facts.iter().any(|fact| {
             matches!(fact, OptimizationFact::IntegerConstant { value, constant, support }
                 if *value == shape.right
                     && *constant == expected_divisor
-                    && *support == literal_support)
+                    && *support == literal.operation)
         })
     {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
@@ -139,7 +117,7 @@ pub(super) fn materialized_divisor_evidence(
         function.machine,
         right_definition,
         ScalarConstantValue::Integer(expected_divisor),
-        literal_support,
+        literal.operation,
     )
     .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
     let expected_obligation_fact = accepted_law_obligation(input, function, shape)?;

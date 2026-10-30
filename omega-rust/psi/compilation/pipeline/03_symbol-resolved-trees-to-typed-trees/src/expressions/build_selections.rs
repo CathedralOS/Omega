@@ -21,6 +21,37 @@ pub(crate) fn lower(
     acknowledgement: language_semantics::CallOperationalAcknowledgement,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let source_span = request.source_span();
+    // Typing retains the resolver's original attachments and also issues
+    // type-reference selections for static receivers and structural inputs.
+    // Rejoin against that same typed ledger after operand capture; the earlier
+    // resolver ledger cannot contain typing's ordinary selection suffix.
+    // Preserve those exact coordinates beside the inert request until its
+    // Product owner materializes the ordinary source recipe.
+    let mut operand_selections = Vec::new();
+    for operand in request.designated_operands() {
+        for (_, selection) in operand
+            .application
+            .as_ref()
+            .into_iter()
+            .flat_map(|graph| graph.selections.iter())
+        {
+            let kind = selection.kind.ok_or_else(|| {
+                Diagnostic::error("designated operand lost its authored selection kind")
+            })?;
+            operand_selections.push(
+                target
+                    .authored_declaration_selections()
+                    .source_coordinate_occurrence(selection.source_span, selection.exposure, kind)
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "Build operand cannot rejoin its {kind:?} selection ({:?}): {reason}",
+                            selection.exposure
+                        ))
+                        .with_source_span(selection.source_span)
+                    })?,
+            );
+        }
+    }
     let operation = match (&request, arguments.len()) {
         (BuildSelectionRequest::ProviderReadiness(_), 1) => "await_provider",
         (BuildSelectionRequest::Exclusion(_), 2) => "exclude",
@@ -183,12 +214,14 @@ pub(crate) fn lower(
         build_selection,
         Default::default(),
     );
-    Ok(emit(
+    let committed = emit(
         commit.symbol,
         crate::lowerer::name::lower_name(&commit.name),
         receiver,
         arguments,
         build_selection,
         acknowledgement,
-    ))
+    );
+    table.attach_authored_selection_occurrences(committed, operand_selections);
+    Ok(committed)
 }

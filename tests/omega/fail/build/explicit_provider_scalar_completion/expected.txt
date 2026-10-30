@@ -1,0 +1,1 @@
+Build helper scalar completion: scalar predicate is false: requires contract for call require_offset

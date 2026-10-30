@@ -26,6 +26,16 @@
 
 use super::*;
 
+/// Identity alone can join different source presentations. Memoize only an
+/// already admitted exact request, retaining its declaration telescope and
+/// substitutions; another presentation still checks its complete shape.
+#[derive(PartialEq, Eq)]
+struct TypeShapeRequest {
+    reference: TypeReferenceHandle,
+    binders: Vec<(SymbolHandle, String)>,
+    substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
 pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) program: &'program dyn ::validation::CheckingInput,
     pub(in crate::execution::terminal_unit) types:
@@ -33,6 +43,10 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in crate::execution::terminal_unit) cleanup_control:
         checked_trees::CheckedCleanupControlPlans,
+    // Compiler-owned handles select arena slots; the small bucket retains
+    // exact generation/telescope/substitution contexts for that source row.
+    // This is a collector-local query memo, never a semantic type identity.
+    completed_requests: Vec<Vec<(TypeShapeRequest, typed_trees::type_identity::TypeIdentityId)>>,
     in_progress: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
     domains_in_progress: BTreeSet<(u32, typed_trees::type_identity::TypeIdentityId)>,
     /// The element rows registered beside borrowed byte views. A byte
@@ -53,6 +67,7 @@ impl<'program> ShapeCollector<'program> {
             types: BTreeMap::new(),
             domains: Vec::new(),
             cleanup_control: Default::default(),
+            completed_requests: Vec::new(),
             in_progress: BTreeSet::new(),
             domains_in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
@@ -399,32 +414,10 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
-    /// Read a const actual bound through a substitution as a usize array
-    /// length. Literal spellings are `Named` rows whose identity is the
-    /// decimal text; const-evaluated applications keep a `ConstExpression`.
-    fn const_length_reference_value(&self, reference: TypeReferenceHandle) -> Option<usize> {
-        match self.program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { name, .. } => name.as_str().parse::<usize>().ok(),
-            TypeReferenceNode::ConstExpression(expression) => usize::try_from(
-                self.program
-                    .expression_table
-                    .constant_integer_value(*expression)?,
-            )
-            .ok(),
-            _ => None,
-        }
-    }
-
     /// A const actual's extent: its literal, or the recipe a still-pending
     /// const-generic argument retains for the target closure.
     fn const_length_extent(&self, reference: TypeReferenceHandle) -> Option<CheckedExtent> {
-        if let Some(value) = self.const_length_reference_value(reference) {
-            return u64::try_from(value).ok().map(CheckedExtent::Literal);
-        }
-        let recipe = self
-            .program
-            .constant_recipe_for_const_application(reference);
-        recipe.is_valid().then_some(CheckedExtent::Recipe(recipe))
+        self.program.declared_constant_extent(reference)
     }
 
     /// Register an admitted reference carrier with its declared access.
@@ -671,6 +664,39 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        let slot = type_reference.arena_index() as usize;
+        if let Some(identity) = self.completed_requests.get(slot).and_then(|contexts| {
+            contexts.iter().find_map(|(candidate, identity)| {
+                (candidate.reference == type_reference
+                    && candidate.binders == binders
+                    && candidate.substitutions == substitutions)
+                    .then_some(*identity)
+            })
+        }) && self.types.contains_key(&identity)
+        {
+            return (!self.in_progress.contains(&identity)).then_some(identity);
+        }
+        let identity = self.collect_type(type_reference, binders, substitutions)?;
+        let request = TypeShapeRequest {
+            reference: type_reference,
+            binders: binders.to_vec(),
+            substitutions: substitutions.to_vec(),
+        };
+        // Only an admitted request can grow the arena slots: an invalid
+        // source handle must decline without allocating its numeric index.
+        if self.completed_requests.len() <= slot {
+            self.completed_requests.resize_with(slot + 1, Vec::new);
+        }
+        self.completed_requests[slot].push((request, identity));
+        Some(identity)
+    }
+
+    fn collect_type(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         // A borrowed occurrence erases its outer access edge once. Its storage
         // may itself be a reference, which occupies a descriptor rather than
         // inline backing. Register the same stored shape used by fields/results.
@@ -881,7 +907,9 @@ impl<'program> ShapeCollector<'program> {
                     substitution_for(substitutions, *symbol)
                         .and_then(|replacement| self.const_length_extent(replacement))
                 }
-                typed_trees::types::FixedArrayLength::Expression(_) => None,
+                typed_trees::types::FixedArrayLength::Expression(argument) => {
+                    self.const_length_extent(*argument)
+                }
                 typed_trees::types::FixedArrayLength::ConstCall { .. } => {
                     let recipe = self
                         .program
@@ -1658,6 +1686,10 @@ impl<'program> ShapeCollector<'program> {
                 break;
             }
         }
+        // A completed request may also have registered logical backing and
+        // domain rows beyond its stored identity. Pruning ends that collection
+        // epoch; a later demand must re-establish its complete footprint.
+        self.completed_requests.clear();
         self.types.retain(|identity, _| retained.contains(identity));
         self.domains
             .retain(|domain| retained.contains(&domain.carrier_type_identity));

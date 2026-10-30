@@ -349,6 +349,28 @@ fn project_declarations(
                 synthesized.insert(child);
             }
         }
+        // An evaluation entry is owned by one retained constant declaration.
+        // Its generated symbol is not lexically nested, and its owner can have
+        // an authored source location excluded by the ordinary reference rule.
+        // Preserve this exact association from the original live roster rather
+        // than granting arbitrary generated-from provenance executable reach.
+        for declaration in original.const_declarations() {
+            if !original
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+            {
+                continue;
+            }
+            let entry = original
+                .tables
+                .machines
+                .get(declaration.evaluation_entry)
+                .symbol;
+            if selected_root(entry) || synthesized.contains(&entry) {
+                synthesized.insert(declaration.symbol);
+            }
+        }
         if synthesized.len() == before {
             break;
         }
@@ -431,6 +453,8 @@ pub fn descriptor_selection_occurrences(
             .filter(|selection| !program.checks_authored_selection(selection))
             .map(|selection| selection.occurrence_id()),
     );
+    let materialized = materialized_product_operand_occurrences(program);
+    occurrences.retain(|occurrence| !materialized.contains(occurrence));
     occurrences
 }
 
@@ -660,21 +684,79 @@ pub fn product_request_operand_occurrences(
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
                 continue;
             };
-            if !matches!(
-                selection.kind(),
-                Kind::StaticArgument | Kind::StaticPathSegment | Kind::Conformance
-            ) {
-                continue;
-            }
-            let span = selection.source_span();
+            let span = program
+                .symbols
+                .rejoin_product_occurrence(selection.source_span());
             if request.designated_operands().iter().any(|operand| {
-                span.source_id == operand.source_span.source_id
-                    && span.span.start >= operand.source_span.span.start
-                    && span.span.end <= operand.source_span.span.end
+                let operand_span = program
+                    .symbols
+                    .rejoin_product_occurrence(operand.source_span);
+                let declaration_path = matches!(
+                    selection.kind(),
+                    Kind::StaticArgument | Kind::StaticPathSegment | Kind::Conformance
+                ) && span.source_id == operand_span.source_id
+                    && span.span.start >= operand_span.span.start
+                    && span.span.end <= operand_span.span.end;
+                let captured_expression = operand.application.as_ref().is_some_and(|graph| {
+                    graph.selections.iter().any(|(_, captured)| {
+                        program
+                            .symbols
+                            .rejoin_product_occurrence(captured.source_span)
+                            == span
+                            && captured.kind == Some(selection.kind())
+                            && captured.exposure == selection.exposure()
+                    })
+                });
+                declaration_path || captured_expression
             }) {
                 occurrences.insert(occurrence);
             }
         }
     }
+    let materialized = materialized_product_operand_occurrences(program);
+    occurrences.retain(|occurrence| !materialized.contains(occurrence));
     occurrences
+}
+
+/// Only actual source-input roots remove descriptor deferral. Discarded arena
+/// expressions and an inert graph by themselves establish no materialization.
+fn materialized_product_operand_occurrences(
+    program: &dyn crate::CheckingInput,
+) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
+    #[derive(Default)]
+    struct Selections {
+        expressions: HashSet<typed_trees::expression::ExpressionHandle>,
+        occurrences: HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
+    }
+    impl Extend<SymbolHandle> for Selections {
+        fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, _: Symbols) {}
+    }
+    impl typed_trees::references::TypedReferences for Selections {
+        fn expression(&mut self, handle: typed_trees::expression::ExpressionHandle) -> bool {
+            self.expressions.insert(handle)
+        }
+        fn authored_selection(
+            &mut self,
+            occurrence: typed_trees::AuthoredDeclarationSelectionOccurrenceId,
+        ) {
+            self.occurrences.insert(occurrence);
+        }
+    }
+    let mut selections = Selections::default();
+    let typed = program.typed_program();
+    let mut owners = Vec::new();
+    for handle in typed.live_product_operand_applications() {
+        let application = typed.product_operand_applications.get(handle);
+        let owner = typed
+            .expression_table
+            .static_machine_application(application.supplying_application)
+            .lexical_owner;
+        if !owners.contains(&owner) {
+            owners.push(owner);
+        }
+    }
+    for owner in owners {
+        typed_trees::references::visit_product_operand_inputs(typed, &mut selections, owner);
+    }
+    selections.occurrences
 }

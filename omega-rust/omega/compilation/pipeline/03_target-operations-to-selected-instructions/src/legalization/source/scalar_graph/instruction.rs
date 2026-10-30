@@ -36,14 +36,7 @@ where
         targeted,
         target_operations::TargetUnitOperation::Call { .. }
     ) {
-        call_instructions::project_call(
-            optimized,
-            unit,
-            targeted,
-            native,
-            plan,
-            call_descriptor_origins,
-        )?
+        call_instructions::project_call(optimized, unit, targeted, call_descriptor_origins)?
     } else if let target_operations::TargetUnitOperation::PlacementLifecycle {
         boundary,
         operands,
@@ -563,7 +556,7 @@ where
                 bytes: bytes.clone(),
             },
             AbstractOperation::ByteSequenceSubslice { .. } => {
-                storage_instructions::project_byte_sequence_subslice(node, optimized, unit)?
+                storage_instructions::project_subslice(node, optimized, unit)?
             }
             AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
                 storage_instructions::project_structural_byte_sequence_field_byte_store(
@@ -691,7 +684,7 @@ where
                 storage_instructions::project_element_view_write(node, optimized, unit)?
             }
             AbstractOperation::ElementViewSubslice { .. } => {
-                storage_instructions::project_element_view_subslice(node, optimized, unit)?
+                storage_instructions::project_subslice(node, optimized, unit)?
             }
             AbstractOperation::EstablishElementView {
                 psi_operation,

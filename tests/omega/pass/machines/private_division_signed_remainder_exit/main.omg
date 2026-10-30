@@ -1,0 +1,9 @@
+// Expected exit: 0
+machine quotient(left: i64, right: i64) -> i64 {
+ transition right != 0 && (left != (-9223372036854775808) || right != (-1)) { true -> divided(left, right) false -> (0) }
+ machine divided(left: i64, right: i64) -> i64 { left % right }
+}
+machine main() crashes Trap {
+ transition quotient(84, 7) == 0 && quotient(84, 0) == 0 { true -> {} false -> bad() }
+ machine bad() crashes Trap { crash Trap; }
+}

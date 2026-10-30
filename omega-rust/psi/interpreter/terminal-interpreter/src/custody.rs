@@ -1141,7 +1141,8 @@ pub(crate) fn split_affine_frontier_at_projection(
         StructuralTypeShape::Record { fields, .. } => {
             let mut selected = None;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)? else {
+                let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)?
+                else {
                     continue;
                 };
                 let segment = StructuralPathSegment::Field(field.identity.clone());
@@ -1162,7 +1163,7 @@ pub(crate) fn split_affine_frontier_at_projection(
         }
         StructuralTypeShape::FixedArray {
             element,
-            length,
+            length: terminal_psi::ArrayExtent::Literal(length),
         } if matches!(next_segment, StructuralPathSegment::FixedIndex(index) if index < length) => {
             let StructuralPathSegment::FixedIndex(selected_index) = next_segment else {
                 unreachable!()
@@ -1191,11 +1192,19 @@ pub(crate) fn split_affine_frontier_at_projection(
             // Common members have their ordinary paths. Payload members live
             // only below this exact Case namespace; the virtual Case itself
             // owns no second obligation and adds no physical backing prefix.
-            for (case, fields) in declaration.shape.direct_fields().map(|fields| (None, fields))
-                .into_iter().chain(std::iter::once((Some(selected_case.id), selected_case.fields.as_slice())))
+            for (case, fields) in declaration
+                .shape
+                .direct_fields()
+                .map(|fields| (None, fields))
+                .into_iter()
+                .chain(std::iter::once((
+                    Some(selected_case.id),
+                    selected_case.fields.as_slice(),
+                )))
             {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                    let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)? else {
+                    let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)?
+                    else {
                         continue;
                     };
                     let segment = StructuralPathSegment::Field(field.identity.clone());
@@ -1204,7 +1213,11 @@ pub(crate) fn split_affine_frontier_at_projection(
                         path.push(StructuralPathSegment::Case(case));
                     }
                     path.push(segment.clone());
-                    let child = StructuralAffineDiscard { place: current.place, path, structural_type: field_type };
+                    let child = StructuralAffineDiscard {
+                        place: current.place,
+                        path,
+                        structural_type: field_type,
+                    };
                     if projected_path.starts_with(&child.path) {
                         selected = Some(child);
                     } else if !frontier.insert(child) {

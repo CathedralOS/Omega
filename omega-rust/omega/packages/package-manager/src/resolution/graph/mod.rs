@@ -280,7 +280,7 @@ impl ResolvedPackageClosure {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageClosureValidationError {
+pub(crate) enum PackageClosureValidationError {
     InvalidRootRole {
         role: BuildDeclarationKind,
     },

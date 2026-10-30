@@ -472,6 +472,12 @@ fn append_call_result_field_domain_facts<'plans>(
     else {
         return;
     };
+    // Live borrowed guarantees are published with their completed descriptor
+    // and write dependencies by expression::result_memberships. Owned results
+    // retain their detached completion namespace here.
+    if validation::reference_shell(program, return_type).is_some() {
+        return;
+    }
     let key = (
         borrow_call.target_symbol,
         selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
@@ -520,28 +526,30 @@ fn append_call_result_field_domain_facts<'plans>(
     // or another domain application cannot stand in for this result row.
     let realization = checked_realization_result_identities(program, build, call);
     let rows = paths.iter().filter(|row| {
-        let (_, domain_symbol, _) = *row;
-        if realization
-            .as_ref()
-            .is_some_and(|guaranteed| !guaranteed.contains(*row))
-            && program
-                .domain_definition(*domain_symbol)
-                .is_some_and(|domain| {
-                    domain.establishment_routes.iter().any(|route| {
-                        matches!(
-                            route,
-                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
-                        )
-                    })
-                })
-        {
-            return false;
-        }
-        true
+        result_identity_is_available(program, realization.as_deref().map(Vec::as_slice), row)
     });
     super::call_results::append_memberships(
         semantic, build, exit, expression, point, evidence, rows,
     );
+}
+
+/// Preserve the issuer fence for owned and borrowed normal-result publishers.
+/// A direct checked adapter owes the exact result row independently; its
+/// requirement's boundary-only authority cannot supply a missing promise.
+pub(in crate::flow) fn result_identity_is_available(
+    program: &dyn ::validation::CheckingInput,
+    realization: Option<&[validation::field_domains::FieldDomainIdentity]>,
+    row: &validation::field_domains::FieldDomainIdentity,
+) -> bool {
+    !realization.is_some_and(|guaranteed| !guaranteed.contains(row))
+        || !program.domain_definition(row.1).is_some_and(|domain| {
+            domain.establishment_routes.iter().any(|route| {
+                matches!(
+                    route,
+                    language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
+                )
+            })
+        })
 }
 
 /// The checked adapter's exact result obligations, when this is a direct call.
@@ -550,7 +558,7 @@ fn append_call_result_field_domain_facts<'plans>(
 /// publisher. Scanning domain symbols alone would let `ensures input in D`
 /// authorize an unrelated `result in D`. An empty checked-body roster grants
 /// nothing; absence denotes a crossing or bodyless provider and adds no fence.
-fn checked_realization_result_identities<'plans>(
+pub(in crate::flow) fn checked_realization_result_identities<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     call: &typed_trees::expression::TableCallExpression,
@@ -804,7 +812,7 @@ pub(crate) fn call_result_qualification_identities(
 /// scans. Used inside `call_result_identities`, so each call occurrence pays
 /// the indexed lookup at most once per build. Two calls to one requirement
 /// can have different local index tuples and therefore different result facts.
-fn call_result_qualification_identities_indexed<'plans>(
+pub(in crate::flow) fn call_result_qualification_identities_indexed<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
@@ -829,7 +837,7 @@ fn call_result_qualification_identities_indexed<'plans>(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
-    if !super::call_results::carries_identity_rows(program, return_type) {
+    if !return_type.is_valid() {
         return Vec::new();
     }
     let domain_rows = build
@@ -863,7 +871,7 @@ fn result_identity_rows(
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    if !super::call_results::carries_identity_rows(program, return_type) {
+    if !return_type.is_valid() {
         return Vec::new();
     }
     let mut domains = super::call_results::type_domain_rows(program, return_type);

@@ -28,6 +28,9 @@ pub struct ProviderBindingRequest<'a> {
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    pub external_declarations: &'a std::sync::OnceLock<
+        Result<Arc<psi_terminal_production::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
+    >,
 }
 
 /// Close source-dependent realization once without rewriting the shared program.
@@ -58,23 +61,60 @@ pub fn prepare_selected_execution(
             &settlement.selected_provider_plan_facts,
         )?;
     }
-    let binding = provider_planning::bind_selected_provider_plan_facts(
+    // Numeric plan admission consumes this exact checked owner's declaration
+    // facts. Prepare once before binding; malformed declarations can now refuse
+    // before plan/qualification errors, but neither path executes effects.
+    let external_providers = settlement
+        .external_declarations
+        .get_or_init(|| {
+            psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
+                Arc::clone(&program),
+                settlement.exact_toolchain_sources,
+            )
+            .map(Arc::new)
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "external provider declarations: {error:?}"
+                ))]
+            })
+        })
+        .clone()?;
+    external_providers
+        .require_owner(&program, settlement.exact_toolchain_sources)
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "external provider declarations: {error:?}"
+            ))]
+        })?;
+    let declarations = provider_planning::prepare_selected_plan_declarations(
         &program,
-        &program.facts,
+        &settlement.selected_provider_plan_facts,
+        &settlement.selected_provider_provenance,
+    );
+    let binding = provider_selection::bind_selected_provider_plan_facts(
+        provider_selection::BoundaryProviderAdmission {
+            review: &external_providers.boundary_provider_review(),
+            identities: &external_providers.identities,
+            external_providers: &external_providers.conformances,
+        },
+        program.facts.semantic.admitted_qualification_issuers(),
         &provider_plans,
         settlement.selected_provider_plan_facts,
-        &settlement.selected_provider_provenance,
+        declarations,
         settlement.root_grants,
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let callback_placements =
-        provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
-            &program.typed,
-            &selected_provider_plan_facts,
-            &program.facts,
-            settlement.boundary_calling_plan_realizations,
-        )?;
+    let callback_roots = provider_planning::callback_roots::prepare(
+        &program,
+        &selected_provider_plan_facts,
+        settlement.boundary_calling_plan_realizations,
+    )?;
+    let callback_roots = psi_terminal_production::PreparedTerminalRoots::prepare(
+        &program,
+        settlement.exact_toolchain_sources,
+        callback_roots,
+    );
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(
@@ -84,17 +124,6 @@ pub fn prepare_selected_execution(
             settlement.boundary_calling_plan_realizations,
             settlement.exact_toolchain_sources,
         ),
-    );
-    let external_providers = Arc::new(
-        psi_terminal_production::project_external_provider_declarations(
-            &program,
-            settlement.exact_toolchain_sources,
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "external provider declarations: {error:?}"
-            ))]
-        })?,
     );
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         provider_planning::ProviderPlanningContext::new(
@@ -161,7 +190,7 @@ pub fn prepare_selected_execution(
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
         selected_provider_plan_facts,
         selected_provider_grants,
-        callback_placements,
+        callback_roots,
         accepted_template_classifications,
         selected_provider_provenance: settlement.selected_provider_provenance,
         resolved_semantic_bindings,

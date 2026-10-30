@@ -3,6 +3,7 @@
 
 use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
 use crate::provider_planning::{ProviderBinding, TypedTrees};
+use checked_trees::typed_trees::{signature::StateSignature, trait_definition::TraitDefinition};
 use target::HostedIntrinsicBundle;
 
 pub(crate) fn exact_satisfied_requirement_identity(
@@ -94,6 +95,30 @@ fn inferred_hosted_catalog_leaf(
     }
 }
 
+/// The boundary declaration and requirement one conformance satisfies, when
+/// its resolved satisfies edge names that boundary and that requirement.
+fn satisfied_boundary_requirement<'typed>(
+    typed: &'typed TypedTrees,
+    machine: &'typed checked_trees::typed_trees::machine::Machine,
+    conformance: &'typed checked_trees::typed_trees::machine::TraitConformance,
+) -> Option<(&'typed TraitDefinition, &'typed StateSignature)> {
+    let checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
+        definition,
+        requirement,
+    } = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
+        typed,
+        machine,
+        conformance,
+    )?
+    else {
+        return None;
+    };
+    (definition.is_boundary
+        && definition.symbol == conformance.symbol
+        && requirement.symbol == conformance.requirement_symbol)
+        .then_some((definition, requirement))
+}
+
 /// Payload-free source-inferred hosted catalog leaves. This is only
 /// candidate derivation: selected-dispatch independently rejoins package
 /// custody and the canonical target before granting a closed execution.
@@ -130,23 +155,10 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
                 None => supports_target(&origin.target),
             },
         )?;
-    let checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
-        definition,
-        requirement,
-    } = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
-        typed,
-        machine,
-        conformance,
-    )?
-    else {
-        return None;
-    };
-    if !definition.is_boundary
-        || definition.symbol != conformance.symbol
-        || definition.name.as_str() != trait_name
+    let (definition, requirement) = satisfied_boundary_requirement(typed, machine, conformance)?;
+    if definition.name.as_str() != trait_name
         || !definition.lifetime_parameters.is_empty()
         || !typed.trait_type_parameters(definition).is_empty()
-        || requirement.symbol != conformance.requirement_symbol
         || requirement.name.as_str() != requirement_name
         || machine
             .name
@@ -210,23 +222,7 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
     let origin = sole_machine_origin(target_machine_origins, machine.symbol, |origin| {
         selected_target == Some(origin.target.as_str())
     })?;
-    let checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
-        definition,
-        requirement,
-    } = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
-        typed,
-        machine,
-        conformance,
-    )?
-    else {
-        return None;
-    };
-    if !definition.is_boundary
-        || definition.symbol != conformance.symbol
-        || requirement.symbol != conformance.requirement_symbol
-    {
-        return None;
-    }
+    satisfied_boundary_requirement(typed, machine, conformance)?;
     let [_entry] = typed.machine_states(machine) else {
         return None;
     };

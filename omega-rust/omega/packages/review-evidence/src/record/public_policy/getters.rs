@@ -40,7 +40,7 @@ impl PackagePolicyDomainShape {
     field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
     field_projection_accessors!(borrowed target_type: &PackageReviewTypeIdentity);
     field_projection_accessors!(sliced index_arguments: &[PackageReviewTypeIdentity]);
-    field_projection_accessors!(copied predicate_body: language_semantics::DomainPredicateBody);
+    field_projection_accessors!(copied predicate_presence: language_semantics::DomainPredicatePresence);
     field_projection_accessors!(copied classification: Option<PackageReviewDomainClassification>);
     field_projection_accessors!(sliced semantic_roles: &[PackageReviewDomainSemanticRole]);
     field_projection_accessors!(sliced establishment_routes: &[PackageReviewDomainEstablishmentRoute]);

@@ -55,6 +55,11 @@ impl LocalSourceResolutionObservation {
         &self.identity
     }
 
+    /// Custody identity recorded for the published snapshot.
+    ///
+    /// The field feeds the resolver's observation digest; this accessor exists
+    /// so tests can compare two resolutions of the same live tree.
+    #[cfg(test)]
     pub(crate) fn custody_identity(&self) -> &str {
         &self.custody_identity
     }

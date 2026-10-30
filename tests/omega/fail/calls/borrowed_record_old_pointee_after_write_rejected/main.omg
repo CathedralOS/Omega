@@ -1,0 +1,12 @@
+// A descriptor snapshot cannot preserve its old pointee after a write.
+data Packet<'input> { left: u64; right: &'input mut u64; }
+machine touch_left(value: &mut u64) { value = 999u64; }
+machine replace(value: &mut u64) { value = 76u64; }
+public machine observe(value: &mut u64) -> u64
+requires value <= 75u64 {
+    let mut packet: Packet = Packet { left: 10u64, right: value };
+    touch_left(&mut packet.left);
+    replace(packet.right);
+    75u64 - packet.right
+}
+machine main() { let mut value: u64 = 25u64; _ = observe(&mut value); }

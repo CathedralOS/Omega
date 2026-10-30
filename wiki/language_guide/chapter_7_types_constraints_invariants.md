@@ -5,16 +5,16 @@ facts or meaning attached to values. Flow analysis tracks which facts still hold
 after a branch, call, or write. None of these requires runtime type tags.
 
 A data declaration's default domain is part of its static interface. Field
-constraints describe individual fields; a data-signature `where` clause describes
+constraints describe individual fields; a data-signature `requires` clause describes
 relationships such as `start <= end`. The same clause can state
 [case-conditional predicates](chapter_1_data_values_literals.md#constraints-on-individual-cases)
 over `self`, including guarded payload couplings and type equations.
 Construction proves them; matching derives their case-specific consequences.
-There is no case-local `where` or separate authored `invariant` clause.
+There is no case-local `requires` or separate authored `invariant` clause.
 See [dependent data](chapter_12_dependent_types.md).
 
 Omega uses these clauses as the canonical scalar-bound syntax. There is no
-`T [lo..=hi]` scalar type suffix: data and case relationships use data-level `where`,
+`T [lo..=hi]` scalar type suffix: data and case relationships use data-level `requires`,
 parameters use `requires`, results use `ensures`, and locals retain facts from
 their producing expressions and guards. `T in D` is reserved for an intentionally
 named domain rather than anonymous range sugar.
@@ -50,7 +50,7 @@ Branches refine the facts available on their own paths:
 
 ```omega
 data Player
-where
+requires
     health in 0..=100,
 {
     health: i32;
@@ -131,7 +131,7 @@ A window fact states an element-wise condition over a sequence prefix:
 
 ```omega
 data MapTable
-where
+requires
     loaded <= 8,
     maps[0..loaded] in MemoryMap,
 {

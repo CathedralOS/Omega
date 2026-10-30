@@ -51,6 +51,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         &self.descriptors
     }
 
+    #[cfg(test)]
     pub(crate) fn logical_slot_count(&self) -> usize {
         self.contents.slots.len()
     }
@@ -59,6 +60,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         self.contents.jump_slot_relocations.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn direct_call_site_count(&self) -> usize {
         self.contents
             .slots
@@ -176,25 +178,12 @@ pub(crate) fn plan_elf_procedure_linkage_relocations(
     ValidatedElfProcedureLinkageRelocationPlan,
     Box<ElfProcedureLinkageRelocationPlanningError>,
 > {
-    checked::plan_candidate(
-        descriptors,
-        derive_contents,
-        |descriptors, contents| {
-            non_authoritative_linkage_compatibility_fingerprint(&descriptors, &contents)
-        },
-        |descriptors, contents, fingerprint| Candidate {
-            descriptors: descriptors,
-            contents: contents,
-            non_authoritative_linkage_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.descriptors,
-        |descriptors, diagnostic| {
-            Box::new(ElfProcedureLinkageRelocationPlanningError {
-                descriptors: descriptors,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: descriptors,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_linkage_compatibility_fingerprint,
+        error: ElfProcedureLinkageRelocationPlanningError,
     )
 }
 

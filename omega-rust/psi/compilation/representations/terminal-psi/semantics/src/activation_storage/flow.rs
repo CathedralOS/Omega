@@ -324,7 +324,8 @@ fn contains_claim(
                 fields(members, visiting) || cases.iter().any(|case| fields(&case.fields, visiting))
             }
             StructuralTypeShape::FixedArray { element, length } => {
-                *length != 0 && contains_claim(types, *element, claim_types, visiting)
+                *length != terminal_psi::ArrayExtent::Literal(0)
+                    && contains_claim(types, *element, claim_types, visiting)
             }
             _ => false,
         };

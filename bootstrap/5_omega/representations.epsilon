@@ -314,24 +314,11 @@ data OmegaTypeReferenceSyntax {
     payload5: i32;
 }
 
-data OmegaTypeConstraintKind {
-    case Domain;
-    case InclusiveRange;
-}
-
-// Kind-selected constraint payload. Domain uses payload0/payload1 as its path
-// span. InclusiveRange uses payload0..payload3 as the exact minimum/maximum
-// literal spans; payload4/payload5 are reserved for their eventual expression
-// handles, while Domain can use them for its argument span. Unselected words
-// have no meaning and need not be cleared.
+// A type qualification retains its exact domain path. Scalar predicates belong
+// to the data's requirement ledger, never to a type wrapper.
 data OmegaTypeConstraintSyntax {
-    kind: OmegaTypeConstraintKind;
-    payload0: i32;
-    payload1: i32;
-    payload2: i32;
-    payload3: i32;
-    payload4: i32;
-    payload5: i32;
+    first_path_member: i32;
+    path_member_count: i32;
 }
 
 data OmegaTypeArrayFrame {
@@ -362,6 +349,8 @@ data OmegaDataMemberSyntax {
 
 data OmegaDataSyntax {
     name: OmegaRelativeSpan;
+    first_requirement: i32;
+    requirement_count: i32;
     first_member: i32;
     member_count: i32;
     first_field: i32;
@@ -370,6 +359,14 @@ data OmegaDataSyntax {
     case_count: i32;
     multiplicity: OmegaDataMultiplicity;
     is_public: i32;
+    start: i32;
+    end: i32;
+}
+
+// Source-ordered clauses own ordinary expression handles. Their enclosing data
+// row supplies the subject; no clause changes the field's carrier type.
+data OmegaDataRequirementSyntax {
+    expression: i32;
     start: i32;
     end: i32;
 }
@@ -636,6 +633,7 @@ data OmegaPathExpressionKind {
 }
 
 data OmegaExpressionConsumer {
+    case DataRequirement;
     case CallArgument;
     case AssignmentValue;
     case StructFieldValue;
@@ -763,9 +761,8 @@ data OmegaParseDiagnosticCode {
     case ExpectedDataFieldColon;
     case ExpectedDataFieldType;
     case ExpectedTypeDomain;
-    case ExpectedTypeRangeOperator;
-    case ExpectedTypeRangeBound;
-    case ExpectedTypeRangeEnd;
+    case ExpectedDataRequirement;
+    case UnexpectedTypeSuffix;
     case ExpectedArrayElementType;
     case ExpectedArraySeparatorOrEnd;
     case ExpectedArrayLength;
@@ -851,6 +848,7 @@ data OmegaParser {
     members: [OmegaRelativeSpan; 16384];
     uses: [OmegaUseSyntax; 4096];
     data_items: [OmegaDataSyntax; 4096];
+    data_requirements: [OmegaDataRequirementSyntax; 16384];
     machine_items: [OmegaMachineSyntax; 4096];
     machine_states: [OmegaMachineStateSyntax; 4096];
     machine_parameters: [OmegaMachineParameterSyntax; 16384];
@@ -903,6 +901,7 @@ data OmegaParser {
     member_count: i32;
     use_count: i32;
     data_count: i32;
+    data_requirement_count: i32;
     machine_count: i32;
     machine_state_count: i32;
     machine_parameter_count: i32;
@@ -939,6 +938,8 @@ data OmegaParser {
     data_first_member: i32;
     data_first_field: i32;
     data_first_case: i32;
+    data_first_requirement: i32;
+    data_requirement_start: i32;
     data_is_public: i32;
     data_multiplicity: OmegaDataMultiplicity;
     type_subject_start: i32;
@@ -948,16 +949,11 @@ data OmegaParser {
     type_name_start: i32;
     type_name_end: i32;
     type_end: i32;
-    // 0 is a bare base, 1 an unqualified domain, and 2 a literal range.
+    // 0 is a bare base and 1 a domain qualification.
     type_constraint_mode: i32;
     type_domain_name_start: i32;
     type_domain_name_end: i32;
-    type_range_minimum_start: i32;
-    type_range_minimum_end: i32;
-    type_range_maximum_start: i32;
-    type_range_maximum_end: i32;
     type_root: i32;
-    type_allows_range: i32;
     type_array_frame_count: i32;
     type_array_depth: i32;
     type_required_nodes: i32;

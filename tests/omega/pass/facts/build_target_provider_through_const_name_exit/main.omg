@@ -3,7 +3,7 @@
 use reading_provider::main::Reading;
 const SUBTRAHEND: u64 = 1000u64;
 machine journey(expected: u64) reaches Reading crashes Trap {
-    let difference: u64 = Reading::total() - SUBTRAHEND;
+    let difference: u64 = Reading<17u64>::total() - SUBTRAHEND;
     transition difference == expected { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

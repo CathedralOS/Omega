@@ -1,0 +1,127 @@
+{
+  "same_root_complete_publication_sets": 112,
+  "warmup_and_measured_sets": 104,
+  "measured_pairs": 48,
+  "artifact_files_per_set": 3,
+  "all_native_bytes_match": true,
+  "accepted_lock_binding_verified_per_compile": true,
+  "all_authored_source_bytes_match": true,
+  "private_retained_records_unchanged": true,
+  "abi_cases_per_producer": 11,
+  "abi_all_128_words_checked": true,
+  "profiles": [
+    {
+      "role": "a",
+      "counters": {
+        "05.b.retained_match.hit": 8,
+        "component.cache.hit": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 7,
+        "source.graph.sibling_build_checks": 8,
+        "source.graph.sibling_product_checks": 8,
+        "source.graph.sources": 8
+      }
+    },
+    {
+      "role": "a",
+      "counters": {
+        "05.b.retained_match.hit": 8,
+        "component.cache.hit": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 7,
+        "source.graph.sibling_build_checks": 8,
+        "source.graph.sibling_product_checks": 8,
+        "source.graph.sources": 8
+      }
+    },
+    {
+      "role": "a",
+      "counters": {
+        "05.b.retained_match.hit": 8,
+        "component.cache.hit": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 7,
+        "source.graph.sibling_build_checks": 8,
+        "source.graph.sibling_product_checks": 8,
+        "source.graph.sources": 8
+      }
+    },
+    {
+      "role": "b",
+      "counters": {
+        "05.b.retained_match.hit": 8,
+        "component.cache.hit": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 7,
+        "source.graph.sibling_build_checks": 8,
+        "source.graph.sibling_product_checks": 8,
+        "source.graph.sources": 8
+      }
+    },
+    {
+      "role": "b",
+      "counters": {
+        "05.b.retained_match.hit": 8,
+        "component.cache.hit": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 7,
+        "source.graph.sibling_build_checks": 8,
+        "source.graph.sibling_product_checks": 8,
+        "source.graph.sources": 8
+      }
+    },
+    {
+      "role": "b",
+      "counters": {
+        "05.b.retained_match.hit": 8,
+        "component.cache.hit": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 7,
+        "source.graph.sibling_build_checks": 8,
+        "source.graph.sibling_product_checks": 8,
+        "source.graph.sources": 8
+      }
+    }
+  ],
+  "standalone_probe_outcomes": {
+    "a": {
+      "schema": "cathedral-standalone-probe-observation/1",
+      "returncode": -11,
+      "signal": "SIGSEGV",
+      "expected_exit_code": 0,
+      "passed": false,
+      "stdout": "",
+      "stderr": "",
+      "command": [
+        "wsl.exe",
+        "--distribution",
+        "Ubuntu",
+        "--exec",
+        "python3",
+        "/mnt/c/Users/User/.codex/worktrees/performance-tooling/Omega/build/performance/cathedral-matrix-generation-domains/probe-outcome.py",
+        "/mnt/c/Users/User/.codex/worktrees/performance-tooling/Omega/build/performance/cathedral-matrix-generation-domains/fixed/observations/compile-a-1h7_1hr5/build/omega-program"
+      ],
+      "artifact_sha256": "6b5d4af570d14ab100424bca26b9dd48aa4f7d748f60bc58d4dae98d4ef72a0d"
+    },
+    "b": {
+      "schema": "cathedral-standalone-probe-observation/1",
+      "returncode": -11,
+      "signal": "SIGSEGV",
+      "expected_exit_code": 0,
+      "passed": false,
+      "stdout": "",
+      "stderr": "",
+      "command": [
+        "wsl.exe",
+        "--distribution",
+        "Ubuntu",
+        "--exec",
+        "python3",
+        "/mnt/c/Users/User/.codex/worktrees/performance-tooling/Omega/build/performance/cathedral-matrix-generation-domains/probe-outcome.py",
+        "/mnt/c/Users/User/.codex/worktrees/performance-tooling/Omega/build/performance/cathedral-matrix-generation-domains/fixed/observations/compile-b-aoo18p8q/build/omega-program"
+      ],
+      "artifact_sha256": "6b5d4af570d14ab100424bca26b9dd48aa4f7d748f60bc58d4dae98d4ef72a0d"
+    }
+  },
+  "production_source_delta": "compiler-storage buffer.rs only; same provider-plan schema repair in both"
+}

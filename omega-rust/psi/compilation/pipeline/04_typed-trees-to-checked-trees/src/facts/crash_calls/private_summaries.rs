@@ -175,7 +175,7 @@ fn prepare_summary_nodes(
                     direct: if machine.target_family_interface {
                         summary_published_crash_buckets(target.crash.published())
                     } else {
-                        inferred_direct_body_crash_buckets(target)
+                        inferred_direct_body_crash_buckets(target, operators, None)
                     },
                     family_members,
                     invocations: machine_invocation_sites(
@@ -287,6 +287,12 @@ pub(crate) fn infer_private_body_summaries(
         nodes
             .par_iter()
             .map(|node| {
+                let machine = program
+                    .machine_by_symbol(node.machine)
+                    .expect("a retained summary node has its typed machine");
+                let entry_conditions =
+                    super::entry_paths::EntryConditions::new(program, semantic, flow);
+                let source_paths = entry_conditions.for_machine(machine.symbol);
                 let mut private_dependencies = Vec::new();
                 let mut published_dependencies = Vec::new();
                 for member in &node.family_members {
@@ -302,6 +308,7 @@ pub(crate) fn infer_private_body_summaries(
                             // signature admission pins the positional correspondence;
                             // no invocation actual or source-name substitution exists.
                             substitution: None,
+                            path_guard: SummaryCrashRouteGuard::Truth,
                             recursive: false,
                         });
                     } else {
@@ -334,6 +341,7 @@ pub(crate) fn infer_private_body_summaries(
                     )
                     .expect("a retained summary invocation has its typed call site");
                     let arguments = validation::call_site_argument_expressions(program, &call_site);
+                    let path_guard = source_paths.at_call(call_flow);
 
                     if let Some(target_plan) = plan_by_machine(invocation.target_machine) {
                         let target_machine = program
@@ -359,6 +367,7 @@ pub(crate) fn infer_private_body_summaries(
                                     arguments,
                                     exact_integer_casts,
                                 )),
+                                path_guard,
                                 recursive: private_dependency_reaches(
                                     program,
                                     nodes,
@@ -370,22 +379,26 @@ pub(crate) fn infer_private_body_summaries(
                                 ),
                             });
                         } else if !target_plan.crash.published().is_empty() {
-                            published_dependencies.extend(refine_published_crash_routes(
-                                program,
-                                operators,
-                                exact_integer_casts,
-                                semantic,
-                                flow,
-                                state_flow,
-                                call_flow,
-                                &call_site,
-                                invocation.target_state,
-                                target_parameters,
-                                &target_parameter_names,
-                                target_plan.crash.published(),
-                                program.machine_contracts(target_machine),
-                                content_conservation,
-                            ));
+                            published_dependencies.extend(
+                                refine_published_crash_routes(
+                                    program,
+                                    operators,
+                                    exact_integer_casts,
+                                    semantic,
+                                    flow,
+                                    state_flow,
+                                    call_flow,
+                                    &call_site,
+                                    invocation.target_state,
+                                    target_parameters,
+                                    &target_parameter_names,
+                                    target_plan.crash.published(),
+                                    program.machine_contracts(target_machine),
+                                    content_conservation,
+                                )
+                                .into_iter()
+                                .map(|bucket| bucket.on_path(&path_guard)),
+                            );
                         }
                     } else {
                         let capsule = capsule_by_target
@@ -403,22 +416,26 @@ pub(crate) fn infer_private_body_summaries(
                         .expect("a pinned requirement capsule has its typed signature");
                         let target_parameters = program.state_signature_parameters(signature);
                         let target_parameter_names = declared_parameter_names(target_parameters);
-                        published_dependencies.extend(refine_published_crash_routes(
-                            program,
-                            operators,
-                            exact_integer_casts,
-                            semantic,
-                            flow,
-                            state_flow,
-                            call_flow,
-                            &call_site,
-                            invocation.target_state,
-                            target_parameters,
-                            &target_parameter_names,
-                            capsule.published_buckets(),
-                            program.state_signature_contracts(signature),
-                            content_conservation,
-                        ));
+                        published_dependencies.extend(
+                            refine_published_crash_routes(
+                                program,
+                                operators,
+                                exact_integer_casts,
+                                semantic,
+                                flow,
+                                state_flow,
+                                call_flow,
+                                &call_site,
+                                invocation.target_state,
+                                target_parameters,
+                                &target_parameter_names,
+                                capsule.published_buckets(),
+                                program.state_signature_contracts(signature),
+                                content_conservation,
+                            )
+                            .into_iter()
+                            .map(|bucket| bucket.on_path(&path_guard)),
+                        );
                     }
                 }
                 PrivateSummaryEquation {
@@ -433,7 +450,12 @@ pub(crate) fn infer_private_body_summaries(
                             .map(|plan| summary_published_crash_buckets(plan.crash.published()))
                             .unwrap_or_else(|| node.direct.clone())
                     } else {
-                        node.direct.clone()
+                        inferred_direct_body_crash_buckets(
+                            plan_by_machine(node.machine)
+                                .expect("a retained summary node has its contract plan"),
+                            operators,
+                            Some(&source_paths),
+                        )
                     },
                     private_dependencies,
                     published_dependencies: normalize_summary_buckets(published_dependencies),
@@ -471,6 +493,7 @@ pub(crate) struct PrivateSummaryDependency<'program> {
     pub(crate) machine: SymbolHandle,
     /// None is the positional identity of a family membership dependency.
     pub(crate) substitution: Option<CallArgumentSubstitution<'program>>,
+    pub(crate) path_guard: SummaryCrashRouteGuard,
     pub(crate) recursive: bool,
 }
 
@@ -496,7 +519,7 @@ pub(crate) fn solve_private_summary_fixed_point(
                     .expect("every private dependency belongs to the viable fixed point");
                 let selected = &resolved[target_index].1;
                 buckets.extend(selected.iter().map(|bucket| {
-                    if dependency.recursive {
+                    let bucket = if dependency.recursive {
                         // Substitution around a recursive cycle can create an
                         // unbounded family such as p(n), p(n - 1), ... . The
                         // finite conservative lattice widens exactly those SCC
@@ -506,7 +529,8 @@ pub(crate) fn solve_private_summary_fixed_point(
                         bucket.substitute(substitution)
                     } else {
                         bucket.clone()
-                    }
+                    };
+                    bucket.on_path(&dependency.path_guard)
                 }));
             }
             let buckets = normalize_summary_buckets(buckets);
@@ -700,30 +724,65 @@ fn is_selected_build_operation(
         .any(|operation| operation.intrinsic() == intrinsic)
 }
 
+/// Each physical site has its own source frontier. A guard on one
+/// statement cannot narrow another operation or a guard's own evaluation.
 fn inferred_direct_body_crash_buckets(
     target: &checked_trees::MachineContractPlan,
+    operators: &checked_trees::CheckedOperatorFacts,
+    source: Option<&super::entry_paths::MachineEntryConditions<'_>>,
 ) -> Vec<SummaryCrashBucket> {
+    // Public potential-cause publication has no path refinement. The same
+    // physical roster supplies later guarded equations without changing that
+    // conservative envelope or computing another summary fixed point.
+    let at_site = |location| {
+        source.map_or(SummaryCrashRouteGuard::Truth, |paths| {
+            paths.at_site(location)
+        })
+    };
     let mut buckets = target
         .crash
         .checked_sites()
         .iter()
-        .map(|site| SummaryCrashBucket::unconditional(site.cause()))
+        .map(|site| {
+            SummaryCrashBucket::unconditional(site.cause()).on_path(&at_site(site.location()))
+        })
         .collect::<Vec<_>>();
-    // A Trapping primitive is its own unconditional `Trap` site, exactly like
-    // an explicit crash: its trap predicate reads body values, never only
-    // entry parameters, so no narrower guard is available to publish.
-    if !target.crash.trapping_sites().is_empty() {
-        buckets.push(SummaryCrashBucket::unconditional(
-            checked_trees::CrashCause::Trap,
-        ));
+    for site in target
+        .crash
+        .trapping_sites()
+        .iter()
+        .filter(|site| site.may_trap)
+    {
+        buckets.push(
+            SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap)
+                .on_path(&at_site(site.location)),
+        );
     }
-    // Selected operators are direct invocations in this body's summary, not
-    // fabricated machine-call edges. Their producer already distinguishes
-    // captured operands from entry values and widens unknown origins to Truth.
-    // Adding them here lets the existing private-call fixed point propagate
-    // their causes, including through recursive wrappers.
+    // Operators keep their exact selected-use origin; no machine-call ordinal
+    // is invented for a spelled operator. Statement fallthrough is sufficient
+    // evidence even where a selected expression's finer path stays unknown.
     for operator in target.crash.checked_operators() {
-        buckets.extend(summary_published_crash_buckets(&operator.surviving));
+        let origin = if operator.named_use.is_valid() {
+            operators.named_uses.get(operator.named_use).origin
+        } else {
+            operators.uses.get(operator.operator_use).origin
+        };
+        let path = match origin {
+            checked_trees::CheckedValueOrigin::StateStatement {
+                state_symbol,
+                statement_index,
+                ..
+            } => at_site(checked_trees::CrashSiteLocation::new(
+                state_symbol,
+                u32::try_from(statement_index).expect("statement ordinal fits u32"),
+            )),
+            _ => SummaryCrashRouteGuard::Truth,
+        };
+        buckets.extend(
+            summary_published_crash_buckets(&operator.surviving)
+                .into_iter()
+                .map(|bucket| bucket.on_path(&path)),
+        );
     }
     normalize_summary_buckets(buckets)
 }

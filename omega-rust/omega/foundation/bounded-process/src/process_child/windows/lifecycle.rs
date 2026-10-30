@@ -44,6 +44,10 @@ pub(crate) struct WindowsJobChild {
 }
 
 impl WindowsJobChild {
+    pub(crate) fn resource_usage(&self) -> crate::ProcessResourceUsage {
+        use std::os::windows::io::AsRawHandle;
+        super::super::resource_usage::windows_usage(self.child.as_raw_handle())
+    }
     pub(crate) fn id(&self) -> u32 {
         self.child.id()
     }

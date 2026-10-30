@@ -1,2 +1,0 @@
-data Index<Limit:u32> [copy] where value<Limit {value:u32;}
-machine invalid(input:u32) {let bounded:u32[0..=100]=input as u32[0..=100]; let indexed:Index<(bounded+1u32)> = Index{value:0};}

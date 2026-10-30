@@ -1,0 +1,2 @@
+cannot prove requires contract
+needs fact `word_from_present(value) == 0xff800123`

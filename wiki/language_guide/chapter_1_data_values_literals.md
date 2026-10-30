@@ -108,6 +108,14 @@ Common fields can be accessed without a case test; payload fields need the
 matching case. Case-bearing types use case construction, not a record literal
 that omits the case.
 
+Common fields come first; all inline cases follow them as a consecutive tail.
+Construction may supply common and payload fields together, as above. Matching
+instead decomposes the common fields and one case-only view: a named outer
+pattern can bind `RoomEvent { consumed, case as action }`, or a positional one
+can bind `(consumed, action)`. An inner match on action then handles Nothing or
+Treasure's gold. Case patterns bind payload fields only, never consumed again.
+See [data and case patterns](chapter_6_pattern_matching_dispatch.md#data-and-case-patterns).
+
 Omitted fields still need valid zero values. Zeroed storage selects the first
 case, but observation requires its common fields and active payload to be
 established. Zero does not prove an authority qualification or mean “empty.”
@@ -146,7 +154,7 @@ whole value in that predicate:
 
 ```omega
 data Value<T>
-    where ((self in Value::Integer) && T == i32)
+    requires ((self in Value::Integer) && T == i32)
        || ((self in Value::Boolean) && T == bool)
 {
     case Integer(value: i32);
@@ -154,7 +162,7 @@ data Value<T>
 }
 
 data Interval
-    where (self in Interval::Empty)
+    requires (self in Interval::Empty)
        || ((self in Interval::Range) && self.lo <= self.hi)
 {
     case Empty;
@@ -178,7 +186,7 @@ become Boolean: it is unestablished storage until valid construction. A generic
 body can observe zeroed storage only after proving it valid from its own
 contract and flow facts, not because one later instantiation happens to work.
 
-Cases have no separate `where`; explicit subject binders such as
+Cases have no separate `requires`; explicit subject binders such as
 `data Value<T>(item)` are not supported either. `self` is a predicate subject,
 not a machine receiver or stored field. Named domains use the same subject and
 reasoning, but a data default domain applies to every established value.

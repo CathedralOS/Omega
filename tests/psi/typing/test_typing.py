@@ -9,8 +9,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Tags are declaration ordinals, mirrored from source/psi/types/types.omg and
-# source/psi/resolution/resolution.omg.
+# Type tags follow the owning declaration ordinals. Diagnostic and selection
+# tags are the stable wire values explicitly written by TypingHarness.
 KINDS = (
     "Absent", "Builtin", "Data", "Reference", "Array", "Slice", "GenericParameter",
     "StaticInteger", "Unit", "AnonymousInteger", "AnonymousFloat", "AnonymousChoice",
@@ -22,21 +22,51 @@ BUILTIN_SPELLINGS = (
     "UInt", "Int", "AtomicBool", "AtomicU32", "AtomicU64",
 )
 DOMAINS = ("", "Wrapping", "Saturating", "Trapping", "Finite")
-DIAGNOSTICS = (
-    "None", "TypeCapacityExceeded", "UnsupportedTypeForm", "GenericArgumentCount",
-    "UnsupportedArrayLength", "UnsupportedDomain", "MismatchedTypes", "LiteralOutOfRange",
-    "UnsupportedLiteral", "AnonymousValueOutOfRange", "AnonymousRemainder", "UnknownField",
-    "ProjectionOfNonData", "IndexOfNonCollection", "NonIntegerIndex", "OperandMismatch",
-    "NotBoolean", "UnsupportedEquality", "NoMatchingMachine", "AmbiguousMachine",
-    "NotCallable", "NotAValue", "UnknownConstructionField",
-    "DuplicateConstructionField", "NotConstructible", "CaseOfOtherData", "UnknownPatternField",
-    "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
-    "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
-    "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
-    "UncoveredDispatch", "ImmutablePlace", "ImplicitAttenuation",
-    "MissingPatternField", "DuplicatePatternField",
-)
-SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
+DIAGNOSTICS = {
+    0: 'None',
+    1: 'TypeCapacityExceeded',
+    2: 'UnsupportedTypeForm',
+    3: 'GenericArgumentCount',
+    4: 'UnsupportedArrayLength',
+    5: 'UnsupportedDomain',
+    6: 'MismatchedTypes',
+    7: 'LiteralOutOfRange',
+    8: 'UnsupportedLiteral',
+    9: 'AnonymousValueOutOfRange',
+    10: 'AnonymousRemainder',
+    11: 'UnknownField',
+    12: 'ProjectionOfNonData',
+    13: 'IndexOfNonCollection',
+    14: 'NonIntegerIndex',
+    15: 'OperandMismatch',
+    16: 'NotBoolean',
+    17: 'UnsupportedEquality',
+    18: 'NoMatchingMachine',
+    19: 'AmbiguousMachine',
+    20: 'NotCallable',
+    21: 'NotAValue',
+    22: 'UnknownConstructionField',
+    23: 'DuplicateConstructionField',
+    24: 'NotConstructible',
+    25: 'CaseOfOtherData',
+    26: 'UnknownPatternField',
+    27: 'InvalidCast',
+    28: 'NotAPlace',
+    29: 'TerminalResultMismatch',
+    30: 'AnonymousFraction',
+    31: 'UnsupportedExpression',
+    33: 'UninferredGenericArgument',
+    34: 'SatisfierMismatch',
+    35: 'SilentDiscard',
+    36: 'DiscardsNoCall',
+    37: 'PropositionArgumentCount',
+    38: 'UncoveredDispatch',
+    39: 'ImmutablePlace',
+    40: 'ImplicitAttenuation',
+    41: 'MissingPatternField',
+    42: 'DuplicatePatternField',
+}
+SELECTIONS = {0: "none", 1: "machine", 3: "field", 4: "length", 5: "binder"}
 ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
 
 
@@ -159,6 +189,7 @@ def decode(payload: bytes) -> Observation:
                       reader.byte() == 1, reader.u64())
         for _ in range(reader.u64())
     )
+    assert all(row.selection[0] in SELECTIONS for row in expressions), "unknown selection tag"
     binders = tuple(reader.u64() for _ in range(reader.u64()))
     assert reader.cursor == len(payload), "trailing typing observation bytes"
     return Observation(accepted, diagnostic, diagnostic_span, rows, arguments, expressions, binders)
@@ -278,6 +309,37 @@ def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
     actual_status, payload = run(program, source)
     assert actual_status == status, f"{name}: status {actual_status}"
     assert payload == b"", name
+
+
+def nested_machine_cases(program: str) -> None:
+    source = b"machine outer<T>(x: T) -> T { helper(x) machine helper(v: T) -> T { v } }"
+    accepted(program, "nested-own-result-retains-ancestor-type", source, ((b"helper(x)", "G0"),),
+             selections=((b"helper(x)", "machine", 1),))
+    source = b"machine outer() -> u8 { 7 machine helper() {} }"
+    accepted(program, "nested-default-result-is-independent-unit", source, ())
+    source = b"machine outer() -> u8 { 7 machine helper() { 1 } }"
+    rejected(program, "nested-default-unit-cannot-inherit-parent-result", source, "MismatchedTypes", b"1")
+    for name, source in (
+        ("empty-scalar-result", b"machine f() -> u8 {}"),
+        ("empty-generic-result", b"machine f<T>() -> T {}"),
+        ("implicit-unit-after-write", b"machine f(value: &mut u8) -> u8 { value = 7; }"),
+    ):
+        rejected(program, name, source, "TerminalResultMismatch", source)
+    source = b"machine f(ready: bool) -> u8 { transition ready { true -> 7 false -> {} } }"
+    rejected(program, "unit-arm-cannot-complete-scalar-result", source, "TerminalResultMismatch", b"false -> {}")
+
+    source = b'data Cell { value:u64; } machine observe(cell:&Cell)->u64{cell.value} machine update(cell:&mut Cell,before:u64)->u64{cell.value=73;before} machine forward(cell:&mut Cell)->u64{transition{_->update(cell,observe(cell))}}'
+    accepted(program, 'shared-reborrow-shared_call', source, (), adaptations=((b'cell!7', "lent"),))
+    source = b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; shared.value }'
+    accepted(program, 'shared-reborrow-shared_local', source, (), adaptations=((b'cell!2', "lent"),))
+    source = b'data Cell { value:u64; } machine choose(shared:&Cell, exclusive:&mut Cell, flag:bool)->&Cell { match flag { true->shared false->exclusive } }'
+    accepted(program, 'shared-reborrow-shared_join', source, (), adaptations=((b'exclusive!2', "lent"),))
+    source = b'machine length(bytes: &write [u8]) -> u64 { bytes.len } machine view(bytes: &write [u8;4]) -> u64 { length(&write bytes) }'
+    accepted(program, "write-only-array-view-retains-write-only-authority", source, ())
+    source = b'machine observe(bytes:&[u8])->u64{bytes.len} machine read(bytes:&write [u8;4])->u64 { observe(bytes) }'
+    rejected(program, "write-only-array-view-cannot-acquire-read-authority", source, "NoMatchingMachine", b"observe(bytes)")
+    source = b'data Cell { value:u64; } machine read(cell:&mut Cell) { let descriptor:& &mut Cell=cell; }'
+    rejected(program, "shared-reborrow-does-not-insert-a-fresh-descriptor-borrow", source, "MismatchedTypes", b"cell!2")
 
 
 def main() -> None:
@@ -419,7 +481,7 @@ def main() -> None:
         b"    read(q)\n"
         b"}",
         ((b"read(p)", "u32"), (b"read(q)", "u32")),
-        adaptations=((b"p!4", "lent"), (b"q!2", "")),
+        adaptations=((b"p!4", "lent"), (b"q!2", "lent")),
     )
     accepted(
         program,
@@ -457,12 +519,12 @@ def main() -> None:
         b"        _ -> got(0)\n"
         b"    }\n"
         b"\n"
-        b"    state got(value: u8) -> u8 {\n"
+        b"    machine got(value: u8) -> u8 {\n"
         b"        value\n"
         b"    }\n"
         b"}",
-        ((b"got(v)", "()"), (b"v!3", "u8"), (b"true", "bool"), (b"0", "u8"), (b"value!2", "u8")),
-        selections=((b"got(v)", "state", 0), (b"got(0)", "state", 0)),
+        ((b"got(v)", "u8"), (b"v!3", "u8"), (b"true", "bool"), (b"0", "u8"), (b"value!2", "u8")),
+        selections=((b"got(v)", "machine", 1), (b"got(0)", "machine", 1)),
     )
     assert observation.render(observation.binders[0]) == "u8", "case-patterns-bind-payload-types: binder"
     accepted(
@@ -476,8 +538,8 @@ def main() -> None:
         b"        _ -> no()\n"
         b"    }\n"
         b"\n"
-        b"    state yes() -> bool { true }\n"
-        b"    state no() -> bool { false }\n"
+        b"    machine yes() -> bool { true }\n"
+        b"    machine no() -> bool { false }\n"
         b"}",
         ((b"a < 3", "bool"), (b"3", "u8"), (b"-1", "i64"), (b"l == L::On", "bool")),
     )
@@ -593,12 +655,12 @@ def main() -> None:
         b"        _ -> got(0)\n"
         b"    }\n"
         b"\n"
-        b"    state got(x: u16) -> u16 { x }\n"
+        b"    machine got(x: u16) -> u16 { x }\n"
         b"}\n"
         b"machine wrap(x: u16) -> Opt<u16> { Opt::Some { v: x } }",
         (
             (b"Pair { first: x, second: true }", "D1<u16, bool>"),
-            (b"got(v)", "()"),
+            (b"got(v)", "u16"),
             (b"Opt::Some { v: x }", "D0<u16>"),
         ),
     )
@@ -729,7 +791,7 @@ def main() -> None:
     rejected(
         program,
         "guard-is-boolean",
-        b"machine f(level: u8) { transition { level -> g() } state g() {} }",
+        b"machine f(level: u8) { transition { level -> g() } machine g() {} }",
         "NotBoolean",
         b"level!2",
     )
@@ -737,7 +799,7 @@ def main() -> None:
         program,
         "case-of-other-data",
         b"data S { case A; }\ndata T { case B; }\n"
-        b"machine f(s: S) { transition s { T::B -> g() } state g() {} }",
+        b"machine f(s: S) { transition s { T::B -> g() } machine g() {} }",
         "CaseOfOtherData",
         b"T::B",
     )
@@ -921,9 +983,9 @@ def main() -> None:
     )
     rejected(
         program,
-        "target-argument-count",
-        b"machine f() { transition { _ -> g(1) } state g() {} }",
-        "TargetArgumentCount",
+        "terminal-call-uses-ordinary-machine-arity",
+        b"machine f() { transition { _ -> g(1) } machine g() {} }",
+        "NoMatchingMachine",
         b"g(1)",
     )
 
@@ -998,20 +1060,20 @@ def main() -> None:
         program,
         "guarded-arms",
         b"data T { case A; case B(v: u8); }\n"
-        b"machine f(t: T, x: u8) -> u8 { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } state s(v: u8) -> u8 { v } }",
+        b"machine f(t: T, x: u8) -> u8 { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } machine s(v: u8) -> u8 { v } }",
         ((b"v == x", "bool"), (b"x > 1", "bool")),
     )
     rejected(
         program,
         "arm-guard-must-be-boolean",
-        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::B { v } if v -> s(v) _ -> s(1) } state s(v: u8) {} }",
+        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::B { v } if v -> s(v) _ -> s(1) } machine s(v: u8) {} }",
         "NotBoolean",
         b"v!3",
     )
     rejected(
         program,
         "guarded-arms-cover-nothing",
-        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) } state s(v: u8) {} }",
+        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) } machine s(v: u8) {} }",
         "UncoveredDispatch",
         b"transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) }",
     )
@@ -1277,7 +1339,7 @@ def main() -> None:
         program,
         "an-anonymous-subject-dispatches-on-exact-values",
         b"machine f() -> u8 {\n    transition 0 {\n        0 -> zero()\n        _ -> other()\n    }\n"
-        b"    state zero() -> u8 { 1 }\n    state other() -> u8 { 2 }\n}",
+        b"    machine zero() -> u8 { 1 }\n    machine other() -> u8 { 2 }\n}",
         (),
     )
     # A rank range's endpoints are integers (wiki/spec/language/termination.md#ranking).
@@ -1351,7 +1413,7 @@ def main() -> None:
         program,
         "transition-constant-path-pattern",
         b"data Size { value: u8; }\nconst Size::MAX: u8 = 9;\n"
-        b"machine f(c: u8) { transition c { Size::MAX -> g() _ -> g() } state g() {} }",
+        b"machine f(c: u8) { transition c { Size::MAX -> g() _ -> g() } machine g() {} }",
         ((b"Size::MAX!2", "u8"),),
     )
     rejected(
@@ -1375,56 +1437,56 @@ def main() -> None:
     accepted(
         program,
         "transition-cases-cover",
-        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() K::B -> g() } state g() {} }",
+        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() K::B -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-booleans-cover",
-        b"machine f(b: bool) { transition b { true -> g() false -> g() } state g() {} }",
+        b"machine f(b: bool) { transition b { true -> g() false -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-complementary-equalities-cover",
-        b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } state g() {} }",
+        b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-opposed-boolean-comparisons-cover",
-        b"machine f(a: u8) { transition { (a < 3) == true -> g() false == (a < 3) -> g() } state g() {} }",
+        b"machine f(a: u8) { transition { (a < 3) == true -> g() false == (a < 3) -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-true-guard-closes",
-        b"machine f(x: u8) { transition { x < 3 -> g() true -> g() } state g() {} }",
+        b"machine f(x: u8) { transition { x < 3 -> g() true -> g() } machine g() {} }",
         (),
     )
     rejected(
         program,
         "transition-literal-ladder-needs-a-wildcard",
-        b"machine f(c: u8) { transition c { 1 -> g() 2 -> g() } state g() {} }",
+        b"machine f(c: u8) { transition c { 1 -> g() 2 -> g() } machine g() {} }",
         "UncoveredDispatch",
         b"transition c { 1 -> g() 2 -> g() }",
     )
     rejected(
         program,
         "transition-misses-a-case",
-        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() } state g() {} }",
+        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() } machine g() {} }",
         "UncoveredDispatch",
         b"transition k { K::A -> g() }",
     )
     rejected(
         program,
         "transition-order-ladder-needs-a-wildcard",
-        b"machine f(x: u8) { transition { x < 3 -> g() x >= 3 -> g() } state g() {} }",
+        b"machine f(x: u8) { transition { x < 3 -> g() x >= 3 -> g() } machine g() {} }",
         "UncoveredDispatch",
         b"transition { x < 3 -> g() x >= 3 -> g() }",
     )
     # The rejection spells `!=`, which `rejected` reads as an occurrence.
-    source = b"machine f(x: u8, y: u8) { transition { x == y -> g() x != 1 -> g() } state g() {} }"
+    source = b"machine f(x: u8, y: u8) { transition { x == y -> g() x != 1 -> g() } machine g() {} }"
     status, payload = run(program, source)
     observation = decode(payload)
     expected = ("UncoveredDispatch", span_of(source, b"transition { x == y -> g() x != 1 -> g() }"))
@@ -1977,6 +2039,8 @@ def main() -> None:
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
+
+    nested_machine_cases(program)
 
     determinism = b"data P { x: u8; }\nmachine f(p: &P) -> u16 { p.x as u16 + 1 }"
     first = run(program, determinism)

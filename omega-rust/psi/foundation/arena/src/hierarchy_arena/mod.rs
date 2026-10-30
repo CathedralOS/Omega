@@ -8,7 +8,6 @@
 //! stable because the arena only appends.
 
 use crate::{Arena, Handle, HandleSpan, SpanHandles};
-use compiler_storage::Record;
 
 pub trait HierarchyNode: Clone + Default + Sized {
     fn parent(&self) -> Handle<Self>;

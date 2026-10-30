@@ -1,7 +1,5 @@
 //! Executed Build declarations retain coordinates, not target-selection authority.
-use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, Frame, Halt, State, TypeReferenceNode, Value, trap,
-};
+use crate::interpreter::evaluator::{Cell, EvalResult, Evaluator, Frame, Halt, Value, trap};
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, CompositionMode,
     ExecutedBuildSelection as SourceBuildSelection, ExecutedProductSelection, RootBindingOperand,
@@ -10,40 +8,6 @@ use language_semantics::declaration_selection::{ExecutedRootBinding, RootBinding
 use typed_trees::expression::TableCallExpression;
 
 impl<'program> Evaluator<'program> {
-    /// Only the outer argument-taking build entry installs the activation cell.
-    /// Ordinary calls/reborrows share it; newly constructed records do not.
-    pub(in crate::interpreter::evaluator) fn retain_root_build(
-        &mut self,
-        state: &State,
-        arguments: &[Cell],
-    ) -> EvalResult<()> {
-        for (parameter, argument) in self.program.state_parameters(state).iter().zip(arguments) {
-            let TypeReferenceNode::Reference {
-                access, referee, ..
-            } = self
-                .program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                continue;
-            };
-            let symbol = self.program.type_reference_table.type_symbol(*referee);
-            if !access.is_exclusive()
-                || !self.symbol_has_build_prelude_source(symbol)
-                || !self.program.data_definitions().iter().any(|definition| {
-                    definition.symbol == symbol && definition.name.as_str() == "Build"
-                })
-            {
-                continue;
-            }
-            if self.root_build.is_some() {
-                return trap("a build activation cannot install multiple root Build arguments");
-            }
-            self.root_build = Some(argument.clone());
-        }
-        Ok(())
-    }
-
     pub(in crate::interpreter::evaluator) fn source_selection_protocol(
         &self,
         target: symbols::SymbolHandle,
@@ -274,6 +238,19 @@ impl<'program> Evaluator<'program> {
                     None
                 };
                 SourceBuildSelection::Declaration(ExecutedProductSelection {
+                    static_environment: if request
+                        .operands
+                        .iter()
+                        .any(|operand| operand.application.is_some())
+                    {
+                        typed_trees::product_operand::capture_static_environment(
+                            self.program,
+                            frame.machine_symbol,
+                        )
+                        .map_err(Halt::Trap)?
+                    } else {
+                        None
+                    },
                     request,
                     target,
                     composition,

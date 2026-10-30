@@ -1,0 +1,14 @@
+// Fact: an IEEE f64 computed and stored through a write-only borrow (&write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places
+// Invalid: the store observes the write-only referent. Place: field.
+// Expected diagnostic: reads write-only parameter
+
+data Carrier { v: f64; }
+machine store(r: &write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
+
+machine main() crashes Trap {
+    let mut slot: f64;
+    store(&write slot);
+    let carrier: Carrier = Carrier { v: slot };
+    transition carrier.v == 0.75 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

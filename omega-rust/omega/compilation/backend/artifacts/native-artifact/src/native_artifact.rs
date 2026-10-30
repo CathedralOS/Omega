@@ -7,7 +7,6 @@
 //! the exact image or object rows admitted by their respective product.
 
 use installation_evidence::ObjectEvidence;
-use std::collections::BTreeSet;
 
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use abstract_operations::AbstractOperationPlan;

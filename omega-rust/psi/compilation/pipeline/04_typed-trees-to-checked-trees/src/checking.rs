@@ -534,9 +534,12 @@ fn check_program(
             target_families::validate_portable_references(&checked)?;
             crate::operators::retain_boundary_body_candidates(&mut checked)
                 .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+            crate::operators::retain_provider_requirements(&mut checked);
             Ok(())
         },
     )?;
     drop(final_guard);
+    crate::facts::declaration_descriptions::retain_declaration_descriptions(&mut checked);
+    checked.facts.proof_applications = crate::facts::proof_applications::retain(&checked);
     Ok((checked, dependency_body_judgments))
 }

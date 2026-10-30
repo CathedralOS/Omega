@@ -1,0 +1,232 @@
+[
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry",
+  "state": "pass",
+  "detail": "",
+  "seconds": 3.24,
+  "phases": {
+   "review": 1.92,
+   "run": 1.32
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/call_result",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.67,
+  "phases": {
+   "review": 1.29,
+   "run": 1.38
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/call_result/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.18,
+  "phases": {
+   "check": 1.18
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/compositions/private_arrival_calls",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.87,
+  "phases": {
+   "review": 1.27,
+   "run": 1.61
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/compositions/private_arrival_calls/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.25,
+  "phases": {
+   "check": 1.25
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/compositions/terminal_returns",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.66,
+  "phases": {
+   "review": 1.38,
+   "run": 1.28
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/compositions/terminal_returns/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.14,
+  "phases": {
+   "check": 1.14
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/const_name",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.54,
+  "phases": {
+   "review": 1.26,
+   "run": 1.28
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/const_name/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.25,
+  "phases": {
+   "check": 1.25
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/field",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.63,
+  "phases": {
+   "review": 1.31,
+   "run": 1.31
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/field/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.12,
+  "phases": {
+   "check": 1.12
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/local",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.61,
+  "phases": {
+   "review": 1.34,
+   "run": 1.27
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/local/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.11,
+  "phases": {
+   "check": 1.11
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/match_join",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.82,
+  "phases": {
+   "review": 1.26,
+   "run": 1.55
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/match_join/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.36,
+  "phases": {
+   "check": 1.36
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/other_machine",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.92,
+  "phases": {
+   "review": 1.61,
+   "run": 1.31
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/other_machine/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.18,
+  "phases": {
+   "check": 1.18
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/other_state",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.85,
+  "phases": {
+   "review": 1.5,
+   "run": 1.35
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/other_state/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.19,
+  "phases": {
+   "check": 1.19
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/parameter",
+  "state": "pass",
+  "detail": "",
+  "seconds": 2.84,
+  "phases": {
+   "review": 1.43,
+   "run": 1.41
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/parameter/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.31,
+  "phases": {
+   "check": 1.31
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/target_body",
+  "state": "pass",
+  "detail": "",
+  "seconds": 3.01,
+  "phases": {
+   "review": 1.35,
+   "run": 1.65
+  }
+ },
+ {
+  "sample": "samples/cli/facts/size_align_layout_geometry/target_body/invalid",
+  "role": "intended-invalid",
+  "state": "rejected",
+  "detail": "intended rejection matched",
+  "seconds": 1.26,
+  "phases": {
+   "check": 1.26
+  }
+ }
+]

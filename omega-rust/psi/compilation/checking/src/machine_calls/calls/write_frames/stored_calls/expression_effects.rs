@@ -293,6 +293,38 @@ pub(in super::super) fn effects_at_expression(
     }
 }
 
+/// The requested call's actuals retain their individual evaluation cuts. Its
+/// returned descriptors are interpreted against the inventory immediately
+/// after normal completion, before any later sibling operand executes.
+pub(super) fn completed_call_value(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement: &StatementNode,
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    expression: ExpressionHandle,
+) -> Option<(SlotArgumentCapture, CollectedStatementPrefix)> {
+    let mut capture = Capture {
+        expression,
+        ..Capture::default()
+    };
+    let _ = evaluate_statement(
+        program,
+        machine,
+        state,
+        statement,
+        context,
+        symbols,
+        inference,
+        &mut capture,
+    );
+    (capture.count == 1)
+        .then_some(capture.completed_value)
+        .flatten()
+}
+
 pub(in super::super) fn call_contexts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -325,6 +357,7 @@ struct Capture {
     expression: ExpressionHandle,
     count: usize,
     transfer: Option<SlotRelationTransfer>,
+    completed_value: Option<(SlotArgumentCapture, CollectedStatementPrefix)>,
     collect_calls: bool,
     calls: Vec<super::StoredReferenceCallContext>,
     current_call_context: usize,
@@ -732,6 +765,9 @@ impl Evaluation<'_, '_> {
             // Return-origin substitution uses the already observed inputs; the
             // caller-visible stores below cannot retarget an earlier operand.
             capture_completed(expression, prefix, effects, capture);
+            let requested = (expression == capture.expression).then(|| {
+                SlotArgumentCapture::at(expression, context, inference, completed_inputs.clone())
+            });
             if let Some(output) = observed.as_mut() {
                 output.call_entry = Some((context.clone(), inference.clone()));
             }
@@ -779,6 +815,11 @@ impl Evaluation<'_, '_> {
             });
             capture.completed_call(expression, &called);
             install(self.program, context, effects, called, inference);
+            if let Some(requested) = requested
+                && effects.is_complete()
+            {
+                capture.completed_value = Some((requested, context.clone()));
+            }
             if let Some(output) = observed {
                 output.operands = completed_inputs;
             }

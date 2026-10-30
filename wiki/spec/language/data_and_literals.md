@@ -5,6 +5,13 @@ only fields; a sum has only cases; a mixed declaration has common fields plus
 one active case and its payload. Machines access values through their explicit
 parameters, not implicitly owned machine fields.
 
+Inline case declarations form a consecutive tail after all common fields.
+A common field after the first inline case is retired. Named and positional
+[data decomposition](patterns.md#data-and-case-decomposition) expose the common
+fields in authored order followed by one case-only view. This source order does
+not constrain a selected layout policy's physical placement or add a case-group
+schema member, number or discriminator.
+
 `data Name<Parameters> = TypeExpression;` instead declares a
 [transparent type alias](generics.md#transparent-type-aliases). It introduces
 no fields, cases, nominal carrier or storage wrapper.
@@ -45,13 +52,15 @@ an accessible nullary constructor may supply an omitted term without requiring
 runtime layout or a zero value.
 
 Field and case-payload relationships belong to the data declaration's ordinary
-`where`; case-dependent projections require established case knowledge. Field
+`requires`; case-dependent projections require established case knowledge. Field
 and payload type spellings do not carry bracketed scalar range suffixes. Construction and every
 restoring write prove the owning default-domain clauses.
 
 Case-bearing values use a case literal, not record-only construction. Common
 and payload fields may be named together and evaluate exactly once in authored
-order. Common fields are accessible independently of the active case; payload
+order. This is construction syntax, not flattened case-pattern binding: patterns
+separate common fields from the case view under [dispatch](patterns.md#data-and-case-decomposition).
+Common fields are accessible independently of the active case; payload
 fields require the corresponding case knowledge. Partial construction and
 disposal follow [ownership order](ownership.md#construction-and-disposal-order).
 
@@ -98,13 +107,13 @@ does not structurally compare fields or select `Equatable`.
 ## Case constraints
 
 Named decision: `case-constraints-through-default-domain`, settled 2026-10-24.
-Cases have no `where` clause. Case-dependent validity is an ordinary predicate
-of the whole value in the data declaration's default-domain `where`. Its `self`
+Cases have no `requires` clause. Case-dependent validity is an ordinary predicate
+of the whole value in the data declaration's default-domain `requires`. Its `self`
 subject follows [predicate subjects](domains.md#declaration-and-membership):
 
 ```omega
 data Value<T>
-    where ((self in Value::Integer) && T == i32)
+    requires ((self in Value::Integer) && T == i32)
        || ((self in Value::Boolean) && T == bool)
 {
     case Integer(value: i32);
@@ -112,7 +121,7 @@ data Value<T>
 }
 
 data Interval
-    where (self in Interval::Empty)
+    requires (self in Interval::Empty)
        || ((self in Interval::Range) && self.lo <= self.hi)
 {
     case Empty;
@@ -135,7 +144,7 @@ obligation does not select an implementation or manufacture evidence; ordinary
 still apply.
 
 Let Fields describe common-field validity, Payload(i) the selected payload's
-validity, and Predicate(self) all data-level `where` clauses. The complete
+validity, and Predicate(self) all data-level `requires` clauses. The complete
 default-domain condition is:
 
 ```text
@@ -147,7 +156,7 @@ Omitted data predicates contribute true, not a waiver of payload validity.
 Inactive payloads have no establishment or ownership obligation. In a
 case-conditional predicate, an inactive alternative cannot satisfy a conjunction
 requiring its own case. Named generic domains can express the same predicate on
-a carrier; data `where` makes it mandatory for every established carrier value.
+a carrier; data `requires` makes it mandatory for every established carrier value.
 
 Construction proves the complete default domain before producing an established
 value. Matching combines that domain with the selected case fact through ordinary
@@ -164,7 +173,7 @@ Before observation, the active value's complete conditions must hold again.
 Zero storage and generic bodies follow the existing
 [default-domain gate](dependent_values.md#default-domains-and-zero-initialization).
 This retains constrained-case GADT behavior through ordinary domains, without
-case-level `where`, a wrapper, a new data species, implicit boxing, runtime type
+case-level `requires`, a wrapper, a new data species, implicit boxing, runtime type
 tests, or general existential packaging. It grants no new layout optimization.
 
 The mathematical interpretation uses the selected

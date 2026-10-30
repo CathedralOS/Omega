@@ -131,16 +131,10 @@ pub enum PostAllocationMachineError {
     CountOverflow,
 }
 
-impl std::fmt::Display for PostAllocationMachineError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid post-allocation machine sidecar: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for PostAllocationMachineError {}
+stage_error_display!(
+    PostAllocationMachineError,
+    "invalid post-allocation machine sidecar"
+);
 
 pub(crate) fn post_allocation_receipt(
     plan: &PostAllocationMachinePlan,

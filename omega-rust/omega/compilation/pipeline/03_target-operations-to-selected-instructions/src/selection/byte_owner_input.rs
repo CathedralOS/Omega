@@ -10,25 +10,7 @@
 use crate::selection::place_declaration::declares_block_parameter;
 
 use legalized_operations::LegalizedScalarFunction;
-use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
-
-/// Geometry for a borrowed view over authenticated bounded-owner storage.
-pub(super) fn view_argument(
-    function: &LegalizedScalarFunction,
-    operation: semantic_vocabulary::OperationId,
-    semantic: &terminal_psi::StructuralArgument,
-    target: &target_operations::TargetStructuralArgument,
-    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
-) -> Option<(u32, u64)> {
-    view_argument_at(
-        function,
-        semantic_vocabulary::InvocationSite::Operation(operation),
-        semantic,
-        target,
-        indices,
-    )
-}
 
 pub(super) fn view_argument_at(
     function: &LegalizedScalarFunction,

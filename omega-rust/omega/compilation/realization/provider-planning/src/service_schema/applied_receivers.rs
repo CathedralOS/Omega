@@ -68,7 +68,11 @@ pub(super) fn receiver_applications(
         });
         requirement_identities
             .sort_by(|left, right| identities.text(*left).cmp(identities.text(*right)));
+        let application = scope
+            .portable_application_identity(program)
+            .and_then(|identity| program.type_identity_text(identity))?;
         applications.push(ServiceReceiverApplication {
+            application: identities.intern(&application),
             trait_name: identities.intern(&program.trait_declaration_path(scope.declaration)),
             trait_package_identity: program
                 .symbols

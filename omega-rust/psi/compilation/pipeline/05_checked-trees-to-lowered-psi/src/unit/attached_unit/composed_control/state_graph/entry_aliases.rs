@@ -71,7 +71,7 @@ pub(super) fn alias_entry_parameter_loans(
         .zip(live)
         .filter_map(|(state, live)| live.then_some(state))
         .flat_map(successors)
-        .any(|successor| successor.target_state == entry.state);
+        .any(|successor| plan.successor_position(successor) == Some(0));
     if entry_reentered {
         return Ok(());
     }
@@ -117,7 +117,6 @@ pub(super) fn alias_entry_parameter_loans(
                 .iter()
                 .copied()
                 .filter(|&(position, index)| {
-                    let target = plan.states[position].state;
                     let mut incoming = plan
                         .states
                         .iter()
@@ -126,7 +125,7 @@ pub(super) fn alias_entry_parameter_loans(
                         .flat_map(|(source, state)| {
                             successors(state)
                                 .into_iter()
-                                .filter(move |edge| edge.target_state == target)
+                                .filter(move |edge| plan.successor_position(edge) == Some(position))
                                 .map(move |edge| (source, edge))
                         })
                         .peekable();
@@ -182,7 +181,7 @@ pub(super) fn alias_forwarded_entry_claims(
         .zip(live)
         .filter_map(|(state, live)| live.then_some(state))
         .flat_map(successors)
-        .any(|successor| successor.target_state == entry.state);
+        .any(|successor| plan.successor_position(successor) == Some(0));
     let claimed = |position: usize, index: u32| {
         let state = &plan.states[position];
         state
@@ -195,7 +194,6 @@ pub(super) fn alias_forwarded_entry_claims(
                 .is_some_and(|parameter| parameter.access == CheckedStructuralAccess::Owned)
     };
     let incoming = |position: usize| {
-        let target = plan.states[position].state;
         plan.states
             .iter()
             .enumerate()
@@ -203,7 +201,7 @@ pub(super) fn alias_forwarded_entry_claims(
             .flat_map(|(source, state)| {
                 successors(state)
                     .into_iter()
-                    .filter(move |edge| edge.target_state == target)
+                    .filter(move |edge| plan.successor_position(edge) == Some(position))
                     .map(move |edge| (source, edge))
             })
             .collect::<Vec<_>>()

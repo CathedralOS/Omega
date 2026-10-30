@@ -693,9 +693,8 @@ fn finish_resolved_tables(
     );
     crate::symbols::recursive_tail_calls::normalize(&mut lowerer.symbol_resolved_trees, machines);
     crate::symbols::target_machine_families::prepare_premises(&mut lowerer.symbol_resolved_trees)?;
-    // Routing above publishes the trait requirement on machine-reachable
-    // copies of a constant initializer. Custody still holds the owned entry
-    // recorded before that route.
+    // Rejoin declaration-owned initializer targets after ordinary source
+    // resolution and named-implementation routing, before typing saved recipes.
     let expressions = lowerer
         .symbol_resolved_trees
         .tables
@@ -714,7 +713,7 @@ fn finish_resolved_tables(
         })
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
-    crate::constant::initializer_dependencies::restore_const_named_implementation_call_targets(
+    crate::constant::initializer_dependencies::restore_const_call_targets(
         &mut lowerer.symbol_resolved_trees,
         &expressions,
     );

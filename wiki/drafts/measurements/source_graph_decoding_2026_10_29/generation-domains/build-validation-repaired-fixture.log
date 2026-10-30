@@ -1,0 +1,32 @@
+RUN ['cargo', 'fmt', '-p', 'compiler-storage', '-p', 'syntax-trees']
+RUN ['mbx', 'nextest', 'run', '-p', 'compiler-storage', '-p', 'arena', '-p', 'syntax-trees', '--test-threads', '1']
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:172:13
+    |
+172 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:183:13
+    |
+183 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `diagnostics` (lib) generated 2 warnings
+   Compiling syntax-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\syntax-trees)
+error[E0308]: mismatched types
+   --> omega-rust\psi\compilation\representations\syntax-trees\src\syntax_trees\tests.rs:285:21
+    |
+285 |             member: None,
+    |                     ^^^^ expected `Handle<StaticMachineArgument>`, found `Option<_>`
+    |
+    = note: expected struct `arena::Handle<StaticMachineArgument>`
+                 found enum `std::option::Option<_>`
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `syntax-trees` (lib test) due to 1 previous error
+error: command `'C:\Users\User\.rustup\toolchains\nightly-2026-09-04-x86_64-pc-windows-msvc\bin\cargo.exe' test --no-run --message-format json-render-diagnostics --package compiler-storage --package arena --package syntax-trees` exited with code 101
+mbx[cache]: 0 hits, 0 misses, 1 not looked up, 1 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 1.8 TiB logical of files removed by collection so far

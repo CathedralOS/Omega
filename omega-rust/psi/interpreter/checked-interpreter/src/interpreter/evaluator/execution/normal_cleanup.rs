@@ -12,6 +12,14 @@ use checked_trees::{
     CheckedUnitStructuralParameterPlan,
 };
 
+/// A terminal transfer remains a physical edge when the invocation cannot
+/// return; only an actual normal return requires a normal-exit receipt.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum CompletionBoundary {
+    NormalReturn,
+    TerminalTransfer,
+}
+
 impl<'program> Evaluator<'program> {
     fn normal_cleanup_actions(
         &self,
@@ -208,12 +216,13 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    pub(super) fn execute_normal_cleanup(
+    pub(super) fn execute_completion_cleanup(
         &mut self,
         machine: &Machine,
         state: &State,
         frame: &Frame,
         exit: checked_trees::FlowClaimJoinExit,
+        boundary: CompletionBoundary,
     ) -> EvalResult<()> {
         if let Some((control, rows, parameters, operations)) = self.checked.and_then(|checked| {
             let plans = &checked.facts.flow.terminal_unit_effects;
@@ -243,6 +252,16 @@ impl<'program> Evaluator<'program> {
                 (&plans.cleanup_control, rows, parameters, operations)
             })
         }) {
+            if rows.completion == checked_trees::CheckedNormalCompletion::NoNormal {
+                if !control.normal_exits(rows).is_empty() {
+                    return unsupported("no-normal invocation carries normal cleanup receipts");
+                }
+                return if boundary == CompletionBoundary::TerminalTransfer {
+                    Ok(())
+                } else {
+                    unsupported("normal return from a checked no-normal invocation")
+                };
+            }
             let row = control
                 .normal_exits(rows)
                 .iter()

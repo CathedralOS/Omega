@@ -189,10 +189,15 @@ fn construction_predicate_subject(
     literal: &TableStructLiteral,
     predicates: &[ExpressionHandle],
 ) -> Result<Option<StateParameter>, ()> {
-    let definition = program
-        .data_definition_by_symbol(literal.type_symbol)
-        .ok_or(())?;
-    let symbol = definition.predicate_subject_symbol;
+    let application = crate::value_custody::struct_literals::selected_construction_definition(
+        program, expression, literal,
+    )
+    .ok_or(())?;
+    // The judged facts are the receiving application's; its predicate subject
+    // is the binder `self` resolves to inside them. The literal's declared
+    // type names the generic template, whose own subject symbol differs on a
+    // synthesized closed instance.
+    let symbol = application.predicate_subject_symbol;
     if !symbol.is_valid() {
         return Ok(None);
     }
@@ -214,13 +219,7 @@ fn construction_predicate_subject(
     if !demanded {
         return Ok(None);
     }
-    let application = crate::value_custody::struct_literals::selected_construction_definition(
-        program, expression, literal,
-    )
-    .ok_or(())?;
-    if application.predicate_subject_symbol != symbol
-        || !application.predicate_subject_type.is_valid()
-    {
+    if !application.predicate_subject_type.is_valid() {
         return Err(());
     }
     Ok(Some(StateParameter {
@@ -372,6 +371,7 @@ impl ConstructionPredicates<'_> {
                     &parameters,
                     predicate,
                     &bindings,
+                    &[],
                     &[],
                     Some((machine, state)),
                 )

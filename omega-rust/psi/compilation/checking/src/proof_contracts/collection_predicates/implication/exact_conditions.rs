@@ -25,6 +25,7 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
         lemmas: Vec::new(),
         updates: Vec::new(),
         records: Vec::new(),
+        record_updates: Vec::new(),
         antecedents: Vec::new(),
     };
     let mut initial = Path::default();
@@ -35,6 +36,7 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
     let frame = Frame {
         machine: application.machine,
         state: 0,
+        storage: Vec::new(),
         bindings: parameters
             .iter()
             .zip(&arguments)

@@ -1,6 +1,6 @@
 //! Capture incoming parameter ABI storage before ordinary graph operations.
 use super::{
-    Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarFunction,
+    Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarFunction, PlaceId,
     ScalarType, SelectedInstructionProvenance, StructuralAccess, ValueLocation, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
@@ -106,21 +106,7 @@ pub(in crate::selection) fn entry(
                 let fixed = environment
                     .fixed_register_view(*register)
                     .ok_or_else(|| invalid())?;
-                let input =
-                    VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-                builder.registers.push(VirtualRegister {
-                    id: input,
-                    scalar_type: ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-                    ),
-                    class: builder.class,
-                    origin: VirtualRegisterOrigin::StructuralParameter {
-                        place,
-                        parameter_index,
-                    },
-                    definition_site: None,
-                    entry_fixed_view: Some(fixed),
-                });
+                let input = fixed_input_register(builder, place, parameter_index, fixed)?;
                 let offset = *value_byte_offset;
                 let output = transport_register(builder, place, offset)?;
                 builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
@@ -202,20 +188,7 @@ pub(in crate::selection) fn entry(
         let fixed = environment
             .fixed_register_view(*pointer)
             .ok_or_else(|| invalid())?;
-        let input = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-        builder.registers.push(VirtualRegister {
-            id: input,
-            scalar_type: ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-            ),
-            class: builder.class,
-            origin: VirtualRegisterOrigin::StructuralParameter {
-                place,
-                parameter_index,
-            },
-            definition_site: None,
-            entry_fixed_view: Some(fixed),
-        });
+        let input = fixed_input_register(builder, place, parameter_index, fixed)?;
         let output = transport_register(builder, place, 0)?;
         builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
         builder.transport.pointers.push((place, output));
@@ -224,6 +197,32 @@ pub(in crate::selection) fn entry(
         }
     }
     Ok(())
+}
+
+/// Push the entry-fixed carrier one register arrival binds. Keeping the view on
+/// the register lets later block bindings read the parameter's physical slice
+/// without re-deriving it from the register environment.
+fn fixed_input_register(
+    builder: &mut Builder<'_>,
+    place: PlaceId,
+    parameter_index: usize,
+    fixed: register_model::RegisterViewId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let input = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    builder.registers.push(VirtualRegister {
+        id: input,
+        scalar_type: ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+        ),
+        class: builder.class,
+        origin: VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index,
+        },
+        definition_site: None,
+        entry_fixed_view: Some(fixed),
+    });
+    Ok(input)
 }
 
 /// Field loads need an addressable value, not an incoming register interpreted
@@ -287,29 +286,7 @@ fn retain_owned_home(
                 selected_instructions::SelectedMemoryAccessRole::ReadPlace,
             )?;
             super::super::aggregate_memory::load(builder, incoming, value, displacement, width)?;
-            let (destination, displacement) = super::displaced_memory_pointer(
-                builder,
-                place,
-                pointer,
-                offset,
-                width,
-                Default::default(),
-            )?;
-            super::super::structural_case::memory(
-                builder,
-                source.entry_block,
-                place,
-                offset,
-                width,
-                selected_instructions::SelectedMemoryAccessRole::WritePlace,
-            )?;
-            super::super::aggregate_memory::store(
-                builder,
-                destination,
-                value,
-                displacement,
-                width,
-            )?;
+            store_home_range(builder, source, place, pointer, offset, width, value)?;
             offset = offset.checked_add(width).ok_or_else(invalid)?;
         }
         builder.transport.pointers.push((place, pointer));
@@ -331,24 +308,32 @@ fn retain_owned_home(
             .find(|(stored, byte_offset, _)| *stored == place && *byte_offset == offset)
             .map(|(_, _, value)| *value)
             .ok_or_else(|| invalid())?;
-        let (pointer, displacement) = super::displaced_memory_pointer(
-            builder,
-            place,
-            pointer,
-            offset,
-            width,
-            Default::default(),
-        )?;
-        super::super::structural_case::memory(
-            builder,
-            source.entry_block,
-            place,
-            offset,
-            width,
-            selected_instructions::SelectedMemoryAccessRole::WritePlace,
-        )?;
-        super::super::aggregate_memory::store(builder, pointer, value, displacement, width)?;
+        store_home_range(builder, source, place, pointer, offset, width, value)?;
     }
     builder.transport.pointers.push((place, pointer));
     Ok(())
+}
+
+/// Write one range of the parameter's private home and record the access, so
+/// both an incoming pointer and an incoming fragment reach the same storage.
+fn store_home_range(
+    builder: &mut Builder<'_>,
+    source: &LegalizedScalarFunction,
+    place: semantic_vocabulary::PlaceId,
+    home: VirtualRegisterId,
+    offset: u32,
+    width: u32,
+    value: VirtualRegisterId,
+) -> Result<(), SelectedInstructionError> {
+    let (destination, displacement) =
+        super::displaced_memory_pointer(builder, place, home, offset, width, Default::default())?;
+    super::super::structural_case::memory(
+        builder,
+        source.entry_block,
+        place,
+        offset,
+        width,
+        selected_instructions::SelectedMemoryAccessRole::WritePlace,
+    )?;
+    super::super::aggregate_memory::store(builder, destination, value, displacement, width)
 }

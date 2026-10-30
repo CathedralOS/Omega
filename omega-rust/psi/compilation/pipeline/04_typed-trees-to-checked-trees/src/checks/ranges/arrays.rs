@@ -32,11 +32,11 @@ pub(in crate::checks) fn fixed_array_type_recipe(
         return Default::default();
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::ConstCall { .. },
-            ..
-        } => program.constant_recipe_for_array_length(type_reference),
-        TypeReferenceNode::FixedArray { .. } => Default::default(),
+        TypeReferenceNode::FixedArray { .. } => match program.declared_array_extent(type_reference)
+        {
+            Some(typed_trees::constant_recipes::DeclaredArrayExtent::Recipe(recipe)) => recipe,
+            _ => Default::default(),
+        },
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..

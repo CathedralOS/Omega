@@ -15,6 +15,8 @@ use std::borrow::Cow;
 /// same records an ordinary body's calls
 /// resolve against, so a state's calls emit through the one frame emitter.
 pub(crate) struct ComposedCatalogs<'a> {
+    pub(crate) scalar_applications:
+        &'a std::sync::Arc<super::super::scalar_applications::SourceScalarApplications>,
     pub(crate) cleanup_control: &'a checked_trees::CheckedCleanupControlPlans,
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
     pub(crate) type_ids: Cow<'a, [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)]>,

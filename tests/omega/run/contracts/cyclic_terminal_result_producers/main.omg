@@ -1,0 +1,31 @@
+// Expected exit: 0.
+// Lexical placement and expression-form terminal calls preserve the same result bound.
+machine first(remaining: u64) -> u64
+    requires remaining <= 8u64
+    ensures result <= 256u64
+{
+    transition remaining > 0u64 {
+        true -> (second(remaining - 1u64))
+        false -> (17u64)
+    }
+}
+machine second(remaining: u64) -> u64
+    requires remaining <= 8u64
+    ensures result <= 256u64
+{
+    transition remaining > 0u64 {
+        true -> first(remaining - 1u64)
+        false -> (256u64)
+    }
+}
+machine main() crashes Trap {
+    let empty: u64 = first(0u64);
+    let odd: u64 = first(3u64);
+    let even: u64 = first(8u64);
+    transition empty == 17u64 && odd == 256u64 && even == 17u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

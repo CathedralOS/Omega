@@ -190,11 +190,7 @@ pub(crate) fn prepare(
             consume(&regions, &mut frontier, *source, &[]);
         }
         let edges = block.terminator.successor_edges();
-        let arguments = if matches!(block.terminator, Terminator::StructuralCase { .. }) {
-            vec![&[][..]; edges.len()]
-        } else {
-            block.terminator.successor_block_arguments()
-        };
+        let arguments = block.terminator.successor_block_arguments();
         if edges.len() != arguments.len() {
             return unsupported("selected continuation lost its successor argument roster");
         }

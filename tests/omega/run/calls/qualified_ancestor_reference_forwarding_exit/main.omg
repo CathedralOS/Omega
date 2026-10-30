@@ -1,0 +1,26 @@
+// Expected exit: 0
+public data Runner [copy] { marker: u8; }
+machine Runner::scan(runner: &mut Runner, bytes: &[u8], index: u64 in Wrapping) -> u8 {
+    transition index < bytes.len {
+        true -> inspect(runner, bytes, index)
+        false -> 0u8
+    }
+    machine inspect(runner: &mut Runner, bytes: &[u8], index: u64 in Wrapping) -> u8
+    requires index < bytes.len {
+        let value: u8 = bytes[index];
+        transition value == 7 {
+            true -> value
+            false -> Runner::scan(runner, bytes, index + 1)
+        }
+    }
+}
+machine main() crashes Trap {
+    let mut runner: Runner = Runner { marker: 19 };
+    let bytes: [u8; 2] = [4, 7];
+    let found: u8 = Runner::scan(&mut runner, &bytes[..], 0);
+    transition found == 7 && runner.marker == 19 {
+        true -> {}
+        false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

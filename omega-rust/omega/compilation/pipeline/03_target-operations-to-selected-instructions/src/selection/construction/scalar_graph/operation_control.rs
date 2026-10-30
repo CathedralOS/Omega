@@ -53,6 +53,24 @@ fn allocate(builder: &mut Builder<'_>) -> Result<SelectedBlockId, SelectedInstru
     Ok(id)
 }
 
+/// Open the source block an operation body branches from. A body that is
+/// already terminating or nested under another operation has no source anchor
+/// of its own, so it refuses rather than inventing one.
+fn open_source_block(builder: &mut Builder<'_>) -> Result<BlockId, SelectedInstructionError> {
+    let open = builder.open_block.ok_or_else(failure)?;
+    let source = match open.origin {
+        SelectedBlockOrigin::Source(source) | SelectedBlockOrigin::Operation { source, .. } => {
+            source
+        }
+        _ => return Err(failure()),
+    };
+    if builder.block_body_end.is_some() {
+        return Err(failure());
+    }
+    settle_preceding_operations(builder)?;
+    Ok(source)
+}
+
 fn settle_preceding_operations(builder: &mut Builder<'_>) -> Result<(), SelectedInstructionError> {
     if builder.pending_provenance.operations.is_empty() {
         return Ok(());
@@ -138,6 +156,39 @@ fn jump(
     )
 }
 
+/// Both control shapes start with the same test-then-branch step: compare the
+/// operation predicate against zero and branch to the blocks each shape chose.
+fn branch_on_nonzero(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    source: BlockId,
+    predicate: VirtualRegisterId,
+    when_nonzero: SelectedBlockId,
+    when_zero: SelectedBlockId,
+) -> Result<(), SelectedInstructionError> {
+    builder.emit(
+        SelectedInstructionKind::CompareI64Zero,
+        builder.constraints.keys.compare_i64_zero,
+        &[predicate],
+        super::structural::provenance(row),
+    )?;
+    builder.emit(
+        SelectedInstructionKind::ConditionalBranchNonZero,
+        builder.constraints.keys.conditional_branch,
+        &[],
+        super::structural::provenance(row),
+    )?;
+    let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
+    finish(
+        builder,
+        SelectedTerminator::ConditionalBranch {
+            instruction,
+            when_nonzero: successor(source, row.operation, when_nonzero),
+            when_zero: successor(source, row.operation, when_zero),
+        },
+    )
+}
+
 /// Execute an operation-owned region conditionally. Inactive sum payloads must
 /// not be read merely because their overlaid storage exists. Like a loop, this
 /// branch refines an operation and creates no semantic edge or custody event.
@@ -182,47 +233,16 @@ fn conditional_body(
     on_nonzero: bool,
     body: impl FnOnce(&mut Builder<'_>) -> Result<(), SelectedInstructionError>,
 ) -> Result<(), SelectedInstructionError> {
-    let open = builder.open_block.ok_or_else(failure)?;
-    let source = match open.origin {
-        SelectedBlockOrigin::Source(source) | SelectedBlockOrigin::Operation { source, .. } => {
-            source
-        }
-        _ => return Err(failure()),
-    };
-    if builder.block_body_end.is_some() {
-        return Err(failure());
-    }
-    settle_preceding_operations(builder)?;
+    let source = open_source_block(builder)?;
     let selected = allocate(builder)?;
     let continuation = allocate(builder)?;
-    builder.emit(
-        SelectedInstructionKind::CompareI64Zero,
-        builder.constraints.keys.compare_i64_zero,
-        &[predicate],
-        super::structural::provenance(row),
-    )?;
-    builder.emit(
-        SelectedInstructionKind::ConditionalBranchNonZero,
-        builder.constraints.keys.conditional_branch,
-        &[],
-        super::structural::provenance(row),
-    )?;
-    let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
-    finish(
+    branch_on_nonzero(
         builder,
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero: successor(
-                source,
-                row.operation,
-                if on_nonzero { selected } else { continuation },
-            ),
-            when_zero: successor(
-                source,
-                row.operation,
-                if on_nonzero { continuation } else { selected },
-            ),
-        },
+        row,
+        source,
+        predicate,
+        if on_nonzero { selected } else { continuation },
+        if on_nonzero { continuation } else { selected },
     )?;
     let origin = SelectedBlockOrigin::Operation {
         source,
@@ -257,17 +277,7 @@ pub(super) fn while_nonzero(
     condition: impl FnOnce(&mut Builder<'_>) -> Result<VirtualRegisterId, SelectedInstructionError>,
     body: impl FnOnce(&mut Builder<'_>) -> Result<(), SelectedInstructionError>,
 ) -> Result<(), SelectedInstructionError> {
-    let open = builder.open_block.ok_or_else(failure)?;
-    let source = match open.origin {
-        SelectedBlockOrigin::Source(source) | SelectedBlockOrigin::Operation { source, .. } => {
-            source
-        }
-        _ => return Err(failure()),
-    };
-    if builder.block_body_end.is_some() {
-        return Err(failure());
-    }
-    settle_preceding_operations(builder)?;
+    let source = open_source_block(builder)?;
     let test = allocate(builder)?;
     let repeated = allocate(builder)?;
     let continuation = allocate(builder)?;
@@ -282,27 +292,7 @@ pub(super) fn while_nonzero(
         start: builder.instructions.len(),
     });
     let predicate = condition(builder)?;
-    builder.emit(
-        SelectedInstructionKind::CompareI64Zero,
-        builder.constraints.keys.compare_i64_zero,
-        &[predicate],
-        super::structural::provenance(row),
-    )?;
-    builder.emit(
-        SelectedInstructionKind::ConditionalBranchNonZero,
-        builder.constraints.keys.conditional_branch,
-        &[],
-        super::structural::provenance(row),
-    )?;
-    let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
-    finish(
-        builder,
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero: successor(source, row.operation, repeated),
-            when_zero: successor(source, row.operation, continuation),
-        },
-    )?;
+    branch_on_nonzero(builder, row, source, predicate, repeated, continuation)?;
     builder.open_block = Some(OpenBlock {
         id: repeated,
         origin,

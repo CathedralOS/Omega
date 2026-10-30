@@ -8,6 +8,7 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
     X86_64SelectedFormFootprint,
 };
+use encoded_scalar_plan::{Step, plan};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
@@ -15,83 +16,29 @@ use selected_instructions::{
     MachineEncodedTrapBehavior, SelectedInstructionKind,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Instruction {
-    Zero(u8),
-    Copy(u8, u8),
-    ByteCount(u8, u8),
-    SubOne(u8),
-    AddOne(u8),
-    LoadByte(u8, u8, u8),
-    StoreByte(u8, u8, u8),
-    SignByte(u8),
-    ShiftLeft8(u8),
-    ShiftRight8(u8),
-    Or(u8, u8),
-    Compare(u8, u8),
-    TestSigned(u8, usize),
-    ZeroBranch(u8, usize),
-    LessBranch(usize),
-    Branch(usize),
+fn codec_plan(load: bool, registers: [u8; 6]) -> Vec<Step> {
+    let [_, _, cursor, _, _, _] = registers;
+    plan(load, registers, Step::Zero(cursor))
 }
 
-fn plan(load: bool, registers: [u8; 6]) -> Vec<Instruction> {
-    if load {
-        let [address, codec, cursor, count, byte, result] = registers;
-        vec![
-            Instruction::ByteCount(count, codec),
-            Instruction::Copy(cursor, count),
-            Instruction::Zero(byte),
-            Instruction::Zero(result),
-            Instruction::SubOne(cursor),
-            Instruction::LoadByte(result, address, cursor),
-            Instruction::TestSigned(codec, 8),
-            Instruction::SignByte(result),
-            Instruction::ZeroBranch(cursor, 15),
-            Instruction::SubOne(cursor),
-            Instruction::ShiftLeft8(result),
-            Instruction::LoadByte(byte, address, cursor),
-            Instruction::Or(result, byte),
-            Instruction::ZeroBranch(cursor, 15),
-            Instruction::Branch(9),
-            Instruction::Zero(cursor),
-        ]
-    } else {
-        let [address, codec, value, cursor, count, payload] = registers;
-        vec![
-            Instruction::Zero(cursor),
-            Instruction::ByteCount(count, codec),
-            Instruction::Copy(payload, value),
-            Instruction::StoreByte(payload, address, cursor),
-            Instruction::ShiftRight8(payload),
-            Instruction::AddOne(cursor),
-            Instruction::Compare(cursor, count),
-            Instruction::LessBranch(3),
-        ]
-    }
-}
-
-fn instruction_size(instruction: Instruction) -> usize {
+fn instruction_size(instruction: Step) -> usize {
     match instruction {
-        Instruction::Zero(_)
-        | Instruction::Copy(..)
-        | Instruction::Or(..)
-        | Instruction::Compare(..) => 3,
-        Instruction::ByteCount(..)
-        | Instruction::SubOne(_)
-        | Instruction::AddOne(_)
-        | Instruction::SignByte(_)
-        | Instruction::ShiftLeft8(_)
-        | Instruction::ShiftRight8(_) => 4,
-        Instruction::LoadByte(..) | Instruction::ZeroBranch(..) => 9,
-        Instruction::StoreByte(..) => 8,
-        Instruction::TestSigned(..) => 13,
-        Instruction::LessBranch(_) => 6,
-        Instruction::Branch(_) => 5,
+        Step::Zero(_) | Step::Copy(..) | Step::Or(..) | Step::Compare(..) => 3,
+        Step::ByteCount(..)
+        | Step::SubOne(_)
+        | Step::AddOne(_)
+        | Step::SignByte(_)
+        | Step::ShiftLeft8(_)
+        | Step::ShiftRight8(_) => 4,
+        Step::LoadByte(..) | Step::ZeroBranch(..) => 9,
+        Step::StoreByte(..) => 8,
+        Step::TestSigned(..) => 13,
+        Step::LessBranch(_) => 6,
+        Step::Branch(_) => 5,
     }
 }
 
-fn positions(plan: &[Instruction]) -> Vec<usize> {
+fn positions(plan: &[Step]) -> Vec<usize> {
     let mut offset = 0;
     plan.iter()
         .map(|instruction| {
@@ -106,34 +53,34 @@ fn branch_target(offsets: &[usize], target: usize) -> Result<usize, Error> {
     offsets.get(target).copied().ok_or(Error::MalformedEncoding)
 }
 
-fn assemble(plan: &[Instruction]) -> Result<Vec<u8>, Error> {
+fn assemble(plan: &[Step]) -> Result<Vec<u8>, Error> {
     let offsets = positions(plan);
     let mut bytes = Vec::new();
     for instruction in plan {
         match *instruction {
-            Instruction::Zero(register) => bytes.extend([
+            Step::Zero(register) => bytes.extend([
                 rex(register, 0, register),
                 0x31,
                 modrm(3, register, register),
             ]),
-            Instruction::Copy(destination, source) => bytes.extend([
+            Step::Copy(destination, source) => bytes.extend([
                 rex(source, 0, destination),
                 0x89,
                 modrm(3, source, destination),
             ]),
-            Instruction::ByteCount(destination, source) => bytes.extend([
+            Step::ByteCount(destination, source) => bytes.extend([
                 rex(destination, 0, source),
                 0x0f,
                 0xb6,
                 modrm(3, destination, source),
             ]),
-            Instruction::SubOne(register) => {
+            Step::SubOne(register) => {
                 bytes.extend([rex(0, 0, register), 0x83, modrm(3, 5, register), 1])
             }
-            Instruction::AddOne(register) => {
+            Step::AddOne(register) => {
                 bytes.extend([rex(0, 0, register), 0x83, modrm(3, 0, register), 1])
             }
-            Instruction::LoadByte(destination, base, index) => {
+            Step::LoadByte(destination, base, index) => {
                 bytes.extend([
                     rex(destination, index, base),
                     0x0f,
@@ -143,7 +90,7 @@ fn assemble(plan: &[Instruction]) -> Result<Vec<u8>, Error> {
                 ]);
                 bytes.extend(0u32.to_le_bytes());
             }
-            Instruction::StoreByte(source, base, index) => {
+            Step::StoreByte(source, base, index) => {
                 bytes.extend([
                     rex(source, index, base) & !8,
                     0x88,
@@ -152,32 +99,32 @@ fn assemble(plan: &[Instruction]) -> Result<Vec<u8>, Error> {
                 ]);
                 bytes.extend(0u32.to_le_bytes());
             }
-            Instruction::SignByte(register) => bytes.extend([
+            Step::SignByte(register) => bytes.extend([
                 rex(register, 0, register),
                 0x0f,
                 0xbe,
                 modrm(3, register, register),
             ]),
-            Instruction::ShiftLeft8(register) => {
+            Step::ShiftLeft8(register) => {
                 bytes.extend([rex(0, 0, register), 0xc1, modrm(3, 4, register), 8])
             }
-            Instruction::ShiftRight8(register) => {
+            Step::ShiftRight8(register) => {
                 bytes.extend([rex(0, 0, register), 0xc1, modrm(3, 5, register), 8])
             }
-            Instruction::Or(destination, source) => bytes.extend([
+            Step::Or(destination, source) => bytes.extend([
                 rex(source, 0, destination),
                 0x09,
                 modrm(3, source, destination),
             ]),
-            Instruction::Compare(left, right) => {
+            Step::Compare(left, right) => {
                 bytes.extend([rex(right, 0, left), 0x39, modrm(3, right, left)])
             }
-            Instruction::TestSigned(register, target) => {
+            Step::TestSigned(register, target) => {
                 bytes.extend([rex(0, 0, register), 0xf7, modrm(3, 0, register)]);
                 bytes.extend(0x100u32.to_le_bytes());
                 append_jump(&mut bytes, &[0x0f, 0x84], branch_target(&offsets, target)?)?;
             }
-            Instruction::ZeroBranch(register, target) => {
+            Step::ZeroBranch(register, target) => {
                 bytes.extend([
                     rex(register, 0, register),
                     0x85,
@@ -185,10 +132,10 @@ fn assemble(plan: &[Instruction]) -> Result<Vec<u8>, Error> {
                 ]);
                 append_jump(&mut bytes, &[0x0f, 0x84], branch_target(&offsets, target)?)?;
             }
-            Instruction::LessBranch(target) => {
+            Step::LessBranch(target) => {
                 append_jump(&mut bytes, &[0x0f, 0x82], branch_target(&offsets, target)?)?
             }
-            Instruction::Branch(target) => {
+            Step::Branch(target) => {
                 append_jump(&mut bytes, &[0xe9], branch_target(&offsets, target)?)?
             }
         }
@@ -204,7 +151,7 @@ fn append_jump(bytes: &mut Vec<u8>, prefix: &[u8], target: usize) -> Result<(), 
     Ok(())
 }
 
-fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Error> {
+fn decode_one(bytes: &[u8], position: usize) -> Result<(Step, usize), Error> {
     let instruction = bytes.get(position..).ok_or(Error::MalformedEncoding)?;
     let fail = Error::EncodedFormMismatch;
     let fields = |prefix: u8, mode: u8| {
@@ -228,7 +175,7 @@ fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Err
         [prefix, 0x31, mode, ..] if prefix & 0xfa == 0x48 && mode >> 6 == 3 => {
             let (source, destination) = fields(prefix, mode);
             if source == destination {
-                Ok((Instruction::Zero(source), 3))
+                Ok((Step::Zero(source), 3))
             } else {
                 Err(fail)
             }
@@ -239,9 +186,9 @@ fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Err
             let (source, destination) = fields(prefix, mode);
             Ok((
                 match opcode {
-                    0x89 => Instruction::Copy(destination, source),
-                    0x09 => Instruction::Or(destination, source),
-                    _ => Instruction::Compare(destination, source),
+                    0x89 => Step::Copy(destination, source),
+                    0x09 => Step::Or(destination, source),
+                    _ => Step::Compare(destination, source),
                 },
                 3,
             ))
@@ -251,9 +198,9 @@ fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Err
         {
             let (destination, source) = fields(prefix, mode);
             if opcode == 0xb6 {
-                Ok((Instruction::ByteCount(destination, source), 4))
+                Ok((Step::ByteCount(destination, source), 4))
             } else if source == destination {
-                Ok((Instruction::SignByte(source), 4))
+                Ok((Step::SignByte(source), 4))
             } else {
                 Err(fail)
             }
@@ -261,16 +208,16 @@ fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Err
         [prefix, 0x83, mode, 1, ..] if prefix & 0xfe == 0x48 && mode >> 6 == 3 => {
             let register = (mode & 7) | ((prefix & 1) << 3);
             match (mode >> 3) & 7 {
-                0 => Ok((Instruction::AddOne(register), 4)),
-                5 => Ok((Instruction::SubOne(register), 4)),
+                0 => Ok((Step::AddOne(register), 4)),
+                5 => Ok((Step::SubOne(register), 4)),
                 _ => Err(fail),
             }
         }
         [prefix, 0xc1, mode, 8, ..] if prefix & 0xfe == 0x48 && mode >> 6 == 3 => {
             let register = (mode & 7) | ((prefix & 1) << 3);
             match (mode >> 3) & 7 {
-                4 => Ok((Instruction::ShiftLeft8(register), 4)),
-                5 => Ok((Instruction::ShiftRight8(register), 4)),
+                4 => Ok((Step::ShiftLeft8(register), 4)),
+                5 => Ok((Step::ShiftRight8(register), 4)),
                 _ => Err(fail),
             }
         }
@@ -283,7 +230,7 @@ fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Err
             if index == 4 {
                 Err(fail)
             } else {
-                Ok((Instruction::LoadByte(destination, base, index), 9))
+                Ok((Step::LoadByte(destination, base, index), 9))
             }
         }
         [prefix, 0x88, mode, sib, 0, 0, 0, 0, ..]
@@ -295,14 +242,14 @@ fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Err
             if index == 4 {
                 Err(fail)
             } else {
-                Ok((Instruction::StoreByte(source, base, index), 8))
+                Ok((Step::StoreByte(source, base, index), 8))
             }
         }
         [prefix, 0xf7, mode, 0, 1, 0, 0, 0x0f, 0x84, _, _, _, _, ..]
             if prefix & 0xfe == 0x48 && mode & 0xf8 == 0xc0 =>
         {
             Ok((
-                Instruction::TestSigned((mode & 7) | ((prefix & 1) << 3), target(9, 13)?),
+                Step::TestSigned((mode & 7) | ((prefix & 1) << 3), target(9, 13)?),
                 13,
             ))
         }
@@ -311,34 +258,30 @@ fn decode_one(bytes: &[u8], position: usize) -> Result<(Instruction, usize), Err
         {
             let (source, destination) = fields(prefix, mode);
             if source == destination {
-                Ok((Instruction::ZeroBranch(source, target(5, 9)?), 9))
+                Ok((Step::ZeroBranch(source, target(5, 9)?), 9))
             } else {
                 Err(fail)
             }
         }
-        [0x0f, 0x82, _, _, _, _, ..] => Ok((Instruction::LessBranch(target(2, 6)?), 6)),
-        [0xe9, _, _, _, _, ..] => Ok((Instruction::Branch(target(1, 5)?), 5)),
+        [0x0f, 0x82, _, _, _, _, ..] => Ok((Step::LessBranch(target(2, 6)?), 6)),
+        [0xe9, _, _, _, _, ..] => Ok((Step::Branch(target(1, 5)?), 5)),
         _ => Err(fail),
     }
 }
 
-fn resolved_plan(plan: &[Instruction]) -> Result<Vec<Instruction>, Error> {
+fn resolved_plan(plan: &[Step]) -> Result<Vec<Step>, Error> {
     let offsets = positions(plan);
     plan.iter()
         .map(|instruction| {
             Ok(match *instruction {
-                Instruction::TestSigned(register, target) => {
-                    Instruction::TestSigned(register, branch_target(&offsets, target)?)
+                Step::TestSigned(register, target) => {
+                    Step::TestSigned(register, branch_target(&offsets, target)?)
                 }
-                Instruction::ZeroBranch(register, target) => {
-                    Instruction::ZeroBranch(register, branch_target(&offsets, target)?)
+                Step::ZeroBranch(register, target) => {
+                    Step::ZeroBranch(register, branch_target(&offsets, target)?)
                 }
-                Instruction::LessBranch(target) => {
-                    Instruction::LessBranch(branch_target(&offsets, target)?)
-                }
-                Instruction::Branch(target) => {
-                    Instruction::Branch(branch_target(&offsets, target)?)
-                }
+                Step::LessBranch(target) => Step::LessBranch(branch_target(&offsets, target)?),
+                Step::Branch(target) => Step::Branch(branch_target(&offsets, target)?),
                 other => other,
             })
         })
@@ -386,7 +329,7 @@ pub(super) fn encode(
     operands: &[RegisterViewId],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, Error> {
     let (load, registers) = request(physical, kind, alternative, operands)?;
-    let bytes = assemble(&plan(load, registers))?;
+    let bytes = assemble(&codec_plan(load, registers))?;
     validate(physical, kind, alternative, operands, &bytes)
 }
 
@@ -405,7 +348,7 @@ pub(super) fn validate(
         decoded.push(instruction);
         position += size;
     }
-    if decoded != resolved_plan(&plan(load, registers))? {
+    if decoded != resolved_plan(&codec_plan(load, registers))? {
         return Err(Error::EncodedFormMismatch);
     }
     let inputs = if load { 2 } else { 3 };
@@ -449,208 +392,56 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use encoded_scalar_plan::{harness, replay};
 
-    fn operands(physical: &ValidatedPhysicalRegisterModel) -> [RegisterViewId; 6] {
-        ["r8", "r9", "r10", "r11", "r12", "r13"]
-            .map(|name| physical.model().view_named(name).unwrap().id)
+    fn form() -> (ValidatedPhysicalRegisterModel, [RegisterViewId; 6]) {
+        let physical = register_model::validate_physical_register_model(
+            crate::x86_64_physical_register_model(),
+        )
+        .unwrap();
+        let operands = ["r8", "r9", "r10", "r11", "r12", "r13"]
+            .map(|name| physical.model().view_named(name).unwrap().id);
+        (physical, operands)
     }
 
     fn execute(bytes: &[u8], state: &mut [u64; 32], memory: &mut [u8]) -> Vec<usize> {
-        let mut position = 0;
-        let mut less = false;
-        let mut accesses = Vec::new();
-        for _ in 0..128 {
-            if position == bytes.len() {
-                return accesses;
-            }
-            let (instruction, size) = decode_one(bytes, position).unwrap();
-            let next = position + size;
-            position = next;
-            match instruction {
-                Instruction::Zero(destination) => state[destination as usize] = 0,
-                Instruction::Copy(destination, source) => {
-                    state[destination as usize] = state[source as usize]
-                }
-                Instruction::ByteCount(destination, source) => {
-                    state[destination as usize] = state[source as usize] & 255
-                }
-                Instruction::SubOne(register) => state[register as usize] -= 1,
-                Instruction::AddOne(register) => state[register as usize] += 1,
-                Instruction::LoadByte(destination, base, offset) => {
-                    let address = (state[base as usize] + state[offset as usize]) as usize;
-                    accesses.push(address);
-                    state[destination as usize] = u64::from(memory[address]);
-                }
-                Instruction::StoreByte(source, base, offset) => {
-                    let address = (state[base as usize] + state[offset as usize]) as usize;
-                    accesses.push(address);
-                    memory[address] = state[source as usize] as u8;
-                }
-                Instruction::SignByte(register) => {
-                    state[register as usize] = state[register as usize] as i8 as i64 as u64
-                }
-                Instruction::ShiftLeft8(register) => state[register as usize] <<= 8,
-                Instruction::ShiftRight8(register) => state[register as usize] >>= 8,
-                Instruction::Or(destination, source) => {
-                    state[destination as usize] |= state[source as usize]
-                }
-                Instruction::Compare(left, right) => {
-                    less = state[left as usize] < state[right as usize]
-                }
-                Instruction::TestSigned(register, target) => {
-                    if state[register as usize] & 256 == 0 {
-                        position = target;
-                    }
-                }
-                Instruction::ZeroBranch(register, target) => {
-                    if state[register as usize] == 0 {
-                        position = target;
-                    }
-                }
-                Instruction::LessBranch(target) => {
-                    if less {
-                        position = target;
-                    }
-                }
-                Instruction::Branch(target) => position = target,
-            }
-        }
-        panic!("codec loop did not terminate");
+        replay::execute(
+            bytes,
+            bytes.len(),
+            |bytes, position| decode_one(bytes, position).unwrap(),
+            state,
+            memory,
+        )
     }
 
     #[test]
     fn encoded_scalar_access_has_exact_footprint_and_extension() {
-        let physical = register_model::validate_physical_register_model(
-            crate::x86_64_physical_register_model(),
-        )
-        .unwrap();
-        let operands = operands(&physical);
+        let (physical, operands) = form();
         let registers: [u8; 6] = resolve_registers(&physical, &operands)
             .unwrap()
             .try_into()
             .unwrap();
-        let codecs = (1..=8u64)
-            .flat_map(|width| [width, width | 256])
-            .chain([516, 520, 1025, 2056]);
-        for codec in codecs {
-            let width = codec & 255;
-            let signed = codec & 256 != 0;
-            let payload = if codec == 1025 {
-                1
-            } else {
-                0x807f_6655_4433_2280u64
-            };
-            let mut memory = [85u8; 10];
-            let mut state = [0u64; 32];
-            state[registers[0] as usize] = 1;
-            state[registers[1] as usize] = codec;
-            state[registers[2] as usize] = payload;
-            let original = state;
-            let store = encode(
-                &physical,
-                SelectedInstructionKind::StoreEncodedScalar,
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::StoreEncodedScalar,
-                    variant: 0,
-                },
-                &operands,
-            )
-            .unwrap();
-            let writes = execute(&store.bytes, &mut state, &mut memory);
-            assert_eq!(writes, (1..=width as usize).collect::<Vec<_>>());
-            assert_eq!(memory[0], 85);
-            assert_eq!(memory[width as usize + 1], 85);
-            assert_eq!(
-                &memory[1..=width as usize],
-                &payload.to_le_bytes()[..width as usize]
-            );
-            for input in 0..3 {
-                assert_eq!(
-                    state[registers[input] as usize],
-                    original[registers[input] as usize]
-                );
-            }
-            let load = encode(
-                &physical,
-                SelectedInstructionKind::LoadEncodedScalar,
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::LoadEncodedScalar,
-                    variant: 0,
-                },
-                &operands,
-            )
-            .unwrap();
-            let reads = execute(&load.bytes, &mut state, &mut memory);
-            assert_eq!(reads, (1..=width as usize).rev().collect::<Vec<_>>());
-            let shift = 64 - width * 8;
-            let expected = if signed {
-                ((payload << shift) as i64 >> shift) as u64
-            } else {
-                (payload << shift) >> shift
-            };
-            assert_eq!(state[registers[5] as usize], expected);
-            for input in 0..2 {
-                assert_eq!(
-                    state[registers[input] as usize],
-                    original[registers[input] as usize]
-                );
-            }
-        }
+        harness::exact_footprint_and_extension(
+            registers,
+            operands,
+            |kind, alternative, operands| {
+                encode(&physical, kind, alternative, operands).map(|encoded| encoded.bytes)
+            },
+            execute,
+        );
     }
 
     #[test]
     fn encoded_scalar_stream_rejects_every_single_bit_mutation() {
-        let physical = register_model::validate_physical_register_model(
-            crate::x86_64_physical_register_model(),
-        )
-        .unwrap();
-        let operands = operands(&physical);
-        for (kind, family) in [
-            (
-                SelectedInstructionKind::LoadEncodedScalar,
-                MachineAlternativeFamily::LoadEncodedScalar,
-            ),
-            (
-                SelectedInstructionKind::StoreEncodedScalar,
-                MachineAlternativeFamily::StoreEncodedScalar,
-            ),
-        ] {
-            let alternative = MachineAlternativeKey { family, variant: 0 };
-            let encoded = encode(&physical, kind, alternative, &operands).unwrap();
-            for bit in 0..encoded.bytes.len() * 8 {
-                let mut changed = encoded.bytes.clone();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(&physical, kind, alternative, &operands, &changed).is_err(),
-                    "{kind:?} bit {bit}"
-                );
-            }
-            let input_count = if kind == SelectedInstructionKind::LoadEncodedScalar {
-                2
-            } else {
-                3
-            };
-            for scratch in input_count..6 {
-                for prior in 0..scratch {
-                    let mut aliased = operands;
-                    aliased[scratch] = operands[prior];
-                    assert!(
-                        encode(&physical, kind, alternative, &aliased).is_err(),
-                        "{kind:?} scratch {scratch} aliases operand {prior}"
-                    );
-                    assert!(
-                        validate(&physical, kind, alternative, &aliased, &encoded.bytes).is_err()
-                    );
-                }
-            }
-            for input in 1..input_count {
-                let mut shared_input = operands;
-                shared_input[input] = operands[0];
-                let encoded = encode(&physical, kind, alternative, &shared_input).unwrap();
-                assert!(
-                    validate(&physical, kind, alternative, &shared_input, &encoded.bytes).is_ok()
-                );
-            }
-        }
+        let (physical, operands) = form();
+        harness::rejects_every_single_bit_mutation(
+            operands,
+            |kind, alternative, operands| {
+                encode(&physical, kind, alternative, operands).map(|encoded| encoded.bytes)
+            },
+            |kind, alternative, operands, bytes| {
+                validate(&physical, kind, alternative, operands, bytes).is_err()
+            },
+        );
     }
 }

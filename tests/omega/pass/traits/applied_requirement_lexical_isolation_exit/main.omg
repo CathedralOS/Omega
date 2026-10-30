@@ -1,0 +1,20 @@
+// Expected exit: 0
+// An applied public requirement is not redirected to a different lexical map.
+public boundary trait Stage<const Phase: u64> {
+    machine read() -> u64 reaches Stage invokes Stage;
+}
+Caller<const Phase: u64> satisfies Stage<Phase> {
+    machine read() -> u64 { Stage<2u64>::read() }
+}
+Supply<const Phase: u64> satisfies Stage<Phase> {
+    machine read() -> u64 { 73 }
+}
+machine main() reaches Stage crashes Trap {
+    let value: u64 = Caller<1u64>::read();
+    transition value == 73 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

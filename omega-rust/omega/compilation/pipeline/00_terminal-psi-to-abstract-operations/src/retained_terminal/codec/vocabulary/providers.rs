@@ -16,20 +16,6 @@ record_variants!(effects::AuthoredBehaviorExclusionKind {
     2 => Service { identity, name },
 });
 
-record_fields!(backend_plan::BoundCallbackPrivateMaterialization {
-    registrar_invokes_callback,
-    binder,
-    destination,
-    requirement,
-    registrar_boundary_entry_plan,
-    registrar_calling_plan_report_fingerprint,
-    registrar_application_report_fingerprint,
-    registrar_application_commitment,
-    registrar_application,
-    destination_application,
-    context
-});
-
 record_variants!(effects::CompilerIntrinsicExecutionIdentity {
     0 => HostedExitProcessI32,
     1 => HostedWriteByteI32,
@@ -107,26 +93,6 @@ record_fields!(effects::InstallationReachResolution {
     resolved_row
 });
 
-record_fields!(backend_plan::NativeCallbackEntryParameter {
-    application,
-    origin
-});
-
-record_fields!(backend_plan::NativeCallbackPlacement {
-    application_index,
-    static_machine_ordinal,
-    canonical_requirement_overload,
-    contract_commitment,
-    boundary_entry_plan,
-    entry_parameters,
-    private_materialization
-});
-
-record_variants!(backend_plan::PrivateCallbackDestinationApplication {
-    0 => Direct { application },
-    1 => Field { root, byte_offset },
-});
-
 record_variants!(effects::provider_plan::ProviderBinding {
     0 => Import { evaluated },
     1 => Syscall { number },
@@ -145,6 +111,7 @@ record_fields!(terminal_installation::ProviderInstallationSelection {
 });
 
 record_fields!(effects::provider_plan::ProviderPlan {
+    provider_application,
     name,
     provider_type,
     provider_type_package_identity,
@@ -209,7 +176,7 @@ record_fields!(effects::provider_plan::ServiceEntryClaim {
     parameter_index,
     carrier_identity,
     domain,
-    predicate_body,
+    predicate_presence,
     effective_carry,
     authority_flow
 });
@@ -258,6 +225,7 @@ record_variants!(effects::provider_plan::ServiceProgressSubject {
 });
 
 record_fields!(effects::provider_plan::ServiceReceiverApplication {
+    application,
     trait_name,
     trait_package_identity,
     argument_identities,
@@ -297,7 +265,8 @@ record_variants!(effects::TerminalAuthorityClass {
 
 record_fields!(backend_plan::TerminalTargetProviderPlan {
     plan,
-    provider_declaration
+    provider_declaration,
+    row_numeric_realizations
 });
 
 record_fields!(backend_plan::TerminalTargetProviderProposal {

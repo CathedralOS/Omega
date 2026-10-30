@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use optimization_unit::PsiOptimizationUnit;
 
-use super::{CallGraphAnalysis, components::strongly_connected_components};
+use super::CallGraphAnalysis;
+use crate::cycles::strongly_connected_components;
 
 pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAnalysis {
     let mut graph = unit

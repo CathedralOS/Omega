@@ -12,7 +12,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
-        let PreparedFilesystemCall::Create { path, mode: _ } = call else {
+        let PreparedFilesystemCall::Create { path } = call else {
             unreachable!("dispatched real_create")
         };
         Ok({
@@ -59,16 +59,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
-        let PreparedFilesystemCall::OpenPathHandle {
-            path,
-            desired_access: _,
-            share_mode: _,
-            security_attributes: _,
-            creation_disposition: _,
-            flags_and_attributes: _,
-            template_file: _,
-        } = call
-        else {
+        let PreparedFilesystemCall::OpenPathHandle { path, .. } = call else {
             unreachable!("dispatched real_open_path_handle")
         };
         Ok({
@@ -222,12 +213,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
-        let PreparedFilesystemCall::CreateHardLink {
-            link,
-            existing,
-            security_attributes: _,
-        } = call
-        else {
+        let PreparedFilesystemCall::CreateHardLink { link, existing } = call else {
             unreachable!("dispatched real_create_hard_link")
         };
         Ok({

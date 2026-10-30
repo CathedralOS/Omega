@@ -1,5 +1,6 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::scalar_storage::ScalarCell;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralTypeId;
@@ -22,23 +23,24 @@ pub(crate) use bindings::{PackedHomeRetirement, ScalarArrayBindings};
 pub(crate) use loans::borrowed_array_memberships_match;
 use std::sync::Arc;
 use storage::ScalarArrayStorage;
-/// Exact row-major primitive payload; the type retains all array dimensions.
-/// Inspection clones share read-only backing and its reservation. Guest value
-/// copies use explicit snapshots; writes preserve this value's logical identity
-/// while detaching any shared physical backing before mutation.
+/// Portable owned scalar payload. It contains no invocation-local residents.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalScalarArrayValue {
-    /// Allocated from the ordinary referent allocator when this payload's
-    /// location is first observed. Snapshots clear it: a copy has new storage.
     pub(crate) storage_identity: Option<u64>,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub structural_type: StructuralTypeId,
-    elements: Arc<ScalarArrayStorage>,
+    elements: Arc<ScalarArrayStorage<TerminalScalarValue>>,
 }
 
 impl TerminalScalarArrayValue {
     pub fn elements(&self) -> &[TerminalScalarValue] {
         self.elements.elements()
+    }
+    pub fn len(&self) -> usize {
+        self.elements().len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.elements().is_empty()
     }
 
     fn collect(
@@ -56,26 +58,169 @@ impl TerminalScalarArrayValue {
         })
     }
 
-    /// A guest value copy has independent storage and no observed address.
-    /// `Clone` is only a read-only inspection alias, not this guest operation.
-    fn snapshot(&self) -> Result<Self, TerminalInterpretError> {
+    fn into_runtime(self) -> Result<PackedScalarArrayValue, TerminalInterpretError> {
+        let storage = match Arc::try_unwrap(self.elements) {
+            Ok(storage) => storage,
+            Err(shared) => shared.copy()?,
+        };
+        Ok(PackedScalarArrayValue {
+            storage_identity: self.storage_identity,
+            qualifications: self.qualifications,
+            structural_type: self.structural_type,
+            elements: Arc::new(storage.into_cells()?),
+        })
+    }
+}
+
+/// Exact row-major primitive payload; the type retains all array dimensions.
+/// Inspection clones share cells and their reservation. Guest copies observe
+/// independent local snapshots. Mutation detaches shared cell containers while
+/// preserving this value's logical identity and every resident endpoint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PackedScalarArrayValue {
+    /// Allocated from the ordinary referent allocator when this payload's
+    /// location is first observed. Snapshots clear it: a copy has new storage.
+    pub(crate) storage_identity: Option<u64>,
+    pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    pub structural_type: StructuralTypeId,
+    elements: Arc<ScalarArrayStorage<ScalarCell>>,
+}
+
+impl PackedScalarArrayValue {
+    /// Promote a fixed byte payload into the same runtime cell representation
+    /// used by frame arrays, funding cells before observing the old payload.
+    pub(crate) fn from_bytes(
+        structural_type: StructuralTypeId,
+        bytes: &[u8],
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
+        let scalar_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .map_err(|_| malformed())?;
+        Self::collect(
+            structural_type,
+            Vec::new(),
+            u64::try_from(bytes.len()).map_err(|_| malformed())?,
+            bytes.iter().map(|byte| {
+                Ok(TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*byte)),
+                })
+            }),
+            account,
+        )
+    }
+    #[cfg(test)]
+    pub fn elements(&self) -> Result<Vec<TerminalScalarValue>, TerminalInterpretError> {
+        self.cells().iter().map(ScalarCell::read).collect()
+    }
+
+    pub fn len(&self) -> usize {
+        self.cells().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cells().is_empty()
+    }
+
+    pub fn element(
+        &self,
+        index: usize,
+    ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
+        self.cell(index).map(ScalarCell::read).transpose()
+    }
+
+    pub(crate) fn cells(&self) -> &[ScalarCell] {
+        self.elements.cells()
+    }
+
+    pub(crate) fn cell(&self, index: usize) -> Option<&ScalarCell> {
+        self.cells().get(index)
+    }
+
+    pub(crate) fn set_element(
+        &mut self,
+        index: usize,
+        value: TerminalScalarValue,
+    ) -> Result<(), TerminalInterpretError> {
+        if self.cell(index).ok_or_else(malformed)?.scalar_type() != value.scalar_type()
+            || !crate::scalar_operations::terminal_scalar_belongs_to_type(value)
+        {
+            return Err(malformed());
+        }
+        self.mutable_storage()?.cells_mut()[index].write(value)
+    }
+
+    /// Validate and fund installation before any original roots are published.
+    /// Detaching inspection storage preserves cells; no resident is installed.
+    pub(crate) fn prepare_resident_install(
+        &mut self,
+        index: usize,
+        resident: &ScalarCell,
+    ) -> Result<(), TerminalInterpretError> {
+        let previous = self.cell(index).ok_or_else(malformed)?;
+        if !matches!(resident, ScalarCell::Resident { .. })
+            || previous.scalar_type() != resident.scalar_type()
+            || previous.read()? != resident.read()?
+            || (matches!(previous, ScalarCell::Resident { .. }) && previous != resident)
+        {
+            return Err(malformed());
+        }
+        self.mutable_storage()?;
+        Ok(())
+    }
+
+    /// Attach an authenticated endpoint. A prior preparation over the same
+    /// exclusive container ensures this commit needs no further allocation.
+    pub(crate) fn install_resident(
+        &mut self,
+        index: usize,
+        resident: ScalarCell,
+    ) -> Result<(), TerminalInterpretError> {
+        self.prepare_resident_install(index, &resident)?;
+        Arc::get_mut(&mut self.elements)
+            .ok_or_else(malformed)?
+            .cells_mut()[index] = resident;
+        Ok(())
+    }
+
+    fn collect(
+        structural_type: StructuralTypeId,
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+        count: u64,
+        values: impl IntoIterator<Item = Result<TerminalScalarValue, TerminalInterpretError>>,
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
         Ok(Self {
             storage_identity: None,
-            qualifications: self.qualifications.clone(),
-            structural_type: self.structural_type,
-            elements: Arc::new(self.elements.copy()?),
+            qualifications,
+            structural_type,
+            elements: Arc::new(ScalarArrayStorage::collect(
+                count,
+                values.into_iter().map(|value| value.map(ScalarCell::Local)),
+                account,
+            )?),
         })
     }
 
-    pub(crate) fn elements_mut(
+    /// A guest value copy has independent storage and no observed address.
+    /// `Clone` is only a read-only inspection alias, not this guest operation.
+    pub(crate) fn snapshot(&self) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
+        Ok(TerminalScalarArrayValue {
+            storage_identity: None,
+            qualifications: self.qualifications.clone(),
+            structural_type: self.structural_type,
+            elements: Arc::new(self.elements.observe()?),
+        })
+    }
+
+    fn mutable_storage(
         &mut self,
-    ) -> Result<&mut [TerminalScalarValue], TerminalInterpretError> {
+    ) -> Result<&mut ScalarArrayStorage<ScalarCell>, TerminalInterpretError> {
         if Arc::get_mut(&mut self.elements).is_none() {
-            self.elements = Arc::new(self.elements.copy()?);
+            self.elements = Arc::new(self.elements.copy_for_mutation()?);
         }
-        Ok(Arc::get_mut(&mut self.elements)
-            .ok_or_else(malformed)?
-            .elements_mut())
+        Arc::get_mut(&mut self.elements).ok_or_else(malformed)
     }
 }
 
@@ -129,7 +274,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         self.validate_scalar_array_contents_qualifications(
             snapshot.structural_type,
-            snapshot.elements(),
+            snapshot.elements().iter().map(|value| value.scalar_type()),
             qualifications,
         )
     }
@@ -139,7 +284,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn validate_scalar_array_contents_qualifications(
         &self,
         structural_type: StructuralTypeId,
-        elements: &[TerminalScalarValue],
+        mut elements: impl ExactSizeIterator<Item = ScalarType>,
         qualifications: &[semantic_vocabulary::StructuralDomainId],
     ) -> Result<(), TerminalInterpretError> {
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
@@ -148,9 +293,7 @@ impl TerminalExecution<'_> {
         )
         .ok_or_else(malformed)?;
         if u64::try_from(elements.len()).ok() != Some(count)
-            || elements
-                .iter()
-                .any(|value| value.scalar_type() != scalar_type)
+            || elements.any(|element_type| element_type != scalar_type)
             || qualifications.iter().any(|domain| {
                 !self
                     .program
@@ -190,11 +333,11 @@ impl TerminalExecution<'_> {
             return self.stored_scalar_array_copy(argument, structural_type, scalar_type, count);
         };
         if value.structural_type != structural_type
-            || u64::try_from(value.elements().len()).ok() != Some(count)
+            || u64::try_from(value.len()).ok() != Some(count)
             || value
-                .elements()
+                .cells()
                 .iter()
-                .any(|value| value.scalar_type() != scalar_type)
+                .any(|cell| cell.scalar_type() != scalar_type)
             || crate::custody::place_is_claimed(&self.live_claims, argument.place)
             || self.structural_values.contains_key(&argument.place)
         {
@@ -224,7 +367,7 @@ impl TerminalExecution<'_> {
             let initialized = if let Some(array) = self.scalar_array_values.get(&argument.place) {
                 array.structural_type == root_type
                     && terminal_semantics::scalar_array_leaf_shape(types.values(), root_type)
-                        .is_some_and(|(_, count)| count == 0 && array.elements().is_empty())
+                        .is_some_and(|(_, count)| count == 0 && array.is_empty())
             } else {
                 let selected = self.resolve_live_storage_projection(
                     argument.place,
@@ -249,8 +392,10 @@ impl TerminalExecution<'_> {
         }
         let mut dimensions = Vec::new();
         let mut current = structural_type;
-        while let Some(StructuralTypeShape::FixedArray { element, length }) =
-            types.get(&current).map(|declaration| &declaration.shape)
+        while let Some(StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        }) = types.get(&current).map(|declaration| &declaration.shape)
         {
             dimensions.push(*length);
             current = *element;

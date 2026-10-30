@@ -434,14 +434,10 @@ pub(super) fn frame_address_pointer(
 fn successor(
     source: &LegalizedScalarFunction,
     order: &[usize],
-    builder: &Builder<'_>,
+    builder: &mut Builder<'_>,
     dispatch_source: selected_instructions::SelectedCaseDispatchSource,
     case: &LegalizedStructuralCaseSuccessor,
 ) -> Result<SelectedSuccessor, SelectedInstructionError> {
-    let block = order
-        .iter()
-        .position(|position| source.blocks[*position].id == case.target)
-        .ok_or_else(|| invalid())?;
     let mut payloads = Vec::with_capacity(case.payloads.len());
     for payload in &case.payloads {
         let transport = if builder.required_values.contains(&payload.parameter.value) {
@@ -462,20 +458,25 @@ fn successor(
             transport,
         });
     }
-    Ok(SelectedSuccessor {
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
-        psi_edge: Some(case.edge),
-        block: SelectedBlockId(block.try_into().map_err(|_| invalid())?),
-        source_target: case.target,
-        bindings: Vec::new(),
-        structural_bindings: Vec::new(),
-        fuel: case.fuel.clone(),
-        structural_case: Some(SelectedStructuralCaseEdge {
-            source: dispatch_source,
-            case: case.case,
-            case_tag: case.case_tag,
-            payloads,
-            cleanup_actions: case.cleanup_actions.clone(),
-        }),
-    })
+    let mut successor = super::control::successor(
+        source,
+        order,
+        builder,
+        &legalized_operations::LegalizedScalarSuccessor {
+            edge: case.edge,
+            target: case.target,
+            bindings: Vec::new(),
+            structural_bindings: case.structural_bindings.clone(),
+            fuel: case.fuel.clone(),
+            cleanup_calls: case.cleanup_calls.clone(),
+        },
+    )?;
+    successor.structural_case = Some(SelectedStructuralCaseEdge {
+        source: dispatch_source,
+        case: case.case,
+        case_tag: case.case_tag,
+        payloads,
+        cleanup_actions: case.cleanup_actions.clone(),
+    });
+    Ok(successor)
 }

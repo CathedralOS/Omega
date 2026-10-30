@@ -76,7 +76,8 @@ pub(crate) use local::resolve_external_local_project_source;
 pub(crate) use materialization::PackageSourceMaterialization;
 pub(crate) use navigation::PackageSourceNavigation;
 pub(crate) use resolved::ResolvedPackageSource;
-pub(crate) use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
+pub(crate) use selection::PackageSourceSelectionEvidence;
+pub use selection::PackageSourceSelectionEvidenceError;
 
 /// The accessor surface every resolved-package-source record shares:
 /// custody and resolved shapes carry identically-named projection fields and

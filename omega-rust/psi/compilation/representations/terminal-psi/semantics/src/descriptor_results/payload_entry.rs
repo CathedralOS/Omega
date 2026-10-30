@@ -89,7 +89,10 @@ pub(super) fn close(
                 }
             }
         }
-        if let StructuralTypeShape::FixedArray { element, length } = declaration.shape
+        if let StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } = declaration.shape
             && length <= 4096
         {
             for index in 0..length {

@@ -13,6 +13,7 @@ use crate::NativePhysicalChildParts;
 use crate::NativePhysicalOccurrence;
 use crate::NativeProviderExecution;
 use crate::NativeSelectedProviderPlan;
+use crate::NormalizedForeignCallbackRelocation;
 use crate::NormalizedForeignCallbackRelocations;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
@@ -785,35 +786,19 @@ pub(crate) fn derive_normalized_foreign_child(
                     .ok_or("normalized foreign D41 callback lost its private object symbol")?;
                     let exact_callback_relocation =
                         |section_offset: u64, kind: RelocationKind| -> Result<_, &'static str> {
-                            let offset = usize::try_from(section_offset).map_err(
-                        |_| "normalized foreign D41 callback field offset does not fit this target",
-                    )?;
-                            let matching = object
-                                .relocations()
-                                .records()
-                                .map(|(_, relocation)| relocation.clone())
-                                .filter(|candidate| {
-                                    candidate.origin == expected_origin
-                                        && candidate.offset == offset
-                                        && candidate.byte_width == 4
-                                        && candidate.symbol_handle == callback_symbol
-                                        && candidate.addend == 0
-                                        && candidate.kind == kind
-                                })
-                                .collect::<Vec<_>>();
-                            let [matching] = matching.as_slice() else {
-                                return Err(
-                                    "normalized foreign D41 callback changed a private-function relocation",
-                                );
-                            };
-                            Ok(normalized_foreign_callback_relocation(
-                                matching.symbol_handle,
-                                matching.origin,
-                                matching.offset,
-                                matching.byte_width,
-                                matching.addend,
-                                matching.kind,
-                            ))
+                            let offset = usize::try_from(section_offset).map_err(|_| {
+                                "normalized foreign D41 callback field offset does not fit this target"
+                            })?;
+                            admitted_callback_relocation(
+                                object
+                                    .relocations()
+                                    .records()
+                                    .map(|(_, relocation)| relocation),
+                                expected_origin,
+                                offset,
+                                callback_symbol,
+                                kind,
+                            )
                         };
                     callback_relocations.push(match placed.encoding {
                         machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
@@ -954,31 +939,13 @@ pub(crate) fn derive_normalized_foreign_child(
                     }
                     let exact_callback_relocation =
                         |offset: usize, kind: RelocationKind| -> Result<_, &'static str> {
-                            let matching = overlapping_relocations
-                                .iter()
-                                .copied()
-                                .filter(|candidate| {
-                                    candidate.origin == expected_origin
-                                        && candidate.offset == offset
-                                        && candidate.byte_width == 4
-                                        && candidate.symbol_handle == callback_symbol
-                                        && candidate.addend == 0
-                                        && candidate.kind == kind
-                                })
-                                .collect::<Vec<_>>();
-                            let [matching] = matching.as_slice() else {
-                                return Err(
-                                    "normalized foreign D41 callback changed a private-function relocation",
-                                );
-                            };
-                            Ok(normalized_foreign_callback_relocation(
-                                matching.symbol_handle,
-                                matching.origin,
-                                matching.offset,
-                                matching.byte_width,
-                                matching.addend,
-                                matching.kind,
-                            ))
+                            admitted_callback_relocation(
+                                overlapping_relocations.iter().copied(),
+                                expected_origin,
+                                offset,
+                                callback_symbol,
+                                kind,
+                            )
                         };
                     callback_relocations.push(match callback.encoding {
                         machine_code::CallbackAddressEncoding::X86_64Relative32 {
@@ -1118,6 +1085,39 @@ pub(crate) fn derive_normalized_foreign_child(
             identity,
         }
         .into(),
+    ))
+}
+
+/// Admit the one private-function relocation a callback address slot pins —
+/// same invocation origin, exact field, four-byte width, callback symbol, and
+/// zero addend — and retain it as the normalized evidence row. The caller owns
+/// the candidate scope, so a placed callback's full object record set and a
+/// selected callback's interval-overlapping text records stay distinct.
+fn admitted_callback_relocation<'a>(
+    candidates: impl Iterator<Item = &'a object_file::RelocationRecord>,
+    origin: object_file::RelocationOrigin,
+    offset: usize,
+    callback_symbol: object_file::ObjectSymbolHandle,
+    kind: RelocationKind,
+) -> Result<NormalizedForeignCallbackRelocation, &'static str> {
+    let mut matching = candidates.filter(|candidate| {
+        candidate.origin == origin
+            && candidate.offset == offset
+            && candidate.byte_width == 4
+            && candidate.symbol_handle == callback_symbol
+            && candidate.addend == 0
+            && candidate.kind == kind
+    });
+    let (Some(matching), None) = (matching.next(), matching.next()) else {
+        return Err("normalized foreign D41 callback changed a private-function relocation");
+    };
+    Ok(normalized_foreign_callback_relocation(
+        matching.symbol_handle,
+        matching.origin,
+        matching.offset,
+        matching.byte_width,
+        matching.addend,
+        matching.kind,
     ))
 }
 

@@ -18,22 +18,25 @@ pub struct SelectedExecution {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub program: Arc<CheckedProgram>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
-    pub external_providers: Arc<psi_terminal_production::ExternalProviderDeclarations>,
-    /// Only native handoff demands these source identities. A refusal remains
-    /// data so checking-only stops acquire no native-only obligations.
+    pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
+    /// Native handoff and executable exclusion admission demand these source
+    /// identities. A refusal remains data so checking-only stops acquire no
+    /// native-only obligations.
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     /// Exact admitted deployment provider; absence retains the SSE2 baseline.
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    /// Authored selection and closed physical leaves. Checked adapter instances
+    /// come from Terminal for native consumers, or an explicit checked-source
+    /// projection for reference execution and review.
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
-    /// Target-owned recipes joined to checked nominal uses. Engines consume
-    /// these plans rather than reconstructing placement from source semantics.
-    pub callback_placements:
-        Vec<provider_planning::calling_policy_plans::SelectedCallbackPlacement>,
+    /// Selected canonical declarations for behavior admission, including dormant uses.
+    /// Executable callback placement is produced from Terminal, not stored here.
+    pub callback_roots: psi_terminal_production::PreparedTerminalRoots,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,

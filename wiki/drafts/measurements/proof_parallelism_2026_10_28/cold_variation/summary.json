@@ -1,0 +1,1516 @@
+{
+  "blocks": [
+    {
+      "block": 0,
+      "order": "BAAB",
+      "metrics": {
+        "wall_seconds": {
+          "original": 29.072353550000116,
+          "candidate": 22.79319029999897,
+          "reduction": 6.279163250001147,
+          "reduction_percent": 21.59840014053875
+        },
+        "cpu_seconds": {
+          "original": 35.234375,
+          "candidate": 29.09375,
+          "reduction": 6.140625,
+          "reduction_percent": 17.427937915742795
+        },
+        "checking_seconds": {
+          "original": 10.3306795,
+          "candidate": 7.277642,
+          "reduction": 3.0530375000000003,
+          "reduction_percent": 29.5531141005778
+        },
+        "lowering_seconds": {
+          "original": 5.557706,
+          "candidate": 3.872694,
+          "reduction": 1.6850119999999995,
+          "reduction_percent": 30.31848032263671
+        },
+        "user_seconds": {
+          "original": 32.3359375,
+          "candidate": 26.1015625,
+          "reduction": 6.234375,
+          "reduction_percent": 19.280019328340178
+        },
+        "kernel_seconds": {
+          "original": 2.8984375,
+          "candidate": 2.9921875,
+          "reduction": -0.09375,
+          "reduction_percent": -3.234501347708895
+        },
+        "peak_working_set_bytes": {
+          "original": 1961422848,
+          "candidate": 1964646400,
+          "reduction": -3223552,
+          "reduction_percent": -0.1643476317861267
+        },
+        "peak_commit_bytes": {
+          "original": 3452037120,
+          "candidate": 3438827520,
+          "reduction": 13209600,
+          "reduction_percent": 0.38266100684340265
+        },
+        "page_faults_observed": {
+          "original": 672664.5,
+          "candidate": 663132.5,
+          "reduction": 9532.0,
+          "reduction_percent": 1.4170511451102294
+        },
+        "external_busy_capacity_percent": {
+          "original": 86.04546163804065,
+          "candidate": 65.97589605551336,
+          "reduction": 20.06956558252729,
+          "reduction_percent": 23.324374348704225
+        }
+      }
+    },
+    {
+      "block": 1,
+      "order": "ABBA",
+      "metrics": {
+        "wall_seconds": {
+          "original": 18.360442900004273,
+          "candidate": 17.300246249997144,
+          "reduction": 1.0601966500071285,
+          "reduction_percent": 5.774352262531106
+        },
+        "cpu_seconds": {
+          "original": 25.4609375,
+          "candidate": 23.6484375,
+          "reduction": 1.8125,
+          "reduction_percent": 7.118748082233814
+        },
+        "checking_seconds": {
+          "original": 6.4690425000000005,
+          "candidate": 6.475782000000001,
+          "reduction": -0.00673950000000012,
+          "reduction_percent": -0.10418079646253862
+        },
+        "lowering_seconds": {
+          "original": 3.393561,
+          "candidate": 3.3144465,
+          "reduction": 0.0791145000000002,
+          "reduction_percent": 2.3313121526325946
+        },
+        "user_seconds": {
+          "original": 22.84375,
+          "candidate": 21.4921875,
+          "reduction": 1.3515625,
+          "reduction_percent": 5.916552667578659
+        },
+        "kernel_seconds": {
+          "original": 2.6171875,
+          "candidate": 2.15625,
+          "reduction": 0.4609375,
+          "reduction_percent": 17.611940298507463
+        },
+        "peak_working_set_bytes": {
+          "original": 2038923264,
+          "candidate": 2086055936,
+          "reduction": -47132672,
+          "reduction_percent": -2.3116452115777126
+        },
+        "peak_commit_bytes": {
+          "original": 3507103744,
+          "candidate": 3473100800,
+          "reduction": 34002944,
+          "reduction_percent": 0.9695448575814928
+        },
+        "page_faults_observed": {
+          "original": 638667.5,
+          "candidate": 638219.5,
+          "reduction": 448.0,
+          "reduction_percent": 0.07014604626037806
+        },
+        "external_busy_capacity_percent": {
+          "original": 36.15824975795108,
+          "candidate": 28.461703683705018,
+          "reduction": 7.696546074246065,
+          "reduction_percent": 21.285726288655937
+        }
+      }
+    },
+    {
+      "block": 2,
+      "order": "BAAB",
+      "metrics": {
+        "wall_seconds": {
+          "original": 17.639480749996437,
+          "candidate": 17.940296250002575,
+          "reduction": -0.3008155000061379,
+          "reduction_percent": -1.7053534867016913
+        },
+        "cpu_seconds": {
+          "original": 24.640625,
+          "candidate": 24.9453125,
+          "reduction": -0.3046875,
+          "reduction_percent": -1.2365250475586558
+        },
+        "checking_seconds": {
+          "original": 6.0479445,
+          "candidate": 6.590033,
+          "reduction": -0.5420885000000002,
+          "reduction_percent": -8.963185756747606
+        },
+        "lowering_seconds": {
+          "original": 3.7785165,
+          "candidate": 3.0339850000000004,
+          "reduction": 0.7445314999999995,
+          "reduction_percent": 19.70433369815904
+        },
+        "user_seconds": {
+          "original": 22.0625,
+          "candidate": 21.8359375,
+          "reduction": 0.2265625,
+          "reduction_percent": 1.0269121813031161
+        },
+        "kernel_seconds": {
+          "original": 2.578125,
+          "candidate": 3.109375,
+          "reduction": -0.53125,
+          "reduction_percent": -20.606060606060606
+        },
+        "peak_working_set_bytes": {
+          "original": 2086012928,
+          "candidate": 2143744000,
+          "reduction": -57731072,
+          "reduction_percent": -2.767531841490102
+        },
+        "peak_commit_bytes": {
+          "original": 3461459968,
+          "candidate": 3483936768,
+          "reduction": -22476800,
+          "reduction_percent": -0.6493445022559914
+        },
+        "page_faults_observed": {
+          "original": 628338,
+          "candidate": 647076,
+          "reduction": -18738,
+          "reduction_percent": -2.982152917697163
+        },
+        "external_busy_capacity_percent": {
+          "original": 19.761127652699177,
+          "candidate": 19.84382248228054,
+          "reduction": -0.08269482958136365,
+          "reduction_percent": -0.4184722199801606
+        }
+      }
+    },
+    {
+      "block": 3,
+      "order": "ABBA",
+      "metrics": {
+        "wall_seconds": {
+          "original": 19.330583850001858,
+          "candidate": 22.33139029999802,
+          "reduction": -3.000806449996162,
+          "reduction_percent": -15.52362035870879
+        },
+        "cpu_seconds": {
+          "original": 25.8125,
+          "candidate": 28.6015625,
+          "reduction": -2.7890625,
+          "reduction_percent": -10.805084745762711
+        },
+        "checking_seconds": {
+          "original": 6.931144,
+          "candidate": 7.5156805,
+          "reduction": -0.5845365000000005,
+          "reduction_percent": -8.433477936686938
+        },
+        "lowering_seconds": {
+          "original": 4.065382,
+          "candidate": 5.4399455,
+          "reduction": -1.3745635000000007,
+          "reduction_percent": -33.81142288719734
+        },
+        "user_seconds": {
+          "original": 23.328125,
+          "candidate": 26.25,
+          "reduction": -2.921875,
+          "reduction_percent": -12.525117213663764
+        },
+        "kernel_seconds": {
+          "original": 2.484375,
+          "candidate": 2.3515625,
+          "reduction": 0.1328125,
+          "reduction_percent": 5.345911949685535
+        },
+        "peak_working_set_bytes": {
+          "original": 2113271808,
+          "candidate": 2134528000,
+          "reduction": -21256192,
+          "reduction_percent": -1.0058427846116424
+        },
+        "peak_commit_bytes": {
+          "original": 3501924352,
+          "candidate": 3530389504,
+          "reduction": -28465152,
+          "reduction_percent": -0.812843143905811
+        },
+        "page_faults_observed": {
+          "original": 637712.5,
+          "candidate": 644775,
+          "reduction": -7062.5,
+          "reduction_percent": -1.1074739792618147
+        },
+        "external_busy_capacity_percent": {
+          "original": 34.96822634940553,
+          "candidate": 52.138855714675884,
+          "reduction": -17.17062936527035,
+          "reduction_percent": -49.103518130144614
+        }
+      }
+    },
+    {
+      "block": 4,
+      "order": "ABBA",
+      "metrics": {
+        "wall_seconds": {
+          "original": 21.99716394999996,
+          "candidate": 21.185640499999863,
+          "reduction": 0.8115234500000952,
+          "reduction_percent": 3.6892185367382178
+        },
+        "cpu_seconds": {
+          "original": 28.609375,
+          "candidate": 28.1015625,
+          "reduction": 0.5078125,
+          "reduction_percent": 1.7749863462588749
+        },
+        "checking_seconds": {
+          "original": 7.388785,
+          "candidate": 7.84779,
+          "reduction": -0.45900499999999944,
+          "reduction_percent": -6.212185088617404
+        },
+        "lowering_seconds": {
+          "original": 5.047021,
+          "candidate": 4.519456,
+          "reduction": 0.5275650000000001,
+          "reduction_percent": 10.452997916989052
+        },
+        "user_seconds": {
+          "original": 25.8828125,
+          "candidate": 25.4765625,
+          "reduction": 0.40625,
+          "reduction_percent": 1.5695744038635677
+        },
+        "kernel_seconds": {
+          "original": 2.7265625,
+          "candidate": 2.625,
+          "reduction": 0.1015625,
+          "reduction_percent": 3.7249283667621778
+        },
+        "peak_working_set_bytes": {
+          "original": 2108889088,
+          "candidate": 2080004096,
+          "reduction": 28884992,
+          "reduction_percent": 1.369678100397094
+        },
+        "peak_commit_bytes": {
+          "original": 3491624960,
+          "candidate": 3435298816,
+          "reduction": 56326144,
+          "reduction_percent": 1.6131785241906393
+        },
+        "page_faults_observed": {
+          "original": 653482.5,
+          "candidate": 638460.5,
+          "reduction": 15022.0,
+          "reduction_percent": 2.2987608696483837
+        },
+        "external_busy_capacity_percent": {
+          "original": 45.12807460573049,
+          "candidate": 33.16845974255426,
+          "reduction": 11.959614863176228,
+          "reduction_percent": 26.50149594828396
+        }
+      }
+    },
+    {
+      "block": 5,
+      "order": "BAAB",
+      "metrics": {
+        "wall_seconds": {
+          "original": 23.42742680000447,
+          "candidate": 23.220588050000515,
+          "reduction": 0.20683875000395346,
+          "reduction_percent": 0.8828914578186368
+        },
+        "cpu_seconds": {
+          "original": 28.6640625,
+          "candidate": 30.1171875,
+          "reduction": -1.453125,
+          "reduction_percent": -5.069501226492232
+        },
+        "checking_seconds": {
+          "original": 8.3708535,
+          "candidate": 8.578113,
+          "reduction": -0.20725949999999926,
+          "reduction_percent": -2.4759661604399033
+        },
+        "lowering_seconds": {
+          "original": 5.3670995,
+          "candidate": 4.589561,
+          "reduction": 0.7775385000000004,
+          "reduction_percent": 14.48712661280083
+        },
+        "user_seconds": {
+          "original": 26.34375,
+          "candidate": 27.015625,
+          "reduction": -0.671875,
+          "reduction_percent": -2.550415183867141
+        },
+        "kernel_seconds": {
+          "original": 2.3203125,
+          "candidate": 3.1015625,
+          "reduction": -0.78125,
+          "reduction_percent": -33.67003367003367
+        },
+        "peak_working_set_bytes": {
+          "original": 2019325952,
+          "candidate": 2007422976,
+          "reduction": 11902976,
+          "reduction_percent": 0.5894529304796455
+        },
+        "peak_commit_bytes": {
+          "original": 3496466432,
+          "candidate": 3494584320,
+          "reduction": 1882112,
+          "reduction_percent": 0.05382897381123778
+        },
+        "page_faults_observed": {
+          "original": 650614.5,
+          "candidate": 650760.5,
+          "reduction": -146.0,
+          "reduction_percent": -0.022440323724724855
+        },
+        "external_busy_capacity_percent": {
+          "original": 44.25388842398044,
+          "candidate": 43.801859656854504,
+          "reduction": 0.4520287671259382,
+          "reduction_percent": 1.0214441786340098
+        }
+      }
+    }
+  ],
+  "same_binary_repeats": [
+    {
+      "block": 0,
+      "role": "original",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": {
+          "first": 29.864250200000242,
+          "second": 28.28045689999999,
+          "absolute_difference": 1.5837933000002522,
+          "absolute_difference_percent": 5.4477643073388045
+        },
+        "cpu_seconds": {
+          "first": 36.0625,
+          "second": 34.40625,
+          "absolute_difference": 1.65625,
+          "absolute_difference_percent": 4.700665188470066
+        },
+        "checking_seconds": {
+          "first": 10.105852,
+          "second": 10.555507,
+          "absolute_difference": 0.4496549999999999,
+          "absolute_difference_percent": 4.352617850548939
+        },
+        "lowering_seconds": {
+          "first": 5.898955,
+          "second": 5.216457,
+          "absolute_difference": 0.6824979999999998,
+          "absolute_difference_percent": 12.280210576090203
+        },
+        "user_seconds": {
+          "first": 33.34375,
+          "second": 31.328125,
+          "absolute_difference": 2.015625,
+          "absolute_difference_percent": 6.233389707658855
+        },
+        "kernel_seconds": {
+          "first": 2.71875,
+          "second": 3.078125,
+          "absolute_difference": 0.359375,
+          "absolute_difference_percent": 12.398921832884097
+        },
+        "peak_working_set_bytes": {
+          "first": 2011967488,
+          "second": 1910878208,
+          "absolute_difference": 101089280,
+          "absolute_difference_percent": 5.1538749078546475
+        },
+        "peak_commit_bytes": {
+          "first": 3402272768,
+          "second": 3501801472,
+          "absolute_difference": 99528704,
+          "absolute_difference_percent": 2.8831875365233617
+        },
+        "page_faults_observed": {
+          "first": 669456,
+          "second": 675873,
+          "absolute_difference": 6417,
+          "absolute_difference_percent": 0.9539673938493856
+        },
+        "external_busy_capacity_percent": {
+          "first": 87.9576359832636,
+          "second": 84.13328729281768,
+          "absolute_difference": 3.824348690445916,
+          "absolute_difference_percent": 4.444567578164023
+        }
+      }
+    },
+    {
+      "block": 0,
+      "role": "candidate",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": {
+          "first": 23.537349899997935,
+          "second": 22.049030700000003,
+          "absolute_difference": 1.4883191999979317,
+          "absolute_difference_percent": 6.529666011685951
+        },
+        "cpu_seconds": {
+          "first": 29.984375,
+          "second": 28.203125,
+          "absolute_difference": 1.78125,
+          "absolute_difference_percent": 6.122448979591836
+        },
+        "checking_seconds": {
+          "first": 6.539266,
+          "second": 8.016018,
+          "absolute_difference": 1.4767520000000012,
+          "absolute_difference_percent": 20.291627425476566
+        },
+        "lowering_seconds": {
+          "first": 4.299984,
+          "second": 3.445404,
+          "absolute_difference": 0.8545800000000003,
+          "absolute_difference_percent": 22.06680930638982
+        },
+        "user_seconds": {
+          "first": 27.0625,
+          "second": 25.140625,
+          "absolute_difference": 1.921875,
+          "absolute_difference_percent": 7.363064950613588
+        },
+        "kernel_seconds": {
+          "first": 2.921875,
+          "second": 3.0625,
+          "absolute_difference": 0.140625,
+          "absolute_difference_percent": 4.699738903394256
+        },
+        "peak_working_set_bytes": {
+          "first": 1904451584,
+          "second": 2024841216,
+          "absolute_difference": 120389632,
+          "absolute_difference_percent": 6.127801521943083
+        },
+        "peak_commit_bytes": {
+          "first": 3488083968,
+          "second": 3389571072,
+          "absolute_difference": 98512896,
+          "absolute_difference_percent": 2.864723381066812
+        },
+        "page_faults_observed": {
+          "first": 676498,
+          "second": 649767,
+          "absolute_difference": 26731,
+          "absolute_difference_percent": 4.031019441815927
+        },
+        "external_busy_capacity_percent": {
+          "first": 69.87259296148738,
+          "second": 62.079199149539335,
+          "absolute_difference": 7.79339381194805,
+          "absolute_difference_percent": 11.812486495659781
+        }
+      }
+    },
+    {
+      "block": 1,
+      "role": "original",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": {
+          "first": 20.076756900001783,
+          "second": 16.644128900006763,
+          "absolute_difference": 3.43262799999502,
+          "absolute_difference_percent": 18.695779936736827
+        },
+        "cpu_seconds": {
+          "first": 28.015625,
+          "second": 22.90625,
+          "absolute_difference": 5.109375,
+          "absolute_difference_percent": 20.06750536974532
+        },
+        "checking_seconds": {
+          "first": 7.042603,
+          "second": 5.895482,
+          "absolute_difference": 1.1471209999999994,
+          "absolute_difference_percent": 17.732469681564147
+        },
+        "lowering_seconds": {
+          "first": 3.540848,
+          "second": 3.246274,
+          "absolute_difference": 0.2945739999999999,
+          "absolute_difference_percent": 8.680380284898368
+        },
+        "user_seconds": {
+          "first": 24.9375,
+          "second": 20.75,
+          "absolute_difference": 4.1875,
+          "absolute_difference_percent": 18.33105335157319
+        },
+        "kernel_seconds": {
+          "first": 3.078125,
+          "second": 2.15625,
+          "absolute_difference": 0.921875,
+          "absolute_difference_percent": 35.223880597014926
+        },
+        "peak_working_set_bytes": {
+          "first": 2146557952,
+          "second": 1931288576,
+          "absolute_difference": 215269376,
+          "absolute_difference_percent": 10.557993025087187
+        },
+        "peak_commit_bytes": {
+          "first": 3496960000,
+          "second": 3517247488,
+          "absolute_difference": 20287488,
+          "absolute_difference_percent": 0.5784684309583971
+        },
+        "page_faults_observed": {
+          "first": 641892,
+          "second": 635443,
+          "absolute_difference": 6449,
+          "absolute_difference_percent": 1.0097585989579867
+        },
+        "external_busy_capacity_percent": {
+          "first": 49.75194552529183,
+          "second": 22.564553990610328,
+          "absolute_difference": 27.187391534681502,
+          "absolute_difference_percent": 75.19000979493782
+        }
+      }
+    },
+    {
+      "block": 1,
+      "role": "candidate",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": {
+          "first": 18.488196499994956,
+          "second": 16.112295999999333,
+          "absolute_difference": 2.3759004999956232,
+          "absolute_difference_percent": 13.73333342001427
+        },
+        "cpu_seconds": {
+          "first": 25.234375,
+          "second": 22.0625,
+          "absolute_difference": 3.171875,
+          "absolute_difference_percent": 13.412619755533532
+        },
+        "checking_seconds": {
+          "first": 7.149683,
+          "second": 5.801881000000001,
+          "absolute_difference": 1.3478019999999988,
+          "absolute_difference_percent": 20.812961276336956
+        },
+        "lowering_seconds": {
+          "first": 3.580701,
+          "second": 3.048192,
+          "absolute_difference": 0.5325090000000001,
+          "absolute_difference_percent": 16.066302473127873
+        },
+        "user_seconds": {
+          "first": 22.96875,
+          "second": 20.015625,
+          "absolute_difference": 2.953125,
+          "absolute_difference_percent": 13.740458015267176
+        },
+        "kernel_seconds": {
+          "first": 2.265625,
+          "second": 2.046875,
+          "absolute_difference": 0.21875,
+          "absolute_difference_percent": 10.144927536231885
+        },
+        "peak_working_set_bytes": {
+          "first": 2033512448,
+          "second": 2138599424,
+          "absolute_difference": 105086976,
+          "absolute_difference_percent": 5.037591475207691
+        },
+        "peak_commit_bytes": {
+          "first": 3454189568,
+          "second": 3492012032,
+          "absolute_difference": 37822464,
+          "absolute_difference_percent": 1.0890114102072708
+        },
+        "page_faults_observed": {
+          "first": 649179,
+          "second": 627260,
+          "absolute_difference": 21919,
+          "absolute_difference_percent": 3.4343983535445095
+        },
+        "external_busy_capacity_percent": {
+          "first": 37.71851069448112,
+          "second": 19.204896672928914,
+          "absolute_difference": 18.513614021552204,
+          "absolute_difference_percent": 65.0474554415085
+        }
+      }
+    },
+    {
+      "block": 2,
+      "role": "original",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": {
+          "first": 17.116967599999043,
+          "second": 18.16199389999383,
+          "absolute_difference": 1.0450262999947881,
+          "absolute_difference_percent": 5.924359763226019
+        },
+        "cpu_seconds": {
+          "first": 24.125,
+          "second": 25.15625,
+          "absolute_difference": 1.03125,
+          "absolute_difference_percent": 4.185161699429296
+        },
+        "checking_seconds": {
+          "first": 6.367337,
+          "second": 5.728552,
+          "absolute_difference": 0.6387850000000004,
+          "absolute_difference_percent": 10.562018219578576
+        },
+        "lowering_seconds": {
+          "first": 3.1763380000000003,
+          "second": 4.380694999999999,
+          "absolute_difference": 1.204356999999999,
+          "absolute_difference_percent": 31.873805500121517
+        },
+        "user_seconds": {
+          "first": 21.609375,
+          "second": 22.515625,
+          "absolute_difference": 0.90625,
+          "absolute_difference_percent": 4.1076487252124645
+        },
+        "kernel_seconds": {
+          "first": 2.515625,
+          "second": 2.640625,
+          "absolute_difference": 0.125,
+          "absolute_difference_percent": 4.848484848484849
+        },
+        "peak_working_set_bytes": {
+          "first": 2137075712,
+          "second": 2034950144,
+          "absolute_difference": 102125568,
+          "absolute_difference_percent": 4.895730348992353
+        },
+        "peak_commit_bytes": {
+          "first": 3511316480,
+          "second": 3411603456,
+          "absolute_difference": 99713024,
+          "absolute_difference_percent": 2.8806637927872174
+        },
+        "page_faults_observed": {
+          "first": 636026,
+          "second": 620650,
+          "absolute_difference": 15376,
+          "absolute_difference_percent": 2.4470905786376123
+        },
+        "external_busy_capacity_percent": {
+          "first": 24.813209376604117,
+          "second": 14.709045928794234,
+          "absolute_difference": 10.104163447809883,
+          "absolute_difference_percent": 51.13151245915743
+        }
+      }
+    },
+    {
+      "block": 2,
+      "role": "candidate",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": {
+          "first": 16.69604860000254,
+          "second": 19.18454390000261,
+          "absolute_difference": 2.488495300000068,
+          "absolute_difference_percent": 13.870982202981796
+        },
+        "cpu_seconds": {
+          "first": 24.03125,
+          "second": 25.859375,
+          "absolute_difference": 1.828125,
+          "absolute_difference_percent": 7.328531161916692
+        },
+        "checking_seconds": {
+          "first": 5.765851,
+          "second": 7.414215,
+          "absolute_difference": 1.6483640000000008,
+          "absolute_difference_percent": 25.012985519192405
+        },
+        "lowering_seconds": {
+          "first": 2.969668,
+          "second": 3.0983020000000003,
+          "absolute_difference": 0.12863400000000036,
+          "absolute_difference_percent": 4.239770466894211
+        },
+        "user_seconds": {
+          "first": 20.59375,
+          "second": 23.078125,
+          "absolute_difference": 2.484375,
+          "absolute_difference_percent": 11.377459749552774
+        },
+        "kernel_seconds": {
+          "first": 3.4375,
+          "second": 2.78125,
+          "absolute_difference": 0.65625,
+          "absolute_difference_percent": 21.105527638190956
+        },
+        "peak_working_set_bytes": {
+          "first": 2140532736,
+          "second": 2146955264,
+          "absolute_difference": 6422528,
+          "absolute_difference_percent": 0.29959398137091
+        },
+        "peak_commit_bytes": {
+          "first": 3454365696,
+          "second": 3513507840,
+          "absolute_difference": 59142144,
+          "absolute_difference_percent": 1.697566515650378
+        },
+        "page_faults_observed": {
+          "first": 636347,
+          "second": 657805,
+          "absolute_difference": 21458,
+          "absolute_difference_percent": 3.3161483349714715
+        },
+        "external_busy_capacity_percent": {
+          "first": 21.626363343957426,
+          "second": 18.061281620603655,
+          "absolute_difference": 3.565081723353771,
+          "absolute_difference_percent": 17.96570054250987
+        }
+      }
+    },
+    {
+      "block": 3,
+      "role": "original",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": {
+          "first": 19.838917699999,
+          "second": 18.822250000004715,
+          "absolute_difference": 1.0166676999942865,
+          "absolute_difference_percent": 5.259373994511753
+        },
+        "cpu_seconds": {
+          "first": 25.78125,
+          "second": 25.84375,
+          "absolute_difference": 0.0625,
+          "absolute_difference_percent": 0.24213075060532688
+        },
+        "checking_seconds": {
+          "first": 7.035034,
+          "second": 6.827254,
+          "absolute_difference": 0.20777999999999963,
+          "absolute_difference_percent": 2.9977735277177855
+        },
+        "lowering_seconds": {
+          "first": 4.4709769999999995,
+          "second": 3.6597869999999997,
+          "absolute_difference": 0.8111899999999999,
+          "absolute_difference_percent": 19.953598456430417
+        },
+        "user_seconds": {
+          "first": 23.34375,
+          "second": 23.3125,
+          "absolute_difference": 0.03125,
+          "absolute_difference_percent": 0.13395847287340926
+        },
+        "kernel_seconds": {
+          "first": 2.4375,
+          "second": 2.53125,
+          "absolute_difference": 0.09375,
+          "absolute_difference_percent": 3.7735849056603774
+        },
+        "peak_working_set_bytes": {
+          "first": 2119778304,
+          "second": 2106765312,
+          "absolute_difference": 13012992,
+          "absolute_difference_percent": 0.6157746462493858
+        },
+        "peak_commit_bytes": {
+          "first": 3490082816,
+          "second": 3513765888,
+          "absolute_difference": 23683072,
+          "absolute_difference_percent": 0.6762873671578385
+        },
+        "page_faults_observed": {
+          "first": 632800,
+          "second": 642625,
+          "absolute_difference": 9825,
+          "absolute_difference_percent": 1.5406629162828076
+        },
+        "external_busy_capacity_percent": {
+          "first": 24.638216184288247,
+          "second": 45.29823651452282,
+          "absolute_difference": 20.660020330234573,
+          "absolute_difference_percent": 59.082265493816784
+        }
+      }
+    },
+    {
+      "block": 3,
+      "role": "candidate",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": {
+          "first": 20.057891099997505,
+          "second": 24.604889499998535,
+          "absolute_difference": 4.54699840000103,
+          "absolute_difference_percent": 20.36146580628002
+        },
+        "cpu_seconds": {
+          "first": 26.453125,
+          "second": 30.75,
+          "absolute_difference": 4.296875,
+          "absolute_difference_percent": 15.023217700081945
+        },
+        "checking_seconds": {
+          "first": 6.598717,
+          "second": 8.432644,
+          "absolute_difference": 1.833927,
+          "absolute_difference_percent": 24.40134329818837
+        },
+        "lowering_seconds": {
+          "first": 4.713456,
+          "second": 6.166435000000001,
+          "absolute_difference": 1.452979000000001,
+          "absolute_difference_percent": 26.709440379503818
+        },
+        "user_seconds": {
+          "first": 24.109375,
+          "second": 28.390625,
+          "absolute_difference": 4.28125,
+          "absolute_difference_percent": 16.30952380952381
+        },
+        "kernel_seconds": {
+          "first": 2.34375,
+          "second": 2.359375,
+          "absolute_difference": 0.015625,
+          "absolute_difference_percent": 0.6644518272425249
+        },
+        "peak_working_set_bytes": {
+          "first": 2144665600,
+          "second": 2124390400,
+          "absolute_difference": 20275200,
+          "absolute_difference_percent": 0.9498680738786279
+        },
+        "peak_commit_bytes": {
+          "first": 3526713344,
+          "second": 3534065664,
+          "absolute_difference": 7352320,
+          "absolute_difference_percent": 0.20825804041366197
+        },
+        "page_faults_observed": {
+          "first": 638758,
+          "second": 650792,
+          "absolute_difference": 12034,
+          "absolute_difference_percent": 1.866387499515335
+        },
+        "external_busy_capacity_percent": {
+          "first": 36.44040984205019,
+          "second": 67.83730158730158,
+          "absolute_difference": 31.396891745251395,
+          "absolute_difference_percent": 60.217838145638275
+        }
+      }
+    },
+    {
+      "block": 4,
+      "role": "original",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": {
+          "first": 19.380302500001562,
+          "second": 24.614025399998354,
+          "absolute_difference": 5.233722899996792,
+          "absolute_difference_percent": 23.79271669699403
+        },
+        "cpu_seconds": {
+          "first": 26.0,
+          "second": 31.21875,
+          "absolute_difference": 5.21875,
+          "absolute_difference_percent": 18.241398143091207
+        },
+        "checking_seconds": {
+          "first": 6.559257,
+          "second": 8.218313,
+          "absolute_difference": 1.6590560000000005,
+          "absolute_difference_percent": 22.45370517615549
+        },
+        "lowering_seconds": {
+          "first": 4.175521,
+          "second": 5.918521,
+          "absolute_difference": 1.7430000000000003,
+          "absolute_difference_percent": 34.53522384788968
+        },
+        "user_seconds": {
+          "first": 23.265625,
+          "second": 28.5,
+          "absolute_difference": 5.234375,
+          "absolute_difference_percent": 20.223362511319046
+        },
+        "kernel_seconds": {
+          "first": 2.734375,
+          "second": 2.71875,
+          "absolute_difference": 0.015625,
+          "absolute_difference_percent": 0.5730659025787965
+        },
+        "peak_working_set_bytes": {
+          "first": 2122100736,
+          "second": 2095677440,
+          "absolute_difference": 26423296,
+          "absolute_difference_percent": 1.2529485856014824
+        },
+        "peak_commit_bytes": {
+          "first": 3486769152,
+          "second": 3496480768,
+          "absolute_difference": 9711616,
+          "absolute_difference_percent": 0.27814029602996077
+        },
+        "page_faults_observed": {
+          "first": 648809,
+          "second": 658156,
+          "absolute_difference": 9347,
+          "absolute_difference_percent": 1.4303366960859702
+        },
+        "external_busy_capacity_percent": {
+          "first": 41.1380761573549,
+          "second": 49.11807305410607,
+          "absolute_difference": 7.979996896751167,
+          "absolute_difference_percent": 17.682998812756452
+        }
+      }
+    },
+    {
+      "block": 4,
+      "role": "candidate",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": {
+          "first": 21.277385099994717,
+          "second": 21.09389590000501,
+          "absolute_difference": 0.18348919998970814,
+          "absolute_difference_percent": 0.8661017352282048
+        },
+        "cpu_seconds": {
+          "first": 29.59375,
+          "second": 26.609375,
+          "absolute_difference": 2.984375,
+          "absolute_difference_percent": 10.619961078676676
+        },
+        "checking_seconds": {
+          "first": 7.7986580000000005,
+          "second": 7.896922,
+          "absolute_difference": 0.09826399999999946,
+          "absolute_difference_percent": 1.25212320920921
+        },
+        "lowering_seconds": {
+          "first": 4.565961000000001,
+          "second": 4.472951,
+          "absolute_difference": 0.09301000000000048,
+          "absolute_difference_percent": 2.0579910502503065
+        },
+        "user_seconds": {
+          "first": 26.4375,
+          "second": 24.515625,
+          "absolute_difference": 1.921875,
+          "absolute_difference_percent": 7.543698252069917
+        },
+        "kernel_seconds": {
+          "first": 3.15625,
+          "second": 2.09375,
+          "absolute_difference": 1.0625,
+          "absolute_difference_percent": 40.476190476190474
+        },
+        "peak_working_set_bytes": {
+          "first": 2121060352,
+          "second": 2038947840,
+          "absolute_difference": 82112512,
+          "absolute_difference_percent": 3.9477091491265988
+        },
+        "peak_commit_bytes": {
+          "first": 3487739904,
+          "second": 3382857728,
+          "absolute_difference": 104882176,
+          "absolute_difference_percent": 3.0530728654959605
+        },
+        "page_faults_observed": {
+          "first": 643608,
+          "second": 633313,
+          "absolute_difference": 10295,
+          "absolute_difference_percent": 1.612472502214311
+        },
+        "external_busy_capacity_percent": {
+          "first": 34.14941948510853,
+          "second": 32.1875,
+          "absolute_difference": 1.961919485108531,
+          "absolute_difference_percent": 5.915015349933298
+        }
+      }
+    },
+    {
+      "block": 5,
+      "role": "original",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": {
+          "first": 24.490675500004727,
+          "second": 22.36417810000421,
+          "absolute_difference": 2.126497400000517,
+          "absolute_difference_percent": 9.076956757368297
+        },
+        "cpu_seconds": {
+          "first": 29.703125,
+          "second": 27.625,
+          "absolute_difference": 2.078125,
+          "absolute_difference_percent": 7.249931861542654
+        },
+        "checking_seconds": {
+          "first": 8.51341,
+          "second": 8.228297000000001,
+          "absolute_difference": 0.28511299999999906,
+          "absolute_difference_percent": 3.4060206644400006
+        },
+        "lowering_seconds": {
+          "first": 5.801708,
+          "second": 4.932491,
+          "absolute_difference": 0.8692169999999999,
+          "absolute_difference_percent": 16.195283877259957
+        },
+        "user_seconds": {
+          "first": 27.296875,
+          "second": 25.390625,
+          "absolute_difference": 1.90625,
+          "absolute_difference_percent": 7.236061684460261
+        },
+        "kernel_seconds": {
+          "first": 2.40625,
+          "second": 2.234375,
+          "absolute_difference": 0.171875,
+          "absolute_difference_percent": 7.407407407407407
+        },
+        "peak_working_set_bytes": {
+          "first": 2126815232,
+          "second": 1911836672,
+          "absolute_difference": 214978560,
+          "absolute_difference_percent": 10.646055421962902
+        },
+        "peak_commit_bytes": {
+          "first": 3515822080,
+          "second": 3477110784,
+          "absolute_difference": 38711296,
+          "absolute_difference_percent": 1.107154801936906
+        },
+        "page_faults_observed": {
+          "first": 652096,
+          "second": 649133,
+          "absolute_difference": 2963,
+          "absolute_difference_percent": 0.45541561093397087
+        },
+        "external_busy_capacity_percent": {
+          "first": 48.47239948947033,
+          "second": 40.035377358490564,
+          "absolute_difference": 8.437022130979763,
+          "absolute_difference_percent": 19.06504135895973
+        }
+      }
+    },
+    {
+      "block": 5,
+      "role": "candidate",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": {
+          "first": 24.13020449999749,
+          "second": 22.31097160000354,
+          "absolute_difference": 1.819232899993949,
+          "absolute_difference_percent": 7.834568599540306
+        },
+        "cpu_seconds": {
+          "first": 30.890625,
+          "second": 29.34375,
+          "absolute_difference": 1.546875,
+          "absolute_difference_percent": 5.136186770428016
+        },
+        "checking_seconds": {
+          "first": 8.871634,
+          "second": 8.284592,
+          "absolute_difference": 0.5870420000000003,
+          "absolute_difference_percent": 6.843486440432765
+        },
+        "lowering_seconds": {
+          "first": 4.765854999999999,
+          "second": 4.413266999999999,
+          "absolute_difference": 0.3525879999999999,
+          "absolute_difference_percent": 7.682390538005704
+        },
+        "user_seconds": {
+          "first": 27.546875,
+          "second": 26.484375,
+          "absolute_difference": 1.0625,
+          "absolute_difference_percent": 3.932909196067091
+        },
+        "kernel_seconds": {
+          "first": 3.34375,
+          "second": 2.859375,
+          "absolute_difference": 0.484375,
+          "absolute_difference_percent": 15.617128463476071
+        },
+        "peak_working_set_bytes": {
+          "first": 2101723136,
+          "second": 1913122816,
+          "absolute_difference": 188600320,
+          "absolute_difference_percent": 9.395146028257873
+        },
+        "peak_commit_bytes": {
+          "first": 3468980224,
+          "second": 3520188416,
+          "absolute_difference": 51208192,
+          "absolute_difference_percent": 1.4653586037952577
+        },
+        "page_faults_observed": {
+          "first": 673788,
+          "second": 627733,
+          "absolute_difference": 46055,
+          "absolute_difference_percent": 7.077104403232833
+        },
+        "external_busy_capacity_percent": {
+          "first": 51.60109234348134,
+          "second": 36.002626970227674,
+          "absolute_difference": 15.598465373253667,
+          "absolute_difference_percent": 35.611422655231216
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "wall_seconds": {
+      "block_reduction_count": 4,
+      "median_block_reduction_percent": 2.2860549972784274,
+      "block_reduction_percent_range": [
+        -15.52362035870879,
+        21.59840014053875
+      ],
+      "median_same_binary_absolute_difference_percent": 8.455762678454303,
+      "maximum_same_binary_absolute_difference_percent": 23.79271669699403
+    },
+    "cpu_seconds": {
+      "block_reduction_count": 3,
+      "median_block_reduction_percent": 0.26923064935010954,
+      "block_reduction_percent_range": [
+        -10.805084745762711,
+        17.427937915742795
+      ],
+      "median_same_binary_absolute_difference_percent": 7.289231511729673,
+      "maximum_same_binary_absolute_difference_percent": 20.06750536974532
+    },
+    "checking_seconds": {
+      "block_reduction_count": 1,
+      "median_block_reduction_percent": -4.344075624528654,
+      "block_reduction_percent_range": [
+        -8.963185756747606,
+        29.5531141005778
+      ],
+      "median_same_binary_absolute_difference_percent": 14.147243950571362,
+      "maximum_same_binary_absolute_difference_percent": 25.012985519192405
+    },
+    "lowering_seconds": {
+      "block_reduction_count": 5,
+      "median_block_reduction_percent": 12.470062264894942,
+      "block_reduction_percent_range": [
+        -33.81142288719734,
+        30.31848032263671
+      ],
+      "median_same_binary_absolute_difference_percent": 16.130793175193915,
+      "maximum_same_binary_absolute_difference_percent": 34.53522384788968
+    },
+    "user_seconds": {
+      "block_reduction_count": 4,
+      "median_block_reduction_percent": 1.2982432925833418,
+      "block_reduction_percent_range": [
+        -12.525117213663764,
+        19.280019328340178
+      ],
+      "median_same_binary_absolute_difference_percent": 7.453381601341753,
+      "maximum_same_binary_absolute_difference_percent": 20.223362511319046
+    },
+    "kernel_seconds": {
+      "block_reduction_count": 3,
+      "median_block_reduction_percent": 0.24521350952664145,
+      "block_reduction_percent_range": [
+        -33.67003367003367,
+        17.611940298507463
+      ],
+      "median_same_binary_absolute_difference_percent": 8.776167471819646,
+      "maximum_same_binary_absolute_difference_percent": 40.476190476190474
+    },
+    "peak_working_set_bytes": {
+      "block_reduction_count": 2,
+      "median_block_reduction_percent": -0.5850952081988846,
+      "block_reduction_percent_range": [
+        -2.767531841490102,
+        1.369678100397094
+      ],
+      "median_same_binary_absolute_difference_percent": 4.966660912100021,
+      "maximum_same_binary_absolute_difference_percent": 10.646055421962902
+    },
+    "peak_commit_bytes": {
+      "block_reduction_count": 4,
+      "median_block_reduction_percent": 0.21824499032732023,
+      "block_reduction_percent_range": [
+        -0.812843143905811,
+        1.6131785241906393
+      ],
+      "median_same_binary_absolute_difference_percent": 1.2862567028660818,
+      "maximum_same_binary_absolute_difference_percent": 3.0530728654959605
+    },
+    "page_faults_observed": {
+      "block_reduction_count": 3,
+      "median_block_reduction_percent": 0.0238528612678266,
+      "block_reduction_percent_range": [
+        -2.982152917697163,
+        2.2987608696483837
+      ],
+      "median_same_binary_absolute_difference_percent": 1.739430000864823,
+      "maximum_same_binary_absolute_difference_percent": 7.077104403232833
+    },
+    "external_busy_capacity_percent": {
+      "block_reduction_count": 4,
+      "median_block_reduction_percent": 11.153585233644973,
+      "block_reduction_percent_range": [
+        -49.103518130144614,
+        26.50149594828396
+      ],
+      "median_same_binary_absolute_difference_percent": 27.33823200709547,
+      "maximum_same_binary_absolute_difference_percent": 75.19000979493782
+    }
+  },
+  "ranges": {
+    "original": {
+      "wall_seconds": [
+        16.644128900006763,
+        29.864250200000242
+      ],
+      "cpu_seconds": [
+        22.90625,
+        36.0625
+      ],
+      "checking_seconds": [
+        5.728552,
+        10.555507
+      ],
+      "lowering_seconds": [
+        3.1763380000000003,
+        5.918521
+      ],
+      "user_seconds": [
+        20.75,
+        33.34375
+      ],
+      "kernel_seconds": [
+        2.15625,
+        3.078125
+      ],
+      "peak_working_set_bytes": [
+        1910878208,
+        2146557952
+      ],
+      "peak_commit_bytes": [
+        3402272768,
+        3517247488
+      ],
+      "page_faults_observed": [
+        620650,
+        675873
+      ],
+      "external_busy_capacity_percent": [
+        14.709045928794234,
+        87.9576359832636
+      ]
+    },
+    "candidate": {
+      "wall_seconds": [
+        16.112295999999333,
+        24.604889499998535
+      ],
+      "cpu_seconds": [
+        22.0625,
+        30.890625
+      ],
+      "checking_seconds": [
+        5.765851,
+        8.871634
+      ],
+      "lowering_seconds": [
+        2.969668,
+        6.166435000000001
+      ],
+      "user_seconds": [
+        20.015625,
+        28.390625
+      ],
+      "kernel_seconds": [
+        2.046875,
+        3.4375
+      ],
+      "peak_working_set_bytes": [
+        1904451584,
+        2146955264
+      ],
+      "peak_commit_bytes": [
+        3382857728,
+        3534065664
+      ],
+      "page_faults_observed": [
+        627260,
+        676498
+      ],
+      "external_busy_capacity_percent": [
+        18.061281620603655,
+        69.87259296148738
+      ]
+    }
+  },
+  "io_ranges": {
+    "original": {
+      "read_operations": [
+        4670,
+        4670
+      ],
+      "write_operations": [
+        177,
+        182
+      ],
+      "other_operations": [
+        80661,
+        80668
+      ],
+      "read_bytes": [
+        26982204,
+        26982204
+      ],
+      "write_bytes": [
+        230621241,
+        230621263
+      ],
+      "other_bytes": [
+        2296432,
+        2296472
+      ]
+    },
+    "candidate": {
+      "read_operations": [
+        4646,
+        4646
+      ],
+      "write_operations": [
+        179,
+        182
+      ],
+      "other_operations": [
+        80663,
+        80677
+      ],
+      "read_bytes": [
+        26784150,
+        26784150
+      ],
+      "write_bytes": [
+        230621242,
+        230621242
+      ],
+      "other_bytes": [
+        2296682,
+        2296762
+      ]
+    }
+  },
+  "descriptive_host_correlations": {
+    "original": {
+      "wall_seconds": 0.90277734472866,
+      "cpu_seconds": 0.9317455589018354,
+      "checking_seconds": 0.9151151472617748,
+      "lowering_seconds": 0.5958333717828869
+    },
+    "candidate": {
+      "wall_seconds": 0.8245792531087671,
+      "cpu_seconds": 0.7566576822001989,
+      "checking_seconds": 0.4412087412314877,
+      "lowering_seconds": 0.6020841037053087
+    }
+  },
+  "prior_cold_attribution": [
+    {
+      "round": 0,
+      "additional_wall_seconds": 0.8184612999975798,
+      "additional_checking_seconds": 0.333201,
+      "additional_lowering_seconds": 0.022833999999999834,
+      "remaining_additional_wall_seconds": 0.4624262999975799,
+      "checking_fraction_of_additional_wall_percent": 40.71066035754963
+    },
+    {
+      "round": 1,
+      "additional_wall_seconds": -1.1216724999976577,
+      "additional_checking_seconds": -0.10233599999999933,
+      "additional_lowering_seconds": -0.09615800000000035,
+      "remaining_additional_wall_seconds": -0.923178499997658,
+      "checking_fraction_of_additional_wall_percent": null
+    },
+    {
+      "round": 2,
+      "additional_wall_seconds": 4.526365899997472,
+      "additional_checking_seconds": 3.1397790000000003,
+      "additional_lowering_seconds": 0.21958800000000064,
+      "remaining_additional_wall_seconds": 1.1669988999974714,
+      "checking_fraction_of_additional_wall_percent": 69.36644251410947
+    },
+    {
+      "round": 3,
+      "additional_wall_seconds": -3.751014399997075,
+      "additional_checking_seconds": -1.2776399999999994,
+      "additional_lowering_seconds": -2.0209900000000003,
+      "remaining_additional_wall_seconds": -0.45238439999707536,
+      "checking_fraction_of_additional_wall_percent": null
+    },
+    {
+      "round": 4,
+      "additional_wall_seconds": -6.9011902999991435,
+      "additional_checking_seconds": -2.5584219999999998,
+      "additional_lowering_seconds": -1.7019859999999998,
+      "remaining_additional_wall_seconds": -2.6407822999991435,
+      "checking_fraction_of_additional_wall_percent": null
+    },
+    {
+      "round": 5,
+      "additional_wall_seconds": -0.6315342000016244,
+      "additional_checking_seconds": -0.14649699999999938,
+      "additional_lowering_seconds": -0.2865159999999996,
+      "remaining_additional_wall_seconds": -0.19852120000162543,
+      "checking_fraction_of_additional_wall_percent": null
+    }
+  ],
+  "max_sampling_seconds": 0.39946549996966496,
+  "median_sampling_seconds": 0.053093100010300986,
+  "maximum_sampling_fraction_percent": 1.3571294175225825,
+  "observations": 24
+}

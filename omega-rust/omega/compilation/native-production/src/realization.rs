@@ -63,9 +63,10 @@ pub(crate) fn realize_native_artifact(
     let runtime_provisions = phase_profile::scope("06.1.c5_capture_native_admission", || {
         entry
             .checked_entry
-            .map(|checked| {
+            .map(|_| {
                 native_artifact::TerminalRuntimeProvisions::capture_native_admission(
-                    checked,
+                    entry,
+                    &input,
                     providers
                         .installation
                         .as_ref()
@@ -81,7 +82,6 @@ pub(crate) fn realize_native_artifact(
                     &input.plan().boundary_machines,
                     request.admission.providers.selected_provider_plans,
                     &artifact.semantic_module().identities,
-                    entry.source().target_slot(),
                     request.admission.providers.external_binding_rows,
                 )
             })

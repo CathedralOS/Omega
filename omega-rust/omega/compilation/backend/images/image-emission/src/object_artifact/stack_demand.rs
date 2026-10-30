@@ -194,9 +194,21 @@ fn derive_terminal_stack_peak(
         (None, None) if stackless_nonreturning.contains(&machine) => 0,
         (None, None) => return Err(ObjectError::UnaccountedTerminalStack(machine)),
     };
-    for call in &function.unit_call_stacks {
+    // Validation admits exactly one of the two rosters per function, so folding
+    // them through one chain preserves the original per-call order.
+    let calls = function
+        .unit_call_stacks
+        .iter()
+        .map(|call| (call.target, call.owner, call.caller_live_bytes))
+        .chain(
+            function
+                .scalar_call_stacks
+                .iter()
+                .map(|call| (call.target, call.owner, call.caller_live_bytes)),
+        );
+    for (target, owner, caller_live_bytes) in calls {
         let callee_peak = derive_terminal_stack_peak(
-            call.target,
+            target,
             artifact,
             functions,
             active,
@@ -207,35 +219,12 @@ fn derive_terminal_stack_peak(
             stackless_nonreturning,
             private_demands,
         )?;
-        let caller_live = u64::from(call.caller_live_bytes);
-        let composed = caller_live.checked_add(callee_peak).ok_or(
-            ObjectError::TerminalStackCompositionOverflow {
+        let composed = u64::from(caller_live_bytes)
+            .checked_add(callee_peak)
+            .ok_or(ObjectError::TerminalStackCompositionOverflow {
                 caller: machine,
-                owner: call.owner,
-            },
-        )?;
-        peak = peak.max(composed);
-    }
-    for call in &function.scalar_call_stacks {
-        let callee_peak = derive_terminal_stack_peak(
-            call.target,
-            artifact,
-            functions,
-            active,
-            memoized,
-            contributing_machines,
-            admitted_contribution_report_identities,
-            admitted_contribution_commitments,
-            stackless_nonreturning,
-            private_demands,
-        )?;
-        let caller_live = u64::from(call.caller_live_bytes);
-        let composed = caller_live.checked_add(callee_peak).ok_or(
-            ObjectError::TerminalStackCompositionOverflow {
-                caller: machine,
-                owner: call.owner,
-            },
-        )?;
+                owner,
+            })?;
         peak = peak.max(composed);
     }
     for call in artifact

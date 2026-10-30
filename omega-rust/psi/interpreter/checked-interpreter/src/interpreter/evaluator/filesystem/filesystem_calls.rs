@@ -194,7 +194,7 @@ impl<'program> Evaluator<'program> {
         let result: i64 = prepared_filesystem_call_dispatch!(
             self, call;
             literal {
-                PreparedFilesystemCall::Create { path, mode: _ } => {
+                PreparedFilesystemCall::Create { path } => {
                     // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
                     self.virtual_open(path.into_native()?, true, true) as i64
                 }

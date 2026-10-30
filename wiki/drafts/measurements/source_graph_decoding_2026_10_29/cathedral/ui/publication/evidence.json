@@ -1,0 +1,455 @@
+{
+  "schema": "omega-publication-qualification/1",
+  "archive": "observations.zip",
+  "archive_sha256": "f5716936b31c5544c19dd89712d43049eb089bcc9d27b79f8098983a4edb5fd4",
+  "archive_bytes": 281220,
+  "members": {
+    "build/performance/cathedral-ui-stall/publication/check-integrated.py": {
+      "bytes": 1677,
+      "sha256": "e509fa15ef6e06d4ea35a82860eea567c354f268c3fc15910a2728cd1e0b4c2c"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/0.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/0.stdout": {
+      "bytes": 826,
+      "sha256": "96701cfd0a65f8166d7998e7475a52318ad6fdeef7eda61e0e0794327f74cb26"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/1.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/1.stdout": {
+      "bytes": 879,
+      "sha256": "77fde01ac9e948ef30afd2c18011cd05fe85679cfb3e9297c8342bb827a6bb0b"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/10.stderr": {
+      "bytes": 29,
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/10.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/11.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/11.stdout": {
+      "bytes": 689,
+      "sha256": "ec92f471221e23df57fb9799be78518f3e2e808fe1edc676bbae1c01fff0437a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/12.stderr": {
+      "bytes": 29,
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/12.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/13.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/13.stdout": {
+      "bytes": 686,
+      "sha256": "1a95eb6671f09cc7955becf1f584de78ef40c0fda5ce2e0708650b006123fa54"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/14.stderr": {
+      "bytes": 29,
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/14.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/15.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/15.stdout": {
+      "bytes": 760,
+      "sha256": "29d64fce0560f2bcf17b48336f9ba9dd86108f2144d154b6e899ba5d686a532e"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/16.stderr": {
+      "bytes": 29,
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/16.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/17.stderr": {
+      "bytes": 228,
+      "sha256": "38ab2926c7796b00e075a7efcd70b6ac95e76586037d56a1d006f6c91b13d390"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/17.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/18.stderr": {
+      "bytes": 462,
+      "sha256": "c5cfc99805c706eed5e2d7eb591e53c93c5985fb97dba19935f12984a1be5b1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/18.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/19.stderr": {
+      "bytes": 230,
+      "sha256": "821d5ebd2f98abe1d2fc9b0710b5ec163e5483e934ba02549eaedce259a1aa0f"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/19.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/2.stderr": {
+      "bytes": 31,
+      "sha256": "40317c1c447774ccab4e752f2638c584fd36afd3b5f99cfc4fae77927f890fe0"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/2.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/20.stderr": {
+      "bytes": 244,
+      "sha256": "0cfc70fa748401a0508f1c0f736c3ba4fbc5c9a5214f91890ff8e1249884f8ef"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/20.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/21.stderr": {
+      "bytes": 226,
+      "sha256": "6f47b01e021ec6eca78cc0bcf0ab5d344c136ab33522cbbfd355ec7c72843141"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/21.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/22.stderr": {
+      "bytes": 239,
+      "sha256": "9559bae4082ae3e0e33454416565d681a280cc8f137281d15a353bf7af34b5f4"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/22.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/23.stderr": {
+      "bytes": 971,
+      "sha256": "358e08b7a16d24cbb934afbce44ed936f3365d8877b1ce03a9d27fcd54de7c84"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/23.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/24.stderr": {
+      "bytes": 233,
+      "sha256": "5051086edf747d84d477efba17604a4c8df97efce332d8cf007f9b0753ce88e0"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/24.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/25.stderr": {
+      "bytes": 893,
+      "sha256": "7a5c6295544c241aa2a3b9e4ea592b8011ef3745c65934274dab5775ac53338f"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/25.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/26.stderr": {
+      "bytes": 235,
+      "sha256": "e2a372f555c808e9593eee0c3af65344ffff8134e6d4007db295b84272d0dc7f"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/26.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/27.stderr": {
+      "bytes": 148,
+      "sha256": "5547eb8522fbb744bd0640461baf72e81728e346e4bd7fae54a63d8fd4e21e5c"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/27.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/28.stderr": {
+      "bytes": 357,
+      "sha256": "6be4fb88374f940ca2dd9ab11031e97444ba205d32e5373e206ebe51e3cf3b01"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/28.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/3.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/3.stdout": {
+      "bytes": 670,
+      "sha256": "2a7b9c27c71cfd8b5d75792483cbb12234dcc02c43020b31ae458511e5b8dba5"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/4.stderr": {
+      "bytes": 29,
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/4.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/5.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/5.stdout": {
+      "bytes": 760,
+      "sha256": "aca3656d7fdf4a4589882e6efebc4eaf0811de222345625892a1f295be7b1206"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/6.stderr": {
+      "bytes": 29,
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/6.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/7.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/7.stdout": {
+      "bytes": 703,
+      "sha256": "0d989183dc5f6aabf965dea04f62705667abdf3ff3fa8b4f5e60fd0a9d5df636"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/8.stderr": {
+      "bytes": 29,
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/8.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/9.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/9.stdout": {
+      "bytes": 696,
+      "sha256": "d69544c8d0125ea14d7830ed85737bd7d341ec9d458a39fcb0b59e271c594d08"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/attempt1-description-failure/0.stderr": {
+      "bytes": 596,
+      "sha256": "56a217f002a79c56c7230b0539c82106bd123865af503f83d3dd53bd9e74f822"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/attempt1-description-failure/0.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/attempt1-description-failure/commands.json": {
+      "bytes": 561,
+      "sha256": "a3a853ecb12b904a0b22706698e83cb951921530311432411b21a880bf38f799"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/attempt1-description-failure/identity.json": {
+      "bytes": 980,
+      "sha256": "f8ee70b4a5d17faaa3e0cfe0b1240768cad43a767f6b517202d8c4b199afdadd"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/attempt1-description-failure/prepare.json": {
+      "bytes": 785,
+      "sha256": "ba347855457799d7a070b91827b9aea5b1656f7362c9466edd02895cce89687a"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/build-final.log": {
+      "bytes": 16112,
+      "sha256": "9d5104b9dd4966ccb9f6db0095a5957a7ebee5204e0ff8f24c943f7ebd781401"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/build.log": {
+      "bytes": 16306,
+      "sha256": "9b0e75e050545ce93f68345e463d1b301ebe1db546fb111ed2544c97f63564c4"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/check.log": {
+      "bytes": 29884,
+      "sha256": "df5149c21a06128afcacfdda31337c0b45f49e9a9f308ce283a18f0daf3c7f5f"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/checking-lint.log": {
+      "bytes": 743824,
+      "sha256": "94986f72ee79d5a8306c5bd4820e7ddf01128821af83091a04f39c5a78d9d941"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/commands.json": {
+      "bytes": 15340,
+      "sha256": "e5cc4a09ae23e6188086852135aab11eafbe81aa9ed8a5786bcec05142807718"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/controls.json": {
+      "bytes": 15814,
+      "sha256": "23710694d2e4f108cf386acb7111c6e3aa511d7c33cba194328eae4066eea624"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/description-check.log": {
+      "bytes": 10274,
+      "sha256": "56963a318b4e6ff9decceb20cd35b1d60d36c1d67018cd4e6726ee2931242549"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/description-final-lint-final.log": {
+      "bytes": 4797,
+      "sha256": "4938c8a9f8976149c9e57a4b88d30680e15c3b022832e24c3c147e7a5ce282af"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/description-lint.log": {
+      "bytes": 616039,
+      "sha256": "11e433722dd6fb87d60ae687d173b76848ba2a301cd0055d06a672825f8989a5"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/formatting.json": {
+      "bytes": 324,
+      "sha256": "237a77f94a6de9a6b7be17682a2abd1a6523d294f7ea3efa1e39ecdec3d96cc9"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/identity.json": {
+      "bytes": 980,
+      "sha256": "eeed0055cdf6ff4945f38ebe5a1ac0dd776d5f6180c79a45df8da302caea230b"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/prepare.json": {
+      "bytes": 1048,
+      "sha256": "d59ee1f3bc290d099051fbf11232995c249828c0caf0c104ff4e025a7aaaa256"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/accepted-lock-identities.json": {
+      "bytes": 132,
+      "sha256": "1a3b04d2afd0cdd6aaa1a31ca4fc403aec8fcf76c4983063794d37b1167f7516"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/accepted-locks/b/tests/native_component/exports/omega.lock": {
+      "bytes": 5303,
+      "sha256": "e9f75e958b0f4077f0d1e3e35934f79853412ad280ad157998a97f00f9911a90"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/cache-roots.json": {
+      "bytes": 157,
+      "sha256": "bd0240a70363e529125b617b97b6c882a255052eb0832e3f0e63e583f6aa4670"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/build/omega-components.tsv": {
+      "bytes": 870,
+      "sha256": "fcb83807a7a7f7448cc84bde480aa49113dca740fcf162488efae27b49fcc409"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/compiler.log": {
+      "bytes": 1378,
+      "sha256": "a8a51ec6d398e982f5ecd925081b44ede865b18b01a45996c52660f7d7c24410"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/consumer.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/consumer.stdout": {
+      "bytes": 2489,
+      "sha256": "55b74cd0a9e293d9fcd5170f1bd3c4e2aab19e1d36510c3d2da6861dce20794b"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/consumer/component.rs": {
+      "bytes": 547,
+      "sha256": "062f129eeab17064e638ad269800f4f526e50e0dffc6b33ffdb1406a757eecc2"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/consumer/receipt.json": {
+      "bytes": 1873,
+      "sha256": "9ab440e34adf3c16144fb38cff189a58418dfbc871f5fbcdf10699b3bb5c32ac"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/consumer/test-command.json": {
+      "bytes": 240,
+      "sha256": "49d3d203cbc5e5a7533d905ebc61c41d395959cc0f131b9f063a5f157460a262"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/consumer/tests.log": {
+      "bytes": 2444,
+      "sha256": "2518221eddccb42b8669680ad330ec3546ca325fcdf85d5a3385948efca52088"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/native.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/native.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/observation.json": {
+      "bytes": 2337,
+      "sha256": "72a1d37d20dd929326e0d5413b800a7c20833088c35fedbe799ec45847983c73"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/observe.py": {
+      "bytes": 7459,
+      "sha256": "a0c44fdccd25dcb93e012df5227951c5a981dd1eec396286291ffdec58b12cb4"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/qualification/result.json": {
+      "bytes": 5813,
+      "sha256": "1631922fa717ad4fe8db623503f75a00aafdd9dafbf28ec5ad026a5ba9c1d0f7"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/receiving-schema.log": {
+      "bytes": 2259,
+      "sha256": "cc07b0261f356eb69deb0c81a0eb8893f14fe4fe533f70bebe9fa9e82dd46178"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/result.json": {
+      "bytes": 5933,
+      "sha256": "c80f9c4fdcdb4afb65823e8937eb2d76c72dd253d4b161caf4247b96b0dd7421"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/steps-initial-field-api.json": {
+      "bytes": 625,
+      "sha256": "38147353c573262968f7f00ae3785a79df3e24bfcbf4131a27574178323a726f"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/steps.json": {
+      "bytes": 2971,
+      "sha256": "d9f83e42abdb023186712ec20644de15c93c8820d1fec74768e8362e25f8f35b"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/tests-initial-field-api.log": {
+      "bytes": 5600,
+      "sha256": "0b242578da04975b261c35ebcf454f9dc79ce114af109dfb9dd1b119a5785980"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/tests.log": {
+      "bytes": 16164,
+      "sha256": "06c3b305e90bbff42dd82986526faa63aa731d3fe5eee01bfae5d6b5924f2e9f"
+    },
+    "build/performance/cathedral-ui-stall/publication/integrated/tooling-lint.log": {
+      "bytes": 1208,
+      "sha256": "4b9d337c1047753ec30cbdb9a092a63bb59d50618f6104d06f811f160e9b1554"
+    },
+    "build/performance/cathedral-ui-stall/publication/merge-preview.json": {
+      "bytes": 248,
+      "sha256": "6663120117578416e921fb281c53f345c6fead06c559ad004ba86afb5475b146"
+    },
+    "build/performance/cathedral-ui-stall/publication/qualify-integrated.py": {
+      "bytes": 8647,
+      "sha256": "10e2677e937521d0fdcec79a44cc249681c64218098635cc70e8a67d768528aa"
+    },
+    "build/performance/cathedral-ui-stall/publication/recheck-description.py": {
+      "bytes": 1196,
+      "sha256": "971fbdd8835e0093855932da01ca169415550d7a12d81226dd0e48a66e797a9d"
+    },
+    "build/performance/cathedral-ui-stall/publication/resolution-record.json": {
+      "bytes": 2469,
+      "sha256": "20794d1fe0cc63dba598dd68a446ae8767a96146826234194ad05d6719337b49"
+    },
+    "build/performance/cathedral-ui-stall/publication/resolve-conflicts.py": {
+      "bytes": 6640,
+      "sha256": "f96d8b8dd17d95739f0effd96049b8d09908e16a58bd0563d50fd00766471982"
+    },
+    "build/performance/cathedral-ui-stall/publication/retain-publication.py": {
+      "bytes": 6802,
+      "sha256": "87883008c876eca4adacb30b7fb70f20b6c4c26f76def0ce964af57ec513c0ba"
+    },
+    "build/performance/cathedral-ui-stall/publication/verify-description-final.py": {
+      "bytes": 863,
+      "sha256": "7847a9d29b8108a79a00f4d1e82ccd1e5e40ea225c79d587056d52092b7f402a"
+    }
+  },
+  "identity": {
+    "source_parent": "25c6f95e73af1fc1f33fe19a9d0ff58bbc25aa2e",
+    "incoming_parent": "28c4d04ce1a3c31177812a9c64493a80cd006c75",
+    "index_tree": "e59880a8759af8489420c96ba9d0173cac5e278e",
+    "compiler_input_trees": {
+      "omega-rust": "4d42706b071ce20e9cf1c59ce47fd1b33feb5037",
+      "source": "e979c71b293e681d1285c47a50455863bb4fce4c",
+      "tools/benchmark": "1efce4e1771b74779170bbae621e32612b5f98f0"
+    },
+    "root_input_sha256": {
+      "Cargo.toml": "575ef50ad5ca4fb251de481e50af52475ac8ff14dfa0ab0650e66cec7d9e2ff9",
+      "Cargo.lock": "d2f31aa88ae1fef04253781cf3f4981af60ace2f77b88e9b402e6515901b2740",
+      "rust-toolchain.toml": "6db9c5260a7d864107954d6dc8dfd9d2095caa62eacc90b5dc530030b2079b0d"
+    },
+    "binary_sha256": "daf9306343b3a91fb2c67eb69e389d4be29ff76b1bdddac7be3cb10c69f9bc23",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    },
+    "source_status": "resolved integration; historical A/B timings do not belong to this producer"
+  },
+  "historical_timing_source": "25c6f95e73af1fc1f33fe19a9d0ff58bbc25aa2e",
+  "qualification_only": true
+}

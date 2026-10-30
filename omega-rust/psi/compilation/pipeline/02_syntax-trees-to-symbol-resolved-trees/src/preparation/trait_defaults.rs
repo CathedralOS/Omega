@@ -659,6 +659,21 @@ fn instantiate_default_signature(
     substitution: &HashMap<String, TypeReferenceHandle>,
     supplying_declaration: ItemHandle,
 ) -> StateSignature {
+    // This operation precedes symbol resolution. The member introduces its
+    // own lexical telescope, so an equally spelled local binder shadows the
+    // trait binder in both type nodes and static call operands. Resolution
+    // subsequently gives each copied member fresh declaration identities.
+    let substitution = substitution
+        .iter()
+        .filter(|(name, _)| {
+            !syntax
+                .items
+                .type_parameters(signature.type_parameters)
+                .iter()
+                .any(|parameter| parameter.name.as_str(syntax) == name.as_str())
+        })
+        .map(|(name, reference)| (name.clone(), *reference))
+        .collect::<HashMap<_, _>>();
     if substitution.is_empty() {
         return signature.clone();
     }
@@ -702,7 +717,7 @@ fn instantiate_default_signature(
     // binder as a static call argument (`Reading::floor<Reader>()`). That
     // argument is a declaration path, not a type node, so the same substitution
     // has to rewrite it or the copy still spells the trait's binder.
-    substitute_static_binder_arguments(syntax, copied.default_body, substitution);
+    substitute_static_binder_arguments(syntax, copied.default_body, &substitution);
     copied
 }
 
@@ -933,7 +948,7 @@ fn substitute_expression_static_arguments(
 }
 
 fn rewritten_static_arguments(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     arguments: &[StaticMachineArgument],
     substitution: &HashMap<String, TypeReferenceHandle>,
 ) -> Option<Vec<StaticMachineArgument>> {
@@ -951,7 +966,7 @@ fn rewritten_static_arguments(
 }
 
 fn rewritten_static_argument(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     argument: &StaticMachineArgument,
     substitution: &HashMap<String, TypeReferenceHandle>,
     changed: &mut bool,
@@ -962,15 +977,26 @@ fn rewritten_static_argument(
         || argument.application.is_some()
     {
         let mut kept = argument.clone();
-        if let Some(application) = &argument.application
-            && let Some(nested) =
-                rewritten_static_arguments(syntax, &application.arguments, substitution)
-        {
-            kept.application = Some(Box::new(StaticSymbolApplication {
-                lifetime_arguments: application.lifetime_arguments.clone(),
-                arguments: nested.into_boxed_slice(),
-            }));
-            *changed = true;
+        if let Some(application) = &argument.application {
+            let nested = rewritten_static_arguments(syntax, &application.arguments, substitution);
+            let mut member = application.member;
+            let mut member_changed = false;
+            if let Some(source) = syntax.expressions.static_member(member).cloned() {
+                let rewritten =
+                    rewritten_static_argument(syntax, &source, substitution, &mut member_changed);
+                if member_changed {
+                    member = syntax.expressions.insert_static_member(rewritten);
+                }
+            }
+            if nested.is_some() || member_changed {
+                kept.application = Some(Box::new(StaticSymbolApplication {
+                    member,
+                    lifetime_arguments: application.lifetime_arguments.clone(),
+                    arguments: nested
+                        .map_or_else(|| application.arguments.clone(), Vec::into_boxed_slice),
+                }));
+                *changed = true;
+            }
         }
         return kept;
     }
@@ -1008,6 +1034,7 @@ fn static_argument_for_actual(
                 type_reference: TypeReferenceHandle::invalid(),
                 path: Box::new([base_name.clone()]),
                 application: Some(Box::new(StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
                     lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
                     arguments: nested.into_boxed_slice(),
                 })),
@@ -1119,9 +1146,9 @@ fn machine_from_signature(
         boundary: false,
         is_top_level_boundary_requirement: false,
         generic_data_template: Default::default(),
-        where_facts: HandleSpan::empty(),
+        where_facts: signature.where_facts,
         lifetime_parameters: signature.lifetime_parameters.clone(),
-        type_parameters: HandleSpan::empty(),
+        type_parameters: signature.type_parameters,
         satisfies,
         conformance_bounds: Vec::new(),
         terminates_guarantee: signature.terminates_guarantee,

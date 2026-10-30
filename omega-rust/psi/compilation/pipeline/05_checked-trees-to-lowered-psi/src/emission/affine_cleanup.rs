@@ -204,6 +204,11 @@ fn retire_borrowed_descriptor_arrivals(
                         record_owned(arg, &mut scheduled_deaths);
                     }
                 }
+                Terminator::StructuralCase { cases, .. } => {
+                    for arg in cases.iter().flat_map(|case| &case.structural_arguments) {
+                        record_owned(arg, &mut scheduled_deaths);
+                    }
+                }
                 _ => {}
             }
         }

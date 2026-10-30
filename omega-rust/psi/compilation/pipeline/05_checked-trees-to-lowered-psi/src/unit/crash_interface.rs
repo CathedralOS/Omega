@@ -52,10 +52,10 @@ pub(crate) fn effective_crash_routes(
     for site in plan.crash.checked_sites() {
         grouped.insert(site.cause(), vec![CrashRouteGuard::Truth]);
     }
-    // Each Trapping primitive is its own operation-level `Trap` site; like an
-    // explicit crash it widens the inferred cause to the unconditional route,
-    // which is the only bucket that covers an operation site.
-    if !plan.crash.trapping_sites().is_empty() {
+    // Only surviving primitive trap possibilities widen the inferred cause.
+    // The checked site inventory retains physical operations separately from
+    // their discharged Exact-counterpart safety judgments.
+    if plan.crash.has_possible_trapping_site() {
         grouped.insert(
             checked_trees::CrashCause::Trap,
             vec![CrashRouteGuard::Truth],
@@ -174,7 +174,8 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
                 })
                 && contract_scoped_scalar(operand)
         }
-        CheckedScalarExpression::Parameter { .. }
+        CheckedScalarExpression::ConstantApplication { .. }
+        | CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }

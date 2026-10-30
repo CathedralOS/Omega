@@ -1,44 +1,66 @@
 // Fact: an 8-bit unsigned u8 remainder operation (dividend % divisor where divisor >= 16u8 && divisor <= 16u8) establishes rem <= 15u8 so exact 8-bit subtraction 15u8 - rem is proved underflow-free across all nine places.
 
-linux_x86_64 machine target_probe(dividend: u8, divisor: u8) -> u8
-    requires divisor >= 16u8 && divisor <= 17u8
-{
-    let rem: u8 = dividend % divisor;
-    let headroom: u8 = 15u8 - rem;
-    headroom
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(dividend: u8, divisor: u8) -> u8
-    requires divisor >= 16u8 && divisor <= 17u8
-{
-    let rem: u8 = dividend % divisor;
-    let headroom: u8 = 15u8 - rem;
-    headroom
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(dividend: u8, divisor: u8) -> u8
-    requires divisor >= 16u8 && divisor <= 17u8
-{
-    let rem: u8 = dividend % divisor;
-    let headroom: u8 = 15u8 - rem;
-    headroom
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(dividend: u8, divisor: u8) -> u8
-    requires divisor >= 16u8 && divisor <= 17u8
-{
-    let rem: u8 = dividend % divisor;
-    let headroom: u8 = 15u8 - rem;
-    headroom
+boundary trait SelectedProbe {
+    machine target_probe(dividend: u8, divisor: u8) -> u8
+        reaches SelectedBodyCheck crashes Trap
+        requires divisor >= 16u8 && divisor <= 17u8;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(dividend: u8, divisor: u8) -> u8
+        reaches SelectedBodyCheck crashes Trap
+        requires divisor >= 16u8 && divisor <= 17u8
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let rem: u8 = dividend % divisor;
+        let headroom: u8 = 15u8 - rem;
+        headroom
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(dividend: u8, divisor: u8) -> u8
+        reaches SelectedBodyCheck crashes Trap
+        requires divisor >= 16u8 && divisor <= 17u8
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let rem: u8 = dividend % divisor;
+        let headroom: u8 = 15u8 - rem;
+        headroom
+    }
 }
 
 machine probe(dividend: u8, divisor: u8) -> u8
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires divisor >= 16u8 && divisor <= 17u8
 {
-    target_probe(dividend, divisor)
+    SelectedProbe::target_probe(dividend, divisor)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let headroom: u8 = probe(43u8, 16u8);
     transition headroom == 4u8 {
         true -> done()
@@ -46,4 +68,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

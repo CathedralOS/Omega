@@ -1,0 +1,404 @@
+{
+  "fixed_local_base": "ec727c80cdfd469e03c6ca9e8f8a48cab29e730b",
+  "publication_replay_after_actual_conflict": true,
+  "screen_decision": {
+    "medians": {
+      "length": {
+        "baseline": 669.8548999993363,
+        "candidate": 470.6951499974821
+      },
+      "dispatch": {
+        "baseline": 602.4852499976987,
+        "candidate": 518.9437000008184
+      },
+      "stack32": {
+        "baseline": 1149.7923499991884,
+        "candidate": 841.7952500021784
+      }
+    },
+    "reductions": {
+      "length": 0.29731774747344775,
+      "dispatch": 0.1386615688885321,
+      "stack32": 0.26787193356889827
+    },
+    "promising": false,
+    "protocol": "Preliminary 15 percent signal only; changed-source landing always runs full quality and independent confirmation."
+  },
+  "setup_attribution": "wiki/drafts/measurements/invocation_setup_2026_10_29/diagnostic-summary.json",
+  "cohorts": {
+    "comparison": {
+      "subjects": {
+        "length": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 669.8548999993363,
+            "range_wall_ms": [
+              580.8490000054007,
+              1869.8554999864427
+            ],
+            "median_kernel_ms": 484.375,
+            "median_user_ms": 187.5,
+            "median_cpu_ms": 625.0,
+            "median_private_commit_bytes": 212451328.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 470.6951499974821,
+            "range_wall_ms": [
+              395.67559999704827,
+              1011.9129000086104
+            ],
+            "median_kernel_ms": 265.625,
+            "median_user_ms": 179.6875,
+            "median_cpu_ms": 437.5,
+            "median_private_commit_bytes": 221327360.0
+          },
+          "median_reduction": 0.29731774747344775,
+          "block_reductions": [
+            0.4033039037320765,
+            0.3970491221326211,
+            0.3869680467713479,
+            0.1811646972237566
+          ]
+        },
+        "dispatch": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 602.4852499976987,
+            "range_wall_ms": [
+              539.0262000000803,
+              916.0826000006637
+            ],
+            "median_kernel_ms": 421.875,
+            "median_user_ms": 195.3125,
+            "median_cpu_ms": 585.9375,
+            "median_private_commit_bytes": 213993472.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 518.9437000008184,
+            "range_wall_ms": [
+              382.92220000585075,
+              908.8352999970084
+            ],
+            "median_kernel_ms": 265.625,
+            "median_user_ms": 218.75,
+            "median_cpu_ms": 437.5,
+            "median_private_commit_bytes": 213999616.0
+          },
+          "median_reduction": 0.1386615688885321,
+          "block_reductions": [
+            0.21598923963432448,
+            0.2918240472566268,
+            -0.03418547439079167,
+            0.16236379360640407
+          ]
+        },
+        "stack32": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 1149.7923499991884,
+            "range_wall_ms": [
+              938.099399994826,
+              1449.7327999997651
+            ],
+            "median_kernel_ms": 460.9375,
+            "median_user_ms": 625.0,
+            "median_cpu_ms": 1062.5,
+            "median_private_commit_bytes": 252092416.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 841.7952500021784,
+            "range_wall_ms": [
+              749.9748000118416,
+              1415.6087999872398
+            ],
+            "median_kernel_ms": 289.0625,
+            "median_user_ms": 554.6875,
+            "median_cpu_ms": 812.5,
+            "median_private_commit_bytes": 251877376.0
+          },
+          "median_reduction": 0.26787193356889827,
+          "block_reductions": [
+            0.36687408442267355,
+            -0.048282031547020265,
+            0.15334179569017303,
+            0.287767810929382
+          ]
+        }
+      },
+      "exclusions": [],
+      "compiles": 60,
+      "image_checks": 60
+    },
+    "confirmation": {
+      "subjects": {
+        "length": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 946.434199999203,
+            "range_wall_ms": [
+              725.181200003135,
+              1117.2311999980593
+            ],
+            "median_kernel_ms": 648.4375,
+            "median_user_ms": 242.1875,
+            "median_cpu_ms": 906.25,
+            "median_private_commit_bytes": 212527104.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 655.1692000066396,
+            "range_wall_ms": [
+              490.5717000074219,
+              871.8613999953959
+            ],
+            "median_kernel_ms": 351.5625,
+            "median_user_ms": 242.1875,
+            "median_cpu_ms": 617.1875,
+            "median_private_commit_bytes": 221399040.0
+          },
+          "median_reduction": 0.30774986786488556,
+          "block_reductions": [
+            0.2521305665700896,
+            0.29245183356048676,
+            0.19682110972832056,
+            0.3438813565499341
+          ]
+        },
+        "dispatch": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 1173.8051999927848,
+            "range_wall_ms": [
+              889.4423000019742,
+              1628.2786999945529
+            ],
+            "median_kernel_ms": 750.0,
+            "median_user_ms": 257.8125,
+            "median_cpu_ms": 1023.4375,
+            "median_private_commit_bytes": 214593536.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 685.0411000050372,
+            "range_wall_ms": [
+              530.1691000058781,
+              1147.3706999968272
+            ],
+            "median_kernel_ms": 390.625,
+            "median_user_ms": 234.375,
+            "median_cpu_ms": 609.375,
+            "median_private_commit_bytes": 214630400.0
+          },
+          "median_reduction": 0.4163928563195597,
+          "block_reductions": [
+            0.5111199952529972,
+            0.30089078628433297,
+            0.43119584003396794,
+            0.41839062231219637
+          ]
+        },
+        "stack32": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 1490.220000006957,
+            "range_wall_ms": [
+              1279.266199999256,
+              3759.754899991094
+            ],
+            "median_kernel_ms": 726.5625,
+            "median_user_ms": 742.1875,
+            "median_cpu_ms": 1437.5,
+            "median_private_commit_bytes": 250816512.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 1322.632399998838,
+            "range_wall_ms": [
+              997.9898000019602,
+              2129.5359000068856
+            ],
+            "median_kernel_ms": 468.75,
+            "median_user_ms": 718.75,
+            "median_cpu_ms": 1195.3125,
+            "median_private_commit_bytes": 251197440.0
+          },
+          "median_reduction": 0.11245829475334956,
+          "block_reductions": [
+            0.3129045851375769,
+            0.28921038349792483,
+            0.2290470412535911,
+            0.05439246006683296
+          ]
+        }
+      },
+      "exclusions": [],
+      "compiles": 60,
+      "image_checks": 60
+    }
+  },
+  "qualification": {
+    "id": "4f7e8d5e0ae34f5c996045cbe670001f",
+    "check": "custody-landing-experiment",
+    "revision": "244e4de7fabae4c8a2ee43f4002805abe0ec63ee",
+    "exit": 0,
+    "invalidations": [],
+    "receipt": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\4f7e8d5e0ae34f5c996045cbe670001f.json",
+      "sha256": "37bf60f67c983b5d0ae091803e127dcc92f7770932d4b5337c759b2a22e68398"
+    }
+  },
+  "bound_output_files": 478,
+  "build_test_chain": [
+    {
+      "step": "build-baseline",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\wiki\\drafts\\measurements\\windows_custody_landing_2026_10_29\\build.py",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\windows-custody-baseline",
+        "baseline"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "baseline-catalog",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\wiki\\drafts\\measurements\\windows_custody_landing_2026_10_29\\baseline.py"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "build-candidate",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\wiki\\drafts\\measurements\\windows_custody_landing_2026_10_29\\build.py",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing",
+        "candidate"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "custody-tests",
+      "command": [
+        "mbx",
+        "nextest",
+        "run",
+        "--release",
+        "--locked",
+        "-p",
+        "package-source",
+        "--lib",
+        "--target-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target",
+        "-E",
+        "test(sibling_walk) | test(custody::tests::windows_ancestry::)"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "clippy",
+      "command": [
+        "mbx",
+        "clippy",
+        "--release",
+        "--locked",
+        "-p",
+        "package-source",
+        "--lib",
+        "--target-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "qualification-amend",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "tools/qualification.py",
+        "amend",
+        "--base",
+        "3b3cbfed2aa3de2d33691d258297bafa3b202687",
+        "--config",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\windows-custody-landing\\qualification-config.json",
+        "--reason",
+        "PR864 has actual doc conflicts, resolved against fixed ec727c main. Incoming compiler/Cargo.lock inputs changed. Fresh matched baseline and integrated producers, actual new baseline images, affected quality checks and independent confirmation; keep original 3cd599 measurements historical.",
+        "--state",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+        "--revision",
+        "20"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "qualification-assess",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "tools/qualification.py",
+        "assess",
+        "--base",
+        "3b3cbfed2aa3de2d33691d258297bafa3b202687",
+        "--state",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+        "--revision",
+        "21"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "qualification-run",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "tools/qualification.py",
+        "run",
+        "--check",
+        "custody-landing-experiment",
+        "--state",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+        "--revision",
+        "22"
+      ],
+      "exit": 0
+    }
+  ],
+  "publication_authorized": true,
+  "no_full_corpus_or_foreign_host_runtime": true,
+  "producers": {
+    "baseline": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\windows-custody-landing\\baseline\\producer\\omega.exe",
+      "sha256": "0f731463e406deb947e0bda59c96b7c4a534a86c2f5ab015c14483a969439df9",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "ec727c80cdfd469e03c6ca9e8f8a48cab29e730b"
+    },
+    "candidate": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\windows-custody-landing\\candidate\\producer\\omega.exe",
+      "sha256": "9ef68e447263104d505bf03e8109ca1cd24f43d51c49ecb4ad7a7dc4836c6615",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "244e4de7fabae4c8a2ee43f4002805abe0ec63ee"
+    }
+  },
+  "quality": {
+    "qualification": {
+      "validation_observations": 18,
+      "controls": 6
+    },
+    "lookup-controls": {
+      "validation_observations": 0,
+      "controls": 5
+    },
+    "junction-controls": {
+      "validation_observations": 0,
+      "controls": 4
+    }
+  },
+  "focused_windows_custody_tests": 8,
+  "decision": "Affected fixed-source integration qualification passed, with every workload median improving in both cohorts. Timing ranges are wide and two screen blocks lose; preserve them without pooling or treating this as another new win. The original 3cd599 result retains its historical identity. Publish the resolved source through PR864 after integration admission."
+}

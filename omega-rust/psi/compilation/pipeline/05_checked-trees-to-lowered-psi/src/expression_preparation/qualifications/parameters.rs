@@ -32,6 +32,7 @@ pub(super) struct ParameterQualification {
 pub(super) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    constant_views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
     bodies: &[SymbolHandle],
     catalog: &mut ScalarQualificationCatalog,
     atom_sets: &mut Vec<Vec<String>>,
@@ -126,7 +127,12 @@ pub(super) fn prepare(
                                 right: Box::new(right),
                             })
                             .unwrap_or(checked_trees::CheckedBooleanExpression::Constant(true));
-                            Some(retained_domain_predicate(identities, &predicate, carrier)?)
+                            Some(retained_domain_predicate(
+                                identities,
+                                constant_views,
+                                &predicate,
+                                carrier,
+                            )?)
                         } else {
                             None
                         };
@@ -134,6 +140,7 @@ pub(super) fn prepare(
                             catalog,
                             identities,
                             checked,
+                            constant_views,
                             membership.domain_symbol,
                             membership.semantic_domain,
                             carrier,

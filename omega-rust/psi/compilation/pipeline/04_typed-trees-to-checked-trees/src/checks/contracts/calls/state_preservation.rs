@@ -5,7 +5,7 @@ use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::canonical_place_from_expression_in_state;
 
 use super::super::assembly::expression_reads_overlapping_place;
 use crate::labels::symbol_name;

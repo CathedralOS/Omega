@@ -20,6 +20,7 @@ pub struct FloatSpelling {
 enum FloatSpellingText {
     Owned(Box<str>),
     SourceBacked(Handle<RetainedSource>),
+    Materialized(numerics::literals::FloatLiteral),
 }
 
 impl FloatSpelling {
@@ -34,6 +35,25 @@ impl FloatSpelling {
         Self::new(text, SourceSpan::default())
     }
 
+    /// Evaluated values retain their determined representation beside their
+    /// diagnostic spelling. Source text alone cannot encode a NaN payload.
+    pub fn materialized(value: numerics::literals::FloatLiteral, source_span: SourceSpan) -> Self {
+        Self {
+            text: FloatSpellingText::Materialized(value),
+            source_span,
+        }
+    }
+
+    pub fn literal(
+        &self,
+        context: &impl SyntaxTextContext,
+    ) -> Option<numerics::literals::FloatLiteral> {
+        match &self.text {
+            FloatSpellingText::Materialized(value) => Some(value.clone()),
+            _ => numerics::literals::FloatLiteral::parse(self.as_str(context)),
+        }
+    }
+
     pub fn source_backed(source: Handle<RetainedSource>, source_span: SourceSpan) -> Self {
         Self {
             text: FloatSpellingText::SourceBacked(source),
@@ -44,6 +64,7 @@ impl FloatSpelling {
     pub fn as_str<'text>(&'text self, context: &'text impl SyntaxTextContext) -> &'text str {
         match &self.text {
             FloatSpellingText::Owned(text) => text,
+            FloatSpellingText::Materialized(value) => value.text(),
             FloatSpellingText::SourceBacked(source) => {
                 let span = self.source_span.span;
                 &context.source_text(*source)[span.start..span.end]
@@ -56,6 +77,14 @@ impl crate::SyntaxEquivalent for FloatSpelling {
     fn same_syntax(&self, other: &Self, left: &SyntaxTextOwner, right: &SyntaxTextOwner) -> bool {
         // SourceText equality compared exact spelling, not diagnostic coordinates.
         self.as_str(left) == other.as_str(right)
+            && match (&self.text, &other.text) {
+                (FloatSpellingText::Materialized(left), FloatSpellingText::Materialized(right)) => {
+                    left == right
+                }
+                (FloatSpellingText::Materialized(_), _)
+                | (_, FloatSpellingText::Materialized(_)) => false,
+                _ => true,
+            }
     }
 }
 
@@ -80,6 +109,9 @@ impl std::fmt::Debug for FloatSpelling {
             }
             FloatSpellingText::SourceBacked(source) => {
                 value.field("source", source);
+            }
+            FloatSpellingText::Materialized(literal) => {
+                value.field("materialized", literal);
             }
         }
         value.field("source_span", &self.source_span).finish()

@@ -17,7 +17,8 @@ use facts::{
 };
 use normalization::normalize;
 pub(crate) use paths::{
-    EntryPaths, capture_entry_guard, conjunction, entry_path_condition, seed_entry_paths,
+    EntryPaths, capture_entry_expression, capture_entry_guard, conjunction, entry_path_condition,
+    entry_path_necessary_condition, seed_entry_paths,
 };
 pub(crate) use retention::retained;
 use symbols::SymbolHandle;
@@ -97,16 +98,32 @@ pub(crate) fn entry_expression(
     statement: usize,
     predicate: &BoundPredicate,
 ) -> Option<Boolean> {
+    entry_expression_with(program, machine, predicate, |place| {
+        super::crash_entry_values::entry_parameter_place(program, machine, state, statement, place)
+    })
+}
+
+/// One projection owner for a completed bound proposition. The caller supplies
+/// the authenticated observation cut; the shared entry scalar adapter retains
+/// exact authored structural positions and dense primitive positions.
+pub(crate) fn entry_expression_with(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    predicate: &BoundPredicate,
+    mut subject: impl FnMut(
+        &CanonicalPlace,
+    ) -> Option<(
+        u32,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    )>,
+) -> Option<Boolean> {
+    if predicate.machine != machine {
+        return None;
+    }
     let mut expression = predicate.expression.clone();
     map_observations(&mut expression, &mut |operand| {
-        let binding = predicate.binding(&operand)?;
-        let (position, path) = super::crash_entry_values::entry_parameter_place(
-            program,
-            machine,
-            state,
-            statement,
-            &binding.place,
-        )?;
+        let binding = predicate.binding(operand)?;
+        let (position, path) = subject(&binding.place)?;
         *operand = entry_scalar(program, machine, position, path, operand.primitive_type()?)?;
         Some(())
     })?;
@@ -710,20 +727,36 @@ pub(crate) fn inferred_boolean_at_place(
     let position = observations
         .iter()
         .position(|(place, primitive)| *place == *actual && *primitive == PrimitiveType::Bool)?;
-    let truths = formula_closure(&expressions, &[], &observations, ordinary)?;
+    let truths = formula_closure(&expressions, &[], &observations, ordinary).ok()?;
     truths.into_iter().find_map(|(expression, value)| {
         (expression == Boolean::Parameter { position }).then_some(value)
     })
 }
 
+/// The established truths ever disagreed: the premises cannot all hold. Kept
+/// distinct from "no answer" so a consumer that only needs feasibility can
+/// read a decided conflict instead of a closed door.
+struct Contradiction;
+
 type Observation = (CanonicalPlace, PrimitiveType);
+
+/// Whether no assignment satisfies `predicates`. Only a conflict between two
+/// truths this algebra has already established makes a premise set
+/// unsatisfiable, so the answer never rests on a leaf value a caller resolved:
+/// the refuted-arm rule must not conclude `false` from a stale read.
+pub(crate) fn unsatisfiable(predicates: &[BoundPredicate]) -> bool {
+    let Some((expressions, observations)) = normalize(predicates) else {
+        return false;
+    };
+    formula_closure(&expressions, &[], &observations, |_| None).is_err()
+}
 
 fn formula_closure(
     assertions: &[Boolean],
     queries: &[Boolean],
     observations: &[Observation],
     mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
-) -> Option<Vec<(Boolean, bool)>> {
+) -> Result<Vec<(Boolean, bool)>, Contradiction> {
     fn collect(expression: &Boolean, expressions: &mut Vec<Boolean>) {
         if expressions.contains(expression) {
             return;
@@ -738,12 +771,16 @@ fn formula_closure(
             _ => {}
         }
     }
-    fn put(truths: &mut Vec<(Boolean, bool)>, expression: &Boolean, value: bool) -> Option<()> {
+    fn put(
+        truths: &mut Vec<(Boolean, bool)>,
+        expression: &Boolean,
+        value: bool,
+    ) -> Result<(), Contradiction> {
         if let Some((_, prior)) = truths.iter().find(|(known, _)| known == expression) {
-            return (*prior == value).then_some(());
+            return (*prior == value).then_some(()).ok_or(Contradiction);
         }
         truths.push((expression.clone(), value));
-        Some(())
+        Ok(())
     }
     struct Inputs<'a> {
         values: &'a [Option<ScalarValue>],
@@ -860,7 +897,7 @@ fn formula_closure(
             put(&mut truths, &expression, value)?;
         }
         if truths.len() == previous {
-            return Some(truths);
+            return Ok(truths);
         }
     }
 }
@@ -1072,7 +1109,8 @@ pub(crate) fn map_scalar(
         | Scalar::IntegerWiden { operand, .. }
         | Scalar::IntegerExactCast { operand, .. }
         | Scalar::RepresentationView { operand, .. } => map_scalar(operand, map)?,
-        Scalar::IntegerLiteral { .. }
+        Scalar::ConstantApplication { .. }
+        | Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
         Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,
@@ -1154,7 +1192,8 @@ pub(crate) fn truth(
         std::slice::from_ref(&normalized_required),
         &observations,
         &mut ordinary,
-    )?;
+    )
+    .ok()?;
     fn known(expression: &Boolean, truths: &[(Boolean, bool)]) -> Option<bool> {
         if let Some((_, value)) = truths.iter().find(|(known, _)| known == expression) {
             return Some(*value);
@@ -1185,4 +1224,63 @@ pub(crate) fn truth(
         }
     }
     known(&normalized_required, &truths)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Boolean, BoundObservation, BoundPredicate, CanonicalPlace, Scalar, truth, unsatisfiable,
+    };
+    use facts::PlaceRoot;
+    use symbols::SymbolHandle;
+    use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+    /// One Boolean observation of one place, asserted true (`value`) or
+    /// asserted false by its negation -- the shape `bind_current_expression`
+    /// publishes for a guard arm.
+    fn asserted(value: bool) -> BoundPredicate {
+        let observation = Boolean::Parameter { position: 0 };
+        BoundPredicate {
+            machine: SymbolHandle::from_parts(10, 1),
+            entry_state: SymbolHandle::from_parts(11, 1),
+            expression: if value {
+                observation
+            } else {
+                Boolean::Not(Box::new(observation))
+            },
+            bindings: vec![BoundObservation {
+                operand: Scalar::Parameter {
+                    position: 0,
+                    primitive_type: PrimitiveType::Bool,
+                },
+                place: CanonicalPlace {
+                    root: PlaceRoot::Symbol(SymbolHandle::from_parts(2, 1)),
+                    segments: Vec::new(),
+                },
+                type_reference: TypeReferenceHandle::from_parts(3, 1),
+            }],
+        }
+    }
+
+    #[test]
+    fn a_refuted_observation_is_unsatisfiable_and_agreement_is_not() {
+        assert!(unsatisfiable(&[asserted(true), asserted(false)]));
+        assert!(!unsatisfiable(&[asserted(true)]));
+        assert!(!unsatisfiable(&[asserted(true), asserted(true)]));
+        assert!(!unsatisfiable(&[]));
+    }
+
+    #[test]
+    fn a_conflict_never_becomes_a_positive_goal_answer() {
+        assert_eq!(
+            truth(&[asserted(true), asserted(false)], &asserted(true), |_| {
+                None
+            }),
+            None
+        );
+        assert_eq!(
+            truth(&[asserted(true)], &asserted(true), |_| None),
+            Some(true)
+        );
+    }
 }

@@ -60,6 +60,21 @@ mod tests;
 
 use route::{HostedChannel, RowRoute};
 
+/// Both ISAs return the encoded bytes beside a footprint carrying the same
+/// register reads, writes and effects; name that shared extraction once so
+/// every architecture arm reads a validated encoding the same way.
+macro_rules! selected_encoded_parts {
+    ($encoded:expr) => {{
+        let footprint = $encoded.footprint();
+        (
+            $encoded.bytes().to_vec(),
+            footprint.register_reads.clone(),
+            footprint.register_writes.clone(),
+            footprint.encoded.clone(),
+        )
+    }};
+}
+
 /// One row's encoded bytes and decoded footprint before they are interned
 /// into the encoding's shared store, beside the state the row retains. This
 /// is construction scratch: the durable row names a span and a handle, and
@@ -250,6 +265,16 @@ fn reject_unrouted_address(
     Ok(())
 }
 
+/// The register view of every machine operand, in operand order: each ISA
+/// entry point takes that roster as one slice.
+fn operand_views(machine: &PostAllocationMachineInstruction) -> Vec<RegisterViewId> {
+    machine
+        .operands
+        .iter()
+        .map(|operand| operand.view)
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn encode_address_routed(
     target: NativeTarget,
@@ -261,11 +286,7 @@ fn encode_address_routed(
     physical: &ValidatedPhysicalRegisterModel,
     address: machine_code::ResolvedPhysicalAddress,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
-    let views = machine
-        .operands
-        .iter()
-        .map(|operand| operand.view)
-        .collect::<Vec<_>>();
+    let views = operand_views(machine);
     let displacement = address.displacement;
     let (bytes, reads, writes, encoded_effects) = match target.architecture {
         Architecture::X86_64 => {
@@ -319,12 +340,7 @@ fn encode_address_routed(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
         Architecture::Aarch64 => {
             let encoded = match channel {
@@ -378,12 +394,7 @@ fn encode_address_routed(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
     };
     validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
@@ -414,11 +425,7 @@ fn encode_scalar(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
-    let views = machine
-        .operands
-        .iter()
-        .map(|operand| operand.view)
-        .collect::<Vec<_>>();
+    let views = operand_views(machine);
     let (bytes, reads, writes, encoded_effects) = match target.architecture {
         Architecture::X86_64 => {
             let encoded = match channel {
@@ -440,12 +447,7 @@ fn encode_scalar(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
         Architecture::Aarch64 => {
             let encoded = match channel {
@@ -467,12 +469,7 @@ fn encode_scalar(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
     };
     validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
@@ -493,9 +490,11 @@ fn encode_scalar(
     ))
 }
 
+/// The decoded footprint the declared effects name: their external operand
+/// lists resolved through the machine row.
 fn decoded_footprint(
     machine: &PostAllocationMachineInstruction,
-    effects: &selected_instructions::MachineEncodedEffects,
+    effects: &MachineEncodedEffects,
 ) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
     let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
     let register_reads = effects
@@ -529,19 +528,13 @@ fn validated_encoded_draft(
     state: SelectedFormEncodingState,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let footprint = decoded_footprint(machine, effects)?;
-    validate_operand_footprint(
-        instruction,
-        machine,
-        effects,
-        &footprint.register_reads,
-        &footprint.register_writes,
-    )?;
     validate_size(instruction, machine.alternative.size, bytes.len())?;
     Ok(SelectedFormEncodedRowDraft::encoded(
         state, bytes, footprint,
     ))
 }
 
+/// The footprint an ISA produced must be the one the declared effects name.
 fn validate_operand_footprint(
     instruction: SelectedInstructionId,
     machine: &PostAllocationMachineInstruction,
@@ -549,20 +542,8 @@ fn validate_operand_footprint(
     reads: &[RegisterViewId],
     writes: &[RegisterViewId],
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
-    let expected_reads = encoded
-        .external_operand_reads
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
-    let expected_writes = encoded
-        .external_operand_writes
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
-    if reads != expected_reads || writes != expected_writes {
+    let expected = decoded_footprint(machine, encoded)?;
+    if expected.register_reads != reads || expected.register_writes != writes {
         return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction));
     }
     Ok(())

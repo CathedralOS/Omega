@@ -48,6 +48,37 @@ scoped change: retain the command, revision, and evidence, and report them witho
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
 
+### Exact fixtures on a hosted pilot
+
+The existing `Compiler queue pilot` manual dispatch accepts a comma-separated
+`fixtures` string and `native_host` (`linux_x86_64` or `windows_x86_64`). A
+nonempty selection replaces its default smoke; it does not extend a foreign
+cohort or start the full corpus. PR and merge-group pilot checks keep their
+existing Linux check behavior.
+
+For example, qualify the unchanged conversion witness with its existing
+unproved-conversion control on the requested work ref:
+
+```sh
+gh workflow run compiler-pilot.yml --ref work/NAME \
+  -f native_host=linux_x86_64 \
+  -f fixtures=pass/float/named_integer_conversion_source_proofs_exit,fail/float/named_float_to_integer_no_context_unproven
+```
+
+Select `windows_x86_64` for a separate matching-host run. Host-specific caches,
+concurrency groups and artifact names keep their observations distinct; Windows
+uses the short `D:/ot` target directory. The artifact retains the actual producer
+profiles, source revision and corpus observations, not just workflow success.
+
+Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
+or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must be existing normalized
+`pass/group/name` or `fail/group/name` directories containing `main.omg`.
+Empty entries, duplicates, traversal, missing roots and substring-filter
+collisions refuse before building; malformed input never selects default smoke.
+An unset/empty environment variable leaves the default unchanged. Pass fixtures
+run both engines with the existing numeric and stream oracles; fail fixtures
+run the existing source/rejection gate only.
+
 ### Optimized validation compilers
 
 All normal compiler builds use at least opt-level 1. Dev and test profiles
@@ -652,6 +683,12 @@ On the pinned nightly, content freshness needs both
 `CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` (or `cargo -Z checksum-freshness`)
 and `CARGO_BUILD_FINGERPRINT=content`; enabling the unstable feature alone keeps
 timestamp freshness. See [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
+Profile admission also requires a regular executable image (ELF, Mach-O or PE)
+with host execution permission. A matching Cargo profile receipt alone does
+not admit a damaged linker or strip output: `rust-objcopy` can report a disk
+write failure as a warning while Cargo exits successfully. Preserve that failed
+build's records and rebuild its executable after recovering disk headroom.
 
 **A directly invoked `target/debug/omega` can predate the commit you are
 judging, and it reports failures the tree does not have.** The same hazard as a

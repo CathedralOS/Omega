@@ -225,7 +225,6 @@ fn view_access_with_budget(
                 ..
             } => {
                 if *destination != place || source.access != access
-                    || source.path.contains(&terminal_psi::StructuralPathSegment::Referent)
                     || !signature.structural_types.iter().any(|row| row.id == structural_type && (
                         matches!(row.shape, StructuralTypeShape::ElementView { element: declared, .. } if declared == *element)
                         || row.shape.is_borrowed_byte_carrier() && signature.structural_types.iter().any(|leaf|
@@ -234,6 +233,9 @@ fn view_access_with_budget(
                                 if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8))))) {
                     return None;
                 }
+                // The typed path owner below intersects every stored-reference
+                // ceiling with the root's authority. Reference paths need that
+                // decision, rather than a prior blanket shape refusal.
                 projected_source_access(function, source, access, remaining)?;
                 return initial;
             }

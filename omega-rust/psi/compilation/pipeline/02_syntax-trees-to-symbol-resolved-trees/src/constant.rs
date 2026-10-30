@@ -143,7 +143,8 @@ pub fn requires_const_initializer_evaluation(
             // An explicit float format needs ordinary carrier validation, not
             // an integer probe. Unsuffixed decimals may still land as integers.
             ExpressionNode::Float(text)
-                if numerics::literals::FloatLiteral::parse(text.as_str(syntax))
+                if text
+                    .literal(syntax)
                     .is_some_and(|literal| literal.landing().is_some()) => {}
             ExpressionNode::ArrayLiteral(elements) => {
                 pending.extend(

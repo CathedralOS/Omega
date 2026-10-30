@@ -50,6 +50,7 @@ pub fn lower_machine(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
     publication: terminal_codec::TerminalPublication,
+    external_declarations: Option<&crate::PreparedExternalProviderDeclarations>,
 ) -> Result<LoweredPsi, LoweringError> {
     if checked
         .facts
@@ -65,71 +66,11 @@ pub fn lower_machine(
             "boundary scalar contract clauses require target closure before Terminal production",
         );
     }
-    if checked
-        .facts
-        .integer_range_obligations
-        .iter()
-        .any(checked_trees::IntegerRangeObligation::is_pending)
-    {
-        return unsupported(
-            "integer range obligations require target closure before Terminal production",
-        );
-    }
-    // Contract invocation formation was retained with the constant root, even
-    // when no call site needed a scalar comparison obligation. Its selected
-    // evaluation must finish before source-free publication can erase it.
-    let pending_contract_roots =
-        checked
-            .typed
-            .constant_recipes
-            .iter()
-            .filter_map(|(handle, recipe)| match recipe.position {
-                typed_trees::constant_recipes::RetainedConstantPosition::ContractExpression(
-                    root,
-                ) if checked.typed.closed_constant_recipe_value(handle).is_none() => Some(root),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-    if !pending_contract_roots.is_empty() {
-        // Private evaluation projects a demanded declaration roster while
-        // preserving backing handles. An unrelated retained recipe is not
-        // work owned by that projection; live source clauses remain demands.
-        let references = typed_trees::references::collect_program_references(&checked.typed);
-        if pending_contract_roots
-            .iter()
-            .any(|root| references.expressions.contains(root))
-        {
-            return unsupported(
-                "contract integer expressions require target closure before Terminal production",
-            );
-        }
-    }
-    // Erased clause roots can have no runtime geometry that would otherwise
-    // force closure. Their retained call conditions still need completed
-    // evidence; a direct/package producer cannot publish a shared judgment.
-    if checked
-        .facts
-        .constant_recipe_obligations
-        .iter()
-        .any(checked_trees::ConstantRecipeObligation::is_pending)
-    {
-        return unsupported(
-            "constant recipe obligations require target closure before Terminal production",
-        );
-    }
-    // A shared source judgment may carry target-dependent proof conditions.
-    // Only target closure consumes those obligations; direct/package callers
-    // cannot publish conditional call evidence as unconditional Terminal code.
-    if checked
-        .facts
-        .constant_predicate_obligations
-        .iter()
-        .any(checked_trees::ConstantPredicateObligation::is_pending)
-    {
-        return unsupported(
-            "constant proof predicates require target closure before Terminal production",
-        );
-    }
+    // Scalar applications retain pending range, predicate and normal-completion
+    // conditions in the canonical module. Publication does not discharge them:
+    // native and interpreter admission require a completed selected judgment.
+    // Pending boundary clauses above differ: their complete projection failed,
+    // so they cannot be erased or represented by an incomplete condition.
     // One builder owns the complete closure's identities. Body construction
     // snapshots only a prefix: declaration, evidence and application retention
     // can intern more rows. Seal the complete table after those producers, so
@@ -161,7 +102,10 @@ pub fn lower_machine(
         machines: &roots,
         boundaries: program_roots.boundaries,
     };
-    let selection = select_terminal_machine(checked, machine)?;
+    let selection = match machine {
+        TerminalMachineSelection::Declarations => None,
+        machine => Some(select_terminal_machine(checked, machine)?),
+    };
     let (mut lowered, completion) = phase_profile::scope("05.lower_terminal_selection", || {
         lower_terminal_selection(
             &mut identities,
@@ -180,13 +124,21 @@ pub fn lower_machine(
             &mut lowered,
         )
     })
-    .map_err(LoweringError::Unsupported)?;
-    crate::retention::external_providers::retain(
-        &mut identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered.semantic_module,
-    )?;
+    .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.to_owned()))?;
+    match external_declarations {
+        Some(declarations) => declarations.retain(
+            checked,
+            exact_toolchain_sources,
+            &mut identities,
+            &mut lowered.semantic_module,
+        )?,
+        None => crate::retention::external_providers::retain(
+            &mut identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered.semantic_module,
+        )?,
+    }
     phase_profile::scope("05.callback_applications", || {
         callback_applications::retain(
             &mut identities,
@@ -214,7 +166,8 @@ pub fn lower_machine(
     // Construct it only after those producers finish; stamping the body's
     // earlier table prefix makes even a constant entry's companion stale.
     lowered.debug_map = phase_profile::scope("05.debug_map", || -> Result<_, LoweringError> {
-        if selection.signature == CheckedTerminalSignatureEligibility::Eligible
+        if let Some(selection) = selection
+            && selection.signature == CheckedTerminalSignatureEligibility::Eligible
             && completion.debug == DebugPublication::FromCheckedPlan
         {
             let live_states = checked
@@ -343,7 +296,7 @@ fn retain_nominal_cleanup_roles(
 fn lower_terminal_selection(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    selection: &checked_trees::CheckedTerminalMachineSelection,
+    selection: Option<&checked_trees::CheckedTerminalMachineSelection>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
 ) -> Result<(LoweredPsi, LoweringCompletion), LoweringError> {
@@ -352,14 +305,30 @@ fn lower_terminal_selection(
         completion,
         source_machine_ids,
         source_boundary_ids,
-    } = phase_profile::scope("05.01_lower_selected_machine", || {
-        lower_selected_machine(
+    } = phase_profile::scope("05.01_lower_selected_machine", || match selection {
+        Some(selection) => lower_selected_machine(
             identities,
             checked,
             selection,
             program_roots,
             exact_toolchain_sources,
-        )
+        ),
+        None => Ok(LoweredSelectedMachine::source_mapped(
+            attached_unit::lower_unit_closure(
+                identities,
+                checked,
+                &attached_unit::UnitClosureRequest::unit(
+                    checked,
+                    symbols::SymbolHandle::invalid(),
+                    &[],
+                    program_roots,
+                    exact_toolchain_sources,
+                ),
+            )?,
+            LoweringCompletion {
+                debug: DebugPublication::Omit,
+            },
+        )),
     })?;
     if lowered.semantic_module.target_machine_families.len()
         != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()

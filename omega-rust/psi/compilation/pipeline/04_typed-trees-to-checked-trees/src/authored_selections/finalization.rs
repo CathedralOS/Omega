@@ -61,6 +61,8 @@ pub(crate) fn finalize_checked_authored_selections(
         super::build_selections::validate(program, &owner_index)?;
     }
 
+    super::static_inputs::collect(program, &mut resolutions)?;
+
     let product_operands =
         validation::execution_projection::product_request_operand_occurrences(program);
     {
@@ -317,6 +319,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 };
                 if let Some(target) = target {
                     push_consistent_resolution(
+                        program,
                         &mut resolutions,
                         AuthoredSelectionResolution {
                             occurrence,

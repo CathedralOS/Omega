@@ -1,0 +1,9 @@
+data Resolution
+    requires (self in Resolution::Inferred) && self.length > 0u64
+{
+    length: u64;
+    case Inferred;
+    case Named;
+}
+data Holder { value: Resolution; }
+machine main() { let holder: Holder = Holder {}; }

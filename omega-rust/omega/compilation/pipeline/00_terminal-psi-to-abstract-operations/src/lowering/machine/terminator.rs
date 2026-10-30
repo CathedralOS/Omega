@@ -150,7 +150,10 @@ pub(super) fn lower_terminator(
                             block: successor.target,
                         },
                     )?;
-                    if target_block.parameters.len() != successor.payload_fields.len() {
+                    if target_block.parameters.len() != successor.payload_fields.len()
+                        || target_block.structural_parameters.len()
+                            != successor.structural_arguments.len()
+                    {
                         return Err(LoweringError::VerifiedJumpArityMismatch {
                             edge: successor.edge,
                         });
@@ -159,6 +162,17 @@ pub(super) fn lower_terminator(
                         psi_edge: successor.edge,
                         target: successor.target,
                         case: successor.case,
+                        structural_bindings: target_block
+                            .structural_parameters
+                            .iter()
+                            .zip(&successor.structural_arguments)
+                            .map(|(parameter, argument)| {
+                                abstract_operations::AbstractStructuralBinding {
+                                    parameter: parameter.place,
+                                    argument: argument.clone(),
+                                }
+                            })
+                            .collect(),
                         payloads: target_block
                             .parameters
                             .iter()

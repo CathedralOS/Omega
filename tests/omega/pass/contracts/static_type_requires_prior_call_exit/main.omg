@@ -1,0 +1,17 @@
+// Expected exit: 0
+machine partial<T>() -> bool
+requires T == u32
+ensures result == true
+{ true }
+machine admitted<T>() -> bool
+requires T == u32
+requires partial<T>()
+{ true }
+machine main() crashes Trap {
+    transition partial<u32>() && admitted<u32>() {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

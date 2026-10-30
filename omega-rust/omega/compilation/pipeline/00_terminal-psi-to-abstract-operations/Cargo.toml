@@ -10,6 +10,7 @@ name = "terminal_psi_to_abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
+provider-selection = { path = "../../realization/provider-selection" }
 compiler-storage = { path = "../../../../psi/foundation/compiler-storage" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 arena = { path = "../../../../psi/foundation/arena" }
@@ -20,6 +21,7 @@ numerics = { path = "../../../../psi/foundation/numerics" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
+runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 boundary-applications = { path = "../../backend/artifacts/boundary-applications" }

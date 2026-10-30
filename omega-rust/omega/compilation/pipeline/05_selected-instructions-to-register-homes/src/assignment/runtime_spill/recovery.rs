@@ -45,17 +45,6 @@ use selected_instructions_to_selected_instructions::{
     spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
 };
 
-#[allow(dead_code)]
-pub(crate) fn assign_source(
-    source: &StagedOptimizedAllocationLegality,
-) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
-    assign(
-        source.register_environment(),
-        source.ranges(),
-        source.legality(),
-    )
-}
-
 pub(crate) fn assign_source_reusing(
     source: &StagedOptimizedAllocationLegality,
     reuse: &mut FunctionHomeReuse,
@@ -68,16 +57,7 @@ pub(crate) fn assign_source_reusing(
     )
 }
 
-#[allow(dead_code)]
-pub(super) fn assign(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
-    assign_reusing(environment, ranges, legality, None)
-}
-
-/// `assign` offering the homes of functions an earlier recovery step left
+/// Assignment offering the homes of functions an earlier recovery step left
 /// unchanged (`FunctionHomeReuse`).
 fn assign_reusing(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
@@ -527,28 +507,10 @@ impl<'ranges> FailedDomain<'ranges> {
         }
         covered.sort_unstable();
         covered.dedup();
-        let mut pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (component, _) in covered {
-            if let Some((previous, count)) = pressure.last_mut()
-                && *previous == component
-            {
-                *count += 1;
-            } else {
-                pressure.push((component, 1));
-            }
-        }
+        let pressure = region_counts(covered);
         direct_covered.sort_unstable();
         direct_covered.dedup();
-        let mut direct_pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (reg, _) in direct_covered {
-            if let Some((previous, count)) = direct_pressure.last_mut()
-                && *previous == reg
-            {
-                *count += 1;
-            } else {
-                direct_pressure.push((reg, 1));
-            }
-        }
+        let direct_pressure = region_counts(direct_covered);
         Self {
             function,
             ranges,
@@ -585,28 +547,10 @@ impl<'ranges> FailedDomain<'ranges> {
         // failed member only once. Keep this sparse relation in sorted storage.
         covered.sort_unstable();
         covered.dedup();
-        let mut pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (component, _) in covered {
-            if let Some((previous, count)) = pressure.last_mut()
-                && *previous == component
-            {
-                *count += 1;
-            } else {
-                pressure.push((component, 1));
-            }
-        }
+        let pressure = region_counts(covered);
         direct_covered.sort_unstable();
         direct_covered.dedup();
-        let mut direct_pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (reg, _) in direct_covered {
-            if let Some((previous, count)) = direct_pressure.last_mut()
-                && *previous == reg
-            {
-                *count += 1;
-            } else {
-                direct_pressure.push((reg, 1));
-            }
-        }
+        let direct_pressure = region_counts(direct_covered);
         Self {
             function,
             ranges,
@@ -623,6 +567,7 @@ impl<'ranges> FailedDomain<'ranges> {
     /// component. Each failed member counts once even if several candidate
     /// fragments interfere with it. A failed member itself can dissolve its
     /// own share. Intrinsic value-local failures never admit neighbours.
+    #[cfg(test)]
     pub(super) fn relief(&self, function: usize, register: VirtualRegisterId) -> usize {
         if function != self.function {
             return 0;
@@ -652,6 +597,20 @@ impl<'ranges> FailedDomain<'ranges> {
         }
         let components = self.components();
         let component = components.leader(victim);
+        // A failed component occupied no proposed home, so rewriting it frees
+        // none for its neighbours. Keep their pressure until fresh placement.
+        if self.members.binary_search(&victim).is_ok() {
+            phase_profile::scope("06.1.d.05.pressure.unplaced_victim", || {
+                pending.retain(|failure| match failure {
+                    crate::RegisterHomeError::NoCompatibleHome { function, register } => {
+                        *function == self.function
+                            && components.leader(VirtualRegisterId(*register)) != component
+                    }
+                    _ => false,
+                });
+            });
+            return;
+        }
         if let Some(index) = self.index {
             if !components.has_multiple_members(component) {
                 let neighbors = index.register_neighbors(component);
@@ -789,6 +748,25 @@ impl<'ranges> FailedDomain<'ranges> {
     }
 }
 
+/// Run-length counts of a sorted, deduplicated register relation. Each
+/// remaining candidate fragment touching a failed member counts once, so a
+/// component several fragments reach still relieves one region contact.
+fn region_counts(
+    pairs: Vec<(VirtualRegisterId, VirtualRegisterId)>,
+) -> Vec<(VirtualRegisterId, usize)> {
+    let mut counts: Vec<(VirtualRegisterId, usize)> = Vec::new();
+    for (register, _) in pairs {
+        if let Some((previous, count)) = counts.last_mut()
+            && *previous == register
+        {
+            *count += 1;
+        } else {
+            counts.push((register, 1));
+        }
+    }
+    counts
+}
+
 // The failed identity is a domain leader, not a preferred spill payload.
 // Among eligible components, relieve the most directly covered fragments first,
 // then the greatest actual live extent (not the convex whole-function hull).
@@ -917,6 +895,15 @@ fn select_roster_candidate(
     if domain.function() != roster.function {
         return None;
     }
+    // Unplaced components can be recovered together without repeatedly
+    // evicting assigned neighbours and rebuilding the same pressure graph.
+    if let Some(&register) = domain
+        .members
+        .iter()
+        .find(|&&register| roster.active_position(register).is_some())
+    {
+        return Some((roster.function, register));
+    }
     let mut best: Option<((std::cmp::Reverse<(usize, u64)>, u32), VirtualRegisterId)> = None;
     domain.visit_overlapping_registers_with_direct_relief(|reg, direct_relief| {
         if let Some(pos) = roster.active_position(reg) {
@@ -998,13 +985,6 @@ fn admissible_split_indexed(
     Ok(None)
 }
 
-#[allow(dead_code)]
-pub(crate) fn recover(
-    source: StagedOptimizedAllocationLegality,
-) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_with_reuse(source, FunctionHomeReuse::default())
-}
-
 pub(crate) fn recover_with_reuse(
     source: StagedOptimizedAllocationLegality,
     home_reuse: FunctionHomeReuse,
@@ -1055,13 +1035,6 @@ pub(crate) fn recover_after_active_resident_rematerialization(
 /// `NoCompatibleHome` hands custody here: recovery runs over the run's
 /// current program and rebuilt analyses, the committed fold ledger and the
 /// suite completion stay recorded ahead of every spill step.
-#[allow(dead_code)]
-pub(crate) fn recover_after_selected_lowering(
-    run: StagedSelectedLoweringOptimizationRun,
-) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_after_selected_lowering_with_reuse(run, FunctionHomeReuse::default())
-}
-
 pub(crate) fn recover_after_selected_lowering_with_reuse(
     run: StagedSelectedLoweringOptimizationRun,
     home_reuse: FunctionHomeReuse,
@@ -1074,13 +1047,6 @@ pub(crate) fn recover_after_selected_lowering_with_reuse(
 /// the run's current program and rebuilt analyses, the committed
 /// transformation ledger and the suite completion stay recorded ahead of
 /// every spill step.
-#[allow(dead_code)]
-pub(crate) fn recover_after_pre_allocation(
-    run: StagedPreAllocationOptimizationRun,
-) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_after_pre_allocation_with_reuse(run, FunctionHomeReuse::default())
-}
-
 pub(crate) fn recover_after_pre_allocation_with_reuse(
     run: StagedPreAllocationOptimizationRun,
     home_reuse: FunctionHomeReuse,

@@ -10,7 +10,8 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{data::TypeParameter, name::Identifier};
 
 impl<'program> StaticTypeArgumentOwner<'program> {
-    pub(crate) fn from_lexical_owner(
+    /// Resolve the declaration that supplies a static type operand's scope.
+    pub fn from_lexical_owner(
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
     ) -> Option<Self> {
@@ -30,7 +31,9 @@ impl<'program> StaticTypeArgumentOwner<'program> {
         })
     }
 
-    pub(super) fn parameters(
+    /// The complete supplying telescope, including enclosing captured scopes.
+    /// Reading it supplies identity binders, not operand admission.
+    pub fn parameters(
         self,
         program: &'program dyn crate::CheckingInput,
     ) -> (

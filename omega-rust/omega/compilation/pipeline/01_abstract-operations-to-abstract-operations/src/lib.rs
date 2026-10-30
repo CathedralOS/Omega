@@ -31,6 +31,7 @@ macro_rules! failed_display {
 mod abstract_optimization;
 mod analyses;
 pub(crate) use optimization_core::codec_bytes;
+mod cycles;
 mod field_value_specialization;
 mod pass_manager;
 mod publication;

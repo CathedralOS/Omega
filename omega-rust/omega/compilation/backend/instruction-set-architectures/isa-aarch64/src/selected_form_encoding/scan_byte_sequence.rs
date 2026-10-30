@@ -35,6 +35,28 @@ enum Label {
     F4Path,
 }
 
+/// A compare-immediate and the conditional branch that consumes its flags.
+/// Every UTF-8 class test is this pair; the label marks the compare when a
+/// later branch enters at that test.
+fn compare_immediate_branch(
+    label: Option<Label>,
+    register: u8,
+    immediate: u16,
+    condition: u8,
+    target: Label,
+) -> [(Option<Label>, Instruction<Label>); 2] {
+    [
+        (
+            label,
+            Instruction::CompareImmediate {
+                register,
+                immediate,
+            },
+        ),
+        (None, Instruction::BranchConditional { condition, target }),
+    ]
+}
+
 fn layout(
     predicate: ByteSequencePredicate,
     registers: [u8; 5],
@@ -132,135 +154,72 @@ fn layout(
                 index: cursor,
             },
         ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0x80,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_LO,
-                target: Label::Advance1,
-            },
-        ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xC2,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_LO,
-                target: Label::Fail,
-            },
-        ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xE0,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_LO,
-                target: Label::Cont1,
-            },
-        ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xF0,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_HS,
-                target: Label::Lead3,
-            },
-        ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xE0,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_EQ,
-                target: Label::E0Path,
-            },
-        ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xED,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_EQ,
-                target: Label::EdPath,
-            },
-        ),
-        (None, Instruction::Branch(Label::Cont2Any)),
-        (
-            Some(Label::Lead3),
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xF5,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_HS,
-                target: Label::Fail,
-            },
-        ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xF0,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_EQ,
-                target: Label::F0Path,
-            },
-        ),
-        (
-            None,
-            Instruction::CompareImmediate {
-                register: byte,
-                immediate: 0xF4,
-            },
-        ),
-        (
-            None,
-            Instruction::BranchConditional {
-                condition: COND_EQ,
-                target: Label::F4Path,
-            },
-        ),
-        (None, Instruction::Branch(Label::Cont3Any)),
     ]);
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0x80,
+        COND_LO,
+        Label::Advance1,
+    ));
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0xC2,
+        COND_LO,
+        Label::Fail,
+    ));
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0xE0,
+        COND_LO,
+        Label::Cont1,
+    ));
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0xF0,
+        COND_HS,
+        Label::Lead3,
+    ));
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0xE0,
+        COND_EQ,
+        Label::E0Path,
+    ));
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0xED,
+        COND_EQ,
+        Label::EdPath,
+    ));
+    out.push((None, Instruction::Branch(Label::Cont2Any)));
+    out.extend(compare_immediate_branch(
+        Some(Label::Lead3),
+        byte,
+        0xF5,
+        COND_HS,
+        Label::Fail,
+    ));
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0xF0,
+        COND_EQ,
+        Label::F0Path,
+    ));
+    out.extend(compare_immediate_branch(
+        None,
+        byte,
+        0xF4,
+        COND_EQ,
+        Label::F4Path,
+    ));
+    out.push((None, Instruction::Branch(Label::Cont3Any)));
     for (label, width, low, high) in [
         (Label::Cont1, 1u16, 0x80u16, 0xBFu16),
         (Label::Cont2Any, 2, 0x80, 0xBF),
@@ -344,35 +303,26 @@ fn emit_continuation_tail(
                     index: byte,
                 },
             ),
-            (
-                None,
-                Instruction::CompareImmediate {
-                    register: byte,
-                    immediate: if offset == 1 { low } else { 0x80 },
-                },
-            ),
-            (
-                None,
-                Instruction::BranchConditional {
-                    condition: COND_LO,
-                    target: Label::Fail,
-                },
-            ),
-            (
-                None,
-                Instruction::CompareImmediate {
-                    register: byte,
-                    immediate: if offset == 1 { high } else { 0xBF },
-                },
-            ),
-            (
-                None,
-                Instruction::BranchConditional {
-                    condition: COND_HI,
-                    target: Label::Fail,
-                },
-            ),
         ]);
+        let (floor, ceiling) = if offset == 1 {
+            (low, high)
+        } else {
+            (0x80, 0xBF)
+        };
+        out.extend(compare_immediate_branch(
+            None,
+            byte,
+            floor,
+            COND_LO,
+            Label::Fail,
+        ));
+        out.extend(compare_immediate_branch(
+            None,
+            byte,
+            ceiling,
+            COND_HI,
+            Label::Fail,
+        ));
     }
     out.extend([
         (

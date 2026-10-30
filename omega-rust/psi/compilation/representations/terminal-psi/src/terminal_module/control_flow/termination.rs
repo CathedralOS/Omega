@@ -123,13 +123,68 @@ pub enum Terminator {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CrashCause {
-    Trap,
-    Abort,
-}
+pub use semantic_vocabulary::CrashCause;
 
 impl Terminator {
+    /// Runtime storage operands in edge order, including ordered cleanup.
+    /// Returned claim paths describe evidence, not additional physical reads.
+    pub fn storage_uses(&self) -> Vec<crate::OperationProjection<'_>> {
+        let mut projections = Vec::new();
+        fn argument(argument: &StructuralArgument) -> crate::OperationProjection<'_> {
+            crate::OperationProjection {
+                root: argument.place,
+                path: &argument.path,
+            }
+        }
+        match self {
+            Self::Jump {
+                structural_arguments,
+                ..
+            }
+            | Self::InvokeNoNormal {
+                structural_arguments,
+                ..
+            }
+            | Self::ExternalCompletion {
+                structural_arguments,
+                ..
+            } => {
+                projections.extend(structural_arguments.iter().map(argument));
+            }
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for edge in [when_true, when_false] {
+                    projections.extend(edge.structural_arguments.iter().map(argument));
+                }
+            }
+            Self::StructuralCase { source, path, .. } => {
+                projections.push(crate::OperationProjection {
+                    root: *source,
+                    path,
+                });
+            }
+            Self::ReturnStructural { source, .. } => {
+                projections.push(crate::OperationProjection {
+                    root: *source,
+                    path: &[],
+                });
+            }
+            Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
+        }
+        for (_, actions) in self.cleanup_rosters() {
+            for action in actions {
+                projections.push(crate::OperationProjection {
+                    root: action.place(),
+                    path: action.path(),
+                });
+            }
+        }
+        projections
+    }
+
     /// Rewrite runtime structural root operands, excluding cleanup and proof
     /// identities. This inventory describes uses, not authority to consume them.
     pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {
@@ -161,9 +216,15 @@ impl Terminator {
                     }
                 }
             }
-            Self::StructuralCase { source, .. } | Self::ReturnStructural { source, .. } => {
+            Self::StructuralCase { source, cases, .. } => {
                 *source = map(*source);
+                for case in cases {
+                    for argument in &mut case.structural_arguments {
+                        argument.place = map(argument.place);
+                    }
+                }
             }
+            Self::ReturnStructural { source, .. } => *source = map(*source),
             Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
         }
     }
@@ -296,10 +357,8 @@ impl Terminator {
         }
     }
     /// Structural-argument rosters this terminator binds into successor
-    /// blocks: the jump's roster or each conditional successor's roster, in
-    /// edge order. External completions feed a boundary rather than a block,
-    /// and case successors bind payloads positionally — neither contributes a
-    /// roster.
+    /// blocks, in edge order. Case edges additionally bind scalar payloads
+    /// positionally. External completions feed a boundary rather than a block.
     pub fn successor_block_arguments(&self) -> Vec<&[StructuralArgument]> {
         match self {
             Self::Jump {
@@ -314,6 +373,10 @@ impl Terminator {
                 when_true.structural_arguments.as_slice(),
                 when_false.structural_arguments.as_slice(),
             ],
+            Self::StructuralCase { cases, .. } => cases
+                .iter()
+                .map(|case| case.structural_arguments.as_slice())
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -381,6 +444,8 @@ pub struct StructuralCaseSuccessorEdge {
     pub target: BlockId,
     pub case: StructuralCaseId,
     pub payload_fields: Vec<StructuralFieldId>,
+    /// Simultaneous structural bindings, captured before edge cleanup.
+    pub structural_arguments: Vec<StructuralArgument>,
     /// Ordered actions after payload capture and before destination binding.
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }

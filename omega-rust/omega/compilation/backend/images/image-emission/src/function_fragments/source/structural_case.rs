@@ -53,6 +53,7 @@ pub(super) fn retained(
             if target_rows.next().is_some()
                 || target_case.case != case.case
                 || target_case.target != case.target
+                || target_case.structural_bindings != case.structural_bindings
             {
                 return false;
             }
@@ -84,6 +85,11 @@ pub(super) fn retained(
             };
             matching.next().is_none()
                 && successor.source_target == case.target
+                && successor
+                    .structural_bindings
+                    .iter()
+                    .map(|binding| &binding.semantic)
+                    .eq(case.structural_bindings.iter())
                 && projected_source_matches(
                     &function.local_storage_slots,
                     &retained.source,

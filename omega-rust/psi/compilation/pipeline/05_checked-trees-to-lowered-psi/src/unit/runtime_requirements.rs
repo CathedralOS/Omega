@@ -349,6 +349,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             substitutions: &BTreeMap<ValueId, ValueDeclaration>,
         ) -> Result<(), LoweringError> {
             match term {
+                ScalarTerm::Application { .. } => Ok(()),
                 ScalarTerm::StructuralRead { path, .. } => {
                     for projection in path {
                         if let semantic_vocabulary::ScalarReadProjection::Index(selector) =

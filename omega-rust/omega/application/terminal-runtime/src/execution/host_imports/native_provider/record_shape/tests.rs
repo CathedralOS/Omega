@@ -102,6 +102,8 @@ impl Fixture {
                 native_parameter_rows: Default::default(),
                 callback_layouts: Default::default(),
                 callback_layout_rows: Default::default(),
+                callback_bindings: Default::default(),
+                callback_binding_rows: Default::default(),
             },
             codec: StorageCodec {
                 references: Vec::new(),
@@ -307,7 +309,7 @@ fn array(id: u32, element: u32, length: u64) -> StructuralTypeDeclaration {
     let mut declaration = record(id, Vec::new());
     declaration.shape = StructuralTypeShape::FixedArray {
         element: type_id(element),
-        length,
+        length: terminal_psi::ArrayExtent::Literal(length),
     };
     declaration
 }
@@ -467,7 +469,7 @@ fn array_count_stride_extent_alignment_and_scalar_class_are_exact() {
     let mut fixture = Fixture::record_arrays();
     fixture.declarations[1].shape = StructuralTypeShape::FixedArray {
         element: type_id(3),
-        length: 1,
+        length: terminal_psi::ArrayExtent::Literal(1),
     };
     assert!(fixture.validate().is_err());
     let mut fixture = Fixture::record_arrays();
@@ -493,13 +495,13 @@ fn zero_array_validates_its_complete_element_schema_without_instantiating_leaves
     let mut fixture = Fixture::empty_array();
     fixture.declarations[2].shape = StructuralTypeShape::FixedArray {
         element: type_id(99),
-        length: 0,
+        length: terminal_psi::ArrayExtent::Literal(0),
     };
     assert!(fixture.validate().is_err());
     let mut fixture = Fixture::empty_array();
     fixture.declarations[2].shape = StructuralTypeShape::FixedArray {
         element: type_id(3),
-        length: 0,
+        length: terminal_psi::ArrayExtent::Literal(0),
     };
     fixture.signature.shapes[3].class = BoundaryValueClass::FixedArray {
         element: 3,
@@ -519,12 +521,12 @@ fn nonempty_arrays_of_empty_records_have_no_invented_codec_leaves() {
     let mut fixture = Fixture::empty_array();
     fixture.declarations[2].shape = StructuralTypeShape::FixedArray {
         element: type_id(4),
-        length: 65535,
+        length: terminal_psi::ArrayExtent::Literal(0xffff),
     };
     fixture.declarations.push(record(4, Vec::new()));
     fixture.signature.shapes[3].class = BoundaryValueClass::FixedArray {
         element: 4,
-        length: 65535,
+        length: 0xffff,
     };
     fixture.signature.shapes[3].alignment = 1;
     fixture.signature.shapes.push(BoundaryValueShape {
@@ -546,7 +548,7 @@ fn array_of_array_retains_both_indices_and_checks_schema_below_zero_length() {
     let mut fixture = Fixture::record_arrays();
     fixture.declarations[3].shape = StructuralTypeShape::FixedArray {
         element: type_id(6),
-        length: 2,
+        length: terminal_psi::ArrayExtent::Literal(2),
     };
     fixture.declarations.push(array(6, 5, 2));
     fixture.signature.shapes[4].class = BoundaryValueClass::FixedArray {

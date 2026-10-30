@@ -127,12 +127,11 @@ pub struct ClosedConformanceApplication {
     pub commitment: ClosedConformanceApplicationCommitment,
 }
 
-impl PartialEq for ClosedConformanceApplication {
-    fn eq(&self, other: &Self) -> bool {
-        // Preparation attaches an arena-local scope to the same application.
-        // A freshly reconstructed selection must still match its prepared row.
+impl ClosedConformanceApplication {
+    pub(crate) fn same_selection_metadata(&self, other: &Self) -> bool {
+        // Scopes and source occurrence receipts are checked independently.
+        // Keep every remaining declaration, value, row and commitment coordinate.
         self.declaration == other.declaration
-            && self.arguments == other.arguments
             && self.lifetime_arguments == other.lifetime_arguments
             && self.type_arguments == other.type_arguments
             && self.const_arguments == other.const_arguments
@@ -143,6 +142,12 @@ impl PartialEq for ClosedConformanceApplication {
             && self.rows == other.rows
             && self.report_fingerprint == other.report_fingerprint
             && self.commitment == other.commitment
+    }
+}
+
+impl PartialEq for ClosedConformanceApplication {
+    fn eq(&self, other: &Self) -> bool {
+        self.arguments == other.arguments && self.same_selection_metadata(other)
     }
 }
 
@@ -225,6 +230,7 @@ pub enum ClosedConformanceApplicationSite {
     },
     Occurrence(crate::static_applications::StaticMachineApplicationHandle),
     TraitArgument(arena::Handle<TraitImplementationApplication>),
+    ProductOperand(arena::Handle<crate::product_operand::ProductOperandApplication>),
 }
 
 /// A named implementation selected by a source trait argument, independently
@@ -276,6 +282,10 @@ pub struct StaticRequirementDispatch {
     /// Direct selections retain their exact authored occurrence. Evidence-bound
     /// dispatch keeps its independent invocation-specialization source.
     pub selection_application: crate::static_applications::StaticMachineApplicationHandle,
+    /// Original evidence binder selected by this call. Repeated equal
+    /// implementations in one telescope remain distinct substitutions.
+    /// Zero for direct selections and operator-algebra selection.
+    pub evidence_parameter: symbols::SymbolHandle,
     /// Non-authoritative compatibility coordinate for the selected
     /// application. `application_commitment` is the authoritative join.
     pub application_report_fingerprint: u64,

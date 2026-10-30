@@ -220,7 +220,7 @@ pub(super) fn project(
             }))
         }
         AbstractOperation::StructuralCase { .. } => {
-            super::structural_case::project(node, function, plan)
+            super::structural_case::project(node, function, plan, unit)
         }
         AbstractOperation::ReturnUnit { psi_edge, .. } => {
             Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
@@ -314,7 +314,7 @@ pub(super) fn project(
     }
     Ok(result)
 }
-fn successor(
+pub(super) fn successor(
     edge: &optimization_unit::OptimizationEdge,
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,

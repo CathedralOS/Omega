@@ -1,0 +1,12 @@
+RECONCILE	places	7	12200
+RECONCILE	residences	7	16300
+RECONCILE	memberships	7	1400
+RECONCILE	places	2	2200
+RECONCILE	residences	2	5700
+RECONCILE	memberships	2	200
+RECONCILE	places	202	269100
+RECONCILE	residences	202	67800
+RECONCILE	memberships	202	2664402300	analysis_drop_ns=2773000	discovery_ns=122500	graph_drop_ns=1965300	graph_preparation_ns=228300000	history_creation_ns=30800	history_drop_ns=20785200	leaf_query_formation_ns=61600	leaf_root_lookup_ns=496000	merge_ns=2607400	operand_queries_ns=44972700	payload_contract_queries_ns=8308000	payload_target_queries_ns=5418400	reachability_drop_ns=100	reference_context_drop_ns=4943800	reference_queries_ns=471709500	source_contract_queries_ns=1864769800	types_drop_ns=18800	view_queries_ns=5892000
+native exit 0
+interp exit: 0
+build dir kept: C:\Users\User\AppData\Local\Temp\omega-probe-446684-0

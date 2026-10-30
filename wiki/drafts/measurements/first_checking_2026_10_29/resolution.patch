@@ -1,0 +1,48 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
+index 698dfaade85..833bd6d79c3 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
+@@ -1788,6 +1788,7 @@ impl<'program> StructuralJudge<'program> {
+         observations: &mut IntegerObservations<'_>,
+         depth: usize,
+     ) -> Option<Polynomial> {
++        let _profile = phase_profile::guard("05.num.project.integer_value");
+         if depth >= 64 {
+             return None;
+         }
+@@ -1800,15 +1801,24 @@ impl<'program> StructuralJudge<'program> {
+             }
+             _ => false,
+         };
+-        let completed = self.completed_scalar_observation(value, primitive);
+-        let description = self.completed_value_identity(value.clone());
++        let completed = phase_profile::scope("05.num.project.completed", || self.completed_scalar_observation(value, primitive));
++        let description = phase_profile::scope("05.num.project.identity", || self.completed_value_identity(value.clone()));
+         // Preserve the authored operation tree until each node has admitted
+         // its own children. General ring resolution may cancel an unsafe node.
+         let value = match description.semantic_value() {
+             StructuralTerm::ScalarBinary { .. } | StructuralTerm::MathematicalBinary { .. } => {
+                 description
+             }
+-            _ => self.resolve(description),
++            _ => phase_profile::scope(match description.semantic_value() {
++                StructuralTerm::Application { .. } => "05.num.project.resolve.application",
++                StructuralTerm::CapturedValue { .. } => "05.num.project.resolve.captured",
++                StructuralTerm::CallProjection { .. } => "05.num.project.resolve.call_projection",
++                StructuralTerm::Projection { .. } => "05.num.project.resolve.projection",
++                StructuralTerm::Variable(_) => "05.num.project.resolve.variable",
++                StructuralTerm::Integer(_) => "05.num.project.resolve.integer",
++                StructuralTerm::BoundValue(_) => "05.num.project.resolve.bound",
++                _ => "05.num.project.resolve.other",
++            }, || self.resolve(description)),
+         };
+         let value = value.semantic_value();
+         if let Some((identity, policy)) = completed.as_ref()
+@@ -1910,6 +1920,7 @@ impl<'program> StructuralJudge<'program> {
+         observations: &mut IntegerObservations<'_>,
+         depth: usize,
+     ) -> Option<Polynomial> {
++        let _profile = phase_profile::guard("05.num.project.mathematical_value");
+         if depth >= 64 {
+             return None;
+         }

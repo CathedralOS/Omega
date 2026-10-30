@@ -1,0 +1,11 @@
+machine guarded(value: u64) -> bool requires value != 0 { true }
+data Bounded<const Limit: u64> [copy]
+requires self.value >= 1
+requires value <= Limit
+requires guarded(self.value)
+requires requires == 0
+{
+    value: u64;
+    requires: u64;
+}
+machine check() { let invalid: Bounded<10> = Bounded { value: 11, requires: 0 }; }

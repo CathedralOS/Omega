@@ -182,6 +182,7 @@ pub(crate) enum StorageLeafKind {
     },
     ByteArray {
         destination: StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
         length: u64,
     },
     /// One fully validated scalar-array subtree with no scalar instances.
@@ -199,6 +200,7 @@ pub(crate) struct PinnedScalar {
     pub shared: bool,
     pub original: TerminalScalarValue,
     pub restriction: Option<StructuralFieldType>,
+    pub restoration_owner: StructuralRuntimePlace,
 }
 
 pub(crate) fn describe(
@@ -278,7 +280,14 @@ fn collect(
             leaves,
             false,
         )?,
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Application(_),
+            ..
+        } => return Err(TerminalInterpretError::UnclosedArrayExtent(root)),
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             // Validate every dimension and the terminal primitive declaration
             // before pruning instance work. An empty payload is not a shortcut
             // for opaque/reference/cyclic element schemas. Compact a selected
@@ -301,7 +310,7 @@ fn collect(
                 return Ok(());
             }
             if execution.program.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
-                leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), length: *length } });
+                leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), structural_type: root, length: *length } });
             }
             let elements = match selected_path {
                 None => 0..*length,
@@ -495,13 +504,43 @@ pub(super) fn scalar_storage(
     execution: &TerminalExecution,
     referent: &TerminalStructuralValue,
     array_loan: Option<&crate::element_views::ElementView>,
+    aggregate: Option<&crate::reference::AggregateBacking>,
     access: StructuralAccess,
     leaf: &StorageLeaf,
 ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
     let StorageLeafKind::Scalar { scalar, .. } = leaf.kind else {
         return Err(malformed());
     };
-    if let Some(loan) = array_loan {
+    if let Some(backing) = aggregate {
+        // Logical paths select bytes in the retained region. Only the core
+        // projector may join those bytes to original scalar endpoints.
+        if backing.placed.is_some() || array_loan.is_some() {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "host aggregate storage has no resident codec for placed cells",
+            ));
+        }
+        let path = terminal_semantics::canonical_structural_storage_path(
+            execution.program.structural_types().values(),
+            referent.structural_type,
+            &leaf.path,
+        )
+        .ok_or_else(malformed)?;
+        if let Some(region) = backing.region {
+            execution.aggregate_view_primitive_access(
+                &backing.value,
+                crate::reference::AggregateViewTip::Aggregate {
+                    view: region,
+                    backing: backing.value.structural_type,
+                },
+                &path,
+            )
+        } else {
+            let region = backing.byte_region.as_ref().ok_or_else(malformed)?;
+            let (storage, scalar) =
+                execution.captured_byte_region_access(&backing.value, region, &path)?;
+            Ok((storage, scalar, access == StructuralAccess::SharedBorrow))
+        }
+    } else if let Some(loan) = array_loan {
         let path = leaf
             .path
             .iter()
@@ -521,6 +560,7 @@ pub(crate) fn capture(
     source: PlaceId,
     referent: &TerminalStructuralValue,
     array_loan: Option<&crate::element_views::ElementView>,
+    aggregate: Option<&crate::reference::AggregateBacking>,
     access: StructuralAccess,
     leaves: &[StorageLeaf],
     normal_qualifications: &[crate::effects::normal_qualifications::CapturedNormalQualification],
@@ -528,6 +568,16 @@ pub(crate) fn capture(
     let mut values = Vec::new();
     let mut endpoints = Vec::new();
     for leaf in leaves {
+        if aggregate.is_some()
+            && !matches!(
+                leaf.kind,
+                StorageLeafKind::Scalar { .. } | StorageLeafKind::ByteArray { .. }
+            )
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "host aggregate re-view requires independently represented scalar leaves",
+            ));
+        }
         let contents = match &leaf.kind {
             StorageLeafKind::Case { case, .. } => TerminalStorageContents::Case(*case),
             StorageLeafKind::Scalar {
@@ -537,19 +587,37 @@ pub(crate) fn capture(
                 ..
             } => {
                 let (storage, logical, shared) =
-                    scalar_storage(execution, referent, array_loan, access, leaf)?;
+                    scalar_storage(execution, referent, array_loan, aggregate, access, leaf)
+                        .map_err(|error| {
+                            error.in_argument_preparation("project captured host scalar")
+                        })?;
                 if logical != *scalar {
                     return Err(malformed());
                 }
+                // A re-view's authenticated projection can use a different
+                // descriptor namespace from its physical cells. Preserve the
+                // actual source owner's memberships, not that presentation's
+                // incidental path. The captured endpoint/region still bounds
+                // access; this ancestor scope grants no additional cells.
+                let restoration_owner = aggregate
+                    .and_then(|_| {
+                        crate::effects::scalar_loans::scalar_qualification_owner(&storage)
+                    })
+                    .cloned()
+                    .unwrap_or_else(|| StructuralRuntimePlace::from(referent));
                 // Owned payload snapshots publish no replacement or loan. Their
                 // qualifications remain on the consumed argument; a read cannot
                 // weaken that owner or manufacture another qualified value.
                 if access == StructuralAccess::MutableBorrow {
-                    execution.validate_scalar_loan_restoration(
-                        &storage,
-                        &crate::values::StructuralRuntimePlace::from(referent),
-                        normal_qualifications,
-                    )?;
+                    execution
+                        .validate_scalar_loan_restoration(
+                            &storage,
+                            &restoration_owner,
+                            normal_qualifications,
+                        )
+                        .map_err(|error| {
+                            error.in_argument_preparation("preserve captured scalar source owner")
+                        })?;
                 }
                 let value = execution.read_primitive_storage(
                     source,
@@ -582,6 +650,7 @@ pub(crate) fn capture(
                     shared,
                     original: value,
                     restriction: original_restriction,
+                    restoration_owner,
                 });
                 TerminalStorageContents::Scalar {
                     value,

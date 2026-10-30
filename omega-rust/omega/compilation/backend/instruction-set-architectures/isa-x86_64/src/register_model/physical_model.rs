@@ -3,10 +3,10 @@
 
 use calling_conventions::MachineRegister;
 use register_model::{
-    PhysicalRegisterModel, PhysicalRegisterModelIdentity, PreservationConvention, RegisterClass,
-    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId,
-    RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel, reservation_overlay,
-    sorted_units, validate_physical_register_model,
+    PhysicalModelBuilder, PhysicalRegisterModel, PhysicalRegisterModelIdentity,
+    PreservationConvention, RegisterClassId, RegisterUnitId, RegisterUnitKind, RegisterViewId,
+    RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel, complement,
+    reservation_overlay, sorted_units, units_for, validate_physical_register_model, view_ids,
 };
 use std::collections::BTreeMap;
 use target::Architecture;
@@ -70,77 +70,6 @@ pub fn x86_64_fixed_register_view(
     model.model().view_named(name).map(|view| view.id)
 }
 
-struct ModelBuilder {
-    units: Vec<RegisterUnit>,
-    views: Vec<RegisterView>,
-    classes: Vec<RegisterClass>,
-}
-
-impl ModelBuilder {
-    fn new() -> Self {
-        Self {
-            units: Vec::new(),
-            views: Vec::new(),
-            classes: [
-                "x86.gpr64",
-                "x86.gpr32",
-                "x86.gpr16",
-                "x86.gpr8-low",
-                "x86.gpr8-high",
-                "x86.vector128",
-                "x86.flags",
-                "x86.instruction-pointer",
-                "x86.floating-control",
-            ]
-            .into_iter()
-            .enumerate()
-            .map(|(id, name)| RegisterClass {
-                id: RegisterClassId(u16::try_from(id).expect("class id fits u16")),
-                name: name.into(),
-                views: Vec::new(),
-            })
-            .collect(),
-        }
-    }
-
-    fn unit(&mut self, name: String, bits: u16, kind: RegisterUnitKind) -> RegisterUnitId {
-        let id = RegisterUnitId(u16::try_from(self.units.len()).expect("unit id fits u16"));
-        self.units.push(RegisterUnit {
-            id,
-            name,
-            bits,
-            kind,
-        });
-        id
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn view(
-        &mut self,
-        name: String,
-        class: RegisterClassId,
-        units: Vec<RegisterUnitId>,
-        write_units: Vec<RegisterUnitId>,
-        bits: u16,
-        write_semantics: RegisterWriteSemantics,
-        allocatable: bool,
-    ) -> RegisterViewId {
-        let id = RegisterViewId(u16::try_from(self.views.len()).expect("view id fits u16"));
-        self.views.push(RegisterView {
-            id,
-            name,
-            class,
-            units,
-            write_units,
-            bits,
-            write_semantics,
-            allocatable,
-        });
-        self.classes[usize::from(class.0)].views.push(id);
-        id
-    }
-}
-
 /// The x86-64 physical register model, built once per process. The model is
 /// a fixed table; building it formats every register name and fills its name
 /// maps, and effect declarations and encoders asked for it per instruction
@@ -157,7 +86,17 @@ pub fn x86_64_physical_register_model() -> PhysicalRegisterModel {
 }
 
 fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
-    let mut builder = ModelBuilder::new();
+    let mut builder = PhysicalModelBuilder::with_classes(&[
+        "x86.gpr64",
+        "x86.gpr32",
+        "x86.gpr16",
+        "x86.gpr8-low",
+        "x86.gpr8-high",
+        "x86.vector128",
+        "x86.flags",
+        "x86.instruction-pointer",
+        "x86.floating-control",
+    ]);
     let registers = [
         ("rax", "eax", "ax", "al", Some("ah")),
         ("rbx", "ebx", "bx", "bl", Some("bh")),
@@ -309,7 +248,7 @@ fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
     );
     named_views.insert("mxcsr".into(), mxcsr_view);
 
-    let all_units = builder.units.iter().map(|unit| unit.id).collect::<Vec<_>>();
+    let all_units = builder.unit_ids();
     let rsp = gpr_units["rsp"].clone();
     let fixed = sorted_units(rsp.iter().copied().chain([rip_unit, mxcsr_unit]));
     let sysv_callee = units_for(&gpr_units, &["rbx", "rbp", "r12", "r13", "r14", "r15"]);
@@ -373,33 +312,7 @@ fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
             gpr_units["r15"].clone(),
         ),
     ];
-    PhysicalRegisterModel {
-        architecture: Architecture::X86_64,
-        units: builder.units,
-        views: builder.views,
-        classes: builder.classes,
-        conventions,
-        reservations,
-    }
-}
-
-fn units_for(units: &BTreeMap<String, Vec<RegisterUnitId>>, names: &[&str]) -> Vec<RegisterUnitId> {
-    sorted_units(names.iter().flat_map(|name| units[*name].iter().copied()))
-}
-
-pub(crate) fn complement(
-    all: &[RegisterUnitId],
-    fixed: &[RegisterUnitId],
-    callee: &[RegisterUnitId],
-) -> Vec<RegisterUnitId> {
-    all.iter()
-        .copied()
-        .filter(|unit| !fixed.contains(unit) && !callee.contains(unit))
-        .collect()
-}
-
-fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<RegisterViewId> {
-    names.iter().map(|name| views[*name]).collect()
+    builder.finish(Architecture::X86_64, conventions, reservations)
 }
 
 /// The canonical x86-64 physical register model, validated once per process.

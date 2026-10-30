@@ -28,7 +28,7 @@ fn collects_domain_surface() {
         cleanup_selection: None,
         authored_routes: Vec::new(),
         classification: None,
-        predicate_body: language_semantics::DomainPredicateBody::Bodyless,
+        predicate_presence: language_semantics::DomainPredicatePresence::Absent,
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
         semantic_clause_token_count: 3,
@@ -41,8 +41,8 @@ fn collects_domain_surface() {
     assert_eq!(domain.name, "NonEmpty");
     assert_eq!(domain.target_type, "String");
     assert_eq!(
-        domain.predicate_body,
-        language_semantics::DomainPredicateBody::Bodyless
+        domain.predicate_presence,
+        language_semantics::DomainPredicatePresence::Absent
     );
     assert_eq!(domain.fact_count, 0);
     assert_eq!(domain.membership_fact_count, 0);

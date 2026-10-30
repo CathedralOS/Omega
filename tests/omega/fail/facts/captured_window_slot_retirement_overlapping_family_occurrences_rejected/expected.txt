@@ -1,0 +1,1 @@
+receives `windows[left].values` as mutable more than once

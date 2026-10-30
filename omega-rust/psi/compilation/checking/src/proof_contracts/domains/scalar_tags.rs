@@ -153,7 +153,7 @@ fn vacuous_scalar_tag(
     if !declaration.symbol.is_valid()
         || !declaration.semantic_id.is_valid()
         || active.contains(&declaration.symbol)
-        || declaration.predicate_body.is_present()
+        || declaration.predicate_presence.is_present()
         || !declaration.facts.is_empty()
         || !declaration.establishment_routes.is_empty()
         || declaration.semantic_roles.arithmetic_policy.is_some()

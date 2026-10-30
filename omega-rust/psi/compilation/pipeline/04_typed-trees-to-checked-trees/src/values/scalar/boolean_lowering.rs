@@ -426,6 +426,7 @@ fn byte_carrier_pair_equality(
                 index: Box::new(checked_trees::CheckedScalarSelector {
                     expression: integer_literal(index, PrimitiveType::U64)?,
                     occurrence: ExpressionHandle::invalid(),
+                    entry_bound: None,
                 }),
                 element_path: Vec::new(),
                 primitive_type: PrimitiveType::U8,

@@ -501,23 +501,41 @@ pub(super) fn lower_terminator(
                             })
                             .map(|parameter| parameter.structural_type)
                     });
-                if source_type != Some(result.structural_type)
-                    || !matches!(
-                        result.multiplicity,
-                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                    )
-                    || !terminal_semantics::view_descriptor_projected_qualifications(
-                        structural_types.values().copied(),
-                        result.structural_type,
-                        &result.projected_qualifications,
-                    )
-                    || !returned_claims.is_empty()
-                    || !trivial_affine_locals.is_empty()
-                    || prepared.call_plan.result.as_ref().is_none_or(|placement| {
-                        placement.shape != calling_conventions::ValueShape::integer(16, 8)
-                    })
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                let invalid = |reason| LoweringError::InvalidStructuralValueInput {
+                    machine: function.machine,
+                    place: *source,
+                    reason,
+                };
+                if source_type != Some(result.structural_type) {
+                    return Err(invalid(
+                        "descriptor return source has no matching live carrier",
+                    ));
+                }
+                if !matches!(
+                    result.multiplicity,
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                ) {
+                    return Err(invalid("descriptor return requires nonlinear custody"));
+                }
+                if !terminal_semantics::view_descriptor_projected_qualifications(
+                    structural_types.values().copied(),
+                    result.structural_type,
+                    &result.projected_qualifications,
+                ) {
+                    return Err(invalid(
+                        "descriptor return has non-descriptor child memberships",
+                    ));
+                }
+                if !returned_claims.is_empty() {
+                    return Err(invalid("descriptor return has unlowered returned claims"));
+                }
+                if !trivial_affine_locals.is_empty() {
+                    return Err(invalid("descriptor return has unlowered local cleanup"));
+                }
+                if prepared.call_plan.result.as_ref().is_none_or(|placement| {
+                    placement.shape != calling_conventions::ValueShape::integer(16, 8)
+                }) {
+                    return Err(invalid("descriptor return has no two-word ABI placement"));
                 }
                 provenance.edges.push(*psi_edge);
                 return Ok(TargetControlTerminator::ReturnStructural {

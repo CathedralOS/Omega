@@ -1,15 +1,15 @@
 # Omega
 
-Omega is a systems language built around explicit state machines, checked contracts, and ownership of memory and resources. This eliminates entire classes of bugs while keeping performance on par with C.
+Omega is a systems language built around explicit state machines, mathematical proofs, and ownership of memory and resources. Entire classes of bugs are eliminated while keeping performance on par with C.
 
-Instability can only arise under faulty premises. For example, an Omega program will trust that the OS APIs do what they claim. As long as this is true, it can prove safety. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
+Instability can only arise under faulty premises, such as a faulty Operating System API contract. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
 
-The state-machine structure of Omega allows us to answer otherwise difficult questions at compile-time:
+The state-machine structure of Omega turns your codebase into a queryable graph, allowing quick answers to hard questions:
 - Does an API access the filesystem, including through its dependencies?
 - Does an API call crash? Does it provably terminate? Under what conditions?
 - Does a program perform well under load?
 
-Omega is being built for software where performance is critical, and failure is costly. This spans from user facing apps to aircraft systems to OS kernels.
+Omega is being built for software where performance is critical, and failure is costly; from user facing apps, to aircraft systems, to OS kernels.
 
 Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral puts the design to work on kernel problems: managing memory, controlling hardware, and running untrusted software.
 
@@ -20,6 +20,7 @@ design is ahead of its implementation; native support is still being completed.
 [Specification](wiki/README.md#current-specification-subjects) ·
 [Examples](samples) ·
 [VS Code highlighting](tools/vscode-omega/README.md) ·
+[Compiler observatory](tools/dashboard/README.md) ·
 [Contributing](#development)
 
 ## Failures Omega addresses
@@ -43,104 +44,376 @@ These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
 is not made safe by calling it from Omega.
 
-The 2026-10-22 optional reach-ceiling and ordinary entry-storage decisions are
-ratified language contracts, not claims that their compiler migration is complete.
-`OPTIONAL-REACH-CEILINGS`, `EXPLICIT-ENTRY-STORAGE`, and
-`STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md) retain that implementation
-and source-migration acceptance.
-
 ## Machines
 
-A machine defines behavior, its inputs, and its contract. A simple machine looks like an ordinary function or method:
+A machine defines behavior, its inputs, and its contract. It can look like an
+ordinary function, but its contract is checked across calls. Here division may
+crash only when its denominator is zero:
 
 ```omega
-data Player {
-    health: u32;
+// This machine is obligated to report that it can crash when denominator is 0!
+machine divide(
+    numerator: u32,
+    denominator: u32
+) -> u32
+crashes Trap denominator == 0
+{
+    transition denominator == 0 {
+        true -> zero_divisor()
+        false -> (numerator / denominator)
+    }
+
+    machine zero_divisor() -> u32
+    crashes Trap
+    {
+        crash Trap;
+    }
 }
 
-machine Player::take_damage(&mut self, amount: u32)
-    requires amount <= self.health
-    ensures self.health == before(self.health) - amount
+// This machine cannot crash, because the crashy 0 case is handled.
+machine distribute_damage_to_enemies(
+    total_damage: u32,
+    enemy_count: u32
+) -> u32
+crashes Trap false
 {
-    // Guaranteed safe since amount <= self.health
-    self.health = self.health - amount;
+    transition enemy_count == 0 {
+        true -> 0
+        false -> divide(total_damage, enemy_count)
+    }
 }
 ```
 
-- `&mut self` borrows the player exclusively.
-- `requires` is the caller's obligation: establish that the subtraction is safe.
-- `ensures` is the implementation's obligation: prove the promised result.
-  `before(...)` refers to the value on entry.
+`divide` permits a guarded `Trap`; the caller's `crashes Trap false` permits none.
+The zero-enemy branch returns directly. On the other branch, the checker knows
+`enemy_count != 0` and disproves the callee's crash route for that call.
 
-The caller can establish the condition through a branch or facts already known. An unproved call is a compile error, not an automatically inserted runtime assertion.
+Remove the branch and call `divide` directly: the caller must prove a nonzero
+count another way or relax its explicit no-Trap contract. This is not exception handling
+or an assertion asking the compiler to trust the programmer.
 
-For longer control flow, machines contain named states and explicit transitions. Transfers carry values and ownership without growing the call stack.
+Longer control flow uses nested machines and explicit transitions. Proved
+runtime tail cycles carry values and ownership without growing the call stack.
 [Machines](wiki/language_guide/chapter_3_machines.md)
-[States and transitions](wiki/language_guide/chapter_4_states_transitions.md)
+[Nested machines and transitions](wiki/language_guide/chapter_4_nested_machines_transitions.md)
+
+## Data
+The `data` keyword is the only manner by which data is described in Omega.
+
+```omega
+data User {
+    id: u64;
+    active: bool;
+}
+
+data Command {
+    command_id: u64;
+
+    case GetUser(user_id: u64);
+    case CountUsers;
+    case DeleteUser(user_id: u64);
+}
+
+machine targets_one_user(command: &Command) -> bool {
+    let Command { command_id as _, case as operation } = command;
+
+    match operation {
+        Command::GetUser { user_id as _ } -> true
+        Command::CountUsers -> false
+        Command::DeleteUser { user_id as _ } -> true
+    }
+}
+```
+
+`command_id` is present in every case and can be read as `command.command_id`
+without matching first. `user_id` exists only in GetUser and DeleteUser. The
+`let` pattern handles the common fields once and binds a case-only view with
+`case as operation`. This decomposition cannot fail for a valid Command; an
+equivalent one-arm outer match is also allowed. The match patterns name only
+payload fields; `as _` explicitly ignores values this helper does not need.
+All inline cases follow the common fields. See
+[data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition)
+and [irrefutable bindings](wiki/spec/language/patterns.md#irrefutable-data-bindings).
 
 ## Domains and invariants
 
-Contracts can describe relationships between fields, not just individual arguments. A data type's `where` clause defines its **default domain**:
+The data declaration's `requires` clause keeps every valid player's health between
+0 and 100. Named domains describe additional facts: a player may respawn only
+when dead and outside a cutscene, and respawning must leave them alive:
 
 ```omega
-data Span
-where
-    start <= end,
+data Player
+    requires self.health <= 100
 {
-    start: u32;
-    end: u32;
+    health: u32;
+    in_cutscene: bool;
 }
 
-machine Span::shift(&mut self, delta: u32)
-    requires self.end <= u32::Maximum - delta
+domain Player::Respawnable
+requires
+    self.health == 0 && !self.in_cutscene;
+
+domain Player::Alive
+requires
+    self.health > 0;
+
+machine respawn(player: &mut Player)
+requires
+    player in Player::Respawnable
+ensures
+    player in Player::Alive
 {
-    self.start = self.start + delta;
-    self.end = self.end + delta;
+    player.health = 100;
+}
+
+machine update(player: &mut Player) {
+    transition player in Player::Respawnable {
+        true -> respawn(player)
+        false -> {}
+    }
 }
 ```
 
-The first write can temporarily break `start <= end`. Exclusive access prevents
-another observer from seeing that intermediate state; the second write restores
-the relationship. Returning early or passing the broken span to a machine that
-requires a valid one is rejected.
+`requires` is the caller's obligation; `ensures` is the implementation's
+obligation. The branch in `update` establishes both respawn conditions, and
+`respawn` establishes `Alive` by setting health to 100. Check only for zero health
+and the call is rejected: the cutscene condition is still missing.
 
-The checker proves both additions fit and that the domain holds again at return.
-Neither check inserts a runtime assertion or adds a field: a span still contains
-just two `u32` values.
+The branch tests ordinary fields. Domain qualification adds no runtime state
+tag or wrapper. The default domain must hold whenever the whole value is
+observed; exclusive mutation may temporarily break and then restore it. Setting
+health to 100 establishes `Alive` while preserving the player's default domain.
 
-Named domains let other contracts reuse such facts. Ordinary machines also
-establish mathematical theorems, and eligible computations can be evaluated at
-compile time or referenced in proofs without maintaining a separate algorithm.
+Ordinary machines can also establish mathematical theorems, and eligible
+computations can run at compile time or be referenced in proofs without a
+separate implementation.
 [Domains](wiki/language_guide/chapter_8_domains.md) ·
 [Invariant windows](wiki/language_guide/chapter_11_invariant_windows.md) ·
 [Mathematical proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
 
-## Hardware access
+## Advanced Data
 
-Ownership also applies when a device accesses memory. In this driver API sketch,
-`receive` lends a nonempty buffer to a device for writing. `finish` returns only
-after the device releases the loan and the required memory visibility holds:
-
+Suppose commands are sent as data. GetUser should produce a User, CountUsers a u64, and DeleteUser a bool indicating whether a user was deleted. A more complex declaration adds common metadata, stable identities for serialization, and GADT (generalized algebraic data type) constraints tying each command to its result type:
 ```omega
-let transfer = device.receive(&mut buffer);
+data Command<T>
+requires
+    ((self in Command::GetUser) && T == User)
+    || ((self in Command::CountUsers) && T == u64)
+    || ((self in Command::DeleteUser) && T == bool)
+{
+    #1 request_id: u64;
+    #2 requested_at_ms: u64;
+    #3 sequence: u32;
 
-// buffer[0] = 42;       // Rejected: the device holds exclusive access.
-// let byte = buffer[0]; // Rejected: CPU reads are excluded too.
+    #10 case GetUser(#1 user_id: u64);
+    #11 case CountUsers;
+    #12 case DeleteUser(#1 user_id: u64);
+}
 
-suspend device.finish(move transfer);
+let accepted: Command<User> = Command::GetUser { user_id: 42 }; // Accepted.
+let rejected: Command<bool> = Command::GetUser { user_id: 42 }; // Rejected: GetUser requires T == User.
 
-buffer[0] = 42;          // Valid after release.
+machine execute<T>(
+    connection: &mut Database,
+    command: &Command<T>
+) -> Result<T, DatabaseError>
+{
+    let (_, _, _, operation) = command;
+
+    transition operation {
+        Command::GetUser { user_id } -> database::get_user(connection, user_id)
+        Command::CountUsers -> database::count_users(connection)
+        Command::DeleteUser { user_id } -> database::delete_user(connection, user_id)
+    }
+}
 ```
 
-`suspend` allows the current activation to pause; it does not discard the loan.
-Losing the linear transfer token cannot release it, and a device's success
-status alone is insufficient. A fallible completion must preserve the pending
-obligation when release cannot be established.
+The positional binding follows authored order: request_id, requested_at_ms, sequence, then one case-only view. `_` ignores each metadata binding. The transition retains the original Command's domain facts, so selecting a case establishes the corresponding equality for T.
 
-The driver supplies the operations; Omega checks their composition. Hardware
-behavior must be established through checked instruction contracts or explicit
-provider assumptions. Required fences still execute—ownership checking does not
-replace synchronization.
+`Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
+
+GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is deliberately invalid because changing only its type argument breaks that relationship. Omitted metadata fields are zero-initialized here. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
+
+The `#N` identities are neither offsets nor runtime tags, and each payload has its own numbering scope. The two Command declarations above are alternative examples, not declarations to combine in one module.
+
+The same semantic data can use different representations. Custom policies use compile-time reflection to choose a layout, subject to compiler validation. The declarations below illustrate storage types, not implicit conversions; assume a protobuf package supplies the named encoded representation:
+
+```omega
+// Instantiate under the standard Omega layout.
+let command: Command<User>;
+
+// Select C layout, which may be mandated by foreign API calls.
+let command_c: CLayout<Command<User>>;
+
+// Select a library-authored protobuf representation.
+use protobuf;
+let command_proto: ProtobufLayout<Command<User>>;
+```
+
+Variable-length protobuf encoding needs explicit byte storage and checked encode/decode operations; it is not merely a fixed C-style layout.
+
+## Reach Reporting
+
+A save-game operation needs to write its supplied file. It does not need to
+upload the save or launch another process:
+
+```omega
+machine save_game(
+    save_file: File,
+    bytes: &[u8]
+) -> IoResult
+blocks
+reaches FilesystemContentWrite
+{
+    block FilesystemService::write(save_file, bytes)
+}
+```
+
+`reaches FilesystemContentWrite` is a ceiling on this operation and its checked
+transitive calls. Adding network, Console or process-launch reach anywhere in
+that call chain would exceed the ceiling and fail to compile.
+
+`blocks` and the call-site `block` acknowledge that the worker may be occupied
+while the operation waits. `suspend` instead parks an activation and returns
+control to its executor. Neither grants additional service access.
+
+## Trust Boundaries
+
+Omega can check calls into a foreign library, but it cannot prove that the
+library obeys its declared contract.
+
+```omega
+use omega::language::core::time_authority;
+
+data FileTime {
+    low: u32;
+    high: u32;
+}
+
+boundary trait WindowsWallClock:
+    Calling<MicrosoftX64Policy>
+{
+    machine read(output: &mut CLayout<FileTime>)
+        reaches ClockObservation;
+}
+
+machine read_wall_clock(output: &mut CLayout<FileTime>)
+reaches ClockObservation
+{
+    WindowsWallClock::read(output);
+}
+
+// In build.omg
+machine build(builder: &mut Build) {
+    Build::package(builder, "windows_wall_clock");
+    Build::bind<WindowsWallClock::read>(
+        builder,
+        windows_x86_64,
+        ForeignBinding::DllImport {
+            import: DllImport::PeByName {
+                library: "kernel32.dll",
+                export: "GetSystemTimePreciseAsFileTime",
+            },
+        }
+    );
+}
+```
+
+The foreign implementation must be explicitly trusted to honor its contract;
+if it lies, the caller's guarantees no longer hold. Wrapping the call cannot
+hide its `ClockObservation` reach, but reach checking does not sandbox native code.
+
+See [foreign bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
+and [reach contracts](wiki/spec/language/effects.md).
+
+## Checked Inline Assembly
+
+Omega supports checkable inline assembly. You may only write assembly that the
+compiler can prove is safe.
+
+Here, copying a packet's 16-byte header still needs bounds, alignment and access
+proofs, even when the instructions are handwritten:
+
+```omega
+asm machine copy_header(
+    packet: &[u8],
+    destination: &mut [u8; 16]
+)
+requires packet.len >= 16
+registers
+    r10 = address_of(&packet[0]),
+    r11 = address_of(&mut destination[0]),
+    r9b = align_of(packet) >= 16 && align_of(destination) >= 16
+{
+    test r9b, r9b;
+    jz unaligned;
+    transition -> aligned;
+
+    asm machine aligned
+        requires align_of(packet) >= 16 && align_of(destination) >= 16
+    {
+        movdqa xmm0, [r10];
+        movdqa [r11], xmm0;
+        jmp done;
+    }
+
+    asm machine unaligned {
+        movdqu xmm0, [r10];
+        movdqu [r11], xmm0;
+        transition -> done;
+    }
+
+    asm machine done {
+        ret;
+    }
+}
+```
+
+The packet length and destination type establish bounds; the borrows supply
+access. **Addresses are not authority**. Removing the length requirement or
+shifting the store one byte forward leaves an unproved memory access.
+
+`transition` names the adjacent successor without emitting a jump; `jmp` branches.
+Both conditional successors are explicit, and register clobbers are inferred.
+
+## Hardware access
+
+The same-sized memory is not always permitted to support the same operations.
+Assume the platform's `UartMmio` policy describes a write-only transmit register:
+writing sends data to the device, but borrowing it as ordinary read/write RAM
+is not permitted. This example deliberately fails at the final borrow:
+
+```omega
+data UartRegisters {
+    transmit: u32;
+}
+
+machine broken_reset(
+    uart: &mut Placed<UartMmio, UartRegisters>
+)
+reaches DeviceIo
+{
+    let mut ram_word: u32 = 42;
+
+    clear(&mut ram_word); // Valid: Ordinary RAM.
+    uart.transmit.write(0);
+
+    clear(&mut uart.transmit); // Rejected: cannot borrow MMIO as RAM.
+
+    machine clear(word: &mut u32) {
+        word = 0;
+    }
+}
+```
+
+The RAM borrow and explicit device write are permitted. The rejected call tries
+to pass a device accessor to a helper requiring an ordinary RAM reference.
+Even exclusive access to `uart` cannot manufacture the missing access mode.
+Recasts and checked assembly must respect that distinction too.
+
+The platform supplies the placement policy and its correspondence to the actual
+device. Omega checks against those contracts; it does not infer a datasheet from
+a field name.
 
 The same model extends to
 [memory authority without runtime domain tags](wiki/spec/resources/extents.md)

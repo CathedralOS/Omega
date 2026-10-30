@@ -24,7 +24,7 @@ pub struct DomainDefinition {
     /// Explicit closed classification copied from the resolved declaration.
     pub classification: Option<language_semantics::DomainClassification>,
     /// Explicit predicate-body presence copied from the resolved theory.
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub semantic_clause_token_count: usize,
@@ -54,7 +54,7 @@ impl Default for DomainDefinition {
             cleanup_selection: None,
             alias: None,
             classification: None,
-            predicate_body: language_semantics::DomainPredicateBody::Bodyless,
+            predicate_presence: language_semantics::DomainPredicatePresence::Absent,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             semantic_clause_token_count: 0,

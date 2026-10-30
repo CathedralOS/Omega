@@ -1,0 +1,1404 @@
+[
+  {
+    "case": "local",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\local\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "5af169c821eda0ae3b6ff694a5031df51778c59b2106013c9a1498c7a4d11cff",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "local",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\local\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "5af169c821eda0ae3b6ff694a5031df51778c59b2106013c9a1498c7a4d11cff",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "local-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\local\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "b9ef55dd52a38385ceeaf3ea8d89a74e1f30287490a69ecb6804cd493c5c7f50",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "local-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\local\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "b9ef55dd52a38385ceeaf3ea8d89a74e1f30287490a69ecb6804cd493c5c7f50",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "field",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\field\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "e946d121aa633d412297f0a65bb8ba4a8c8ec80455d75a5ec6778533664724ae",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "field",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\field\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "e946d121aa633d412297f0a65bb8ba4a8c8ec80455d75a5ec6778533664724ae",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "field-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\field\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "cff26aa7d6891b27e2d7f63d08f74c479180bede5a461ebaf7bc55f80766d96a",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "field-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\field\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "cff26aa7d6891b27e2d7f63d08f74c479180bede5a461ebaf7bc55f80766d96a",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "parameter",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\parameter\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "09f52df01c68b4ac24f8c7ffb7ad582318443b616f7bbe35f3aa1f7201dd6043",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "parameter",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\parameter\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "09f52df01c68b4ac24f8c7ffb7ad582318443b616f7bbe35f3aa1f7201dd6043",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "parameter-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\parameter\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "6beefdb3599914c16e4483e5d0f9b2f2f59adda1f42c83c5e2a83b0ffeae04d8",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "parameter-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\parameter\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "6beefdb3599914c16e4483e5d0f9b2f2f59adda1f42c83c5e2a83b0ffeae04d8",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "call_result",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\call_result\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "0faa2d7c2b6a149de1362e2585a6ee6fca4da7f1927b0552fbeea143cd335ce0",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "call_result",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\call_result\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "0faa2d7c2b6a149de1362e2585a6ee6fca4da7f1927b0552fbeea143cd335ce0",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "call_result-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\call_result\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "4040529b4181c0447be59f15f09dbb499ee24e063b94d8ca3eab0aa68498e8de",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "call_result-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\call_result\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "4040529b4181c0447be59f15f09dbb499ee24e063b94d8ca3eab0aa68498e8de",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "match_join",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\match_join\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "57f2c44bf56bca497c2278c711d2eba6015efc558dc4a64d51a0ceb136156d07",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "match_join",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\match_join\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "57f2c44bf56bca497c2278c711d2eba6015efc558dc4a64d51a0ceb136156d07",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "match_join-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\match_join\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "6a90711898d92f853c836e22e521da86ceb97fb417574ef81ff7d10558a2e29f",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "match_join-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\match_join\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "6a90711898d92f853c836e22e521da86ceb97fb417574ef81ff7d10558a2e29f",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "const_name",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\const_name\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "6d900a30ed7b151bc0b32401ffa8e6786bd5070f6274b9cee20f24a6ab1086f5",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "const_name",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\const_name\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "6d900a30ed7b151bc0b32401ffa8e6786bd5070f6274b9cee20f24a6ab1086f5",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "const_name-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\const_name\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "44bbe2587b75c6a68a37af4815fb3833ecb1bda4a2bc44b352de1b36a95be978",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "const_name-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\const_name\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "44bbe2587b75c6a68a37af4815fb3833ecb1bda4a2bc44b352de1b36a95be978",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_state",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_state\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "1b8addcd63ed67d6dc280a3a3a83f0aed6065d4099f96fd0642626d7974082e2",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_state",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_state\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "1b8addcd63ed67d6dc280a3a3a83f0aed6065d4099f96fd0642626d7974082e2",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_state-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_state\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "4a66d8ba7d76370de05d7fc951f2c38cefa7f8e28a6d3f89e451d818015967ce",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_state-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_state\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "4a66d8ba7d76370de05d7fc951f2c38cefa7f8e28a6d3f89e451d818015967ce",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_machine",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_machine\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "2fff058598a7fee52dbe31c3273cbf565eb850e47df373a78c63f44688589e91",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_machine",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_machine\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "2fff058598a7fee52dbe31c3273cbf565eb850e47df373a78c63f44688589e91",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_machine-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_machine\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "9405adee3e253b15ee4fdf62d25fc148d813107de524bedc9600e6f4852097ea",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "other_machine-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\other_machine\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "9405adee3e253b15ee4fdf62d25fc148d813107de524bedc9600e6f4852097ea",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "target_body",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\target_body\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "e25205f33628a30010379812335159e5bea5947e37a906eac9856d9bf3b78255",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "target_body",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\target_body\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "e25205f33628a30010379812335159e5bea5947e37a906eac9856d9bf3b78255",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "target_body-invalid",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\target_body\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "673d539c4d9fa5b805cdd28cda47dd773727ac9ae3b302e54551216565befdaa",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "target_body-invalid",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\independent_call_result_bound\\target_body\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove ensures contract for exit from source at statement 0: result == 7",
+      "error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `independent_call_result_bound` with 2 diagnostic(s)\n  error: cannot prove ensures contract for exit from source at statement 0: result == 7\n  error: cannot prove ensures contract for exit from forwarded at statement 0: result == 7\n",
+    "source_sha256": "673d539c4d9fa5b805cdd28cda47dd773727ac9ae3b302e54551216565befdaa",
+    "build_sha256": "ca8bedaaede58c844ca12ed6456eaedb42876dcae7ee068c250debbbb3d4ba78"
+  },
+  {
+    "case": "pass-core-conjunctive_return_bound_projection_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\conjunctive_return_bound_projection_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "35c7845b4396a945f4106a24a15fc5b212717324c51a014debd4975be88facd4",
+    "build_sha256": "31dc64cf0b675986be9277ae7f481fa72cbfabda5ce61c8c37f32868bae380a7"
+  },
+  {
+    "case": "pass-core-conjunctive_return_bound_projection_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\conjunctive_return_bound_projection_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "35c7845b4396a945f4106a24a15fc5b212717324c51a014debd4975be88facd4",
+    "build_sha256": "31dc64cf0b675986be9277ae7f481fa72cbfabda5ce61c8c37f32868bae380a7"
+  },
+  {
+    "case": "fail-core-conjunctive_return_bound_projection_rejected",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\conjunctive_return_bound_projection_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `main` state `entry` local `second` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `projected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `conjunctive_return_bound_projection_rejected` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `second` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `projected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).\n    in package `conjunctive_return_bound_projection_rejected`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\conjunctive_return_bound_projection_rejected\\main.omg:10:39\n",
+    "source_sha256": "de4c1ace17d1762646804902f7be5bed972326542629fab522a8cdc3278f0b8f",
+    "build_sha256": "25da8e5ab87767bcd855f0699b1a3fbf468577bb46d1318faed5a7fb27bd2bde"
+  },
+  {
+    "case": "fail-core-conjunctive_return_bound_projection_rejected",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\conjunctive_return_bound_projection_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `main` state `entry` local `second` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `projected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `conjunctive_return_bound_projection_rejected` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `second` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `projected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).\n    in package `conjunctive_return_bound_projection_rejected`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\conjunctive_return_bound_projection_rejected\\main.omg:10:39\n",
+    "source_sha256": "de4c1ace17d1762646804902f7be5bed972326542629fab522a8cdc3278f0b8f",
+    "build_sha256": "25da8e5ab87767bcd855f0699b1a3fbf468577bb46d1318faed5a7fb27bd2bde"
+  },
+  {
+    "case": "pass-core-guaranteed_return_bound_actuals_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\guaranteed_return_bound_actuals_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "54b28ab77187638dc9cdb4885666a537da06cae10eaafa979f07128ce6bda293",
+    "build_sha256": "2a6bb8724fd502b72017f18fa0c26c696f6aa2891d47b76b204e3fad2b2de2ba"
+  },
+  {
+    "case": "pass-core-guaranteed_return_bound_actuals_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\guaranteed_return_bound_actuals_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "54b28ab77187638dc9cdb4885666a537da06cae10eaafa979f07128ce6bda293",
+    "build_sha256": "2a6bb8724fd502b72017f18fa0c26c696f6aa2891d47b76b204e3fad2b2de2ba"
+  },
+  {
+    "case": "fail-core-guaranteed_return_bound_actuals_rejected",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\guaranteed_return_bound_actuals_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `main` state `entry` local `second_difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `guaranteed_return_bound_actuals_rejected` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `second_difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `guaranteed_return_bound_actuals_rejected`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\guaranteed_return_bound_actuals_rejected\\main.omg:8:41\n",
+    "source_sha256": "6068860f035749c1d65312fb579c2649057df3fdfcab82ab0014bbaa26541a9a",
+    "build_sha256": "d58fa66f7c3fa7541a302850b1bc52642d1b329e2940d0fffd0c169af80407e0"
+  },
+  {
+    "case": "fail-core-guaranteed_return_bound_actuals_rejected",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\guaranteed_return_bound_actuals_rejected\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `main` state `entry` local `second_difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `guaranteed_return_bound_actuals_rejected` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `second_difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `guaranteed_return_bound_actuals_rejected`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\guaranteed_return_bound_actuals_rejected\\main.omg:8:41\n",
+    "source_sha256": "6068860f035749c1d65312fb579c2649057df3fdfcab82ab0014bbaa26541a9a",
+    "build_sha256": "d58fa66f7c3fa7541a302850b1bc52642d1b329e2940d0fffd0c169af80407e0"
+  },
+  {
+    "case": "pass-core-scoped_integer_call_guarantees_composed_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\scoped_integer_call_guarantees_composed_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "e9cdedc03f76638864dc2759175ec8fb0c2128ea902bfc6a4a6ed2e2c026def3",
+    "build_sha256": "36824ce4c6efe2a5ae67cd68c5dd6388c0451bd504b80634cb16c17edf9582fc"
+  },
+  {
+    "case": "pass-core-scoped_integer_call_guarantees_composed_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\scoped_integer_call_guarantees_composed_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "e9cdedc03f76638864dc2759175ec8fb0c2128ea902bfc6a4a6ed2e2c026def3",
+    "build_sha256": "36824ce4c6efe2a5ae67cd68c5dd6388c0451bd504b80634cb16c17edf9582fc"
+  },
+  {
+    "case": "pass-core-scoped_integer_call_exact_actual_requires_formation",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\scoped_integer_call_exact_actual_requires_formation\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\scoped_integer_call_exact_actual_requires_formation\\main.omg; wrote_output=false\n",
+    "source_sha256": "baa8e189b95c019b2b47e05fc40e8541dfe973a222ba834ede2d5de8d3a337da",
+    "build_sha256": "735b495c49032fef55ec552660b1caef541b96fde3dafd91fdd3057cfb90ad5f"
+  },
+  {
+    "case": "pass-core-scoped_integer_call_exact_actual_requires_formation",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\scoped_integer_call_exact_actual_requires_formation\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 20 source file(s) from \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\core\\scoped_integer_call_exact_actual_requires_formation\\main.omg; wrote_output=false\n",
+    "source_sha256": "baa8e189b95c019b2b47e05fc40e8541dfe973a222ba834ede2d5de8d3a337da",
+    "build_sha256": "735b495c49032fef55ec552660b1caef541b96fde3dafd91fdd3057cfb90ad5f"
+  },
+  {
+    "case": "fail-core-scoped_integer_call_guarantee_requires_formation",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_guarantee_requires_formation\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact"
+    ],
+    "output": "error: cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact\n",
+    "source_sha256": "14c7bdfae032d36fd9226bd98c658687e6107d340b0826a96d2cade3dab77b0d",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-core-scoped_integer_call_guarantee_requires_formation",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_guarantee_requires_formation\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact"
+    ],
+    "output": "error: cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact\n",
+    "source_sha256": "14c7bdfae032d36fd9226bd98c658687e6107d340b0826a96d2cade3dab77b0d",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-core-scoped_integer_call_wrapping_actual_requires_formation",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+      "error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `scoped_integer_call_wrapping_actual_requires_formation` with 2 diagnostic(s)\n  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact\n    in package `scoped_integer_call_wrapping_actual_requires_formation`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation\\main.omg:6:9\n  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact\n    in package `scoped_integer_call_wrapping_actual_requires_formation`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation\\main.omg:6:9\n",
+    "source_sha256": "4e2880bafe2806d94aec93de8baeaa89c21faee0073d0dba132e067ef2ad937d",
+    "build_sha256": "26c217ad8a7c264f73433883766a51db7bcdcb4c2a6f35034e8c13385264d75c"
+  },
+  {
+    "case": "fail-core-scoped_integer_call_wrapping_actual_requires_formation",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+      "error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+    ],
+    "output": "cannot compile admitted project: checked compilation failed for package `scoped_integer_call_wrapping_actual_requires_formation` with 2 diagnostic(s)\n  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact\n    in package `scoped_integer_call_wrapping_actual_requires_formation`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation\\main.omg:6:9\n  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact\n    in package `scoped_integer_call_wrapping_actual_requires_formation`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation\\main.omg:6:9\n",
+    "source_sha256": "4e2880bafe2806d94aec93de8baeaa89c21faee0073d0dba132e067ef2ad937d",
+    "build_sha256": "26c217ad8a7c264f73433883766a51db7bcdcb4c2a6f35034e8c13385264d75c"
+  },
+  {
+    "case": "pass-arithmetic-collection_result_bound_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\collection_result_bound_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "8156f73db666794c9d19eef3caa09396951f517d3cd0e4b55ae3875abfc122dc",
+    "build_sha256": "e467367003fd1010bab8ae0e1689e6136cc8b714bde8ad44d05d9ad8f10c1a3b"
+  },
+  {
+    "case": "pass-arithmetic-collection_result_bound_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\collection_result_bound_exit\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "8156f73db666794c9d19eef3caa09396951f517d3cd0e4b55ae3875abfc122dc",
+    "build_sha256": "e467367003fd1010bab8ae0e1689e6136cc8b714bde8ad44d05d9ad8f10c1a3b"
+  },
+  {
+    "case": "fail-arithmetic-collection_result_distinct_windows",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_distinct_windows\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove index `count` is within length 1"
+    ],
+    "output": "error: cannot prove index `count` is within length 1\n",
+    "source_sha256": "6857695900c76bf504d33b14986640b409c877067c78812e52cea2200b354408",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-collection_result_distinct_windows",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_distinct_windows\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove index `count` is within length 1"
+    ],
+    "output": "error: cannot prove index `count` is within length 1\n",
+    "source_sha256": "6857695900c76bf504d33b14986640b409c877067c78812e52cea2200b354408",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-collection_result_wrong_argument",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_wrong_argument\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`)."
+    ],
+    "output": "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).\n",
+    "source_sha256": "d4329bd89dd0c2a007194a766d00de189a2ffe73b108047bae29475fc4c9543f",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-collection_result_wrong_argument",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_wrong_argument\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`)."
+    ],
+    "output": "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).\n",
+    "source_sha256": "d4329bd89dd0c2a007194a766d00de189a2ffe73b108047bae29475fc4c9543f",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-collection_result_conditional_bound",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_conditional_bound\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`)."
+    ],
+    "output": "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).\n",
+    "source_sha256": "a5be45df85b7b1444a559a33c785cbb26ffb3ab7aa5ae9182c83ea68efdb62a2",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-collection_result_conditional_bound",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_conditional_bound\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`)."
+    ],
+    "output": "error: exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).\n",
+    "source_sha256": "a5be45df85b7b1444a559a33c785cbb26ffb3ab7aa5ae9182c83ea68efdb62a2",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-collection_result_rebound_descriptor",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_rebound_descriptor\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove index `count` is within length 2 in rejected::entry"
+    ],
+    "output": "error: cannot prove index `count` is within length 2 in rejected::entry\n",
+    "source_sha256": "954b4fae29316b6530db3ca1cc7ef8567cc4407014712eea55821769908418b9",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-collection_result_rebound_descriptor",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\collection_result_rebound_descriptor\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove index `count` is within length 2 in rejected::entry"
+    ],
+    "output": "error: cannot prove index `count` is within length 2 in rejected::entry\n",
+    "source_sha256": "954b4fae29316b6530db3ca1cc7ef8567cc4407014712eea55821769908418b9",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-proofs-piecewise_call_result_arithmetic",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\piecewise_call_result_arithmetic\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 18 source file(s) from C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\piecewise_call_result_arithmetic\\main.omg; wrote_output=false\n",
+    "source_sha256": "6fc1eb961d4ce20d8338f9b5eaff3eb90de7acbea0cd5652f3ecf976ebdf5d98",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-proofs-piecewise_call_result_arithmetic",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\piecewise_call_result_arithmetic\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 18 source file(s) from C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\piecewise_call_result_arithmetic\\main.omg; wrote_output=false\n",
+    "source_sha256": "6fc1eb961d4ce20d8338f9b5eaff3eb90de7acbea0cd5652f3ecf976ebdf5d98",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-proofs-integer_piecewise_result_contract",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\integer_piecewise_result_contract\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 18 source file(s) from C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\integer_piecewise_result_contract\\main.omg; wrote_output=false\n",
+    "source_sha256": "42bf62fb7f2e83213ff6d6a1baa5bf52a7e0065bf94034e1fa1f55357bbe1844",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-proofs-integer_piecewise_result_contract",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\integer_piecewise_result_contract\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 18 source file(s) from C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\integer_piecewise_result_contract\\main.omg; wrote_output=false\n",
+    "source_sha256": "42bf62fb7f2e83213ff6d6a1baa5bf52a7e0065bf94034e1fa1f55357bbe1844",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-proofs-piecewise_call_result_not_singleton",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\proofs\\piecewise_call_result_not_singleton\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `varied` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `reflected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`)."
+    ],
+    "output": "error: exact arithmetic in machine `varied` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `reflected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`).\n",
+    "source_sha256": "6bf1e0a455802e167b1d44515e53758a353495633b67bc234be4b6ee6086bc81",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-proofs-piecewise_call_result_not_singleton",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\proofs\\piecewise_call_result_not_singleton\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: exact arithmetic in machine `varied` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `reflected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`)."
+    ],
+    "output": "error: exact arithmetic in machine `varied` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `reflected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`).\n",
+    "source_sha256": "6bf1e0a455802e167b1d44515e53758a353495633b67bc234be4b6ee6086bc81",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-arithmetic-runtime_short_circuit_cast_decisions_exit",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_short_circuit_cast_decisions_exit\\main.omg"
+    ],
+    "exit": 70,
+    "passed": false,
+    "errors": [],
+    "output": "native exit 70\ninterp exit: 70\n",
+    "source_sha256": "990f1c36efef382ee10f277f5cd9a92bb9124a809c63abd437789ca8fe9593ee",
+    "build_sha256": "8eb5105d28956562fce693e47e0707fac9e2a050e492bc7050a4506a2933ed40"
+  },
+  {
+    "case": "pass-arithmetic-runtime_short_circuit_cast_decisions_exit",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\arithmetic\\runtime_short_circuit_cast_decisions_exit\\main.omg"
+    ],
+    "exit": 70,
+    "passed": false,
+    "errors": [],
+    "output": "native exit 70\ninterp exit: 70\n",
+    "source_sha256": "990f1c36efef382ee10f277f5cd9a92bb9124a809c63abd437789ca8fe9593ee",
+    "build_sha256": "8eb5105d28956562fce693e47e0707fac9e2a050e492bc7050a4506a2933ed40"
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_wrong_path",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_wrong_path\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "86b2a8d70e4da4e2d182e5e4e689f352ff1d653e232ab137ddfd6f90c94e5e8d",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_wrong_path",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_wrong_path\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "86b2a8d70e4da4e2d182e5e4e689f352ff1d653e232ab137ddfd6f90c94e5e8d",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_mutated_subject",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_mutated_subject\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "f44e12e2209f146ce0666adddee5f848f792146eafedc45f746a71fb447cf512",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-arithmetic-short_circuit_cast_mutated_subject",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\arithmetic\\short_circuit_cast_mutated_subject\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+    ],
+    "output": "error: Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.\n",
+    "source_sha256": "f44e12e2209f146ce0666adddee5f848f792146eafedc45f746a71fb447cf512",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-proofs-applied_dependent_const_requires",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\applied_dependent_const_requires\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 18 source file(s) from C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\applied_dependent_const_requires\\main.omg; wrote_output=false\n",
+    "source_sha256": "56cecbcf2375f5598bef445e34f3b0e64e27e6113a24c49d9c4bb18909e26e7e",
+    "build_sha256": null
+  },
+  {
+    "case": "pass-proofs-applied_dependent_const_requires",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\applied_dependent_const_requires\\main.omg"
+    ],
+    "exit": 0,
+    "passed": true,
+    "errors": [],
+    "output": "compiled 18 source file(s) from C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\pass\\proofs\\applied_dependent_const_requires\\main.omg; wrote_output=false\n",
+    "source_sha256": "56cecbcf2375f5598bef445e34f3b0e64e27e6113a24c49d9c4bb18909e26e7e",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-calls-copied_argument_ensures_cannot_restore_callee_mutated_source",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\baseline\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\calls\\copied_argument_ensures_cannot_restore_callee_mutated_source\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove requires contract for call take_ascii from capture: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+    ],
+    "output": "error: cannot prove requires contract for call take_ascii from capture: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n",
+    "source_sha256": "ad21f8d978e8452defa96c41e7eb023b6a0c61d0169dbbdf9788c96b4d3a95c4",
+    "build_sha256": null
+  },
+  {
+    "case": "fail-calls-copied_argument_ensures_cannot_restore_callee_mutated_source",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\candidate\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\tests\\omega\\fail\\calls\\copied_argument_ensures_cannot_restore_callee_mutated_source\\main.omg"
+    ],
+    "exit": 1,
+    "passed": true,
+    "errors": [
+      "error: cannot prove requires contract for call take_ascii from capture: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+    ],
+    "output": "error: cannot prove requires contract for call take_ascii from capture: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n",
+    "source_sha256": "ad21f8d978e8452defa96c41e7eb023b6a0c61d0169dbbdf9788c96b4d3a95c4",
+    "build_sha256": null
+  }
+]

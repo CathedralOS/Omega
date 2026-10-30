@@ -112,6 +112,7 @@ impl StateGraphEmission<'_, '_> {
         let requirements = crate::unit::attached_unit::entry_requirements::lower(
             identities,
             self.checked,
+            self.catalogs.scalar_applications,
             owner.symbol,
             actual_values,
             &self.state_erased[entry_position],
@@ -156,6 +157,7 @@ impl StateGraphEmission<'_, '_> {
             std::sync::Arc::clone(&self.dynamic_dispatch),
         );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
+            scalar_applications: std::sync::Arc::clone(self.catalogs.scalar_applications),
             completed_operand_scope: Vec::new(),
             current_claims: Default::default(),
             shared_qualifications: self
@@ -1031,6 +1033,14 @@ impl StateGraphEmission<'_, '_> {
                 else {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
+                if state
+                    .selected_exit
+                    .is_some_and(|selected| cleanup.exit != selected)
+                {
+                    return unsupported(
+                        "ordinary return cleanup differs from its selected source exit",
+                    );
+                }
                 scalar_return_exits.push(cleanup.exit);
                 let mut regions = super::super::cleanup::for_exit_regions(
                     identities,
@@ -1519,6 +1529,7 @@ impl StateGraphEmission<'_, '_> {
                             }
                         };
                         Ok(StructuralCaseSuccessorEdge {
+ structural_arguments: Vec::new(),
                             edge: edge.edge,
                             target: edge.target,
                             case: case.identity,

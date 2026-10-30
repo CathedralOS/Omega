@@ -52,15 +52,15 @@ pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
     admit_prepared_native_realization, artifact_lowering_error,
 };
-pub(crate) use native_execution_scope::NativeExecutionScopeError;
 pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
     NativeCallbackArgumentProposal,
 };
 pub use retained_terminal::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
-    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
-    RetainedTerminalArtifact, SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
+    PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,
+    RetainedComponentNativeInputs, RetainedNativeProviderInputs, RetainedTerminalArtifact,
+    SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
     TerminalCallbackThunkArtifact, TerminalCompilerBuiltinProposal,
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,
@@ -71,7 +71,8 @@ pub use retained_terminal::{
 
 pub(crate) use artifact_admission::ArtifactLoweringError;
 pub use artifact_admission::{
-    ArtifactSections, TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
+    ArtifactSections, NativeExecutionSelection, NativeScalarApplications,
+    TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
 pub(crate) use callback_settlement::{

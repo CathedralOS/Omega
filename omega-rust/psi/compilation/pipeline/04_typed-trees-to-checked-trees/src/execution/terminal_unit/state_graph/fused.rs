@@ -133,10 +133,8 @@ fn completing_transition_targets<'a>(
             _ => None,
         })
         .flat_map(|transition| transition.targets())
-        .filter_map(|target| {
-            validation::completing_transition_transfer(program, target)
-                .map(|transfer| transfer.target)
-        })
+        .flat_map(|target| validation::completing_transition_invocations(program, target))
+        .map(|invocation| invocation.target)
 }
 
 /// The fused position of a named transition target: a state symbol resolves

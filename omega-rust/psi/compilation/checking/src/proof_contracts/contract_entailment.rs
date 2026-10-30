@@ -84,6 +84,8 @@ pub(crate) mod completed_observations;
 mod completed_values;
 pub(crate) use completed_values::completed_value_case_at_occurrence;
 mod construction_predicates;
+mod zero_predicates;
+pub use zero_predicates::data_predicates_admit_zero;
 pub(crate) mod statement_predicates;
 
 pub(crate) use construction_predicates::construction_predicate_judgments;
@@ -91,12 +93,14 @@ pub(crate) mod call_projection_identity;
 mod const_ranges;
 pub(crate) mod content_conservation;
 mod contract_refinement;
+mod declaration_projections;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
 pub(crate) mod law_conformance;
 pub(crate) mod numeric_observations;
 mod observed_projections;
+pub use declaration_projections::declaration_projection_cases_hold;
 mod operand_fits;
 mod proof_edges;
 pub(crate) mod proof_integer;
@@ -115,9 +119,10 @@ mod structural_case_arms;
 pub(crate) mod structural_judgment;
 pub(crate) mod structural_prefix;
 pub(crate) use operand_fits::{
-    anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
-    exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
-    float_integer_conversion_fits_at_occurrence,
+    CompletedIntegerFormation, anonymous_comparison_operand_fits_at_occurrence,
+    anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
+    exact_cast_fits_at_occurrence, float_integer_conversion_fits_at_occurrence,
+    integer_operands_exclude_at_occurrence,
 };
 mod structural_terms;
 pub(crate) mod transparent_applications;
@@ -132,29 +137,21 @@ pub(crate) use contract_refinement::check_contract_refinement;
 pub(crate) use exit_coverage::entailment_covers_all_exits;
 
 pub(crate) use content_conservation::{
-    ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
-    ContentConservationImplication, completed_value_content_conservation_dependencies,
-    completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
-    completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
+    ConditionalContentGuarantee, ContentConservationDependencies,
 };
 pub(crate) use law_conformance::{check_law_conformance, check_operator_contract_conformance};
-pub(crate) use numeric_observations::{
-    CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarAssociation,
-    CapturedScalarObservation, NumericObservationDemand, captured_numeric_observations,
-};
 pub(crate) use proof_edges::proof_edge_strict_decrease_judged;
 pub(crate) use proof_edges::proof_interval_strict_decrease_judged;
 pub(crate) use proof_integer::mathematical_integer_operands;
 
 pub(crate) use proof_integer::{
-    anonymous_integer_math_literal, anonymous_integer_value, proof_integer_expression,
-    proof_integer_nonnegative, proof_integer_nonzero, proof_nat_cast,
-    validate_proof_fact_integer_formation,
+    anonymous_integer_value, proof_integer_expression, proof_integer_nonnegative,
+    proof_integer_nonzero, proof_nat_cast, validate_proof_fact_integer_formation,
 };
 
 pub(crate) use ranking_range::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_ranking_range_call,
 };
 
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
@@ -186,8 +183,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::trait_definition::TraitDefinition;
 
 use crate::proof_contracts::contract_entailment::citations::{
-    collect_citation_equations, instantiated_fact_established, is_citation_statement,
-    suggest_missing_citation,
+    collect_citation_equations, instantiated_fact_established, suggest_missing_citation,
 };
 use crate::proof_contracts::contract_entailment::fact_mentions::{
     fact_mentions_proof_only_data, fact_mentions_zero_value,
@@ -207,7 +203,7 @@ use structural_terms::{
 /// Whether `OMEGA_STRUCT_TRACE` asks for structural-judgment tracing. Read
 /// once: each environment lookup takes the process environment lock, and
 /// body unfolding asks once per application.
-fn struct_trace() -> bool {
+pub(in crate::proof_contracts) fn struct_trace() -> bool {
     static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
 }
@@ -1092,6 +1088,7 @@ fn fact_call_targets(
     }
 }
 
+pub(crate) use structural_terms::denotation_preserving_conversion;
 pub(crate) use structural_terms::immutable_entry_boolean_projection;
 pub(crate) use structural_terms::source_operations_have_same_meaning;
 

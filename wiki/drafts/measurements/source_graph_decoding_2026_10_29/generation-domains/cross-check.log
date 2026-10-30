@@ -1,0 +1,12 @@
+    Checking serde v1.0.229
+    Checking compiler-storage v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\compiler-storage)
+    Checking omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+    Finished `dev` profile [optimized] target(s) in 5.25s
+mbx[cache]: 0 hits, 0 misses, 10 not looked up; 0 B downloaded, 0 B uploaded, 708.6 KiB stored locally
+mbx[savings]: 1d 17h of compiler time avoided across 6049 builds
+    Checking serde v1.0.229
+    Checking compiler-storage v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\compiler-storage)
+    Checking omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+    Finished `dev` profile [optimized] target(s) in 4.01s
+mbx[cache]: 0 hits, 0 misses, 10 not looked up; 0 B downloaded, 0 B uploaded, 707.5 KiB stored locally
+mbx[savings]: 1d 17h of compiler time avoided across 6050 builds

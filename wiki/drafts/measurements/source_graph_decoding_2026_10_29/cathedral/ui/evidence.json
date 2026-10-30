@@ -1,0 +1,14 @@
+{
+  "sha256": "d6818afe7c5f63eec211901608d9cbd99136589dd6df2918865775360689e91b",
+  "bytes": 2598706,
+  "file_count": 1047,
+  "entry_index": "ZIP central directory; CRC32 and sizes verified by testzip",
+  "key_records": [
+    "build/performance/cathedral-ui-stall/fixed/initial/journal.jsonl",
+    "build/performance/cathedral-ui-stall/fixed/confirmation/journal.jsonl",
+    "build/performance/cathedral-ui-stall/fixed/producers.json",
+    "build/performance/cathedral-ui-stall/audit.json",
+    "build/performance/cathedral-ui-stall/iterations.json"
+  ],
+  "scope": "Compiler/native/cache binaries excluded; exact identities and outcomes retained. Frozen UI bytes in ../frozen-inputs.zip. Archive paths are repository relative."
+}

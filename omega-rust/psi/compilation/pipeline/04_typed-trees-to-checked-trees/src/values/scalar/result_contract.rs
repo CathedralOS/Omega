@@ -441,14 +441,11 @@ impl ContractPredicates<'_, '_> {
         depth: usize,
     ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
         let program = self.program;
-        // A selected contract recipe has already passed ordinary formation and
-        // target closure. Publish its exact landed value through the existing
-        // scalar vocabulary; never evaluate a source call in this reader.
-        if program
-            .constant_recipe_for_contract_expression(expression)
-            .is_valid()
-            && let Some(value) = program.closed_integer_expression_value_in(expression, self.owner)
-        {
+        // Retain the exact application even before a target supplies its value.
+        // Missing closure is not an absent authored predicate. This reader
+        // neither executes the application nor decides its formation debts.
+        let recipe = program.constant_recipe_for_contract_expression(expression);
+        if recipe.is_valid() {
             let reference = validation::parameter_expression_result_type_reference(
                 program,
                 self.owner,
@@ -456,6 +453,17 @@ impl ContractPredicates<'_, '_> {
                 expression,
             )?;
             let primitive = program.primitive_type_reference(reference)?;
+            let Some(value) = program.closed_integer_expression_value_in(expression, self.owner)
+            else {
+                return Some((
+                    CheckedScalarExpression::ConstantApplication {
+                        recipe,
+                        owner: self.owner,
+                        primitive_type: primitive,
+                    },
+                    reference,
+                ));
+            };
             typed_trees::closed_numeric::land_integer(&value, primitive)?;
             let spelling = value.to_string();
             let (negative, digits) = spelling
@@ -580,6 +588,7 @@ impl ContractPredicates<'_, '_> {
                     left_domain,
                     right,
                     right_domain,
+                    false,
                     false,
                 )?;
                 // A contract term is a total observation. Trapping arithmetic
@@ -1202,11 +1211,16 @@ fn contract_storage_root(
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Reference { access, .. } => {
-                return matches!(
-                    access,
-                    language_core::ReferenceAccess::Shared
-                        | language_core::ReferenceAccess::Mutable
-                );
+                // Exclusive formals retain a fixed incoming address. A mutable
+                // shared binding can replace its own descriptor, so its exit
+                // referent is not necessarily the caller's original actual.
+                return match access {
+                    language_core::ReferenceAccess::Shared => {
+                        !allow_result || !parameter.is_mutable
+                    }
+                    language_core::ReferenceAccess::Mutable => true,
+                    _ => false,
+                };
             }
             _ => return !allow_result,
         }

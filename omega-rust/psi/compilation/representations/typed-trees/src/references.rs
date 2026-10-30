@@ -138,6 +138,12 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
     fn leave_lexical_scope(&mut self) {}
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
+    /// An application reached from a real call or retained source owner.
+    fn static_application(
+        &mut self,
+        _: crate::static_applications::StaticMachineApplicationHandle,
+    ) {
+    }
     /// Source scope is declaration custody, not permission to execute its body.
     fn declaration_description_dependency(&mut self, _: SymbolHandle) {}
     /// Exact member body retained for a materialized target layout, distinct
@@ -309,6 +315,48 @@ pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurre
     let mut occurrences = TypeOccurrences::default();
     visit_program(program, &mut occurrences);
     occurrences.types
+}
+
+/// Exact live operand ownership, including shared nodes used by several
+/// declarations. Slot lookup still compares the full generational handle.
+pub struct ProgramOperandOwners {
+    types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
+    expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
+}
+
+impl ProgramOperandOwners {
+    pub fn type_owners(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.types
+            .get(reference.arena_index() as usize)
+            .into_iter()
+            .flatten()
+            .filter(move |(_, retained)| *retained == reference)
+            .map(|(owner, _)| *owner)
+    }
+
+    pub fn expression_owners(
+        &self,
+        expression: ExpressionHandle,
+    ) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.expressions
+            .get(expression.arena_index() as usize)
+            .into_iter()
+            .flatten()
+            .filter(move |(_, retained)| *retained == expression)
+            .map(|(owner, _)| *owner)
+    }
+}
+
+pub fn collect_program_operand_owners(program: &TypedTrees) -> ProgramOperandOwners {
+    let mut occurrences = TypeOccurrences::default();
+    visit_program(program, &mut occurrences);
+    ProgramOperandOwners {
+        types: occurrences.seen_types,
+        expressions: occurrences.seen_expressions,
+    }
 }
 
 /// Exact authored call applications reached from retained declaration/body
@@ -603,6 +651,78 @@ pub fn collect_selected_program_references(
     collect_program_references_with_roles(program, selection, None)
 }
 
+/// Per-declaration symbol dependencies from the same traversal used by product
+/// retention. Each root gets its own visited-node set: a shared type node still
+/// contributes its dependencies to every declaration that owns a reference.
+/// Ordinary and descriptive references both participate in formation; neither
+/// turns these rows into executable call edges.
+pub fn collect_declaration_symbol_dependencies(
+    program: &TypedTrees,
+) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
+    #[derive(Default)]
+    struct Declarations {
+        rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+        owner: SymbolHandle,
+        current: ReferenceCollector,
+    }
+
+    impl Declarations {
+        fn finish(&mut self) {
+            let references = std::mem::take(&mut self.current);
+            if !self.owner.is_valid() {
+                return;
+            }
+            let mut dependencies: Vec<_> = references
+                .symbols
+                .into_iter()
+                .chain(references.descriptor_symbols)
+                .collect();
+            dependencies.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+            dependencies.dedup();
+            self.rows.push((self.owner, dependencies));
+        }
+    }
+
+    impl Extend<SymbolHandle> for Declarations {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+            self.current.extend(symbols);
+        }
+    }
+
+    impl TypedReferences for Declarations {
+        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+            self.finish();
+            self.owner = symbol;
+            true
+        }
+
+        fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+            self.current.declaration_description_dependency(symbol);
+        }
+
+        fn expression(&mut self, expression: ExpressionHandle) -> bool {
+            self.current.expression(expression)
+        }
+
+        fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+            self.current.type_reference(reference)
+        }
+
+        fn proof_fact(&mut self, fact: arena::Handle<ProofFact>) -> bool {
+            self.current.proof_fact(fact)
+        }
+
+        fn mathematical_type(&mut self, ty: crate::mathematical::MathematicalTypeHandle) -> bool {
+            self.current.mathematical_type(ty)
+        }
+    }
+
+    let mut declarations = Declarations::default();
+    visit_program(program, &mut declarations);
+    declarations.finish();
+    declarations.rows
+}
+
 /// Use the consumer's established operand classification while preserving the
 /// same declaration, value, proof and occurrence traversal for both roles.
 pub fn collect_program_references_with_roles(
@@ -716,6 +836,53 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
             let sidecars = sidecars.get_or_insert_with(|| MachineSidecarIndex::build(program));
             visit_machine_with_sidecars(program, roots, machine, Some(sidecars));
         }
+    }
+}
+
+/// Materialized Product recipes are original source inputs. Their exact
+/// supplying scopes and actuals remain obligations after const folding; their
+/// declaration roots describe choices and do not create executable realizers.
+pub fn visit_product_operand_inputs(
+    program: &TypedTrees,
+    roots: &mut impl TypedReferences,
+    owner: SymbolHandle,
+) {
+    let pending = program
+        .product_operand_applications
+        .iter()
+        .filter_map(|(handle, application)| {
+            let source = program
+                .expression_table
+                .static_machine_application(application.supplying_application);
+            (source.lexical_owner == owner).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    if pending.is_empty() {
+        return;
+    }
+    let live = program.live_product_operand_applications();
+    for handle in pending.into_iter().filter(|handle| live.contains(handle)) {
+        let application = program.product_operand_applications.get(handle);
+        let source = program
+            .expression_table
+            .static_machine_application(application.supplying_application);
+        roots.enter_lexical_scope(source.lexical_owner);
+        roots.declaration_description_dependency(application.declaration);
+        for selection in program
+            .product_input_selections
+            .span_or_empty(application.input_selections)
+        {
+            if let Some(occurrence) = selection.occurrence {
+                roots.authored_selection(occurrence);
+            }
+        }
+        if let Some(arguments) = &application.argument.application {
+            for argument in arguments.arguments.iter() {
+                visit_static_argument(program, roots, argument);
+            }
+        }
+        application.scope.visit_references(program, roots);
+        roots.leave_lexical_scope();
     }
 }
 
@@ -1031,6 +1198,9 @@ pub fn visit_static_argument(
         for nested in application.arguments.iter() {
             visit_static_argument(program, retained, nested);
         }
+        if let Some(member) = program.expression_table.static_member(application.member) {
+            visit_static_argument(program, retained, member);
+        }
     }
 }
 
@@ -1054,6 +1224,18 @@ fn visit_static_machine_bindings_inner(
 ) {
     if !application.is_valid() || !visited.insert(application) {
         return;
+    }
+    retained.static_application(application);
+    let source = program
+        .expression_table
+        .static_machine_application(application);
+    for selection in program
+        .product_input_selections
+        .span_or_empty(source.input_selections)
+    {
+        if let Some(occurrence) = selection.occurrence {
+            retained.authored_selection(occurrence);
+        }
     }
     if let Some(selection) = &program
         .expression_table
@@ -1164,11 +1346,13 @@ fn visit_closed_conformance_inner(
 /// Implementation argument occurrences belong to their supplying declaration,
 /// not the ubiquitous receiving trait. Private projections retain only those
 /// owned roots, including the original simultaneous substitution frames.
-fn visit_owned_implementation_arguments(
+fn visit_declaration_dependencies(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     owner: SymbolHandle,
 ) {
+    visit_constant_evaluation_entries(program, retained, owner);
+    visit_product_operand_inputs(program, retained, owner);
     if program.trait_implementation_applications.is_empty() {
         return;
     }
@@ -1212,7 +1396,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(data.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, data.symbol);
+        visit_declaration_dependencies(program, retained, data.symbol);
         visit_symbol(retained, data.symbol);
         if !program.plan_laid_layouts.is_empty() {
             for plan in program
@@ -1286,7 +1470,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, definition.symbol);
+        visit_declaration_dependencies(program, retained, definition.symbol);
         visit_symbol(retained, definition.symbol);
         visit_type_parameters(program, retained, definition.type_parameters);
 
@@ -1327,7 +1511,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(conformance.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, conformance.symbol);
+        visit_declaration_dependencies(program, retained, conformance.symbol);
         visit_symbol(retained, conformance.symbol);
         visit_type_parameters(program, retained, conformance.type_parameters);
         visit_symbol(retained, conformance.trait_symbol);
@@ -1349,7 +1533,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(proposition.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, proposition.symbol);
+        visit_declaration_dependencies(program, retained, proposition.symbol);
         visit_symbol(retained, proposition.symbol);
         for binder in program.proposition_binders(proposition) {
             visit_symbol(retained, binder.symbol);
@@ -1376,7 +1560,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, definition.symbol);
+        visit_declaration_dependencies(program, retained, definition.symbol);
         visit_type_parameters(program, retained, definition.binders);
         for parameter in program.mathematical_parameters(definition.parameters) {
             visit_mathematical_type(program, retained, parameter.ty);
@@ -1391,7 +1575,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(measure.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, measure.symbol);
+        visit_declaration_dependencies(program, retained, measure.symbol);
         visit_symbol(retained, measure.symbol);
         if let Some(parameter) = &measure.parameter {
             visit_type_reference(program, retained, parameter.type_reference);
@@ -1406,11 +1590,33 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(declaration.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, declaration.symbol);
+        visit_declaration_dependencies(program, retained, declaration.symbol);
         visit_symbol(retained, declaration.symbol);
         visit_type_reference(program, retained, declaration.declared_type);
         visit_expression(program, retained, declaration.authored_initializer);
         visit_expression(program, retained, declaration.materialized_initializer);
+        // The pending declaration owns its complete checked computation, not
+        // merely whichever helper appears first in the initializer. This edge
+        // preserves that body's plans through post-check product pruning.
+        if declaration.evaluated_value.is_none()
+            && program
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+        {
+            // A detached entry has its own expression occurrences. They are
+            // still declaration-owned inputs to target closure, even before
+            // ordinary checking roots the entry as an executable body.
+            visit_expression(program, retained, declaration.evaluation_expression);
+            visit_symbol(
+                retained,
+                program
+                    .tables
+                    .machines
+                    .get(declaration.evaluation_entry)
+                    .symbol,
+            );
+        }
     }
 
     for operator in program
@@ -1427,7 +1633,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(operator.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, operator.symbol);
+        visit_declaration_dependencies(program, retained, operator.symbol);
         visit_symbol(retained, operator.symbol);
         visit_type_parameters(program, retained, operator.type_parameters);
         for parameter in program
@@ -1451,7 +1657,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(domain.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, domain.symbol);
+        visit_declaration_dependencies(program, retained, domain.symbol);
         visit_symbol(retained, domain.symbol);
         visit_type_parameters(program, retained, domain.type_parameters);
         if let Some(selection) = &domain.cleanup_selection {
@@ -1482,7 +1688,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(schema.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, schema.symbol);
+        visit_declaration_dependencies(program, retained, schema.symbol);
         visit_symbol(retained, schema.symbol);
         for member in program.tables.wire_members.span_or_empty(schema.members) {
             if let crate::wire::WireMember::Field(field) = member {
@@ -1593,6 +1799,7 @@ pub fn visit_signature(
 ) {
     retained.callable_signature(signature);
     retained.enter_lexical_scope(signature.symbol);
+    visit_constant_evaluation_entries(program, retained, signature.symbol);
     visit_type_parameters(program, retained, signature.type_parameters);
     visit_proof_facts(program, retained, signature.where_facts);
     for parameter in program
@@ -2137,7 +2344,16 @@ fn visit_machine_with_sidecars(
     sidecars: Option<&MachineSidecarIndex>,
 ) {
     retained.enter_lexical_scope(machine.symbol);
-    visit_owned_implementation_arguments(program, retained, machine.symbol);
+    if let Some(declaration) = program.const_declaration_for_evaluation_entry(machine.symbol) {
+        // Entry eligibility belongs to its source declaration. A demanded
+        // projection must preserve that association, not infer it from a
+        // generated name or from stale backing arena rows.
+        visit_symbol(retained, declaration.symbol);
+    }
+    if let Some(entry) = program.constant_evaluation_entry(machine.symbol) {
+        retained.declaration_description_dependency(entry.owner);
+    }
+    visit_declaration_dependencies(program, retained, machine.symbol);
     for signature in program.requirement_invocation_signatures(machine.symbol) {
         visit_signature(program, retained, signature);
     }
@@ -2292,6 +2508,7 @@ fn visit_machine_with_sidecars(
     }
 
     for state in program.machine_states(machine) {
+        visit_constant_evaluation_entries(program, retained, state.symbol);
         for parameter in program.state_parameters(state) {
             visit_type_reference(program, retained, parameter.type_reference);
         }
@@ -2304,6 +2521,25 @@ fn visit_machine_with_sidecars(
         }
     }
     retained.leave_lexical_scope();
+}
+
+/// A live lexical owner demands its complete constant entries. Merely retaining
+/// an entry's source description does not demand that owner's executable body.
+fn visit_constant_evaluation_entries(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    owner: SymbolHandle,
+) {
+    for (_, recipe) in program.constant_recipes.iter() {
+        for context in program
+            .constant_expression_contexts
+            .span_or_empty(recipe.contexts)
+        {
+            if context.owner == owner && context.evaluation_entry.is_valid() {
+                visit_symbol(retained, context.evaluation_entry);
+            }
+        }
+    }
 }
 
 fn visit_mathematical_type(

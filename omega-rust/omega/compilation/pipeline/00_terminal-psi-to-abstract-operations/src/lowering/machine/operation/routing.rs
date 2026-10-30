@@ -20,6 +20,7 @@ pub(super) fn lower(
     machine: &TerminalMachine,
     module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
     placed_view_plans: &[terminal_psi::TerminalPlacedViewPlan],
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -27,6 +28,9 @@ pub(super) fn lower(
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::ReadScalarApplication { application } => {
+            super::scalar_applications::lower(operation, *application, scalar_applications)
+        }
         OperationKind::EstablishActivationClaim {
             bound,
             committed,

@@ -67,7 +67,7 @@ pub fn boundary_call_preserves_descriptor_storage(
         result,
         !completion_receipts.is_empty(),
         structural_arguments,
-        |place| super::place_type(machine, place),
+        |place| machine.structural_place_type(place),
     )
 }
 

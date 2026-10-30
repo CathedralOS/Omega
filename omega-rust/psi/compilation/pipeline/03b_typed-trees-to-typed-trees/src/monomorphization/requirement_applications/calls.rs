@@ -125,8 +125,7 @@ fn source_scope<'p>(
     // Static provider slots inherit their exact application from the authored
     // requirement qualifier. A source routing carrier no longer supplies that
     // scope; selected maps and equal ABI signatures still cannot invent it.
-    let qualifier_scope =
-        receiver().and_then(|scope| scope.declaring_scope(program, owner.symbol));
+    let qualifier_scope = receiver().and_then(|scope| scope.declaring_scope(program, owner.symbol));
     let scope = match qualifier_scope {
         Some(scope) => Some(scope),
         None if program.trait_type_parameters(owner).is_empty()
@@ -295,22 +294,6 @@ fn prepare_invocations(
     Ok(invocations)
 }
 
-fn prepared_occurrence(
-    invocations: &[PreparedInvocation],
-    site: super::super::CallSite,
-    owner: SymbolHandle,
-) -> Result<&InvocationTuple, Vec<Diagnostic>> {
-    invocations
-        .iter()
-        .find(|invocation| invocation.site == site && invocation.owner == owner)
-        .map(|invocation| &invocation.tuple)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "requirement call lost its prepared invocation",
-            )]
-        })
-}
-
 /// Static calls instantiate their own complete invocation tuples. These rows
 /// are public contract applications, never a finite dynamic-dispatch roster.
 pub(super) fn invocation_tuples<'p>(
@@ -330,14 +313,18 @@ pub(super) fn invocation_tuples<'p>(
             let applications = program.selected_conformance_applications(
                 owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,
             );
             if applications.len() != 1 {
-                return Err(vec![Diagnostic::error(
-                    "static method occurrence has no unique selected conformance",
-                )]);
+                return Err(vec![Diagnostic::error(format!(
+                    "static method occurrence in `{}` has {} selected conformance applications for `{}`; exactly one is required",
+                    program.symbols.display_path(owner, "::"),
+                    applications.len(),
+                    program.symbols.display_path(dispatch.requirement, "::"),
+                ))]);
             }
             let template = program
                 .closed_requirement_application(dispatch.requirement)
@@ -445,6 +432,7 @@ fn dispatch_instance(
     let applications = program.selected_conformance_applications(
         owner,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
@@ -612,8 +600,13 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             .closed_requirement_application(target)
             .map_or(target, |closed| closed.template);
         if program.trait_machine_signature(template).is_none()
-            && let Some((requirement, _)) =
-                source_scope(program, owner, target, || None, TypeReferenceHandle::invalid())?
+            && let Some((requirement, _)) = source_scope(
+                program,
+                owner,
+                target,
+                || None,
+                TypeReferenceHandle::invalid(),
+            )?
         {
             template = requirement;
         }
@@ -707,6 +700,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             let applications = program.selected_conformance_applications(
                 owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,
