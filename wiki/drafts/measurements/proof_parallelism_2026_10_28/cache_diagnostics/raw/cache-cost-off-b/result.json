@@ -1,0 +1,158 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\edge-cache-cost-probe\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\cache-cost-off-b\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 18.29365719999987,
+  "exit_code": 0,
+  "cpu_seconds": 25.125,
+  "peak_working_set_bytes": 2143125504,
+  "peak_commit_bytes": 3480231936,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.018970399999943766,
+  "producer": "edge-cache-cost-probe",
+  "compiler_sha256": "c2fa2e1cb94e466ffb063a48f5cc15b022bc26dfbadc368e5b70e5cd5eccd42d",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "b500e71faa1dfaf7d828d65b2beecb93708ae216b0cd145f44489f5de29914e9",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "timing",
+  "reconciliation": [
+    {
+      "operation": "places",
+      "machines": 7,
+      "wall_ns": 10100,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 7,
+      "wall_ns": 13200,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 7,
+      "wall_ns": 2000,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 2,
+      "wall_ns": 2200,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 2,
+      "wall_ns": 3600,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 2,
+      "wall_ns": 3000,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 202,
+      "wall_ns": 158600,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 202,
+      "wall_ns": 47500,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 202,
+      "wall_ns": 2233628600,
+      "metrics": {
+        "analysis_drop_ns": 1710100,
+        "discovery_ns": 66800,
+        "graph_drop_ns": 1442100,
+        "graph_preparation_ns": 132666300,
+        "history_creation_ns": 37700,
+        "history_drop_ns": 19468500,
+        "leaf_query_formation_ns": 54500,
+        "leaf_root_lookup_ns": 255800,
+        "merge_ns": 1817000,
+        "operand_queries_ns": 34684600,
+        "payload_contract_queries_ns": 5644100,
+        "payload_target_queries_ns": 4477900,
+        "reachability_drop_ns": 0,
+        "reference_context_drop_ns": 6531600,
+        "reference_queries_ns": 534893600,
+        "source_contract_queries_ns": 1468267400,
+        "types_drop_ns": 8200,
+        "view_queries_ns": 6771200
+      }
+    }
+  ],
+  "edge_cache": "off",
+  "edge_rebind_profile": "timing",
+  "cache_detail": {
+    "global_query_rows": 182,
+    "global_query_metrics": {
+      "append_cow": 789,
+      "append_ns": 42548100,
+      "appended_output_rows": 1464095,
+      "canonical_ns": 122119500,
+      "contained_output_rows": 1683730,
+      "contained_requests": 6941,
+      "containment_ns": 75074700,
+      "cow_row_handles": 1495380,
+      "edge_retirement_ns": 100689400,
+      "operation_retirement_ns": 162449700,
+      "requested_input_rows": 3142008,
+      "requests": 7742,
+      "retire_ambient_cow": 12,
+      "retire_shared_cow": 12,
+      "returned_output_rows": 3147825,
+      "temporary_result_drop_ns": 8157700,
+      "transform_calls": 7742,
+      "transform_ns": 220963200
+    },
+    "global_cleanup_metrics": {
+      "destroy_ns": 12200,
+      "entries": 0
+    },
+    "source_windows": 418,
+    "query_rows": 173,
+    "cleanup_rows": 176,
+    "query_metrics": {
+      "append_cow": 756,
+      "append_ns": 42495500,
+      "appended_output_rows": 1462923,
+      "canonical_ns": 121938900,
+      "containment_ns": 75039100,
+      "cow_row_handles": 1493955,
+      "edge_retirement_ns": 100538500,
+      "requested_input_rows": 3140756,
+      "requests": 7683,
+      "returned_output_rows": 3146452,
+      "transform_calls": 7683,
+      "transform_ns": 220788500,
+      "contained_output_rows": 1683529,
+      "contained_requests": 6921,
+      "temporary_result_drop_ns": 8155600,
+      "operation_retirement_ns": 162335500,
+      "retire_ambient_cow": 6,
+      "retire_shared_cow": 6
+    },
+    "cleanup_metrics": {
+      "destroy_ns": 11800,
+      "entries": 0
+    }
+  }
+}

@@ -1,0 +1,25 @@
+// Expected exit: 0.
+data Operator { case Add; case Subtract; }
+machine key(operator: &Operator) -> &[u8] {
+    transition operator {
+        Operator::Add -> ("add")
+        Operator::Subtract -> ("subtract")
+    }
+}
+machine evaluate(operator: &Operator) -> u64 {
+    let spelling: &[u8] = key(operator);
+    length(spelling)
+    machine length(spelling: &[u8]) -> u64 { spelling.len }
+}
+machine main() crashes Trap {
+    let add: Operator = Operator::Add;
+    let subtract: Operator = Operator::Subtract;
+    let first: u64 = evaluate(&add);
+    let second: u64 = evaluate(&subtract);
+    transition first == 3u64 && second == 8u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

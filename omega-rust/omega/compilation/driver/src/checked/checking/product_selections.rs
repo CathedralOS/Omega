@@ -1,8 +1,5 @@
-//! Resolve inert source requests only after Build has joined Product sources.
-//! Semantic admission belongs to Psi; this coordinator publishes its results.
-
-mod additional_declarations;
-mod exclusions;
+//! Publish Product choices after package authentication and Psi source admission.
+//! Evaluation receipts remain Build custody; semantic choices come back owned.
 
 use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
@@ -16,64 +13,37 @@ pub(super) fn admit(
         .map(|inputs| inputs.rejoin_package_provider_selections(source))
         .transpose()?
         .unwrap_or_default();
-    prepare_provider_applications(source, computed)?;
-    let typed = source.typed();
-    let representations = representation_planning::collect_opaque_representation_selections(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.product_selection_requests,
-    )?;
-    let providers =
-        build_time_evaluation::provider_declarations::collect_product_provider_selections(
-            build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
-                typed,
-                source::DependencyScope::Product,
-            ),
-            computed.selected_build_machine_symbol,
-            &computed.declared_product_selections,
-            &computed.product_selection_requests,
-        )?;
-    let native = build_time_evaluation::native_bindings::collect(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.native_binding_requests,
-    )?;
-    let grants = trust_model::collect_product_root_grants(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.product_selection_requests,
-    )?;
-    computed.config.grants = grants;
-    computed.config.opaque_representation_selections = representations;
-    computed.config.provider_selections = providers;
-    computed.config.package_provider_selections = package_providers;
-    computed.config.native_bindings = native
-        .into_iter()
-        .map(|selection| {
-            let evaluation = computed
-                .config
-                .native_binding_evaluation
-                .clone()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "native Build selection lost its completed evaluation",
-                    )]
-                })?;
-            Ok(provider_planning::native_bindings::NativeBuildSupply {
-                selection,
-                evaluation,
-            })
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let admitted = source.admit_product_policy(psi_compiler::ProductPolicyRequest {
+        activation: computed.selected_build_machine_symbol,
+        declared: &computed.declared_product_selections,
+        executed: &computed.product_selection_requests,
+        native_bindings: &computed.native_binding_requests,
+        exclusions: &computed.behavior_exclusion_requests,
+    })?;
+
+    // Root source formation completes before receipt attachment or dependency
+    // resolution. These independent custody checks cannot change source meaning.
+    let mut native_bindings = Vec::new();
+    for selection in admitted.native_bindings {
+        let evaluation = computed
+            .config
+            .native_binding_evaluation
+            .clone()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "native Build selection lost its completed evaluation",
+                )]
+            })?;
+        native_bindings.push(provider_planning::native_bindings::NativeBuildSupply {
+            selection,
+            evaluation,
+        });
+    }
     for bundle in package_inputs
         .into_iter()
         .flat_map(|inputs| inputs.product_dependency_native_handoffs())
     {
-        let selections = build_time_evaluation::native_bindings::collect_captured(
-            typed,
+        let selections = source.admit_captured_native_bindings(
             bundle.native_declarations(),
             bundle.native_intents(),
         )?;
@@ -83,121 +53,21 @@ pub(super) fn admit(
                     "native dependency effect lost its completed evaluation",
                 )]
             })?;
-            computed.config.native_bindings.push(
-                provider_planning::native_bindings::NativeBuildSupply {
-                    selection,
-                    evaluation,
-                },
-            );
+            native_bindings.push(provider_planning::native_bindings::NativeBuildSupply {
+                selection,
+                evaluation,
+            });
         }
     }
-    additional_declarations::admit(typed, computed)?;
-    computed.config.behavior_exclusions = exclusions::resolve(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.product_selection_requests,
-        &computed.behavior_exclusion_requests,
-    )?;
-    Ok(())
-}
 
-/// Preparation preserves both the original recipe and each reached closed
-/// helper substitution. The immutable source checker supplies all judgments.
-fn prepare_provider_applications(
-    source: &mut psi_compiler::SourceContinuation,
-    computed: &ComputedBuildConfig,
-) -> Result<(), Vec<Diagnostic>> {
-    use language_semantics::declaration_selection::BuildOperation;
-    use typed_trees::product_operand::ProductApplicationDemand;
-    let occurrences =
-        typed_trees::product_operand::collect_product_selection_occurrences(source.typed());
-    let author_for =
-        |request: &language_semantics::declaration_selection::ProductDeclarationRequest| {
-            let mut owners = occurrences
-                .iter()
-                .filter(|occurrence| {
-                    source
-                        .typed()
-                        .same_product_request_source(&occurrence.request, request)
-                })
-                .map(|occurrence| source.typed().symbols.authored_origin(occurrence.machine));
-            let owner = owners.next().ok_or_else(|| {
-                vec![
-                    Diagnostic::error(
-                        "Product provider recipe lost its original authored body occurrence",
-                    )
-                    .with_source_span(request.source_span),
-                ]
-            })?;
-            if owners.any(|other| other != owner) {
-                return Err(vec![
-                    Diagnostic::error(
-                        "Product provider recipe has multiple original lexical owners",
-                    )
-                    .with_source_span(request.source_span),
-                ]);
-            }
-            Ok(owner)
-        };
-    let formations = computed
-        .declared_product_selections
-        .iter()
-        .filter(|request| {
-            request.operation == BuildOperation::ProviderSelection
-                && request
-                    .operands
-                    .iter()
-                    .any(|operand| operand.application.is_some())
-        })
-        .map(|request| Ok((request.clone(), author_for(request)?)))
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    for (request, author) in formations {
-        for (index, operand) in request.operands.iter().enumerate() {
-            let role = request
-                .operation
-                .product_operand_role(index)
-                .ok_or_else(|| vec![Diagnostic::error("provider recipe lost its operand role")])?;
-            source.prepare_product_operand_application(
-                operand,
-                role,
-                author,
-                None,
-                ProductApplicationDemand::FormationOnly,
-            )?;
-        }
-    }
-    for event in computed.product_selection_requests.iter().filter(|event| {
-        event.request.operation == BuildOperation::ProviderSelection
-            && event
-                .request
-                .operands
-                .iter()
-                .any(|operand| operand.application.is_some())
-    }) {
-        let author = typed_trees::product_operand::resolve_build_request_author(
-            source.typed(),
-            event.selecting_machine.ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "executed provider recipe lost its original author",
-                )]
-            })?,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        for (index, operand) in event.request.operands.iter().enumerate() {
-            let role = event
-                .request
-                .operation
-                .product_operand_role(index)
-                .ok_or_else(|| vec![Diagnostic::error("provider recipe lost its operand role")])?;
-            source.prepare_product_operand_application(
-                operand,
-                role,
-                author,
-                event.static_environment.as_deref(),
-                ProductApplicationDemand::Selected,
-            )?;
-        }
-    }
+    computed.config.grants = admitted.grants;
+    computed.config.opaque_representation_selections = admitted.representations;
+    computed.config.provider_selections = admitted.providers;
+    computed.config.package_provider_selections = package_providers;
+    computed.config.native_bindings = native_bindings;
+    computed.config.service_audits = admitted.declarations.service_audits;
+    computed.config.assumed_bindings = admitted.declarations.assumed_bindings;
+    computed.config.wire_compatibility_demands = admitted.declarations.wire_demands;
+    computed.config.behavior_exclusions = admitted.exclusions;
     Ok(())
 }

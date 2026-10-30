@@ -23,15 +23,22 @@
 pub(crate) use optimization::codec_bytes;
 
 mod authored_storage;
+mod behavior_policy;
+pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
 mod bounded_integer_type;
 pub mod byte_predicates;
 mod content;
 pub mod fnv1a;
 mod identity;
 mod ieee_float_comparison_operation;
+mod program_entry;
 pub mod proof_applications;
 mod proposition;
 mod qualified_scalar_type;
+pub use program_entry::{
+    ProgramEntrySchema, ProgramEntrySourceCatalog, ProgramEntrySourceContract,
+    ProgramEntryVisibleParameters,
+};
 mod reference_origins;
 mod scalar_refinement;
 mod structural_places;

@@ -1,0 +1,22 @@
+[
+  {
+    "patch": "candidate.patch",
+    "base": "c63ab0da5fc",
+    "applies": true
+  },
+  {
+    "patch": "instrumented-candidate.patch",
+    "base": "c63ab0da5fc",
+    "applies": true
+  },
+  {
+    "patch": "sorted-candidate.patch",
+    "base": "c63ab0da5fc",
+    "applies": true
+  },
+  {
+    "patch": "sorted-instrumented-candidate.patch",
+    "base": "c63ab0da5fc",
+    "applies": true
+  }
+]

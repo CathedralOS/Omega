@@ -1,0 +1,38 @@
+{
+  "global_query_rows": 182,
+  "global_query_metrics": {
+    "append_cow": 789,
+    "appended_output_rows": 1464095,
+    "contained_output_rows": 1683730,
+    "contained_requests": 6941,
+    "cow_row_handles": 1495380,
+    "requested_input_rows": 3142008,
+    "requests": 7742,
+    "retire_ambient_cow": 12,
+    "retire_shared_cow": 12,
+    "returned_output_rows": 3147825,
+    "transform_calls": 7742
+  },
+  "global_cleanup_metrics": {
+    "entries": 0
+  },
+  "source_windows": 418,
+  "query_rows": 173,
+  "cleanup_rows": 176,
+  "query_metrics": {
+    "append_cow": 756,
+    "appended_output_rows": 1462923,
+    "cow_row_handles": 1493955,
+    "requested_input_rows": 3140756,
+    "requests": 7683,
+    "returned_output_rows": 3146452,
+    "transform_calls": 7683,
+    "contained_output_rows": 1683529,
+    "contained_requests": 6921,
+    "retire_ambient_cow": 6,
+    "retire_shared_cow": 6
+  },
+  "cleanup_metrics": {
+    "entries": 0
+  }
+}

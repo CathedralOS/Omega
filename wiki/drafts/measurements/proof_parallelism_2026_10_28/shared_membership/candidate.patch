@@ -1,0 +1,26 @@
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 44565c76071..4be4a388766 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -997,14 +997,14 @@ fn payload_contract_at_cut(
+                 // removes old instances without copying the shared theory into
+                 // every unrelated payload. Captured RHS contracts already own
+                 // their complete pre-rebinding theory.
+-                if let Some(predicate) = edge_predicate {
++                if let Some(predicate) = edge_predicate
++                    && !arrival
++                        .shared_requirements
++                        .iter()
++                        .any(|premise| premise.as_ref() == predicate)
++                {
+                     for contract in arrival.values.values_mut() {
+-                        if !contract.scalar_requirements.contains(predicate)
+-                            && !arrival
+-                                .shared_requirements
+-                                .iter()
+-                                .any(|premise| premise.as_ref() == predicate)
+-                        {
++                        if !contract.scalar_requirements.contains(predicate) {
+                             contract.scalar_requirements.push(predicate.clone());
+                         }
+                     }

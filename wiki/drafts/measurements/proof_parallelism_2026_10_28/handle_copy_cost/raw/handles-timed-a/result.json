@@ -1,0 +1,524 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\handle-cost\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\handles-timed-a\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 27.432054099997913,
+  "exit_code": 0,
+  "cpu_seconds": 34.3125,
+  "peak_working_set_bytes": 2028437504,
+  "peak_commit_bytes": 3429707776,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.1368819000053918,
+  "producer": "handle-cost",
+  "compiler_sha256": "3dcfcb91ac95359240552237dbff28427cc20176db6abc210202dc7ca46356f5",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "6baa0564304b112bdd0e4420e981b790d4f6d8a8c0ee38fa36c7e1cf2f9a760d",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "timing",
+  "reconciliation": [
+    {
+      "operation": "places",
+      "machines": 7,
+      "wall_ns": 22100,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 7,
+      "wall_ns": 34100,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 7,
+      "wall_ns": 300,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 2,
+      "wall_ns": 2400,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 2,
+      "wall_ns": 4700,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 2,
+      "wall_ns": 0,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 202,
+      "wall_ns": 241200,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 202,
+      "wall_ns": 74300,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 202,
+      "wall_ns": 3147625600,
+      "metrics": {
+        "analysis_drop_ns": 2415700,
+        "discovery_ns": 96400,
+        "graph_drop_ns": 2274900,
+        "graph_preparation_ns": 244902200,
+        "history_creation_ns": 30200,
+        "history_drop_ns": 16182600,
+        "leaf_query_formation_ns": 43900,
+        "leaf_root_lookup_ns": 207400,
+        "merge_ns": 1764000,
+        "operand_queries_ns": 40541200,
+        "payload_contract_queries_ns": 6014400,
+        "payload_target_queries_ns": 4742300,
+        "reachability_drop_ns": 200,
+        "reference_context_drop_ns": 6613000,
+        "reference_queries_ns": 740262000,
+        "source_contract_queries_ns": 2074224300,
+        "types_drop_ns": 14900,
+        "view_queries_ns": 6536700
+      }
+    }
+  ],
+  "copy_profile": "fine",
+  "scans": [
+    {
+      "mode": "fine",
+      "machines": 7,
+      "summary": {
+        "roots": 0,
+        "replays": 0,
+        "wall_ns": 0
+      },
+      "entries": {},
+      "queries": []
+    },
+    {
+      "mode": "fine",
+      "machines": 2,
+      "summary": {
+        "roots": 0,
+        "replays": 0,
+        "wall_ns": 0
+      },
+      "entries": {},
+      "queries": []
+    },
+    {
+      "mode": "fine",
+      "machines": 202,
+      "summary": {
+        "roots": 418,
+        "replays": 173,
+        "wall_ns": 2074122300
+      },
+      "entries": {
+        "source": {
+          "calls": 418,
+          "inclusive_ns": 2074122300,
+          "exclusive_ns": 1820000,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "replay": {
+          "calls": 173,
+          "inclusive_ns": 2072302300,
+          "exclusive_ns": 1650070600,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "meet": {
+          "calls": 14270,
+          "inclusive_ns": 422231700,
+          "exclusive_ns": 110310300,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "retain_snapshot": {
+          "calls": 28540,
+          "inclusive_ns": 311921400,
+          "exclusive_ns": 61753900,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "cow_shared": {
+          "calls": 14456,
+          "inclusive_ns": 18873700,
+          "exclusive_ns": 18873700,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "cow_unique": {
+          "calls": 9324,
+          "inclusive_ns": 396000,
+          "exclusive_ns": 396000,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        },
+        "snapshot_filter": {
+          "calls": 23780,
+          "inclusive_ns": 230897800,
+          "exclusive_ns": 230897800,
+          "rows_a": 0,
+          "rows_b": 0,
+          "rows_c": 0,
+          "visited": 0,
+          "compared": 0,
+          "advanced": 0,
+          "cloned": 0,
+          "removed": 0,
+          "detached": 0,
+          "changed": 0,
+          "rosters": 0,
+          "shrinks": 0,
+          "same": 0,
+          "alias": 0
+        }
+      },
+      "queries": [
+        {
+          "machine": 140,
+          "block": 140,
+          "operation": 1,
+          "wall_ns": 654416600,
+          "steps": 0,
+          "edges": 0,
+          "meets": 571
+        },
+        {
+          "machine": 140,
+          "block": 140,
+          "operation": 1,
+          "wall_ns": 603226000,
+          "steps": 0,
+          "edges": 0,
+          "meets": 571
+        },
+        {
+          "machine": 53,
+          "block": 27,
+          "operation": 1,
+          "wall_ns": 386537400,
+          "steps": 0,
+          "edges": 0,
+          "meets": 6564
+        },
+        {
+          "machine": 53,
+          "block": 27,
+          "operation": 1,
+          "wall_ns": 383177900,
+          "steps": 0,
+          "edges": 0,
+          "meets": 6564
+        },
+        {
+          "machine": 53,
+          "block": 30,
+          "operation": 0,
+          "wall_ns": 1660400,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 53,
+          "block": 30,
+          "operation": 0,
+          "wall_ns": 1520300,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 140,
+          "block": 140,
+          "operation": 2,
+          "wall_ns": 1406100,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        },
+        {
+          "machine": 140,
+          "block": 140,
+          "operation": 2,
+          "wall_ns": 1401300,
+          "steps": 0,
+          "edges": 0,
+          "meets": 0
+        }
+      ]
+    }
+  ],
+  "copy_histograms": [
+    {
+      "batch": 2,
+      "name": "source",
+      "stats": {
+        "min_ns": 0,
+        "max_ns": 654416600,
+        "b0": 211,
+        "b1": 21,
+        "b2": 8,
+        "b3": 5,
+        "b4": 0,
+        "b5": 0,
+        "b6": 7,
+        "b7": 31,
+        "b8": 39,
+        "b9": 31,
+        "b10": 11,
+        "b11": 4,
+        "b12": 26,
+        "b13": 20,
+        "b14": 0,
+        "b15": 4
+      }
+    },
+    {
+      "batch": 2,
+      "name": "replay",
+      "stats": {
+        "min_ns": 4600,
+        "max_ns": 654288600,
+        "b0": 0,
+        "b1": 0,
+        "b2": 0,
+        "b3": 0,
+        "b4": 0,
+        "b5": 0,
+        "b6": 8,
+        "b7": 38,
+        "b8": 34,
+        "b9": 28,
+        "b10": 11,
+        "b11": 4,
+        "b12": 28,
+        "b13": 18,
+        "b14": 0,
+        "b15": 4
+      }
+    },
+    {
+      "batch": 2,
+      "name": "meet",
+      "stats": {
+        "min_ns": 300,
+        "max_ns": 673200,
+        "b0": 0,
+        "b1": 0,
+        "b2": 11,
+        "b3": 63,
+        "b4": 49,
+        "b5": 41,
+        "b6": 1035,
+        "b7": 9141,
+        "b8": 1734,
+        "b9": 1233,
+        "b10": 307,
+        "b11": 318,
+        "b12": 338,
+        "b13": 0,
+        "b14": 0,
+        "b15": 0
+      }
+    },
+    {
+      "batch": 2,
+      "name": "retain_snapshot",
+      "stats": {
+        "min_ns": 0,
+        "max_ns": 337200,
+        "b0": 336,
+        "b1": 74,
+        "b2": 159,
+        "b3": 41,
+        "b4": 1664,
+        "b5": 5900,
+        "b6": 17948,
+        "b7": 439,
+        "b8": 327,
+        "b9": 440,
+        "b10": 633,
+        "b11": 569,
+        "b12": 10,
+        "b13": 0,
+        "b14": 0,
+        "b15": 0
+      }
+    },
+    {
+      "batch": 2,
+      "name": "cow_shared",
+      "stats": {
+        "min_ns": 0,
+        "max_ns": 83300,
+        "b0": 10,
+        "b1": 520,
+        "b2": 9548,
+        "b3": 2516,
+        "b4": 399,
+        "b5": 462,
+        "b6": 335,
+        "b7": 491,
+        "b8": 167,
+        "b9": 7,
+        "b10": 1,
+        "b11": 0,
+        "b12": 0,
+        "b13": 0,
+        "b14": 0,
+        "b15": 0
+      }
+    },
+    {
+      "batch": 2,
+      "name": "cow_unique",
+      "stats": {
+        "min_ns": 0,
+        "max_ns": 400,
+        "b0": 9295,
+        "b1": 27,
+        "b2": 2,
+        "b3": 0,
+        "b4": 0,
+        "b5": 0,
+        "b6": 0,
+        "b7": 0,
+        "b8": 0,
+        "b9": 0,
+        "b10": 0,
+        "b11": 0,
+        "b12": 0,
+        "b13": 0,
+        "b14": 0,
+        "b15": 0
+      }
+    },
+    {
+      "batch": 2,
+      "name": "snapshot_filter",
+      "stats": {
+        "min_ns": 500,
+        "max_ns": 230200,
+        "b0": 0,
+        "b1": 0,
+        "b2": 2,
+        "b3": 33,
+        "b4": 696,
+        "b5": 18746,
+        "b6": 2405,
+        "b7": 232,
+        "b8": 270,
+        "b9": 383,
+        "b10": 587,
+        "b11": 426,
+        "b12": 0,
+        "b13": 0,
+        "b14": 0,
+        "b15": 0
+      }
+    }
+  ],
+  "copy_calibrations": [
+    {
+      "iterations": 20000,
+      "wall_ns": 1467300,
+      "interval_ns": 646500,
+      "min_ns": 0,
+      "max_ns": 1800
+    }
+  ]
+}

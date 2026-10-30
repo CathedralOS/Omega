@@ -24,7 +24,7 @@ pub(super) fn reject_attachment(
 /// operation the composed emitter has no route for.
 pub(super) fn admit_calls<'a>(
     checked: &'a CheckedTrees,
-    call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
+    call_states: &[&checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow);
     let mut boundaries = Vec::new();

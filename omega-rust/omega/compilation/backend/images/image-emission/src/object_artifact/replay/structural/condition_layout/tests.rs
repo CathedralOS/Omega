@@ -1,6 +1,7 @@
 use super::{
     replay_runtime_projection, replay_structural_projection, replay_structural_value_shape,
 };
+use crate::object_artifact::test_support::structural_declaration;
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{
     IeeeFloatFormat, ObligationId, ScalarType, StructuralCaseId, StructuralFieldId,
@@ -8,7 +9,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralPathSegment, StructuralTypeShape,
 };
 
 #[test]
@@ -45,30 +46,18 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
             },
         ];
         let mut types = vec![
-            StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: root,
-                identity: terminal_psi::TerminalIdentityIndex(3),
-                shape: StructuralTypeShape::FixedArray {
+            structural_declaration(
+                root,
+                terminal_psi::TerminalIdentityIndex(3),
+                StructuralTypeShape::FixedArray {
                     element: sum,
                     length: terminal_psi::ArrayExtent::Literal(2),
                 },
-            },
-            StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: sum,
-                identity: terminal_psi::TerminalIdentityIndex(4),
-                shape: if mixed {
+            ),
+            structural_declaration(
+                sum,
+                terminal_psi::TerminalIdentityIndex(4),
+                if mixed {
                     StructuralTypeShape::Mixed {
                         fields: vec![field(33, "common", scalar.clone())],
                         cases,
@@ -76,21 +65,15 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 } else {
                     StructuralTypeShape::Sum { cases }
                 },
-            },
-            StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: leaf,
-                identity: terminal_psi::TerminalIdentityIndex(5),
-                shape: StructuralTypeShape::Record {
+            ),
+            structural_declaration(
+                leaf,
+                terminal_psi::TerminalIdentityIndex(5),
+                StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(32, "value", scalar.clone())],
                 },
-            },
+            ),
         ];
         let path = vec![
             StructuralPathSegment::FixedIndex(1),

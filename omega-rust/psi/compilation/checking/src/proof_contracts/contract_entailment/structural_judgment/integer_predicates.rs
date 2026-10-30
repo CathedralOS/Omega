@@ -1439,7 +1439,11 @@ impl<'program> StructuralJudge<'program> {
         &self,
         predicate: &StructuralTerm,
     ) -> Option<(IntegerObservations<'_>, Comparison, Vec<Comparison>)> {
-        if !self.runtime_body_values || self.case_facts_only {
+        // Numeric consequences depend on the already formed observed terms,
+        // not on whether their owner is a runtime prefix or a declaration.
+        // Declaration callers retain their own telescope and ordered premises;
+        // enabling this query must never switch them into runtime scope.
+        if self.case_facts_only {
             return None;
         }
         let mut observations = IntegerObservations {

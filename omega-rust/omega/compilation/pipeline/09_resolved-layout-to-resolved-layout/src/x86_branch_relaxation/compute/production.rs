@@ -36,6 +36,18 @@ use super::{
 };
 use machine_code::{ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout};
 
+/// Charge one work axis against its budget: the axis names the counter it
+/// increments and the refusal it reports when the budget is spent.
+macro_rules! charge_axis {
+    ($usage:ident, $budget:ident, $axis:ident, $variant:ident) => {
+        charge(
+            &mut $usage.$axis,
+            $budget.$axis(),
+            X86BranchRelaxationWorkAxis::$variant,
+        )?
+    };
+}
+
 /// Replacing one near form with its short form removes exactly the width
 /// difference, so a sweep removes that many bytes per committed branch.
 const SHORT_FORM_SAVED_BYTES: u64 = (lane::NEAR_WIDTH - lane::SHORT_WIDTH) as u64;
@@ -62,11 +74,7 @@ pub(super) fn compute_trace(
     let mut actions = Vec::new();
     let mut usage = OptimizationWorkUsage::default();
     loop {
-        charge(
-            &mut usage.iterations,
-            budget.iterations(),
-            X86BranchRelaxationWorkAxis::Iterations,
-        )?;
+        charge_axis!(usage, budget, iterations, Iterations);
         let iteration = usage.iterations;
         let input = revision_identity(roots, &functions);
         let previous_bytes = total_bytes(&functions)?;
@@ -81,11 +89,7 @@ pub(super) fn compute_trace(
                     else {
                         continue;
                     };
-                    charge(
-                        &mut usage.rule_evaluations,
-                        budget.rule_evaluations(),
-                        X86BranchRelaxationWorkAxis::RuleEvaluations,
-                    )?;
+                    charge_axis!(usage, budget, rule_evaluations, RuleEvaluations);
                     let (outcome, short_displacement) = inspect_production_branch(
                         &functions[function_index],
                         block_index,
@@ -103,16 +107,8 @@ pub(super) fn compute_trace(
                         outcome,
                     });
                     if outcome == X86BranchRelaxationAttemptOutcome::SelectedForRelaxation {
-                        charge(
-                            &mut usage.candidates,
-                            budget.candidates(),
-                            X86BranchRelaxationWorkAxis::Candidates,
-                        )?;
-                        charge(
-                            &mut usage.validation_steps,
-                            budget.validation_steps(),
-                            X86BranchRelaxationWorkAxis::ValidationSteps,
-                        )?;
+                        charge_axis!(usage, budget, candidates, Candidates);
+                        charge_axis!(usage, budget, validation_steps, ValidationSteps);
                         let displacement = short_displacement.ok_or(
                             OptimizedX86BranchRelaxationError::MalformedBranch(row.instruction),
                         )?;
@@ -131,11 +127,7 @@ pub(super) fn compute_trace(
         }
         let mut narrowed = Vec::with_capacity(swept.len());
         for branch in &swept {
-            charge(
-                &mut usage.commits,
-                budget.commits(),
-                X86BranchRelaxationWorkAxis::Commits,
-            )?;
+            charge_axis!(usage, budget, commits, Commits);
             narrowed.push(commit_short_form(&mut functions, branch, physical)?);
         }
         reflow_production_functions(&mut functions, physical)?;

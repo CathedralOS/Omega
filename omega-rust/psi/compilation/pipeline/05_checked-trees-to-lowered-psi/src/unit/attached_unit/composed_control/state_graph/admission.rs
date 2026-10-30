@@ -40,7 +40,7 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
 
 pub(in crate::unit::attached_unit) fn admit<'a>(
     checked: &'a CheckedTrees,
-    plan: &'a CheckedComposedUnitControlMachinePlan,
+    plan: &CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedGraph<'a>, LoweringError> {
     super::super::admission::validate_contract(checked, plan)?;
     // The producer assigns scalar qualifications to scalar computations and
@@ -64,9 +64,9 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     // a linear carrier does not require a second source-contract admission.
     super::ranking::require_witness_ranks(checked, plan)?;
     super::super::admission::reject_attachment(plan)?;
-    // A fused roster admits foreign states: each position resolves its own
-    // authored owner, no state may repeat, and the dispatch machine's authored
-    // states still all appear in authored order.
+    // Each executable occurrence resolves its authored owner. Custody
+    // specialization may retain multiple occurrences of the same declaration;
+    // it neither creates source facts nor changes that declaration's contract.
     let authored = plan
         .states
         .iter()

@@ -24,7 +24,17 @@ machine Main::main(main: &mut Main)
 reaches Console
 {
     let generic: GenericMath = GenericMath {};
-    Console::exit_process(generic + (70 as i32));
+    let first: i32 = generic + (70 as i32);
+    let other: GenericMath = GenericMath {};
+    let second: u64 = other + (11 as u64);
+    // One declaration serves two closed applications. Selection must not
+    // confuse declaration eligibility with a single executable specialization.
+    transition second == 11 {
+        true -> success(first)
+        _ -> failure()
+    }
+    machine success(value: i32) reaches Console { Console::exit_process(value); }
+    machine failure() reaches Console { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

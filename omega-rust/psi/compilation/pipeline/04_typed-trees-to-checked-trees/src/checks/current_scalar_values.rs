@@ -51,6 +51,7 @@ mod collections;
 mod conditions;
 mod entry_fields;
 pub(crate) use entry_fields::parameter_projection_paths;
+mod joins;
 mod scalar_fields;
 mod scalar_storage;
 use conditions::ConditionBinding;
@@ -340,9 +341,20 @@ impl<'program> CurrentScalarValues<'program> {
                         local.initial_value,
                         ordinal,
                     );
-                    let scalar_fields = values.captured_scalar_fields(local.initial_value, 0);
+                    let scalar_fields = values.captured_scalar_fields_of_type(
+                        local.initial_value,
+                        local.type_reference,
+                        0,
+                    );
                     values.replace_scalar_fields(local.symbol, &[], scalar_fields);
                     values.capture_record_fields(local.symbol, &[], local.initial_value);
+                    if integer_carrier(program, local.type_reference).is_none() {
+                        values.assume_aggregate_call_ensures(
+                            local.initial_value,
+                            &actuals,
+                            ordinal,
+                        );
+                    }
                     let reference_scalar =
                         validation::reference_shell(program, local.type_reference).and_then(
                             |shell| {
@@ -404,7 +416,16 @@ impl<'program> CurrentScalarValues<'program> {
                     let actuals = values.capture_call_actuals(assignment.value);
                     let value = values.capture(program, machine, state, assignment.value);
                     let conditions = values.capture_conditions(assignment.value, 0);
-                    let mut scalar_fields = values.captured_scalar_fields(assignment.value, 0);
+                    let mut scalar_fields = validation::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                    .map(|reference| {
+                        values.captured_scalar_fields_of_type(assignment.value, reference, 0)
+                    })
+                    .unwrap_or_else(|| values.captured_scalar_fields(assignment.value, 0));
                     let scalar_store =
                         values.captured_scalar_store(assignment.target, value.clone(), ordinal);
                     let store_aliases = scalar_store.as_ref().map_or_else(Vec::new, |field| {
@@ -507,6 +528,13 @@ impl<'program> CurrentScalarValues<'program> {
                         && let Some((owner, path)) = values.scalar_storage_path(assignment.target)
                     {
                         values.replace_scalar_fields(owner, &path, scalar_fields);
+                        if stored_value.is_none() {
+                            values.assume_aggregate_call_ensures(
+                                assignment.value,
+                                &actuals,
+                                ordinal,
+                            );
+                        }
                     }
                     if target_remains_current
                         && let Some((owner, path)) = field_storage_path(program, assignment.target)
@@ -914,35 +942,11 @@ impl<'program> CurrentScalarValues<'program> {
                 )?),
             });
         }
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
-            let arms = program.expression_table.match_arms(dispatch.arms);
-            if !arms.is_empty() {
-                let mut captured = Vec::with_capacity(arms.len());
-                for arm in arms {
-                    if let Some(value) =
-                        self.capture_at_depth(program, machine, state, arm.value, depth + 1)
-                    {
-                        captured.push(value);
-                    } else {
-                        captured.clear();
-                        break;
-                    }
-                }
-                if !captured.is_empty()
-                    && captured.iter().skip(1).all(|value| {
-                        value == &captured[0]
-                            || self.proves_values_relation(
-                                program,
-                                machine,
-                                BinaryOperator::Equal,
-                                value,
-                                &captured[0],
-                            )
-                    })
-                {
-                    return Some(captured.swap_remove(0));
-                }
-            }
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+            && let Some(value) =
+                self.capture_join(program, machine, state, expression, dispatch, depth)
+        {
+            return Some(value);
         }
         // Resolve the captured term under this occurrence's exact callable;
         // admission alone does not supply the completed scalar value.

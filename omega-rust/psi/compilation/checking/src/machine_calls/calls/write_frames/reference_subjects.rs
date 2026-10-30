@@ -17,6 +17,7 @@ use symbols::SymbolKeyMap as HashMap;
 
 pub(super) mod bindings;
 mod projections;
+pub(super) mod read_backing;
 mod results;
 
 /// Taking an owned storage address does not load a frozen reference binding.
@@ -325,9 +326,25 @@ pub(super) fn coordinate_sources_before_statement(
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
 ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    coordinate_reads_in_prefix(program, machine, state, index, source, &prefix).map(|reads| {
+        reads
+            .into_iter()
+            .map(|read| read.source.origin.into())
+            .collect()
+    })
+}
+
+fn coordinate_reads_in_prefix(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    index: usize,
+    source: &FrameSourcePlace,
+    prefix: &CollectedStatementPrefix,
+) -> Option<Vec<stored_origins::CapturedReferenceRead>> {
     let root = source.root;
     let path = source.segments.as_slice();
-    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
     validate_source_projection(program, machine, state, index, source, &prefix.stored)?;
     carrier_storage_type(program, source_root_type(program, state, index, root)?)?;
     if let Some(record) = prefix
@@ -362,21 +379,24 @@ pub(super) fn coordinate_sources_before_statement(
         precision: FramePathPrecision::Exact,
         source: source.clone(),
     };
-    stored_origins::canonical_reference_sources(
+    let current = caller_aliases::prefix_reference_origins(
         program,
-        &Some(origin),
-        &prefix.aliases,
+        Some((state, index)),
         &prefix.stored,
-    )
-    .into_iter()
-    .map(|source| {
-        let source = source?;
-        (source.lifetime_access.is_none()
-            && source.origin.precision == FramePathPrecision::Exact
-            && source.origin.source.output_identity().is_none())
-        .then(|| source.origin.into())
-    })
-    .collect()
+        &[],
+        &[],
+    )?;
+    let aliases = caller_aliases::current_reference_aliases(program, &current, &prefix.aliases);
+    stored_origins::captured_reference_reads(program, &Some(origin), &aliases, &prefix.stored)
+        .into_iter()
+        .map(|source| {
+            let read = source?;
+            (read.source.lifetime_access.is_none()
+                && read.source.origin.precision == FramePathPrecision::Exact
+                && read.source.origin.source.output_identity().is_none())
+            .then_some(read)
+        })
+        .collect()
 }
 
 /// Complete backing footprints for invalidation, independent of exact identity.

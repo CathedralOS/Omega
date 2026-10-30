@@ -1,0 +1,168 @@
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates.rs
+@@ -11,6 +11,7 @@
+     StructuralPlaceKind,
+ };
+ use std::borrow::{Borrow, Cow};
++use std::collections::BTreeMap;
+ use terminal_psi::{StructuralDomainDeclaration, StructuralTypeDeclaration};
+ 
+ #[cfg(test)]
+@@ -106,8 +107,58 @@
+     shared: &[Shared],
+     edge_predicate: Option<&Proposition>,
+ ) {
++    close_candidates(types, domains, domains, contract, shared, edge_predicate);
++}
++
++/// Carrier selection is immutable metadata. Each bucket retains catalog order;
++/// predicate admission still reads the complete domain catalog and current facts.
++pub(super) struct PayloadPredicateCatalog<'catalog> {
++    domains: &'catalog [StructuralDomainDeclaration],
++    by_carrier:
++        BTreeMap<semantic_vocabulary::StructuralTypeId, Vec<&'catalog StructuralDomainDeclaration>>,
++}
++
++impl<'catalog> PayloadPredicateCatalog<'catalog> {
++    pub(super) fn new(domains: &'catalog [StructuralDomainDeclaration]) -> Self {
++        let mut by_carrier: BTreeMap<_, Vec<_>> = BTreeMap::new();
++        for domain in domains {
++            by_carrier.entry(domain.carrier).or_default().push(domain);
++        }
++        Self {
++            domains,
++            by_carrier,
++        }
++    }
++
++    pub(super) fn close<Shared: Borrow<Proposition>>(
++        &self,
++        types: &[StructuralTypeDeclaration],
++        contract: &mut PayloadMembershipContract,
++        shared: &[Shared],
++        edge_predicate: Option<&Proposition>,
++    ) {
++        let candidates = self.by_carrier.get(&contract.carrier);
++        close_candidates(
++            types,
++            self.domains,
++            candidates.into_iter().flatten().copied(),
++            contract,
++            shared,
++            edge_predicate,
++        );
++    }
++}
++
++fn close_candidates<'catalog, Shared: Borrow<Proposition>>(
++    types: &[StructuralTypeDeclaration],
++    domains: &[StructuralDomainDeclaration],
++    candidates: impl IntoIterator<Item = &'catalog StructuralDomainDeclaration>,
++    contract: &mut PayloadMembershipContract,
++    shared: &[Shared],
++    edge_predicate: Option<&Proposition>,
++) {
+     let mut requirements = None;
+-    for domain in domains {
++    for domain in candidates {
+         if domain.carrier != contract.carrier
+             || domain.content_projection.is_some()
+             || !domain.establishment_routes.is_empty()
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -558,6 +558,7 @@
+     cached: &mut Option<CachedHistory>,
+     cut: PayloadMembershipCut,
+ ) -> Result<PayloadMembershipContract, &'static str> {
++    let predicate_catalog = super::payload_predicates::PayloadPredicateCatalog::new(domains);
+     let mut failure = "descriptor machine is absent";
+     let result = (|| {
+         let machine = descriptor?;
+@@ -879,13 +880,7 @@
+             canonicalize_snapshot(&mut after.scalar_requirements);
+             after.publish_requirements();
+             for contract in after.values.values_mut() {
+-                super::payload_predicates::close_with_shared_requirements(
+-                    types,
+-                    domains,
+-                    contract,
+-                    &after.shared_requirements,
+-                    None,
+-                );
++                predicate_catalog.close(types, contract, &after.shared_requirements, None);
+             }
+             if cut == PayloadMembershipCut::NormalCompletion && current == position {
+                 // The worklist may revisit a loop cut. Replace this observation
+@@ -926,9 +921,8 @@
+                     );
+                     canonicalize_snapshot(&mut arrival.scalar_requirements);
+                     for contract in arrival.values.values_mut() {
+-                        super::payload_predicates::close_with_shared_requirements(
++                        predicate_catalog.close(
+                             types,
+-                            domains,
+                             contract,
+                             &arrival.shared_requirements,
+                             Some(predicate),
+@@ -1060,13 +1054,7 @@
+                 }
+                 arrival.publish_requirements();
+                 for contract in arrival.values.values_mut() {
+-                    super::payload_predicates::close_with_shared_requirements(
+-                        types,
+-                        domains,
+-                        contract,
+-                        &arrival.shared_requirements,
+-                        None,
+-                    );
++                    predicate_catalog.close(types, contract, &arrival.shared_requirements, None);
+                 }
+                 let changed = if let Some(snapshot) = snapshots.get_mut(&edge.target) {
+                     snapshot.meet(arrival)
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates/tests.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_predicates/tests.rs
+@@ -3,6 +3,44 @@
+     ByteSequencePredicate, IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralTypeId,
+ };
+ use terminal_psi::{StructuralTypeShape, TerminalIdentityIndex};
++
++#[test]
++fn carrier_catalog_keeps_input_order_duplicates_and_missing_carriers() {
++    let declaration = |raw, carrier| StructuralDomainDeclaration {
++        required_memberships: None,
++        complete_predicate_theory: false,
++        predicate: None,
++        id: semantic_vocabulary::StructuralDomainId::new(raw).unwrap(),
++        semantic_domain: semantic_vocabulary::DomainSemanticId::new(raw).unwrap(),
++        identity: TerminalIdentityIndex(raw as u32),
++        carrier: StructuralTypeId::new(carrier).unwrap(),
++        content_projection: None,
++        byte_predicate: None,
++        establishment_routes: Vec::new(),
++    };
++    let domains = vec![
++        declaration(3, 1),
++        declaration(2, 2),
++        declaration(1, 1),
++        declaration(3, 1),
++    ];
++    let catalog = PayloadPredicateCatalog::new(&domains);
++    for raw in [1, 2, 9] {
++        let carrier = StructuralTypeId::new(raw).unwrap();
++        let expected = domains
++            .iter()
++            .filter(|domain| domain.carrier == carrier)
++            .collect::<Vec<_>>();
++        let actual = catalog
++            .by_carrier
++            .get(&carrier)
++            .into_iter()
++            .flatten()
++            .copied()
++            .collect::<Vec<_>>();
++        assert_eq!(actual, expected);
++    }
++}
+ 
+ #[test]
+ fn byte_predicate_observations_require_complete_current_typed_contents() {

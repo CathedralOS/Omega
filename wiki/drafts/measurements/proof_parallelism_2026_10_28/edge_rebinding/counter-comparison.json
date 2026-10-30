@@ -1,0 +1,74 @@
+{
+  "baseline": "payload_replay/raw/payload-counts/result.json",
+  "candidate": "raw/edge-counts/result.json",
+  "matching_counts": [
+    [
+      "places",
+      7,
+      {
+        "declarations_added": 0,
+        "leaf_copy_results": 26,
+        "operations_scanned": 55
+      }
+    ],
+    [
+      "residences",
+      7,
+      {}
+    ],
+    [
+      "memberships",
+      7,
+      {}
+    ],
+    [
+      "places",
+      2,
+      {
+        "declarations_added": 0,
+        "leaf_copy_results": 2,
+        "operations_scanned": 5
+      }
+    ],
+    [
+      "residences",
+      2,
+      {}
+    ],
+    [
+      "memberships",
+      2,
+      {}
+    ],
+    [
+      "places",
+      202,
+      {
+        "declarations_added": 0,
+        "leaf_copy_results": 281,
+        "operations_scanned": 2702
+      }
+    ],
+    [
+      "residences",
+      202,
+      {}
+    ],
+    [
+      "memberships",
+      202,
+      {
+        "analysis_constructions": 1,
+        "candidate_machines": 109,
+        "changing_rounds": 18,
+        "eligible_operations": 418,
+        "fixed_point_rounds": 127,
+        "operations_scanned": 3313,
+        "payload_target_queries": 173,
+        "proposed_updates": 439,
+        "reference_context_constructions": 127,
+        "reference_queries": 418
+      }
+    ]
+  ]
+}

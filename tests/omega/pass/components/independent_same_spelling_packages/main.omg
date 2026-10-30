@@ -1,0 +1,10 @@
+// Expected exit: 0
+// Identical provider and method spellings in another package cannot replace
+// the selected package's realization. The wrong provider returns 99, not 42.
+use api::main::Value;
+machine main() reaches Value crashes Trap {
+    let value: u64 = Value::get();
+    transition value == 42u64 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

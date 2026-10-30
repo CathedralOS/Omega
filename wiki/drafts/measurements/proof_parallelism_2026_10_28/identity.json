@@ -1,0 +1,20 @@
+{
+  "base_commit": "456c5e984452a45d977295e254b3ca9ae3cc7750",
+  "patch_sha256": "3de4571fa31cab326f6836b67ae0540e771fee0efeec22676215e75a67f02088",
+  "producers": {
+    "baseline": {
+      "sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "candidate": {
+      "sha256": "e84a8d5a07b4abffd26d263d4ac0a281760d4539ab69b501483b145538261832",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  }
+}

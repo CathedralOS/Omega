@@ -1,0 +1,9 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\payload-transfer-detail-b\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.30120240000542253,
+  "exit_code": 0,
+  "cpu_seconds": 0.125,
+  "peak_working_set_bytes": 5918720
+}

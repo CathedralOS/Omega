@@ -57,35 +57,6 @@ impl Execution<'_, '_, '_> {
             self.context,
             source,
         );
-        let mut dependencies = Vec::new();
-        for referent in self
-            .context
-            .control
-            .operand_referents
-            .span_or_empty(value.referents)
-        {
-            // An unavailable address cannot make an expression its own backing.
-            let place = if referent.root == PlaceRoot::Expression(value.expression)
-                || !referent.root.is_valid()
-            {
-                FactPlace::Unknown
-            } else {
-                FactPlace::Place(crate::semantic::places::append_place(
-                    self.semantic,
-                    referent.root,
-                    self.context
-                        .control
-                        .operand_referent_segments
-                        .span_or_empty(referent.segments),
-                ))
-            };
-            if !dependencies.contains(&place) {
-                dependencies.push(place);
-            }
-        }
-        if dependencies.is_empty() {
-            dependencies.push(FactPlace::Unknown);
-        }
         let point = ProgramPoint::CallEnsures {
             machine_symbol: self.machine.symbol,
             state_symbol: self.state.symbol,
@@ -102,6 +73,9 @@ impl Execution<'_, '_, '_> {
             ) {
                 continue;
             }
+            let dependencies = self
+                .membership_backing_dependencies(value, &path)
+                .unwrap_or_else(|| vec![FactPlace::Unknown]);
             let place = crate::semantic::places::append_place(
                 self.semantic,
                 PlaceRoot::Expression(value.expression),
@@ -138,5 +112,33 @@ impl Execution<'_, '_, '_> {
             );
         }
         value.constraints = *constraints;
+    }
+    fn membership_backing_dependencies(
+        &mut self,
+        value: &FlowOperandFact,
+        path: &[facts::PlaceSegment],
+    ) -> Option<Vec<FactPlace>> {
+        let shell = validation::reference_shell(self.program, value.type_reference)?;
+        let selected =
+            validation::owned_projection_type_reference(self.program, shell.referee, path)?;
+        if validation::reference_shell(self.program, selected).is_some()
+            || validation::borrow_contracts::is_borrow_carrying_data(self.program, selected)
+        {
+            return None;
+        }
+        let mut dependencies = Vec::new();
+        for backing in self.completed_backing_places(value)? {
+            if !backing.root.is_valid() || backing.root == PlaceRoot::Expression(value.expression) {
+                return None;
+            }
+            let place = crate::flow::project_captured_view_place(backing, path)?;
+            let dependency = FactPlace::Place(crate::semantic::places::append_place(
+                self.semantic,
+                place.root,
+                &place.segments,
+            ));
+            crate::collections::push_unique(&mut dependencies, dependency);
+        }
+        (!dependencies.is_empty()).then_some(dependencies)
     }
 }

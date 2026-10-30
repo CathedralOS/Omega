@@ -1,0 +1,5 @@
+{
+  "absolute_path_length": 259,
+  "input_exists": true,
+  "failure": "LNK1181 under long worktree path; retry from P: with same source"
+}

@@ -111,3 +111,13 @@ older workbench's numeric-association profile is a lead, not current-main proof.
 Limits: live shared Windows x86-64 host; no full corpus or other-host runtime
 sweep. This follow-up is a local commit, not part of CI-green PR #822 and not
 published or landed by this iteration.
+
+## Publication integration
+
+PR #841 independently landed the identical convergence implementation plus a
+cycle regression test. Resolving PR #822's actual text conflict against main
+7516f0970de retains that complete main-owned source file byte for byte. The
+remaining delta contains regression fixtures and historical evidence; it changes
+no compiler or library inputs relative to that integration base. Historical
+runtime observations above retain their original source identities. Fresh CI
+checks the submitted integration; no new native/Terminal replay is claimed for it.

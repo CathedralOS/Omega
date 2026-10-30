@@ -106,9 +106,9 @@ fn behavior_exclusion_diagnostics(
         // The rejection points at the authored `exclude_*` selection that
         // named the requirement, not an internal Terminal coordinate, and
         // names it as authored rather than by its hermetic identity.
-        let row = authored
-            .iter()
-            .find(|row| row.resolve(module) == Some(prohibited.exclusion));
+        let row = authored.iter().find(|row| {
+            effects::resolve_authored_behavior_exclusion(row, module) == Some(prohibited.exclusion)
+        });
         let excluded = row
             .and_then(AuthoredBehaviorExclusion::authored_label)
             .unwrap_or_else(|| prohibited.exclusion.describe(module));

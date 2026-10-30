@@ -1,6 +1,7 @@
 use super::{
     indexed_store_retained, replacement_footprints_retained, replacement_retained, retained,
 };
+use crate::object_artifact::test_support::structural_declaration;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
     AbstractStructuralCallResult,
@@ -32,6 +33,12 @@ fn structural_call_result(
     }
 }
 
+/// The operation slot a fixture observes, named once: every call site otherwise
+/// repeats the same three-line argument scaffolding.
+fn retained_at(function: &AbstractFunction, operation: usize, target: &TargetFunction) -> bool {
+    replacement_retained(function, &function.operations[operation], target)
+}
+
 #[test]
 fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
@@ -53,20 +60,14 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     target.graph.parameters.clear();
     target.graph.blocks[0].block = block;
     target.graph.blocks[0].structural_parameters = vec![parameter];
-    target.graph.structural_types = vec![StructuralTypeDeclaration {
-        quotient_carrier: None,
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        id: identity,
-        identity: terminal_psi::TerminalIdentityIndex(1),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+    target.graph.structural_types = vec![structural_declaration(
+        identity,
+        terminal_psi::TerminalIdentityIndex(1),
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
             capacity: 48,
             access: Some(StructuralAccess::SharedBorrow),
         }),
-    }]
+    )]
     .into();
     let read = |function: &AbstractFunction, target: &TargetFunction| {
         super::read_access(function, target, place, super::AccessPurpose::Field)
@@ -511,16 +512,10 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
         // borrowed formals.
         let mut stored_function = function.clone();
         let mut stored_target = target.clone();
-        stored_target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: owner.structural_type,
-            identity: terminal_psi::TerminalIdentityIndex(10),
-            shape: terminal_psi::StructuralTypeShape::Record {
+        stored_target.graph.structural_types = vec![structural_declaration(
+            owner.structural_type,
+            terminal_psi::TerminalIdentityIndex(10),
+            terminal_psi::StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
@@ -532,7 +527,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                     ),
                 }],
             },
-        }]
+        )]
         .into();
         stored_function.operations[1] = AbstractOperation::StructuralByteSequenceFieldStore {
             psi_operation: observation,
@@ -560,11 +555,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                 },
                 obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
             };
-        assert!(replacement_retained(
-            &stored_function,
-            &stored_function.operations[1],
-            &stored_target
-        ));
+        assert!(retained_at(&stored_function, 1, &stored_target));
         {
             for corruption in 0..4 {
                 let mut changed = stored_target.clone();
@@ -594,11 +585,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    !replacement_retained(
-                        &stored_function,
-                        &stored_function.operations[1],
-                        &changed
-                    ),
+                    !retained_at(&stored_function, 1, &changed),
                     "forged owned replacement {corruption}"
                 );
             }
@@ -659,19 +646,11 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
         parameter.access = StructuralAccess::MutableBorrow;
         parameter.qualifications = vec![StructuralDomainId::new(1).unwrap()];
         target.graph.parameters[0].access = parameter.access;
-        target.graph.structural_types = vec![StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: parameter.structural_type,
-            identity: terminal_psi::TerminalIdentityIndex(12),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
-                capacity: 16,
-            }),
-        }]
+        target.graph.structural_types = vec![structural_declaration(
+            parameter.structural_type,
+            terminal_psi::TerminalIdentityIndex(12),
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 16 }),
+        )]
         .into();
         let destination = parameter.place;
         let source = PlaceId::new(2).unwrap();
@@ -711,11 +690,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
                     operation_offset: 0,
                 });
         }
-        assert!(replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(retained_at(&function, 0, &target));
         for corruption in ["access", "type", "position", "qualification"] {
             let mut changed = target.clone();
             if arrival {
@@ -740,7 +715,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
                 }
             }
             assert!(
-                !replacement_retained(&function, &function.operations[0], &changed),
+                !retained_at(&function, 0, &changed),
                 "arrival={arrival}, {corruption}"
             );
         }
@@ -754,11 +729,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
             function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
             target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
         }
-        assert!(!replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(!retained_at(&function, 0, &target));
     }
 }
 
@@ -809,11 +780,7 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
                 },
                 obligation,
             };
-        assert!(replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(retained_at(&function, 0, &target));
         assert!(super::super::requires_graph_storage_replay(
             &function.operations
         ));
@@ -858,21 +825,14 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
                     changed.graph.blocks[0].operations.push(duplicate);
                 }
             }
-            assert!(
-                !replacement_retained(&function, &function.operations[0], &changed),
-                "mutation {mutation}"
-            );
+            assert!(!retained_at(&function, 0, &changed), "mutation {mutation}");
         }
         // Equal producer/target operands do not turn a shared loan into write authority.
         function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
         target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
         let destination = byte_store_destination_mut(&mut target.graph, 0).unwrap();
         destination.access = StructuralAccess::SharedBorrow;
-        assert!(!replacement_retained(
-            &function,
-            &function.operations[0],
-            &target
-        ));
+        assert!(!retained_at(&function, 0, &target));
     }
 }
 
@@ -941,16 +901,10 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     target.graph.parameters[0].access = StructuralAccess::MutableBorrow;
     target.graph.parameters[0].structural_type = root_type;
     target.graph.structural_types = vec![
-        StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: root_type,
-            identity: terminal_psi::TerminalIdentityIndex(14),
-            shape: StructuralTypeShape::Record {
+        structural_declaration(
+            root_type,
+            terminal_psi::TerminalIdentityIndex(14),
+            StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
@@ -960,31 +914,19 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                     field_type: StructuralFieldType::Structural(holder_type),
                 }],
             },
-        },
-        StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: reference_type,
-            identity: terminal_psi::TerminalIdentityIndex(15),
-            shape: StructuralTypeShape::Reference {
+        ),
+        structural_declaration(
+            reference_type,
+            terminal_psi::TerminalIdentityIndex(15),
+            StructuralTypeShape::Reference {
                 referent: holder_type,
                 access: StructuralAccess::MutableBorrow,
             },
-        },
-        StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: holder_type,
-            identity: terminal_psi::TerminalIdentityIndex(16),
-            shape: StructuralTypeShape::Record {
+        ),
+        structural_declaration(
+            holder_type,
+            terminal_psi::TerminalIdentityIndex(16),
+            StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
@@ -996,7 +938,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                     ),
                 }],
             },
-        },
+        ),
     ]
     .into();
     let call_plan = target.graph.call_plan.clone();
@@ -1073,11 +1015,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             obligation,
         },
     ];
-    assert!(replacement_retained(
-        &function,
-        &function.operations[1],
-        &target
-    ));
+    assert!(retained_at(&function, 1, &target));
 
     // The selected pointer, not the first candidate, remains the write subject.
     let mut grouped = target.clone();
@@ -1103,19 +1041,11 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(18)),
             )],
         });
-    assert!(replacement_retained(
-        &function,
-        &function.operations[1],
-        &grouped
-    ));
+    assert!(retained_at(&function, 1, &grouped));
     assert_reference_field_read_retains_carrier(&function, &grouped, holder_type);
     let reference_results = structural_call_reference_results_mut(&mut grouped.graph, 0);
     reference_results[0].origins.swap(0, 1);
-    assert!(!replacement_retained(
-        &function,
-        &function.operations[1],
-        &grouped
-    ));
+    assert!(!retained_at(&function, 1, &grouped));
 
     use selected_instructions::{
         SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin as Origin,
@@ -1244,11 +1174,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             }
         }
         assert!(
-            !replacement_retained(
-                &changed_function,
-                &changed_function.operations[1],
-                &changed_target,
-            ),
+            !retained_at(&changed_function, 1, &changed_target),
             "corruption {corruption}"
         );
     }
@@ -1403,19 +1329,11 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
             obligation,
         },
     ];
-    let structural_types = vec![StructuralTypeDeclaration {
-        quotient_carrier: None,
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        id: structural_type,
-        identity: terminal_psi::TerminalIdentityIndex(19),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
-            capacity: 16,
-        }),
-    }];
+    let structural_types = vec![structural_declaration(
+        structural_type,
+        terminal_psi::TerminalIdentityIndex(19),
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 16 }),
+    )];
     let accepted_fact =
         || optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(b"copy bound");
     let access = |instruction, place, byte_offset, byte_count, role| SelectedMemoryAccess {
@@ -1660,16 +1578,10 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             ),
             _ => unreachable!(),
         }
-        target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: function.structural_parameters[0].structural_type,
-            identity: terminal_psi::TerminalIdentityIndex(20),
-            shape: terminal_psi::StructuralTypeShape::Record {
+        target.graph.structural_types = vec![structural_declaration(
+            function.structural_parameters[0].structural_type,
+            terminal_psi::TerminalIdentityIndex(20),
+            terminal_psi::StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
@@ -1679,22 +1591,16 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
                     field_type: terminal_psi::StructuralFieldType::Structural(child),
                 }],
             },
-        }]
+        )]
         .into();
         target
             .graph
             .structural_types
             .make_mut()
-            .push(terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: child,
-                identity: terminal_psi::TerminalIdentityIndex(22),
-                shape: terminal_psi::StructuralTypeShape::Record {
+            .push(structural_declaration(
+                child,
+                terminal_psi::TerminalIdentityIndex(22),
+                terminal_psi::StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
@@ -1704,7 +1610,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
                         field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
                     }],
                 },
-            });
+            ));
         let source = scalar_field_read_source_mut(&mut target.graph, 0);
         source.path.push(StructuralPathSegment::Field(
             terminal_psi::TerminalIdentityIndex(21),
@@ -1743,16 +1649,10 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             _ => unreachable!(),
         };
         target.graph.structural_types = vec![
-            terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: function.structural_parameters[0].structural_type,
-                identity: terminal_psi::TerminalIdentityIndex(20),
-                shape: terminal_psi::StructuralTypeShape::Record {
+            structural_declaration(
+                function.structural_parameters[0].structural_type,
+                terminal_psi::TerminalIdentityIndex(20),
+                terminal_psi::StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
@@ -1762,28 +1662,19 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                         field_type: terminal_psi::StructuralFieldType::Structural(array),
                     }],
                 },
-            },
-            terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: array,
-                identity: terminal_psi::TerminalIdentityIndex(26),
-                shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(2) },
-            },
-            terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: element,
-                identity: terminal_psi::TerminalIdentityIndex(27),
-                shape: terminal_psi::StructuralTypeShape::Record {
+            ),
+            structural_declaration(
+                array,
+                terminal_psi::TerminalIdentityIndex(26),
+                terminal_psi::StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(2),
+                },
+            ),
+            structural_declaration(
+                element,
+                terminal_psi::TerminalIdentityIndex(27),
+                terminal_psi::StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
@@ -1793,7 +1684,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                         field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
                     }],
                 },
-            },
+            ),
         ]
         .into();
         let source = scalar_field_read_source_mut(&mut target.graph, 0);
@@ -2165,19 +2056,11 @@ fn whole_byte_replacement_rejoins_one_qualified_local_producer() {
     let (mut function, mut target) = field_fixture(scalar);
     let parameter = function.structural_parameters.remove(0);
     target.graph.parameters.clear();
-    target.graph.structural_types = vec![StructuralTypeDeclaration {
-        quotient_carrier: None,
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        id: parameter.structural_type,
-        identity: terminal_psi::TerminalIdentityIndex(12),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
-            capacity: 16,
-        }),
-    }]
+    target.graph.structural_types = vec![structural_declaration(
+        parameter.structural_type,
+        terminal_psi::TerminalIdentityIndex(12),
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 16 }),
+    )]
     .into();
     let result = StructuralOperationResult {
         place: parameter.place,

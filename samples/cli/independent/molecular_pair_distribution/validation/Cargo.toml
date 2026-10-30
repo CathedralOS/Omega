@@ -1,0 +1,11 @@
+[package]
+name = "molecular-pair-distribution-validation"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "molecular-pair-distribution-validation"
+path = "terminal_sdk.rs"
+
+[dependencies]
+sample-runner = { path = "../../sample-runner" }

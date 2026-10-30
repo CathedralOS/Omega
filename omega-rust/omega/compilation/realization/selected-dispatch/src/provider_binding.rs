@@ -71,13 +71,12 @@ pub fn prepare_selected_execution(
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let callback_placements =
-        provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
-            &program.typed,
-            &selected_provider_plan_facts,
-            &program.facts,
-            settlement.boundary_calling_plan_realizations,
-        )?;
+    let callback_roots = provider_planning::calling_policy_plans::select_nominal_callback_roots(
+        &program.typed,
+        &selected_provider_plan_facts,
+        &program.facts,
+        settlement.boundary_calling_plan_realizations,
+    )?;
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(
@@ -175,7 +174,7 @@ pub fn prepare_selected_execution(
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
         selected_provider_plan_facts,
         selected_provider_grants,
-        callback_placements,
+        callback_roots,
         accepted_template_classifications,
         selected_provider_provenance: settlement.selected_provider_provenance,
         resolved_semantic_bindings,

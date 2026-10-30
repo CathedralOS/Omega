@@ -73,6 +73,7 @@ pub use caller_aliases::{
     ReferenceViewFormation,
 };
 pub use demand::CallFrameTables;
+pub(crate) use demand::CapturedStorageReadBacking;
 pub(crate) use demand::statement_value_expression_roots;
 pub(crate) use demand::{CallFrameCaches, InvocationEntrySubject};
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};

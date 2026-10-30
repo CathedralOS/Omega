@@ -1,0 +1,16 @@
+{
+  "base": "3c5a4ab0052af2f3040cd38b9beede83b038e623",
+  "semantic_base": "456c5e984452a45d977295e254b3ca9ae3cc7750",
+  "patch_sha256": "f0b67d3119d7e5d6686d95faa71270e69233893bf3c3fd551ba7159122ff4a1d",
+  "files": [
+    "omega-rust/omega/application/build/src/build.rs",
+    "omega-rust/omega/application/build/src/project_compilation.rs",
+    "omega-rust/omega/application/build/src/publication.rs",
+    "omega-rust/omega/application/cli/src/cli/compilation.rs",
+    "omega-rust/omega/compilation/driver/src/checked/compilation_session.rs",
+    "omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs",
+    "omega-rust/omega/compilation/driver/src/lib.rs",
+    "omega-rust/psi/compilation/driver/src/source_compilation.rs",
+    "omega-rust/psi/foundation/phase-profile/src/lib.rs"
+  ]
+}

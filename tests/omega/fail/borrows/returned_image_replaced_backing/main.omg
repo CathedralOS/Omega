@@ -1,0 +1,11 @@
+// A prior image value cannot bless a subsequently installed borrowed view.
+machine key() -> &[u8] { "image" }
+machine mutate(bytes: &mut [u8; 4]) { bytes[0] = 9; }
+machine main() -> u64 {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let mut selected: &[u8] = key();
+    selected = &bytes[..];
+    mutate(&mut bytes);
+    length(selected)
+    machine length(selected: &[u8]) -> u64 { selected.len }
+}

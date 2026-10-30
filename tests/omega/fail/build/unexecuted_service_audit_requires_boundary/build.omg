@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "unexecuted_audit_non_boundary");
+}
+
+machine uncalled(builder: &mut Build) {
+    Build::audit_service<Ordinary>(builder);
+}
