@@ -430,7 +430,7 @@ mod private_entry_target_tests {
         let bytes = std::fs::read(path).expect("read actual retained canonical bytes");
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .expect("independent canonical admission");
-        let terminal_psi::TerminalCallable::Machine(entry) = artifact.semantic_module().entry
+        let Some(terminal_psi::TerminalCallable::Machine(entry)) = artifact.semantic_module().entry
         else {
             panic!("fixture must select an ordinary machine")
         };
@@ -516,7 +516,10 @@ mod private_entry_target_tests {
             let failure = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
                 &artifact,
                 profile,
-                artifact.semantic_module().entry,
+                artifact
+                    .semantic_module()
+                    .entry
+                    .expect("fixture program entry"),
                 std::slice::from_ref(&recipe),
                 &NativeExecutionSelection {
                     scalar_applications: None,
