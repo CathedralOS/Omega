@@ -1,5 +1,6 @@
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_names;
+use crate::signatures::parameters::state_parameter;
 use crate::signatures::type_parameters::lower_type_parameters;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
@@ -36,14 +37,7 @@ pub(crate) fn lower_operator_definition(
         let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
         lowerer.typed_trees.push_operator_parameter(
             &mut typed_operator,
-            typed_trees::signature::StateParameter {
-                symbol: parameter.symbol,
-                name: crate::lowerer::name::lower_name(&parameter.name),
-                type_reference,
-                is_const: parameter.is_const,
-                is_mutable: parameter.is_mutable,
-                relevance: parameter.relevance,
-            },
+            state_parameter(parameter, type_reference),
         );
     }
 
