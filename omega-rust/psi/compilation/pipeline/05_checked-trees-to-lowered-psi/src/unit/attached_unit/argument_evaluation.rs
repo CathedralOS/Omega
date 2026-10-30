@@ -222,6 +222,12 @@ pub(crate) struct StructuralValueOwner {
     pub(crate) value: terminal_psi::StructuralOperationResult,
 }
 
+/// Every retained value's qualified scalar type, in the dense prefix order a
+/// computation or direct expression reads its operand carriers from.
+pub(super) fn scalar_source_types(values: &[ValueDeclaration]) -> Vec<QualifiedScalarType> {
+    values.iter().map(|value| value.value_type()).collect()
+}
+
 impl Evaluation {
     /// Capture physical correspondence once for the owning production. A
     /// private scalar frame may return that same inventory, but may neither
@@ -1297,10 +1303,7 @@ impl Evaluation {
                     }
                     _ => return unsupported("scheduled storage selector lost its source"),
                 };
-                let source_types = values
-                    .iter()
-                    .map(|value| value.value_type())
-                    .collect::<Vec<_>>();
+                let source_types = scalar_source_types(values);
                 let carrier = expression.value_type(&source_types)?;
                 ValueDeclaration {
                     id: emit_direct_expression(&expression, values, next_value, operations),
@@ -1458,10 +1461,7 @@ impl Evaluation {
             None => (arguments, 0),
         };
         let qualifications = &self.shared_qualifications;
-        let source_types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
+        let source_types = scalar_source_types(values);
         let argument_types = arguments
             .iter()
             .map(|argument| match argument {
@@ -1571,10 +1571,7 @@ impl Evaluation {
     ) -> Result<ValueDeclaration, LoweringError> {
         let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
-        let source_types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
+        let source_types = scalar_source_types(values);
         let scalar_type = terminal_scalar_type(primitive_type)?;
         let computation = crate::emission::structural_scalar_store_source::computation_root(
             checked,
@@ -1779,10 +1776,7 @@ impl Evaluation {
         {
             return Ok(completed);
         }
-        let source_types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
+        let source_types = scalar_source_types(values);
         let mut completion_types = source_types.clone();
         completion_types.extend_from_slice(result_types);
         let completion_parameters = declarations(&completion_types, next_value)?;
