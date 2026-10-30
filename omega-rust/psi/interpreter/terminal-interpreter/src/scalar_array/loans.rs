@@ -148,12 +148,7 @@ impl TerminalExecution<'_> {
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
-        } = self
-            .program
-            .structural_types()
-            .get(&collection_type)
-            .ok_or_else(malformed)?
-            .shape
+        } = self.program.structural_declaration(collection_type)?.shape
         else {
             return Err(malformed());
         };
@@ -212,10 +207,7 @@ impl TerminalExecution<'_> {
         if argument.path.is_empty()
             && let Some(loan) = self.element_view_values.get(&argument.place)
         {
-            let referent = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let referent = self.structural_value(argument.place)?;
             if referent.structural_type != collection_type
                 || !preserves_membership_carrier(
                     &referent.qualifications,

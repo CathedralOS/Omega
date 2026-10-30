@@ -378,12 +378,7 @@ pub(crate) fn bind_named_implementation_const_calls(
         .collect::<Vec<_>>();
     let mut bound_entries: Vec<(SourceSpan, SymbolHandle)> = Vec::new();
     for expression in expressions {
-        let node = program
-            .tables
-            .bodies
-            .expressions
-            .expression(expression)
-            .clone();
+        let node = expression_node(program, expression);
         let ExpressionNode::Call(call) = &node else {
             continue;
         };
@@ -444,12 +439,7 @@ pub(crate) fn restore_const_call_targets(
     let mut initializer_targets = Vec::new();
     let mut recorded = Vec::new();
     for expression in &initializer_expressions {
-        let node = program
-            .tables
-            .bodies
-            .expressions
-            .expression(*expression)
-            .clone();
+        let node = expression_node(program, *expression);
         let ExpressionNode::Call(call) = &node else {
             continue;
         };
@@ -477,12 +467,7 @@ pub(crate) fn restore_const_call_targets(
         return;
     }
     for &expression in work {
-        let node = program
-            .tables
-            .bodies
-            .expressions
-            .expression(expression)
-            .clone();
+        let node = expression_node(program, expression);
         let ExpressionNode::Call(call) = &node else {
             continue;
         };
@@ -580,12 +565,7 @@ fn collect_expression_handles(
             continue;
         }
         expressions.push(expression);
-        let node = program
-            .tables
-            .bodies
-            .expressions
-            .expression(expression)
-            .clone();
+        let node = expression_node(program, expression);
         pending.extend(expression_child_handles(program, &node));
     }
 }
@@ -610,12 +590,7 @@ fn collect_call_target_spans(
         {
             continue;
         }
-        let node = program
-            .tables
-            .bodies
-            .expressions
-            .expression(expression)
-            .clone();
+        let node = expression_node(program, expression);
         if let ExpressionNode::Call(call) = &node
             && !spans.contains(&call.target.source_span())
         {
@@ -623,6 +598,11 @@ fn collect_call_target_spans(
         }
         pending.extend(expression_child_handles(program, &node));
     }
+}
+
+/// The node a handle names, copied out before a walk mutates the table.
+fn expression_node(program: &SymbolResolvedTrees, handle: ExpressionHandle) -> ExpressionNode {
+    program.tables.bodies.expressions.expression(handle).clone()
 }
 
 fn expression_child_handles(

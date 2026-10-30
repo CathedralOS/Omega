@@ -13,6 +13,17 @@ pub(crate) fn lower_name(
     DiagnosticName::from_str(name.as_str(syntax_trees), name.source_span())
 }
 
+/// Lower a run of source identifiers into fresh diagnostic names.
+pub(crate) fn lower_names(
+    syntax_trees: &SyntaxTrees,
+    names: &[syntax::identifier::Identifier],
+) -> Vec<DiagnosticName> {
+    names
+        .iter()
+        .map(|name| lower_name(syntax_trees, name))
+        .collect()
+}
+
 pub(crate) fn lower_operator_path_name(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,

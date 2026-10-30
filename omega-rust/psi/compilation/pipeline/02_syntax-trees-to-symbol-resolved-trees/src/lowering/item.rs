@@ -10,6 +10,7 @@ use crate::lowering::data::lower_data_definition;
 use crate::lowering::domain::lower_domain_definition;
 use crate::lowering::machine::lower_machine_into;
 use crate::lowering::measure::lower_measure_definition;
+use crate::lowering::name::lower_names;
 use crate::lowering::operator::lower_operator_definition;
 use crate::lowering::proposition::lower_proposition_definition;
 use crate::lowering::trait_definition::lower_trait_definition;
@@ -196,22 +197,20 @@ fn lower_item_with_exposure(
                 symbol_resolved_trees::trait_definition::Conformance {
                     symbol: symbols::SymbolHandle::invalid(),
                     is_public: conformance.is_public,
-                    lifetime_parameters: conformance
-                        .lifetime_parameters
-                        .iter()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                        .collect(),
+                    lifetime_parameters: lower_names(
+                        syntax_trees,
+                        &conformance.lifetime_parameters,
+                    ),
                     type_parameters,
                     trait_name: crate::lowering::name::lower_name(
                         syntax_trees,
                         &conformance.trait_name,
                     ),
                     trait_symbol: symbols::SymbolHandle::invalid(),
-                    trait_lifetime_arguments: conformance
-                        .trait_lifetime_arguments
-                        .iter()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                        .collect(),
+                    trait_lifetime_arguments: lower_names(
+                        syntax_trees,
+                        &conformance.trait_lifetime_arguments,
+                    ),
                     arguments,
                     alias: conformance
                         .alias

@@ -285,10 +285,7 @@ impl ElementView {
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
-        } = types
-            .get(&selected.structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        } = types.declaration(&selected.structural_type)?.shape
         else {
             return Err(malformed());
         };
@@ -739,21 +736,13 @@ impl TerminalExecution<'_> {
         }) {
             return Err(malformed());
         }
-        let element_scalar = match &self
-            .program
-            .structural_types()
-            .get(&element)
-            .ok_or_else(malformed)?
-            .shape
-        {
+        let element_scalar = match &self.program.structural_declaration(element)?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => Some(*scalar),
             _ => None,
         };
         let descriptor = &self
             .program
-            .structural_types()
-            .get(&result.structural_type)
-            .ok_or_else(malformed)?
+            .structural_declaration(result.structural_type)?
             .shape;
         match descriptor {
             StructuralTypeShape::ElementView {
@@ -1182,9 +1171,7 @@ impl TerminalExecution<'_> {
         if let Some(storage) = selected.primitive_storage {
             let StructuralTypeShape::PrimitiveScalar(logical) = self
                 .program
-                .structural_types()
-                .get(&selected.value.structural_type)
-                .ok_or_else(malformed)?
+                .structural_declaration(selected.value.structural_type)?
                 .shape
             else {
                 return Err(malformed());

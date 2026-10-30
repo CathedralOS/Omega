@@ -119,14 +119,7 @@ pub(super) fn project(
     let (lifetimes, parameters, values, result, selection_exposure) = match schema {
         ProviderSchemaDeclaration::BoundaryOperator(symbol) => {
             let matches = compilation
-                .operators()
-                .iter()
-                .chain(
-                    compilation
-                        .domain_definitions()
-                        .iter()
-                        .flat_map(|domain| compilation.domain_operators(domain)),
-                )
+                .all_operators()
                 .filter(|operator| {
                     operator.symbol == symbol && symbol == requirement && operator.is_boundary
                 })

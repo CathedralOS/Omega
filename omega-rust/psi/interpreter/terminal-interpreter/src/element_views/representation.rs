@@ -117,20 +117,13 @@ impl TerminalExecution<'_> {
             if !source.path.is_empty() {
                 return Err(malformed());
             }
-            let value = self
-                .structural_values
-                .get(&source.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(source.place)?;
             if !value.qualifications.is_empty()
                 || self.byte_sequence_length(source.place)? != extent as u64
             {
                 return Err(malformed());
             }
-            match self
-                .byte_sequence_values
-                .get(&source.place)
-                .ok_or_else(malformed)?
-            {
+            match self.byte_sequence_values.require(&source.place)? {
                 binding @ ByteSequenceBinding::MutableArray { array, offset, .. } => {
                     binding.validate_mutable_referent(self, value)?;
                     ByteStorage::Array {

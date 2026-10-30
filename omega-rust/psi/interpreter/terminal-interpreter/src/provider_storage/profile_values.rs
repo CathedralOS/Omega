@@ -251,9 +251,7 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
 
     fn selected_case(mut self, count: usize) -> Result<(usize, Self), TerminalInterpretError> {
         let types = self.execution.program.structural_types();
-        let declaration = types
-            .get(&self.value.structural_type)
-            .ok_or_else(malformed)?;
+        let declaration = types.declaration(&self.value.structural_type)?;
         let StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Err(malformed());
         };
@@ -290,10 +288,7 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
-        } = types
-            .get(&array.value.structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        } = types.declaration(&array.value.structural_type)?.shape
         else {
             return Err(malformed());
         };

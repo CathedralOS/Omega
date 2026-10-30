@@ -38,6 +38,7 @@ use crate::custody::bind_active_structural_arguments;
 use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
 use crate::custody::resolve_single_structural_argument;
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -250,11 +251,7 @@ impl BlockBindings {
                         || frontier
                             .iter()
                             .filter(|entry| entry.place == place)
-                            .ne(std::iter::once(&StructuralAffineDiscard {
-                                place,
-                                path: Vec::new(),
-                                structural_type,
-                            }))
+                            .ne(std::iter::once(&whole_path_discard(place, structural_type)))
                     {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
@@ -387,9 +384,7 @@ impl TerminalExecution<'_> {
             if parameter.access != StructuralAccess::Owned
                 && matches!(
                     self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                        .structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
@@ -437,9 +432,7 @@ impl TerminalExecution<'_> {
             if parameter.access != StructuralAccess::Owned
                 && matches!(
                     self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                        .structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::ByteSequence(_)
                 )

@@ -12,6 +12,7 @@ use crate::limits::LocalSourceLimits;
 use crate::local::operations::resolve_local_source_snapshot;
 use crate::local::resolution_observations::ResolvedLocalSnapshot;
 use crate::observations::resolved::ResolvedGitSource;
+use crate::snapshot::permissions::make_tree_owner_writable;
 use crate::tree::filesystem::open_absolute_directory_nofollow;
 use std::ffi::OsStr;
 use std::io::Write;
@@ -47,6 +48,14 @@ fn temp_root_at(name: &str, stamp: u128) -> PathBuf {
         "omega-package-source-{name}-{}-{stamp}-{ordinal}",
         std::process::id()
     ))
+}
+
+/// Tear down one fixture: its source tree first, then the retained storage
+/// base, whose published custody is read-only until released.
+pub(crate) fn remove_fixture(source_root: &Path, storage_base: &Path) {
+    let _ = std::fs::remove_dir_all(source_root);
+    make_tree_owner_writable(storage_base);
+    let _ = std::fs::remove_dir_all(storage_base);
 }
 
 pub(crate) fn resolve_git_source_from_hardened_base(

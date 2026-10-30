@@ -2,6 +2,7 @@
 
 use crate::lowering::expression::expression_table;
 use crate::lowering::expression::lower_private_expression_into_table;
+use crate::lowering::name::lower_names;
 use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
     OperandHoisting, hoist_child, hoist_operand_indexed_reads,
@@ -45,16 +46,9 @@ pub(crate) fn lower_statement_node(
         syntax::statement::StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(
             symbol_resolved_trees::statement::RootBinding {
                 receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
-                slot: binding
-                    .slot
-                    .iter()
-                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                    .collect(),
-                implementation: binding
-                    .implementation
-                    .iter()
-                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                    .collect(),
+                slot: lower_names(syntax_trees, &binding.slot).into_boxed_slice(),
+                implementation: lower_names(syntax_trees, &binding.implementation)
+                    .into_boxed_slice(),
                 // An ambiguous bare name is lowered outside the authored-
                 // selection exposure so a name that resolves to a
                 // declaration cannot mint a cross-package selection record.
@@ -206,11 +200,7 @@ pub(crate) fn lower_statement_node(
                         .collect::<Result<Vec<_>, _>>()?
                         .into_boxed_slice(),
                     arguments,
-                    evidence_arguments: call
-                        .evidence_arguments
-                        .iter()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                        .collect::<Vec<_>>()
+                    evidence_arguments: lower_names(syntax_trees, &call.evidence_arguments)
                         .into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
                     discards_result: call.discards_result,
@@ -706,10 +696,7 @@ fn lower_transition_target_node(
                     operational_acknowledgement: Default::default(),
                     path: lower_statement_path_members(lowerer, syntax_trees, *path),
                     arguments,
-                    evidence_arguments: evidence_arguments
-                        .iter()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                        .collect::<Vec<_>>()
+                    evidence_arguments: lower_names(syntax_trees, &evidence_arguments)
                         .into_boxed_slice(),
                     source_span: *source_span,
                     authored_call_selection: None,

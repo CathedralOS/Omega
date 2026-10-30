@@ -2,8 +2,8 @@
 use super::open_absolute_directory_nofollow;
 use super::{
     CacheCustodyKind, GIT_CACHE_SNAPSHOTS, PendingMaterializedSnapshot, SourceResolveError,
-    make_tree_owner_writable, open_verified_git_repository, primed_git_cache, temp_root,
-    write_snapshot_file_from_open_root,
+    make_tree_owner_writable, open_verified_git_repository, primed_git_cache, remove_fixture,
+    temp_root, write_snapshot_file_from_open_root,
 };
 use std::path::Path;
 
@@ -104,9 +104,7 @@ fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
     );
     drop(pending);
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]

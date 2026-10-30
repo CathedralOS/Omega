@@ -135,10 +135,7 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            let root = self
-                .structural_values
-                .get(&parameter.place)
-                .ok_or_else(malformed)?;
+            let root = self.structural_value(parameter.place)?;
             if !root.qualifications.is_empty() || root.structural_type != parameter.structural_type
             {
                 return Err(malformed());
@@ -259,19 +256,10 @@ impl TerminalExecution<'_> {
             // A matched byte window must write that array. The runtime byte
             // store never received a copy, and manufacturing one would leave
             // the caller's elements unchanged.
-            (
-                self.structural_values
-                    .get(&place)
-                    .ok_or_else(malformed)?
-                    .clone(),
-                home,
-            )
+            (self.structural_value(place)?.clone(), home)
         } else {
             (
-                self.structural_values
-                    .get(&place)
-                    .ok_or_else(malformed)?
-                    .clone(),
+                self.structural_value(place)?.clone(),
                 ArrayStorageHome::Runtime,
             )
         };
@@ -507,10 +495,7 @@ impl TerminalExecution<'_> {
             && let Some(binding @ ByteSequenceBinding::Immutable(_)) =
                 self.byte_sequence_values.get(&argument.place)
         {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(argument.place)?;
             if parameter.access != StructuralAccess::SharedBorrow {
                 return Err(malformed());
             }
@@ -532,19 +517,13 @@ impl TerminalExecution<'_> {
                 if source.structural_type != value.structural_type
                     || source.access != StructuralAccess::SharedBorrow
                     || !matches!(
-                        types
-                            .get(&source.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&source.structural_type)?.shape,
                         StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                         )
                     )
                     || !matches!(
-                        types
-                            .get(&parameter.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&parameter.structural_type)?.shape,
                         StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )
@@ -581,10 +560,7 @@ impl TerminalExecution<'_> {
             && let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
                 self.byte_sequence_values.get(&argument.place)
         {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(argument.place)?;
             self.check_byte_view_handback(value, argument, parameter)?;
             let borrowed = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
             if value.structural_type != parameter.structural_type {

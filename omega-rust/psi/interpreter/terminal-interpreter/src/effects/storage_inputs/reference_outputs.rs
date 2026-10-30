@@ -353,10 +353,7 @@ pub(super) fn stage(
                 return Err(malformed());
             }
             if request.write == ReferenceOutputWrite::Address {
-                let previous = execution
-                    .reference_referents
-                    .get(&destination)
-                    .ok_or_else(malformed)?;
+                let previous = execution.reference_referents.require(&destination)?;
                 // Scalar references carry their exact selected storage codec,
                 // including IntegerAt/recast views. Logical referent equality
                 // cannot justify preserving that word after an address write.
@@ -370,7 +367,7 @@ pub(super) fn stage(
                     return Err(malformed());
                 };
                 let primitive = matches!(
-                    types.get(&referent).ok_or_else(malformed)?.shape,
+                    types.declaration(&referent)?.shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 );
                 let old_scalar = stored_scalar(previous);

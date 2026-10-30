@@ -1,9 +1,9 @@
 use super::{
     Command, GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, LocalSourceLimits,
     SourceResolveError, create_git_cache_entry, create_git_source, git_cache_identity,
-    inspect_verified_git_cache_entry, local_git_request, make_tree_owner_writable,
-    open_absolute_directory_nofollow, run_test_git, run_test_git_with_input, temp_root,
-    test_system_git_executor, verify_git_cache_root_custody,
+    inspect_verified_git_cache_entry, local_git_request, open_absolute_directory_nofollow,
+    remove_fixture, run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
+    verify_git_cache_root_custody,
 };
 use crate::git::resolution::materialization::materialize_whole_git_source;
 use crate::git::resolution::selection::GitRevisionSelection;
@@ -93,7 +93,5 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
     assert!(entry_root.join(GIT_CACHE_METADATA).exists());
     assert!(!entry_root.join(GIT_CACHE_SNAPSHOTS).exists());
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }

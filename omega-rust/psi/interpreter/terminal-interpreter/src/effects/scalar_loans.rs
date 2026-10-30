@@ -155,9 +155,7 @@ impl BoundaryScalarLoans {
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let StructuralTypeShape::PrimitiveScalar(expected) = execution
             .program
-            .structural_types()
-            .get(&parameter.structural_type)
-            .ok_or_else(malformed)?
+            .structural_declaration(parameter.structural_type)?
             .shape
         else {
             return Err(malformed());
@@ -479,16 +477,9 @@ impl TerminalExecution<'_> {
             return Ok(None);
         };
         let parent_type = self.actual_storage_type_from_owner(&cell.parent)?;
-        let declaration = self
-            .program
-            .structural_types()
-            .get(&parent_type)
-            .ok_or_else(malformed)?;
+        let declaration = self.program.structural_declaration(parent_type)?;
         let fields = if cell.namespace == StructuralFieldNamespace::CasePayload {
-            let case = self
-                .structural_cases
-                .get(&cell.parent)
-                .ok_or_else(malformed)?;
+            let case = self.structural_cases.require(&cell.parent)?;
             if case.structural_type != declaration.id {
                 return Err(malformed());
             }

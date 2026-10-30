@@ -65,6 +65,20 @@ pub(crate) fn place_is_claimed(claims: &BTreeMap<ClaimId, LiveClaim>, place: Pla
     claims.values().any(|claim| claim.place == Some(place))
 }
 
+/// The whole-path discard row for one live affine place. A freshly established
+/// carrier, and every lookup that names it without a projection, addresses the
+/// place itself rather than a descendant.
+pub(crate) fn whole_path_discard(
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+) -> StructuralAffineDiscard {
+    StructuralAffineDiscard {
+        place,
+        path: Vec::new(),
+        structural_type,
+    }
+}
+
 /// A loan follows backing identity, not the descriptor carrier's location.
 /// Moving that descriptor elsewhere does not unpin the selected owner.
 pub(crate) fn has_live_loan(
@@ -736,9 +750,7 @@ pub(crate) fn bind_structural_primitive_values(
     let mut entry_places = RuntimeRows::new(account);
     for (position, parameter) in &primitive_parameters {
         if zero_initialized_arguments.contains(position) {
-            let root = structural_values
-                .get(&parameter.place)
-                .ok_or_else(malformed)?;
+            let root = structural_values.require(&parameter.place)?;
             let place = StructuralRuntimePlace::from(root);
             if !storage.contains_key(&place) {
                 return Err(malformed());
@@ -1134,9 +1146,7 @@ pub(crate) fn split_affine_frontier_at_projection(
     let Some(next_segment) = projected_path.get(current.path.len()) else {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     };
-    let declaration = structural_types
-        .get(&current.structural_type)
-        .ok_or(malformed())?;
+    let declaration = structural_types.declaration(&current.structural_type)?;
     let selected = match &declaration.shape {
         StructuralTypeShape::Record { fields, .. } => {
             let mut selected = None;
@@ -1252,7 +1262,7 @@ pub(crate) fn literal_fixed_array(
     let StructuralTypeShape::FixedArray {
         element,
         length: terminal_psi::ArrayExtent::Literal(length),
-    } = types.get(&structural_type).ok_or_else(malformed)?.shape
+    } = types.declaration(&structural_type)?.shape
     else {
         return Err(malformed());
     };

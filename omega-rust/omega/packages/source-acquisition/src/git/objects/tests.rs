@@ -8,7 +8,6 @@ use crate::git::request::GitExecutionTransport;
 use crate::git::snapshot::preflight_git_snapshot;
 use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::*;
-use crate::snapshot::permissions::make_tree_owner_writable;
 use crate::test_support::*;
 use resolver_execution::ResolverExecutionPhase;
 use sha1_checked::Sha1 as CheckedSha1;
@@ -161,9 +160,7 @@ fn git_batch_request_creation_and_cleanup_remain_in_the_retained_cache_parent() 
         b"replacement"
     );
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]
@@ -187,9 +184,7 @@ fn git_batch_request_cleanup_does_not_remove_a_replacement_name() {
         b"replacement"
     );
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]
@@ -384,9 +379,7 @@ fn selective_git_member_opens_only_authenticated_declarations_and_member_payload
     }
 
     drop(repository);
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]
@@ -468,9 +461,7 @@ fn selective_git_projection_rejects_duplicate_missing_and_wrong_type_paths() {
     }
 
     drop(repository);
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]

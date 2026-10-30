@@ -76,10 +76,7 @@ pub(super) fn stage(
             case,
         } = &leaf.kind
         {
-            let original = execution
-                .structural_cases
-                .get(destination)
-                .ok_or_else(malformed)?;
+            let original = execution.structural_cases.require(destination)?;
             if original.structural_type != *structural_type || original.case != *case {
                 return Err(malformed());
             }

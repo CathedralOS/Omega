@@ -23,8 +23,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
     ) -> Result<(StructuralByteSequenceRuntimeField, Option<u64>), TerminalInterpretError> {
-        let (cell, carrier) =
-            self.resolve_byte_field_carrier(root, path, field, false, true)?;
+        let (cell, carrier) = self.resolve_byte_field_carrier(root, path, field, false, true)?;
         let capacity = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => None,
             ByteSequenceCarrier::BoundedView { capacity, .. }
@@ -62,7 +61,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
+        let source_value = self.structural_value(*source)?;
         if !source_value.projected_qualifications.is_empty()
             || !matches!(self.program.structural_types().get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
@@ -70,11 +69,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let bytes = self
-            .byte_sequence_values
-            .get(source)
-            .ok_or_else(malformed)?
-            .immutable()?;
+        let bytes = self.byte_sequence_values.require(source)?.immutable()?;
         // A qualified value is still a readable byte carrier. Its immutable
         // binding retains the captured contents and exact descriptor home;
         // qualifiers neither change those bytes nor require an empty backing
@@ -173,10 +168,7 @@ impl TerminalExecution<'_> {
                 Some(destination_field)
             }
             None => {
-                let home = self
-                    .structural_values
-                    .get(destination)
-                    .ok_or_else(malformed)?;
+                let home = self.structural_value(*destination)?;
                 if !path.is_empty()
                     || !home.path.is_empty()
                     || !matches!(self.program.structural_types().get(&home.structural_type),
@@ -187,7 +179,7 @@ impl TerminalExecution<'_> {
                 None
             }
         };
-        let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
+        let source_value = self.structural_value(*source)?;
         if !source_value.path.is_empty()
             || !matches!(self.program.structural_types().get(&source_value.structural_type),
                 Some(declaration) if declaration.shape.is_borrowed_byte_view())
@@ -196,8 +188,7 @@ impl TerminalExecution<'_> {
         }
         let view = self
             .byte_sequence_values
-            .get(source)
-            .ok_or_else(malformed)?
+            .require(source)?
             .immutable()?
             .clone();
         if !view.matches_descriptor_home(source_value) {
@@ -212,10 +203,7 @@ impl TerminalExecution<'_> {
                 // Replacing a descriptor transfers its observed window, not
                 // its old storage identity. Rehome only the descriptor; its
                 // backing and captured extent remain those of the source.
-                let home = self
-                    .structural_values
-                    .get(destination)
-                    .ok_or_else(malformed)?;
+                let home = self.structural_value(*destination)?;
                 self.byte_sequence_values.insert(
                     *destination,
                     ByteSequenceBinding::Immutable(view.with_descriptor_home(home.clone())),
@@ -293,12 +281,8 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             let descriptor_type = self.live_structural_type(root)?;
-            let StructuralTypeShape::ElementView { element, .. } = self
-                .program
-                .structural_types()
-                .get(&descriptor_type)
-                .ok_or_else(malformed)?
-                .shape
+            let StructuralTypeShape::ElementView { element, .. } =
+                self.program.structural_declaration(descriptor_type)?.shape
             else {
                 return Err(malformed());
             };

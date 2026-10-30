@@ -12,6 +12,7 @@ pub(crate) use lexical_inputs::{
 };
 
 use crate::lowering::domain::lower_proof_facts;
+use crate::lowering::name::lower_names;
 use crate::lowering::statement::lower_statement_handle;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
@@ -266,10 +267,7 @@ pub(crate) fn lower_state_signature_parts(
             name: crate::lowering::name::lower_name(syntax_trees, name),
             storage: StateSignatureStorage {
                 spelling,
-                lifetime_parameters: lifetime_parameters
-                    .iter()
-                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                    .collect(),
+                lifetime_parameters: lower_names(syntax_trees, &lifetime_parameters),
                 type_parameters,
                 is_default,
                 parameters,
@@ -330,12 +328,10 @@ pub(crate) fn lower_service_reach_names(
     syntax_trees: &SyntaxTrees,
     service_reaches: HandleSpan<syntax::identifier::Identifier>,
 ) -> Vec<symbol_resolved_trees::name::DiagnosticName> {
-    syntax_trees
-        .items
-        .identifier_path_members(service_reaches)
-        .iter()
-        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-        .collect()
+    lower_names(
+        syntax_trees,
+        syntax_trees.items.identifier_path_members(service_reaches),
+    )
 }
 
 pub(crate) fn lower_signature_contracts(

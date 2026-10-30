@@ -882,6 +882,16 @@ impl<'artifact> TerminalExecution<'artifact> {
         u64::try_from(value).map_err(|_| malformed())
     }
 
+    /// The structural value at `place`, malformed when this frame holds no row:
+    /// a live place is minted by an executed operation and retired with its
+    /// custody, so absence is a defect rather than an input error.
+    pub(crate) fn structural_value(
+        &self,
+        place: PlaceId,
+    ) -> Result<&TerminalStructuralValue, TerminalInterpretError> {
+        self.structural_values.require(&place)
+    }
+
     /// Every live structural value: the running frame's own table, then each
     /// suspended caller's.
     pub(crate) fn live_structural_values(&self) -> impl Iterator<Item = &TerminalStructuralValue> {

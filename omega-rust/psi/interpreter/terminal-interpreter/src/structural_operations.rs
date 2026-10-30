@@ -12,6 +12,7 @@
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::storage::ByteSequenceStorage;
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -23,9 +24,8 @@ use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
-    find_structural_case,
+    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, find_structural_case,
 };
 
 impl TerminalExecution<'_> {
@@ -87,9 +87,7 @@ impl TerminalExecution<'_> {
         }
         aggregate.validate_against(
             self.program
-                .structural_types()
-                .get(&result.structural_type)
-                .ok_or_else(malformed)?,
+                .structural_declaration(result.structural_type)?,
             |identity| self.program.structural_types().get(&identity),
         )?;
         let value = TerminalStructuralValue::minted(
@@ -109,11 +107,8 @@ impl TerminalExecution<'_> {
     /// Record the affine debt a fresh affine result owes the live frontier.
     pub(crate) fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
+            self.live_affine_frontier
+                .insert(whole_path_discard(result.place, result.structural_type));
         }
     }
 
@@ -645,11 +640,8 @@ impl TerminalExecution<'_> {
             destination,
             TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
         )?;
-        self.live_affine_frontier.insert(StructuralAffineDiscard {
-            place: destination,
-            path: Vec::new(),
-            structural_type: *structural_type,
-        });
+        self.live_affine_frontier
+            .insert(whole_path_discard(destination, *structural_type));
         Ok(OperationFlow::Advance)
     }
 
@@ -942,7 +934,7 @@ impl TerminalExecution<'_> {
         if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
-        let storage = self.structural_values.get(&source).ok_or_else(malformed)?;
+        let storage = self.structural_value(source)?;
         let selected = self.structural_window_hole(
             operation,
             source,
@@ -1520,12 +1512,8 @@ impl TerminalExecution<'_> {
                 ..
             }) = self.program.structural_types().get(&result.structural_type)
         {
-            let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
-            let bytes = self
-                .byte_sequence_values
-                .get(source)
-                .ok_or_else(malformed)?
-                .immutable()?;
+            let source_value = self.structural_value(*source)?;
+            let bytes = self.byte_sequence_values.require(source)?.immutable()?;
             if result.multiplicity != StructuralMultiplicity::Unrestricted
                 || result.structural_type != source_value.structural_type
                 || result.qualifications != source_value.qualifications
@@ -1839,15 +1827,12 @@ impl TerminalExecution<'_> {
                 matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
             })
         {
-            let root = self.structural_values.get(&source).ok_or_else(malformed)?;
+            let root = self.structural_value(source)?;
             let descriptor = if StructuralRuntimePlace::from(root)
                 == StructuralRuntimePlace::from(&leaf)
                 && root.structural_type == leaf.structural_type
             {
-                let descriptor = self
-                    .element_view_values
-                    .get(&source)
-                    .ok_or_else(malformed)?;
+                let descriptor = self.element_view_values.require(&source)?;
                 if !descriptor.matches_descriptor_home(root) {
                     return Err(malformed());
                 }
@@ -1918,10 +1903,7 @@ impl TerminalExecution<'_> {
             opaque_identity: leaf.opaque_identity,
             path: parent_path.to_vec(),
         };
-        let bytes = self
-            .structural_byte_storage
-            .get(&array)
-            .ok_or_else(malformed)?;
+        let bytes = self.structural_byte_storage.require(&array)?;
         let layout = terminal_semantics::byte_carrier_scalar_layout(
             self.program.structural_types().values(),
             result.structural_type,
@@ -2047,7 +2029,7 @@ impl TerminalExecution<'_> {
             path,
         ) {
             parent.path.extend(carrier.path);
-            let contents = self.structural_cases.get(&parent).ok_or(malformed())?;
+            let contents = self.structural_cases.require(&parent)?;
             if contents.structural_type != carrier.sum || contents.case != carrier.case {
                 return Err(malformed());
             }

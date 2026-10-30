@@ -166,12 +166,7 @@ impl Solver<'_, '_> {
             let TypeParameterKind::Const { type_reference } = parameter.kind else {
                 continue;
             };
-            let Some(name) = self
-                .syntax
-                .type_references
-                .type_reference(*argument)
-                .as_named()
-            else {
+            let Some(name) = self.type_reference_name(*argument) else {
                 continue;
             };
             let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
@@ -341,11 +336,7 @@ impl Solver<'_, '_> {
                             )
                         })?;
                     self.validate_application_integer(type_reference, &value, span)?;
-                    if let Some(name) = self
-                        .syntax
-                        .type_references
-                        .type_reference(pattern)
-                        .as_named()
+                    if let Some(name) = self.type_reference_name(pattern)
                         && let Some((position, is_type)) =
                             self.parameter_position(name.as_str(self.syntax))
                     {
@@ -473,12 +464,7 @@ impl Solver<'_, '_> {
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<BigInt>, Diagnostic> {
-        let Some(name) = self
-            .syntax
-            .type_references
-            .type_reference(reference)
-            .as_named()
-        else {
+        let Some(name) = self.type_reference_name(reference) else {
             return Err(self
                 .type_structure_error("requires a normalized integer constructor argument", span));
         };
@@ -559,12 +545,7 @@ impl Solver<'_, '_> {
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<(TypeReferenceHandle, CanonicalConstValue)>, Diagnostic> {
-        let Some(name) = self
-            .syntax
-            .type_references
-            .type_reference(reference)
-            .as_named()
-        else {
+        let Some(name) = self.type_reference_name(reference) else {
             return Err(self.type_structure_error(
                 "requires a normalized structural constructor constant",
                 span,
@@ -621,11 +602,7 @@ impl Solver<'_, '_> {
                     self.type_structure_error("has conflicting constructor constants", span)
                 );
             }
-        } else if let Some(name) = self
-            .syntax
-            .type_references
-            .type_reference(pattern)
-            .as_named()
+        } else if let Some(name) = self.type_reference_name(pattern)
             && let Some((position, false)) = self.parameter_position(name.as_str(self.syntax))
         {
             self.bindings[position] = Some(Binding::Constant(reference));
@@ -635,13 +612,16 @@ impl Solver<'_, '_> {
         Ok(())
     }
 
-    fn boolean_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
-        let Some(name) = self
-            .syntax
+    /// The identifier a reference names, absent a structural node.
+    fn type_reference_name(&self, reference: TypeReferenceHandle) -> Option<&Identifier> {
+        self.syntax
             .type_references
             .type_reference(reference)
             .as_named()
-        else {
+    }
+
+    fn boolean_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
+        let Some(name) = self.type_reference_name(reference) else {
             return false;
         };
         closed_name_identity(self.syntax, self.selection, name)
@@ -657,12 +637,7 @@ impl Solver<'_, '_> {
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<bool>, Diagnostic> {
-        let Some(name) = self
-            .syntax
-            .type_references
-            .type_reference(reference)
-            .as_named()
-        else {
+        let Some(name) = self.type_reference_name(reference) else {
             return Err(self
                 .type_structure_error("requires a normalized Boolean constructor argument", span));
         };
@@ -717,11 +692,7 @@ impl Solver<'_, '_> {
                     self.type_structure_error("has conflicting constructor constants", span)
                 );
             }
-        } else if let Some(name) = self
-            .syntax
-            .type_references
-            .type_reference(pattern)
-            .as_named()
+        } else if let Some(name) = self.type_reference_name(pattern)
             && let Some((position, false)) = self.parameter_position(name.as_str(self.syntax))
         {
             self.bindings[position] = Some(Binding::Boolean(value));
@@ -796,12 +767,7 @@ impl Solver<'_, '_> {
         value: &BigInt,
         span: SourceSpan,
     ) -> Result<(), Diagnostic> {
-        let Some(name) = self
-            .syntax
-            .type_references
-            .type_reference(reference)
-            .as_named()
-        else {
+        let Some(name) = self.type_reference_name(reference) else {
             return Err(
                 self.type_structure_error("requires a builtin integer constructor parameter", span)
             );

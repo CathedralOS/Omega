@@ -17,6 +17,7 @@ pub(crate) use token_bindings::{
 
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_names;
 use crate::lowering::state::{
     lower_machine_signature_contracts, lower_service_reach_names, lower_signature_invokes,
     lower_state_body, lower_state_node,
@@ -374,11 +375,7 @@ fn lower_lexical_machine_parts(
         compiler_selection_partition,
         body_status,
         storage: MachineStorage {
-            lifetime_parameters: machine
-                .lifetime_parameters
-                .iter()
-                .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                .collect(),
+            lifetime_parameters: lower_names(syntax_trees, &machine.lifetime_parameters),
             type_parameters,
             declared_type_equations,
             declared_type_predicates,
@@ -923,11 +920,7 @@ fn lower_machine_trait_conformances(
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
                     name: crate::lowering::name::lower_name(syntax_trees, &clause.trait_name),
-                    lifetime_arguments: clause
-                        .lifetime_arguments
-                        .iter()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                        .collect(),
+                    lifetime_arguments: lower_names(syntax_trees, &clause.lifetime_arguments),
                     arguments,
                     requirement: clause
                         .requirement
