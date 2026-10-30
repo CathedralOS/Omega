@@ -301,7 +301,7 @@ pub(crate) fn call_signature_from_top_level_requirement(
     requirement: &checked_trees::typed_trees::machine::Machine,
     entry: &checked_trees::typed_trees::state::State,
     owner_requirement_identity: &str,
-    native_target: NativeTarget,
+    layout_target: layout::LayoutTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
     if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -323,8 +323,9 @@ pub(crate) fn call_signature_from_top_level_requirement(
         ));
     }
 
+    let native_target = layout_target.native_target();
     let mut values =
-        BoundaryValueLayout::new(typed, native_target, &[], opaque_representation_selections);
+        BoundaryValueLayout::new(typed, layout_target, &[], opaque_representation_selections);
     let mut parameters = Vec::with_capacity(runtime_parameters.len());
     let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
     for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
@@ -501,12 +502,13 @@ pub(crate) fn call_signature_from_typed(
     signature: &checked_trees::typed_trees::signature::StateSignature,
     bindings: &[BoundaryTypeBinding],
     owner_requirement_identity: &str,
-    native_target: NativeTarget,
+    layout_target: layout::LayoutTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
+    let native_target = layout_target.native_target();
     let mut values = BoundaryValueLayout::new(
         typed,
-        native_target,
+        layout_target,
         bindings,
         opaque_representation_selections,
     );
