@@ -22,6 +22,7 @@ mod templates;
 pub(super) fn check_view_return_elision(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut deferred = Vec::new();
@@ -36,7 +37,9 @@ pub(super) fn check_view_return_elision(
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
         for state in program.machine_states(machine) {
-            if let Some(parameter_index) = returned_body_source_mismatch(program, facts, state) {
+            if let Some(parameter_index) =
+                returned_body_source_mismatch(program, facts, state, call_frames)
+            {
                 let parameter = &program.state_parameters(state)[parameter_index];
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` returns a view borrowing input `{}`, which is not permitted by the declared result lifetime relation",

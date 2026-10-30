@@ -33,7 +33,7 @@ pub(crate) fn project_compiler_intrinsic_execution(
                     "package review has no candidate external-provider projection",
                 )]
             })?,
-            custody: &compilation.custody.execution().numeric_realizations,
+            custody: &compilation.custody.execution().declaration_catalog,
             provider,
         },
         compilation.service_declarations.ok_or_else(|| {
