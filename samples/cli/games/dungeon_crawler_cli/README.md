@@ -2,6 +2,28 @@
 
 This sample explores Omega as a console program rather than a windowed game.
 
+The closed-stdin oracle is the complete `expected_stdout.txt`; `input.txt` is
+empty. The separate `help_exit.stdin` route has its complete output in
+`expected_help_exit_stdout.txt`. From this folder, run both through one compilation:
+
+```sh
+omega run --both --input input.txt --input help_exit.stdin --outputs build/acceptance main.omg
+```
+
+Both cases must exit zero in both engines. Compare `input.stdout` and
+`input.terminal.stdout` with `expected_stdout.txt`, and `help_exit.stdout` and
+`help_exit.terminal.stdout` with `expected_help_exit_stdout.txt`. These authored
+oracles include the opening room, paths, command help, prompts and goodbye.
+
+For `CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `Level.room_count` and both private
+lookup inputs retain the original upper bound 16 as ordinary requirements.
+The five original command-count contracts and two maze index/result bounds
+remain. Two old private `last_index` formals are now locals computed from the
+same captured `count`: the preserved nonzero lower and upper bounds establish
+`count - 1` in 0 through 255 or 254 before indexing. Every old caller supplied
+that same expression, without intervening effects. This reconciles those
+private call paths while keeping the current command-processing algorithm.
+
 What it is trying to prove:
 
 - an attached entry machine with an explicit mutable `Main` data argument can drive a stateful

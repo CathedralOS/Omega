@@ -896,7 +896,7 @@ impl TerminalExecution<'_> {
                 let mut cursor = self.local_structural_identities.cursor();
                 let (source_value, binding) = self.establish_byte_array_binding(
                     source,
-                    result.structural_type,
+                    &descriptor_value,
                     &collection,
                     &mut cursor,
                 )?;
@@ -1034,7 +1034,7 @@ impl TerminalExecution<'_> {
                 let mut cursor = self.local_structural_identities.cursor();
                 let (value, binding) = self.establish_byte_array_binding(
                     source,
-                    result.structural_type,
+                    &descriptor_value,
                     &collection,
                     &mut cursor,
                 )?;

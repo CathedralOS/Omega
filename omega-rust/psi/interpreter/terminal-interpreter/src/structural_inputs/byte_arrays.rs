@@ -307,7 +307,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn establish_byte_array_binding(
         &self,
         source: &StructuralArgument,
-        view_type: StructuralTypeId,
+        presentation: &TerminalStructuralValue,
         collection: &terminal_semantics::CollectionBacking,
         identity_cursor: &mut Option<u64>,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
@@ -321,7 +321,8 @@ impl TerminalExecution<'_> {
             let value = self.resolve_live_projection(source.place, &source.path, source.access)?;
             let binding = self.byte_descriptor_binding(source, &value)?;
             let length = self.byte_descriptor_length(&binding, &value)?;
-            if !value.qualifications.is_empty()
+            if (source.access == StructuralAccess::MutableBorrow
+                && !value.qualifications.is_empty())
                 || match collection.extent {
                     terminal_semantics::CollectionExtent::Fixed(capacity) => length != capacity,
                     terminal_semantics::CollectionExtent::StoredLength => false,
@@ -332,8 +333,17 @@ impl TerminalExecution<'_> {
             }
             let mut binding =
                 self.reborrow_byte_sequence_binding(&binding, &value, source.access)?;
+            // Authenticate the qualified source before creating the new
+            // descriptor. Its memberships stay on that source carrier;
+            // they are not qualifications of the result's different type.
+            if source.access == StructuralAccess::SharedBorrow {
+                return Ok((
+                    presentation.clone(),
+                    binding.with_descriptor_home(presentation.clone()),
+                ));
+            }
             let mut value = value;
-            value.structural_type = view_type;
+            value.structural_type = presentation.structural_type;
             match &mut binding {
                 ByteSequenceBinding::MutableArray {
                     referent,
@@ -342,7 +352,7 @@ impl TerminalExecution<'_> {
                 } => {
                     if descriptor_home.is_some() {
                         *descriptor_home = Some(value.clone());
-                        referent.structural_type = view_type;
+                        referent.structural_type = presentation.structural_type;
                     } else {
                         *referent = value.clone();
                     }
@@ -366,16 +376,9 @@ impl TerminalExecution<'_> {
                 collection.extent,
                 terminal_semantics::CollectionExtent::LiveLength { .. }
             ) {
-                let (coordinate, bytes) = self.bounded_owner_snapshot(source)?;
-                let value = TerminalStructuralValue {
-                    opaque_identity: coordinate.opaque_identity,
-                    structural_type: view_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: coordinate.path,
-                };
-                let bytes = bytes.with_descriptor_home(value.clone());
-                return Ok((value, ByteSequenceBinding::Immutable(bytes)));
+                let (_, bytes) = self.bounded_owner_snapshot(source)?;
+                let bytes = bytes.with_descriptor_home(presentation.clone());
+                return Ok((presentation.clone(), ByteSequenceBinding::Immutable(bytes)));
             }
             // Fixed-array shared descriptors use the same authenticated home
             // as mutable descriptors below. Their ordinary reads remain an
@@ -401,13 +404,12 @@ impl TerminalExecution<'_> {
             referent: StructuralRuntimePlace::from(&referent),
             home,
         };
-        if !referent.qualifications.is_empty()
+        if (source.access == StructuralAccess::MutableBorrow && !referent.qualifications.is_empty())
             || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
             || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
         {
             return Err(malformed());
         }
-        referent.structural_type = view_type;
         if source.access == StructuralAccess::SharedBorrow {
             let length = usize::try_from(length).map_err(|_| malformed())?;
             let bytes = self
@@ -418,9 +420,10 @@ impl TerminalExecution<'_> {
                     offset: 0,
                     length,
                 })
-                .with_descriptor_home(referent.clone());
-            return Ok((referent, ByteSequenceBinding::Immutable(bytes)));
+                .with_descriptor_home(presentation.clone());
+            return Ok((presentation.clone(), ByteSequenceBinding::Immutable(bytes)));
         }
+        referent.structural_type = presentation.structural_type;
         let binding = ByteSequenceBinding::MutableArray {
             array,
             array_type,
