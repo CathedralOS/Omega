@@ -1,0 +1,41 @@
+{
+  "inputs": {
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\build.omg": "831825191b3d4b34129f7ad10346bc69e736553082cc964c4101f20dda2279a1",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\document\\document.omg": "cb9b7051e8926f345db7d7c284808a82fc764c2a7f6aaf4d3b408341857edf49",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\document\\encoding.omg": "cff22f9bd1099244585a98c19018fe50efe841aea4ecf6b3251d4dbc85b771e6",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\main.omg": "699eb9186d2b24c90c32dd456ee9cf786606c2f39a9dffe656981b96866a3af2",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\rendering\\font.omg": "0a4aa2cbad782676462de27232aadfcf46c67947848292d8b6b2bfa358389d68",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\rendering\\pixels.omg": "f7af5eef7e01dc82759a001682cb83e31ae55046eceb43b9f46aaf66ba0b4944",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\rendering\\rendering.omg": "fe2826450b371ede7557db99ec53c37727b9f0670bf4f05de5ebc62bc97504dd",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\session\\cursors.omg": "ebfeffa3c94cd7da8090394033f2faefd773987ca680caeab592329672a3954b",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\session\\diagnostics.omg": "4b215f5d44559d4d23d432d8967fa51543f412598bf93aaf2d4659d588bea119",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\session\\input.omg": "e3fc1cb411c7b4ae1acc4ebfb353b28046d86d2b71221009a59b172f79709b2a",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\session\\keys.omg": "0d3156dbc838c25bc676c5e285a841276e26c9798d1954c8418e7c23fc7f0447",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\session\\session.omg": "66b3d6bbd0f3c198b963df0de38d2e35286a1fc6250b29293617ce374321b4de",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\state.omg": "06597d24f5ce8eb5e25932b2b4d1ae609314fca6b083732e30fdb57bfad2234d",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\app\\storage\\storage.omg": "457bd521da67560f8a510238e6cff5b4d1b0e107eb872340088e0d44832cc4be",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\native\\build.omg": "cc1447f4348e56f644a639b07fd561a46480f6124c490e295fff2f02b58b23cc",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\applications\\notes\\native\\main.omg": "e983644abba9f480896672ff3935a24455fc7dd4190fb7fd2b2388e6af0ab344",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\platform\\contracts\\reference\\build.omg": "0760793f5a7b6f5e534e8b65633390e8c131a2cabc3fe61f059db023d9bf5026",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\platform\\contracts\\reference\\main.omg": "a220853128a46ee217b5b0bf04f2fbc104ab7e3897ca31db9ddd59700cabc813",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\platform\\libraries\\app-host\\build.omg": "c8938cee76c9bef753105c07bdf91f6ebf668e0ab484393ee73300e4431ab045",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\platform\\libraries\\app-host\\main.omg": "492595364f773b7b2002d36921d8fee584e94cc950671ddb4da147c8779d4c83",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source-rs\\distribution\\applications\\notes\\..\\..\\..\\..\\tools\\omega-component\\build.py": "c8cbdc9d18db6d37b1e12bf3504edbacf3836915dce91b2c170dbaa586038525",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source-rs\\distribution\\applications\\notes\\..\\..\\..\\..\\tools\\omega-component\\elf.py": "a15dd57a27556ef4014b355e3e381d46c688f131b5f41ad487ddc336ea049d11",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source-rs\\distribution\\applications\\notes\\..\\..\\..\\..\\tools\\omega-component\\locking.py": "6f4e3dfca8867f50d0600180ba151843fb4167027d029612c9bdb604f0f0d9b6",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-full-67358c0345be.exe": "67358c0345be22e6831c005dd92eb2ee03b21b77809a1a1eedcd15b639409c27"
+  },
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "3"
+  },
+  "symbol": "__omega_slot_78a28ffd065f15e4921a0f848d26972ee9ab9dc3ce7c8fecfddcac76d1f0b4cc",
+  "component_sha256": "77ea42fd53f15875fcfe3603f765714508f31c8cd824d7397371490027cd9f0b",
+  "entry": 0,
+  "bytes": 69184,
+  "outputs": {
+    "app.bin": "54da440a3d768b02b4573090e9f3dfd65773140b3f408a5a63a0e7fed5437668",
+    "component.S": "9a6fc6193bfdfe2f235c54120be6d72324d720df3ccfe0cc76544abf3c494b4f",
+    "component.rs": "4b6dafb4f50e4a9aa7e22dc2e01db83ed200f4459f9b2dd9fa06e73448fcbcb0"
+  }
+}

@@ -1,0 +1,3 @@
+package candidate checking failed: checked compilation failed for package `cathedral_colors` with 1 diagnostic(s)
+  error: exact arithmetic in machine `pixel` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `cathedral_colors`, \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\perf-spill-round\build\cathedral-baseline\Cathedral-syntax-migration\source\distribution\applications\colors\app\rendering\pixels.omg:27:31
