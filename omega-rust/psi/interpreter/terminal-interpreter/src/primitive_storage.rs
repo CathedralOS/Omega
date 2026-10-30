@@ -130,6 +130,17 @@ pub(crate) enum PrimitiveStorageEndpoint {
     },
 }
 
+pub(crate) enum ArrayCell {
+    Frame {
+        home: crate::primitive_storage::PrimitiveStorageHome,
+        index: usize,
+    },
+    Structural {
+        array: StructuralRuntimePlace,
+        index: usize,
+    },
+}
+
 /// Encoding is retained with the endpoint, not reconstructed from a later
 /// formal's semantic scalar type. Canonical storage has no explicit codec.
 #[derive(Clone, PartialEq, Eq)]
@@ -333,6 +344,70 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
 }
 
 impl TerminalExecution<'_> {
+    /// Resolve packed endpoints through their captured frame, including a byte
+    /// window within a nested array. The descriptor supplies no new allocation.
+    pub(crate) fn array_cell(
+        &self,
+        storage: &PrimitiveStorage,
+    ) -> Result<Option<ArrayCell>, TerminalInterpretError> {
+        use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
+        let (home, index) = match &storage.endpoint {
+            PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => (*home, *index),
+            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
+                let (depth, place, structural_type) = match array.home {
+                    ArrayStorageHome::Frame {
+                        depth,
+                        place,
+                        structural_type,
+                    } => (depth, place, structural_type),
+                    ArrayStorageHome::Runtime => {
+                        let payload = self
+                            .structural_byte_storage
+                            .get(&array.referent)
+                            .ok_or_else(malformed)?;
+                        if *index >= payload.len() {
+                            return Err(malformed());
+                        }
+                        return Ok(Some(ArrayCell::Structural {
+                            array: array.referent.clone(),
+                            index: *index,
+                        }));
+                    }
+                };
+                let (start, end) = self.frame_byte_array_window(array)?;
+                let index = start
+                    .checked_add(*index)
+                    .filter(|index| *index < end)
+                    .ok_or_else(malformed)?;
+                let machine = if depth == self.call_stack.len() {
+                    self.current_machine
+                } else {
+                    self.call_stack
+                        .get(depth)
+                        .ok_or_else(malformed)?
+                        .current_machine
+                };
+                (
+                    crate::primitive_storage::PrimitiveStorageHome::captured_frame(
+                        depth,
+                        machine,
+                        place,
+                        structural_type,
+                    ),
+                    index,
+                )
+            }
+            _ => return Ok(None),
+        };
+        self.owned_array_home(&home)?;
+        let (depth, place, structural_type) = home.scalar_array_frame();
+        let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+        if array.structural_type != structural_type || index >= array.len() {
+            return Err(malformed());
+        }
+        Ok(Some(ArrayCell::Frame { home, index }))
+    }
+
     /// Native completion already changed these original bytes. Commit only
     /// their ordinary provenance invalidation; replaying a staged snapshot
     /// would overwrite the provider's actual result.
@@ -341,11 +416,70 @@ impl TerminalExecution<'_> {
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
         let changed = match &storage.endpoint {
-            PrimitiveStorageEndpoint::Scalar(home) => home,
-            PrimitiveStorageEndpoint::ScalarField(field) => &field.parent,
-            _ => return Err(malformed()),
+            PrimitiveStorageEndpoint::Scalar(home) => {
+                self.invalidate_stored_provenance(home);
+                return Ok(());
+            }
+            PrimitiveStorageEndpoint::ScalarField(field) => {
+                self.invalidate_stored_provenance(&field.parent);
+                return Ok(());
+            }
+            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
+                if *index >= self.stored_byte_array_length(array)? {
+                    return Err(malformed());
+                }
+                let mut selected = array.referent.clone();
+                selected.path.push(StructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).map_err(|_| malformed())?,
+                ));
+                Some(selected)
+            }
+            PrimitiveStorageEndpoint::OwnedArrayElement { .. } => None,
+            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
         };
-        self.invalidate_stored_provenance(changed);
+        let physical = match self.array_cell(storage)? {
+            Some(ArrayCell::Frame { home, index }) => {
+                self.owned_array_home(&home)?;
+                let (depth, place, structural_type) = home.scalar_array_frame();
+                let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+                if !matches!(
+                    array.cell(index),
+                    Some(crate::scalar_storage::ScalarCell::Resident { .. })
+                ) {
+                    return Err(malformed()
+                        .in_argument_preparation("original frame write lost its resident cell"));
+                }
+                let path = terminal_semantics::scalar_array_leaf_path(
+                    self.program.structural_types().values(),
+                    structural_type,
+                    u64::try_from(index).map_err(|_| malformed())?,
+                )
+                .ok_or_else(malformed)?;
+                Some(StructuralRuntimePlace {
+                    opaque_identity: array.storage_identity.ok_or_else(malformed)?,
+                    path,
+                })
+            }
+            Some(ArrayCell::Structural { array, index }) => {
+                if self
+                    .structural_byte_storage
+                    .get(&array)
+                    .ok_or_else(malformed)?
+                    .capture_scalar(index)?
+                    .1
+                    .is_none()
+                {
+                    return Err(malformed().in_argument_preparation(
+                        "original structural write lost its resident cell",
+                    ));
+                }
+                None
+            }
+            None => return Err(malformed()),
+        };
+        for owner in changed.into_iter().chain(physical) {
+            self.invalidate_stored_provenance(&owner);
+        }
         Ok(())
     }
     /// Prepare the same original endpoint for ordinary calls and host staging.

@@ -7,7 +7,7 @@ use crate::{
     effects::{TerminalEffectHandler, original_storage::*},
     errors::{TerminalInterpretError, malformed},
     execution::TerminalExecution,
-    primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint},
+    primitive_storage::{ArrayCell, PrimitiveStorage, PrimitiveStorageEndpoint},
     scalar_storage::ScalarCell,
     values::{StructuralFieldNamespace, StructuralRuntimePlace, TerminalStructuralValue},
 };
@@ -18,17 +18,6 @@ struct CapturedOriginal {
     owner: StructuralRuntimePlace,
     request: TerminalOriginalStorageRequest,
     endpoints: Vec<PrimitiveStorageEndpoint>,
-}
-
-enum OriginalArrayCell {
-    Frame {
-        home: crate::primitive_storage::PrimitiveStorageHome,
-        index: usize,
-    },
-    Structural {
-        array: StructuralRuntimePlace,
-        index: usize,
-    },
 }
 
 impl BoundaryStorageInputs {
@@ -119,10 +108,10 @@ impl BoundaryStorageInputs {
                 endpoint: endpoint.clone(),
                 encoding: None,
             };
-            if let Some(cell) = execution.original_array_cell(&storage)? {
+            if let Some(cell) = execution.array_cell(&storage)? {
                 let (home, index) = match cell {
-                    OriginalArrayCell::Frame { home, index } => (home, index),
-                    OriginalArrayCell::Structural { array, index } => {
+                    ArrayCell::Frame { home, index } => (home, index),
+                    ArrayCell::Structural { array, index } => {
                         execution
                             .structural_byte_storage
                             .get_mut(&array)
@@ -180,20 +169,18 @@ impl BoundaryStorageInputs {
                         endpoint,
                         encoding: None,
                     };
-                    let (home, index) = match execution
-                        .original_array_cell(&storage)?
-                        .ok_or_else(malformed)?
-                    {
-                        OriginalArrayCell::Frame { home, index } => (home, index),
-                        OriginalArrayCell::Structural { array, index } => {
-                            execution
-                                .structural_byte_storage
-                                .get_mut(&array)
-                                .ok_or_else(malformed)?
-                                .install_resident(index, resident)?;
-                            continue;
-                        }
-                    };
+                    let (home, index) =
+                        match execution.array_cell(&storage)?.ok_or_else(malformed)? {
+                            ArrayCell::Frame { home, index } => (home, index),
+                            ArrayCell::Structural { array, index } => {
+                                execution
+                                    .structural_byte_storage
+                                    .get_mut(&array)
+                                    .ok_or_else(malformed)?
+                                    .install_resident(index, resident)?;
+                                continue;
+                            }
+                        };
                     let (depth, place, _) = home.scalar_array_frame();
                     let arrays = if depth == execution.call_stack.len() {
                         &mut execution.scalar_array_values
@@ -263,79 +250,15 @@ fn endpoint_parent(
 }
 
 impl TerminalExecution<'_> {
-    /// Resolve packed endpoints through their captured frame, including a byte
-    /// window within a nested array. The descriptor supplies no new allocation.
-    fn original_array_cell(
-        &self,
-        storage: &PrimitiveStorage,
-    ) -> Result<Option<OriginalArrayCell>, TerminalInterpretError> {
-        use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
-        let (home, index) = match &storage.endpoint {
-            PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => (*home, *index),
-            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
-                let (depth, place, structural_type) = match array.home {
-                    ArrayStorageHome::Frame {
-                        depth,
-                        place,
-                        structural_type,
-                    } => (depth, place, structural_type),
-                    ArrayStorageHome::Runtime => {
-                        let payload = self
-                            .structural_byte_storage
-                            .get(&array.referent)
-                            .ok_or_else(malformed)?;
-                        if *index >= payload.len() {
-                            return Err(malformed());
-                        }
-                        return Ok(Some(OriginalArrayCell::Structural {
-                            array: array.referent.clone(),
-                            index: *index,
-                        }));
-                    }
-                };
-                let (start, end) = self.frame_byte_array_window(array)?;
-                let index = start
-                    .checked_add(*index)
-                    .filter(|index| *index < end)
-                    .ok_or_else(malformed)?;
-                let machine = if depth == self.call_stack.len() {
-                    self.current_machine
-                } else {
-                    self.call_stack
-                        .get(depth)
-                        .ok_or_else(malformed)?
-                        .current_machine
-                };
-                (
-                    crate::primitive_storage::PrimitiveStorageHome::captured_frame(
-                        depth,
-                        machine,
-                        place,
-                        structural_type,
-                    ),
-                    index,
-                )
-            }
-            _ => return Ok(None),
-        };
-        self.owned_array_home(&home)?;
-        let (depth, place, structural_type) = home.scalar_array_frame();
-        let array = self.frame_array(depth, place).ok_or_else(malformed)?;
-        if array.structural_type != structural_type || index >= array.len() {
-            return Err(malformed());
-        }
-        Ok(Some(OriginalArrayCell::Frame { home, index }))
-    }
-
     fn original_scalar_owner(
         &mut self,
         storage: &PrimitiveStorage,
         identity_cursor: &mut Option<u64>,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        if let Some(cell) = self.original_array_cell(storage)? {
+        if let Some(cell) = self.array_cell(storage)? {
             let home = match cell {
-                OriginalArrayCell::Frame { home, .. } => home,
-                OriginalArrayCell::Structural { array, .. } => {
+                ArrayCell::Frame { home, .. } => home,
+                ArrayCell::Structural { array, .. } => {
                     let structural_type = self
                         .structural_byte_storage
                         .get(&array)
@@ -454,10 +377,10 @@ impl TerminalExecution<'_> {
                 "original scalar storage requires its exact representation-view codec",
             ));
         }
-        if let Some(cell) = self.original_array_cell(storage)? {
+        if let Some(cell) = self.array_cell(storage)? {
             let (home, index) = match cell {
-                OriginalArrayCell::Frame { home, index } => (home, index),
-                OriginalArrayCell::Structural { array, index } => {
+                ArrayCell::Frame { home, index } => (home, index),
+                ArrayCell::Structural { array, index } => {
                     let payload = self
                         .structural_byte_storage
                         .get(&array)
@@ -502,36 +425,20 @@ impl TerminalExecution<'_> {
                     "original packed scalar requires its exact whole-cell codec",
                 ));
             }
-            let mut carrier = structural_type;
-            let mut ordinal = u64::try_from(index).map_err(|_| malformed())?;
-            let types = self.program.structural_types();
-            let mut path = Vec::new();
-            while let terminal_psi::StructuralTypeShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Literal(length),
-            } = types.get(&carrier).ok_or_else(malformed)?.shape
-            {
-                let count = if matches!(
-                    types.get(&element).ok_or_else(malformed)?.shape,
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                ) {
-                    1
-                } else {
-                    terminal_semantics::scalar_array_leaf_shape(types.values(), element)
-                        .ok_or_else(malformed)?
-                        .1
-                };
-                let selected = ordinal
-                    .checked_div(count)
-                    .filter(|selected| *selected < length)
-                    .ok_or_else(malformed)?;
-                ordinal %= count;
-                path.push(Path::FixedIndex(selected));
-                carrier = element;
-            }
-            if ordinal != 0 {
-                return Err(malformed());
-            }
+            let path = terminal_semantics::scalar_array_leaf_path(
+                self.program.structural_types().values(),
+                structural_type,
+                u64::try_from(index).map_err(|_| malformed())?,
+            )
+            .ok_or_else(malformed)?
+            .into_iter()
+            .map(|step| match step {
+                terminal_psi::StructuralPathSegment::FixedIndex(index) => {
+                    Ok(Path::FixedIndex(index))
+                }
+                _ => Err(malformed()),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
             return Ok(TerminalOriginalScalarValue {
                 path,
                 value: cell.read()?,
