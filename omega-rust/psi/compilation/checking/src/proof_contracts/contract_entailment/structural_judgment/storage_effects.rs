@@ -679,10 +679,18 @@ impl StructuralJudge<'_> {
             return None;
         }
         let place = self.captured_storage_coordinate(scope, expression)?;
-        self.current_storage_value(&place).or_else(|| {
-            let (machine, state) = scope?;
-            self.current_backing_value(machine, state, expression)
-        })
+        let current = self.current_storage_value(&place);
+        // An owned descriptor cell identifies the pointer, not its scalar
+        // contents. A separately authenticated live backing read may observe
+        // those contents; otherwise retain the descriptor's existing fence.
+        if current.as_ref().is_none_or(|value| {
+            super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
+        }) && let Some((machine, state)) = scope
+            && let Some(value) = self.current_backing_value(machine, state, expression)
+        {
+            return Some(value);
+        }
+        current
     }
 
     pub(super) fn current_storage_value(
