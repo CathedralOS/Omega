@@ -228,6 +228,9 @@ pub struct CheckedBoundaryOperatorApplicationDemand {
 /// declarations their portable identities. This is a candidate, not selection.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryBodyCandidate {
+    /// Declaration eligibility is retained independently of executable demand.
+    pub declaration: Handle<CheckedBoundaryOperatorDeclaration>,
+    pub is_product: bool,
     pub selection: SymbolHandle,
     pub selection_identity: CallableIdentityId,
     pub target: Option<String>,
@@ -235,6 +238,15 @@ pub struct CheckedBoundaryBodyCandidate {
     pub entry: SymbolHandle,
     pub contract: [u8; 32],
     pub specialization: Option<(SymbolHandle, [u8; 32])>,
+}
+
+/// A checked operator satisfaction, including open declarations which are not
+/// executable candidates. Its presence never establishes a closed application.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedBoundaryOperatorDeclaration {
+    pub requirement: SymbolHandle,
+    pub machine: SymbolHandle,
+    pub selection: language_semantics::BoundaryBodySelection,
 }
 
 /// One checked open application exported by a generic machine. This is
@@ -585,6 +597,7 @@ pub struct CheckedOperatorFacts {
     /// coverage; later authority-bearing consumers must fail closed.
     pub boundary_applications: Vec<CheckedBoundaryOperatorApplicationDemand>,
     pub boundary_body_candidates: Arena<CheckedBoundaryBodyCandidate>,
+    pub boundary_declarations: Arena<CheckedBoundaryOperatorDeclaration>,
     /// D29 open demands retained separately from closed applications so no
     /// downstream consumer can accidentally interpret them as coverage.
     pub symbolic_boundary_applications: Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
@@ -777,6 +790,7 @@ impl CheckedOperatorFacts {
             operator_realization_contracts: Vec::new(),
             boundary_applications: Vec::new(),
             boundary_body_candidates: Arena::new(),
+            boundary_declarations: Arena::new(),
             symbolic_boundary_applications: Vec::new(),
             expression_uses: arena::OwnedIndex::default(),
         }

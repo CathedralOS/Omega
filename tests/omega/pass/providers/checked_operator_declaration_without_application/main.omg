@@ -1,0 +1,21 @@
+// Check validates a selected generic provider without any closed application.
+// The unselected valid alternative is not executable ambiguity. No ProgramEntry
+// is supplied: this fixture asserts declaration eligibility, not runtime coverage.
+data Policy {}
+boundary operator Policy::identity<Value>(value: Value) -> Value;
+
+data Selected {}
+machine Selected::identity<Value>(value: Value) -> Value
+satisfies Policy::identity
+{
+    value
+}
+
+data Alternative {}
+machine Alternative::identity<Value>(value: Value) -> Value
+satisfies Policy::identity
+{
+    value
+}
+
+machine unused() {}

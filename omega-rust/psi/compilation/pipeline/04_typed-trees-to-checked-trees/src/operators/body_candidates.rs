@@ -4,12 +4,14 @@
 
 use arena::{Arena, HandleSpan};
 use checked_trees::{
-    CheckedBoundaryBodyCandidate, CheckedBoundaryOperatorApplicationDemand, CheckedTrees,
+    CheckedBoundaryBodyCandidate, CheckedBoundaryOperatorApplicationDemand,
+    CheckedBoundaryOperatorDeclaration, CheckedTrees,
 };
 
 pub(crate) fn retain_boundary_body_candidates(
     checked: &mut CheckedTrees,
 ) -> Result<(), &'static str> {
+    checked.facts.operators.boundary_declarations = declarations(checked)?;
     let demands = &checked.facts.operators.boundary_applications;
     let mut bodies = Arena::new();
     let mut spans: Vec<HandleSpan<CheckedBoundaryBodyCandidate>> =
@@ -40,6 +42,86 @@ pub(crate) fn retain_boundary_body_candidates(
     }
     checked.facts.operators.boundary_body_candidates = bodies;
     Ok(())
+}
+
+fn declarations(
+    checked: &CheckedTrees,
+) -> Result<Arena<CheckedBoundaryOperatorDeclaration>, &'static str> {
+    let typed = &checked.typed;
+    let mut declarations = Arena::new();
+    let in_product = |symbol| {
+        typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| typed.symbols.source_file(span))
+            .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
+    };
+    for machine in typed.machines().iter().filter(|machine| {
+        machine.supply_mode.is_checked_body()
+            && !machine.target_family_interface
+            && !typed
+                .machine_specializations
+                .iter()
+                .any(|row| row.instance == machine.symbol)
+    }) {
+        let conformances = typed.machine_trait_conformances(machine);
+        let is_product = in_product(machine.symbol)
+            && (!machine.attached_data_symbol.is_valid()
+                || in_product(machine.attached_data_symbol))
+            && conformances
+                .iter()
+                .all(|edge| in_product(edge.symbol) && in_product(edge.requirement_symbol));
+        for conformance in conformances
+            .iter()
+            .filter(|edge| edge.external_binding.is_none())
+        {
+            let Some(operator) =
+                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                    typed,
+                    machine,
+                    conformance,
+                )
+            else {
+                continue;
+            };
+            // Token-bearing requirements have a signature view, not an operator
+            // provider declaration. Their ordinary requirement catalog owns them.
+            if typed.machine(operator.symbol).is_some() {
+                continue;
+            }
+            let callable = typed
+                .machine_callable_identity_text(machine)
+                .ok_or("checked operator declaration lost its callable identity")?;
+            let provider = typed.attached_data_path(machine).unwrap_or_default();
+            let provider_package = typed
+                .data_definition_by_symbol(machine.attached_data_symbol)
+                .filter(|owner| machine.attached_data.as_ref() == Some(&owner.name))
+                .and_then(|owner| typed.symbols.symbol_package_identity(owner.symbol));
+            declarations.append(CheckedBoundaryOperatorDeclaration {
+                requirement: operator.symbol,
+                machine: machine.symbol,
+                selection: language_semantics::BoundaryBodySelection {
+                    requirement: typed_trees::operator::boundary_operator_requirement_identity(
+                        typed, operator,
+                    ),
+                    requirement_package: typed.symbols.symbol_package_identity(operator.symbol),
+                    callable,
+                    package: typed.symbols.symbol_package_identity(machine.symbol),
+                    provider,
+                    provider_package,
+                    // Operator declarations have no selecting trait-map capture
+                    // or trait-region telescope. Their source plan producer emits
+                    // the same empty coordinates; a different selected row cannot
+                    // silently acquire them from this declaration.
+                    provider_application: None,
+                    requirement_lifetime_partition: Vec::new(),
+                    target: typed.source_target_context(machine).map(str::to_owned),
+                    is_product,
+                },
+            });
+        }
+    }
+    Ok(declarations)
 }
 
 fn candidates_for_application(
@@ -73,16 +155,24 @@ fn candidates_for_application(
             if !demand.arguments.is_empty() {
                 continue;
             }
-            let satisfies = typed.machine_trait_conformances(machine).iter().any(|conformance| {
-                conformance.external_binding.is_none()
-                    && typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(typed, machine, conformance)
-                        .is_some_and(|operator| operator.symbol == demand.requirement_symbol)
-            });
-            if !satisfies {
-                continue;
-            }
             machine
         };
+        let mut declarations =
+            checked
+                .facts
+                .operators
+                .boundary_declarations
+                .iter()
+                .filter(|(_, declaration)| {
+                    declaration.machine == selection.symbol
+                        && declaration.requirement == demand.requirement_symbol
+                });
+        let Some((declaration, _)) = declarations.next() else {
+            continue;
+        };
+        if declarations.next().is_some() {
+            return Err("checked operator body has competing declaration relationships");
+        }
         let entry = typed
             .machine_states(machine)
             .first()
@@ -108,12 +198,17 @@ fn candidates_for_application(
             })
             .transpose()?;
         candidates.push(CheckedBoundaryBodyCandidate {
+            declaration,
+            is_product: typed
+                .symbols
+                .symbol_provenance_source_span(machine.symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
+                && typed.symbols.symbol_package_identity(machine.symbol)
+                    == typed.symbols.symbol_package_identity(selection.symbol),
             selection: selection.symbol,
             selection_identity: typed.machine_callable_identity(selection),
-            target: machine
-                .target
-                .as_ref()
-                .map(|target| target.as_str().to_owned()),
+            target: typed.source_target_context(machine).map(str::to_owned),
             machine: machine.symbol,
             entry: entry.symbol,
             contract: contract.commitment.as_bytes(),

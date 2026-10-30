@@ -6,7 +6,9 @@
 //! Opaque owner data travels with a candidate or choice and is not selection
 //! authority. No index escapes to be reinterpreted against another inventory.
 
+mod checked_bodies;
 mod declarations;
+pub use checked_bodies::{CheckedBodyCandidate, select_checked_body};
 mod independent_components;
 mod installation_reach;
 mod provider_selection;
