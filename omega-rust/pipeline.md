@@ -438,6 +438,15 @@ diagnostics; native source failures remain deferred, and receiving permission,
 trust admission and actual native demand stay at their existing boundaries.
 This consolidates the source preparation owner, not the intended future
 Terminal-only provider selection.
+Installation-reach preparation reads the selected provider's exact retained
+requirement and realization rows, including inherited and dormant declarations.
+It projects checked bounds and dependency identities once; source-free
+`provider-selection` owns fixed-point substitution across the complete selected
+closure. A missing source realization is not an empty service row, and a pending
+competing publisher cannot become a unique fallback. No typed declaration search
+or provider-name reconstruction occurs during substitution. Existing selected
+fact attachment validates the bound; independent package review still compares
+the resolved row with its own checked-source projection.
 Accepted-service preparation likewise retains the exact nominal owner, complete
 target-side schema and ordered requirement identities once at checked-provider
 binding. Resolved semantic bindings carry that record, not a source-arena symbol.
