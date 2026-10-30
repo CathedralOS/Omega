@@ -2,7 +2,7 @@
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance,
+    SelectedInstructionProvenance, obligation_provenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::ByteViewHomes;
@@ -77,12 +77,11 @@ pub(super) fn create(
             },
             builder.constraints.keys.add_i64,
             &[parent.byte_offset, start_register, byte_offset],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end, *length, parent.root_length],
-                obligations: vec![*obligation],
-                ..Default::default()
-            },
+            obligation_provenance(
+                row,
+                &[*start, *end, *length, parent.root_length],
+                &[*obligation],
+            ),
         )?;
         (byte_offset, parent.root_length)
     } else {
@@ -135,12 +134,7 @@ pub(super) fn create(
             backing,
             byte_offset,
             pointer,
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end, *length, root_length],
-                obligations: vec![*obligation],
-                ..Default::default()
-            },
+            obligation_provenance(row, &[*start, *end, *length, root_length], &[*obligation]),
         )?;
         super::local_storage::store(builder, row, slot, 0, pointer)?;
         super::local_storage::store(builder, row, slot, 8, byte_length)?;
