@@ -191,7 +191,7 @@ pub(super) fn resolve(
     parameters
         .into_iter()
         .map(|parameter| {
-            let mut domains = parameter
+            let domains = parameter
                 .domains
                 .iter()
                 .map(|semantic| {

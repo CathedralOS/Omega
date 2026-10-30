@@ -344,7 +344,7 @@ impl PreparedScalarQualifications {
             .iter()
             .enumerate()
             .map(|(position, parameter)| {
-                let mut domains = boundary
+                let domains = boundary
                     .scalar_domain_requirements
                     .iter()
                     .filter(|row| row.argument_index as usize == position)
