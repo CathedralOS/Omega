@@ -3840,6 +3840,8 @@ fail/dependent/data_requires_upper_bound rejected 204ms expected @276a24ccda04
 	data `Bounded<10>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 677ms expected @a92f16431042
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `main.pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/dependent/data_where_field_free_conjunct_unestablished rejected 322ms expected @00d9206f6621
+	machine `entry_start` state `entry` statement 2: reading `pending.<whole value>` crosses an open default-domain invariant window before data `Guarded` is established: the zeroed representation is not yet a `Guarded` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/dependent/data_where_invariant_window_unclosed_rejected rejected 678ms expected @a92f16431042
 	data `Main`'s default domain is still FALSE at a call: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
 	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -34846,6 +34848,7 @@ pass/wire/fixed_vec_member_through_qualified_path checked 1426ms @a92f16431042
 pass/wire/fixed_vec_wire_member checked 32717ms @a92f16431042
 pass/wire/numbered_case_identities checked 1344ms @a92f16431042
 pass/wire/runtime_wire_decode_byte_slice_exit checked 7190ms check-target:macos_arm64 @a92f16431042
+pass/wire/runtime_wire_decode_predicate_capture_exit checked 8163ms check-target:macos_arm64 @00d9206f6621
 pass/wire/runtime_wire_decode_ranged_field_exit checked 8650ms check-target:macos_arm64 @a92f16431042
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 8543ms check-target:macos_arm64 @a92f16431042
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 8661ms check-target:macos_arm64 @a92f16431042

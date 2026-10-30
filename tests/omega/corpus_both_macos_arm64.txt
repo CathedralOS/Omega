@@ -321,6 +321,7 @@ pass/text/runtime_chained_string_append_exit built 4463ms exit:70 interpreter-ex
 pass/text/runtime_mutable_string_parameter_concat_write_line built 4518ms exit:77 stdout:match interpreter-exit:77 interpreter-stdout:match interpreter:agrees @90c334a2c095
 pass/text/runtime_text_builder built 4531ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
 pass/text/state_parameter_byte_replacement_exit built 4541ms exit:70 interpreter-exit:70 interpreter:agrees @90c334a2c095
+pass/wire/runtime_wire_decode_predicate_capture_exit built 8432ms exit:70 interpreter-exit:70 interpreter:agrees @00d9206f6621
 run/borrows/returned_image_nested_arrival built 1171ms exit:0 interpreter-exit:0 interpreter:agrees @04f5793fae62
 run/borrows/returned_image_nested_field built 1131ms exit:0 interpreter-exit:0 interpreter:agrees @04f5793fae62
 run/calls/call_result_ascii_prefix_literal_exit built 1083ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
