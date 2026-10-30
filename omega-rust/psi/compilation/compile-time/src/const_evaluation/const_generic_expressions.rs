@@ -17,6 +17,7 @@ pub(crate) use call_custody::{DependencyValue, retain_current_initializer_calls}
 pub(super) mod lexical_selection;
 pub(super) mod value;
 
+use crate::unique::push_unique;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
@@ -683,9 +684,7 @@ pub(super) fn expression_custody(
                     .clone()
                     .ok_or("selected constant has no canonical value")?,
             };
-            if !origins.contains(&origin) {
-                origins.push(origin);
-            }
+            push_unique(&mut origins, origin);
         }
         if let Some(binary) = program.expression_table.binary_node(expression) {
             pending.push(binary.right);

@@ -1,3 +1,4 @@
+use crate::unique::push_unique;
 use std::collections::{HashMap, HashSet};
 
 use arena::{Handle, HandleSpan};
@@ -159,9 +160,7 @@ pub fn desugar_plan_laid_value_types(
             .iter_mut()
             .find(|record| record.synthetic_name == synthetic_name)
         {
-            if !record.invocation_sources.contains(&invocation_source) {
-                record.invocation_sources.push(invocation_source);
-            }
+            push_unique(&mut record.invocation_sources, invocation_source);
         } else {
             records.push(PlanLaidRecord {
                 synthetic_name,

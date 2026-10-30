@@ -6,6 +6,7 @@
 //! give detached expressions ordinary checking context; they remain in a private
 //! clone and never add a runtime declaration or a portable representation.
 
+use crate::unique::push_unique;
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -665,9 +666,7 @@ fn validate_float_value(
                 return Err("floating constant replay lost selected builtin meaning".into());
             }
             let reference = probe.expression_table.source_span(expression);
-            if !operators.contains(&reference) {
-                operators.push(reference);
-            }
+            push_unique(&mut operators, reference);
             pending.push(binary.right);
             pending.push(binary.left);
         } else if let ExpressionNode::Match(dispatch) =
@@ -876,9 +875,7 @@ fn validate_dependency_values(
                     );
                 }
             }
-            if !authored_roots.contains(&declaration.authored_initializer) {
-                authored_roots.push(declaration.authored_initializer);
-            }
+            push_unique(&mut authored_roots, declaration.authored_initializer);
             continue;
         }
         let expected = CanonicalConstIdentity {

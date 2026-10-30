@@ -283,11 +283,7 @@ fn completed_call_established_loan(
             .completed_reference_loans
             .handles()
             .any(|candidate| candidate == handle)
-        && facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state.calls)
+        && crate::flow::call_flows(&facts.flow.control, state.calls)
             .iter()
             .any(|actual| {
                 actual.statement_index == loan.statement_index

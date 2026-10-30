@@ -305,16 +305,17 @@ fn machine_groups(
     }
     let mut owner = (0..machines.len()).collect::<Vec<_>>();
     for (position, machine) in machines.iter().enumerate() {
-        let lexical_parent = machine.lexical_region_origin.map(|origin| origin.machine).or_else(
-            || {
+        let lexical_parent = machine
+            .lexical_region_origin
+            .map(|origin| origin.machine)
+            .or_else(|| {
                 let scope = program.declaration_scope_parent(machine.symbol);
                 scope
                     .is_valid()
                     .then(|| program.machine_declaration_for_lexical_scope(scope))
                     .flatten()
                     .map(|declaring| declaring.symbol)
-            },
-        );
+            });
         if let Some(origin_machine) = lexical_parent
             && let Some(origin_position) = program.machine_position_by_symbol(origin_machine)
             && origin_position != position
@@ -336,10 +337,7 @@ fn machine_groups(
             };
             let callee_machine = &machines[callee];
             if callee_machine.lexical_region_origin.is_none()
-                && !super::state_values::lexically_nested_machine(
-                    program,
-                    callee_machine.symbol,
-                )
+                && !super::state_values::lexically_nested_machine(program, callee_machine.symbol)
                 && super::state_values::entry_state_index(program, callee_machine)
                     == Some(state_position)
             {

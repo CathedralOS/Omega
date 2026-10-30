@@ -17,12 +17,8 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
         family: MachineAlternativeFamily::CompareByteSequences,
         variant: 0,
     };
-    let encoded =
-        isa_aarch64::encode_aarch64_selected_form(&physical, kind, alternative, &registers)
-            .unwrap();
     let instruction = SelectedInstructionId(1);
-    let (store, encoding, layout) =
-        super::validated_aarch64_form_fixture(&encoded, instruction, alternative, kind);
+    let (store, encoding, layout) = super::form_fixture(kind, alternative, &registers);
     for mutation in 0..9 {
         let mut changed = store.clone();
         let footprint = changed.footprint_mut(encoding.footprint).unwrap();

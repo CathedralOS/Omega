@@ -36,11 +36,7 @@ fn check_operation(
         .iter()
         .find(|(_, state)| state.state_symbol == operation.public_state)
         .ok_or("public flow state is absent")?;
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
         .filter(|call| call.authored_expression == operation.request);
     let call = calls.next().ok_or("selected invocation is absent")?;

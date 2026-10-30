@@ -764,10 +764,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     // inspectable declaration cannot be shown to be one.
     if callee.supply_mode != MachineSupplyMode::CheckedBody
         || callee.declaration.is_none_or(|(_, state)| {
-            !program
-                .statement_table
-                .statements(state.statement_nodes)
-                .is_empty()
+            !crate::flow::state_statements(program, state.statement_nodes).is_empty()
         })
         || !is_unit(program, callee.return_type)
         || !matches!(target_parameters.len(), 2 | 3)

@@ -180,10 +180,7 @@ impl RangeFacts<'_> {
                     machine,
                     state,
                     if uses_frozen_selector {
-                        program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len()
+                        crate::flow::state_statements(program, state.statement_nodes).len()
                     } else {
                         prefix
                     },

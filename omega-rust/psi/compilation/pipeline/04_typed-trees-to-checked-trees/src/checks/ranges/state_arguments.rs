@@ -429,29 +429,9 @@ fn expression_has_internal_call(
         }
         ExpressionNode::Match(dispatch) => {
             expression_has_internal_call(program, non_entry_states, dispatch.subject, next)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|operand| {
-                                expression_has_internal_call(
-                                    program,
-                                    non_entry_states,
-                                    operand,
-                                    next,
-                                )
-                            })
-                            || expression_has_internal_call(
-                                program,
-                                non_entry_states,
-                                arm.value,
-                                next,
-                            )
-                    })
+                || crate::flow::match_arm_satisfies(program, dispatch.arms, |operand| {
+                    expression_has_internal_call(program, non_entry_states, operand, next)
+                })
         }
         ExpressionNode::Binary(binary) => {
             expression_has_internal_call(program, non_entry_states, binary.left, next)

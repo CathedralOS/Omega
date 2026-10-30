@@ -830,11 +830,7 @@ pub(crate) fn finalize_completion_actions(
             }
             let call = facts.flow.control.calls.get(source_call);
             let state_flow = facts.flow.control.states.iter().find_map(|(_, row)| {
-                facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(row.calls)
+                crate::flow::call_flows(&facts.flow.control, row.calls)
                     .iter()
                     .any(|candidate| std::ptr::eq(candidate, call))
                     .then_some(row)

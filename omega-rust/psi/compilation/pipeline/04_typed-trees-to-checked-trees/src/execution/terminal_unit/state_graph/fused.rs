@@ -124,9 +124,7 @@ fn completing_transition_targets<'a>(
     program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,
 ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
             StatementNode::Transition(transition) => Some(transition),

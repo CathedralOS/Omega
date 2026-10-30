@@ -238,10 +238,7 @@ fn reaching_store_proves_comparison(
         .admitted_execution_order(typed_state.statement_nodes);
     let Some(end) = order.position(current_operand.statement_index).or_else(|| {
         (current_operand.statement_index
-            == program
-                .statement_table
-                .statements(typed_state.statement_nodes)
-                .len())
+            == crate::flow::state_statements(program, typed_state.statement_nodes).len())
         .then_some(order.indices().len())
     }) else {
         return false;

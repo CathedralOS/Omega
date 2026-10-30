@@ -493,11 +493,9 @@ impl Query<'_> {
             return Some(false);
         }
         let state = local_state(self.program, symbol)?;
-        let typed_trees::statement::StatementNode::Assignment(assignment) = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(store.statement_index as usize)?
+        let typed_trees::statement::StatementNode::Assignment(assignment) =
+            crate::flow::state_statements(self.program, state.statement_nodes)
+                .get(store.statement_index as usize)?
         else {
             return None;
         };

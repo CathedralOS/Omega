@@ -192,11 +192,7 @@ pub(crate) fn require_unborrowed_completion(
         .iter()
         .filter(|call| call.statement_index == operand.statement_index)
     {
-        let flow_call = facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state_flow.calls)
+        let flow_call = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
             .iter()
             .find(|candidate| {
                 candidate.statement_index == call.statement_index

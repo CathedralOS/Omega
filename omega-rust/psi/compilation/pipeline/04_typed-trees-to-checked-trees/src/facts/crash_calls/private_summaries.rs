@@ -322,10 +322,7 @@ pub(crate) fn infer_private_body_summaries(
                         .control
                         .state(node.machine, invocation.caller_state)
                         .expect("a retained summary invocation has its flow state");
-                    let call_flow = flow
-                        .control
-                        .calls
-                        .span_or_empty(state_flow.calls)
+                    let call_flow = crate::flow::call_flows(&flow.control, state_flow.calls)
                         .iter()
                         .find(|call| {
                             call.statement_index == invocation.statement_index

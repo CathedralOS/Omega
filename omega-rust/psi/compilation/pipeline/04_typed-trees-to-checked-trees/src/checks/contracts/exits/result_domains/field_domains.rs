@@ -17,7 +17,7 @@ use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
 use super::super::super::return_values::exit_return_expression;
 use super::scalar_exits::*;
-use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::{active_context_handles, canonical_place_from_semantic_place};
 use checked_trees::{CheckFacts, FlowExitFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
@@ -74,14 +74,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     if !returned.is_valid() {
         return;
     }
-    let entry_contexts: Vec<_> = facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(exit.entry_semantic_contexts)
-        .iter()
-        .map(|context_ref| context_ref.context)
-        .collect();
+    let entry_contexts = active_context_handles(&facts.flow.contexts, exit.entry_semantic_contexts);
     let base = canonical_place_from_expression_in_state(
         program,
         exit.state_symbol,
@@ -562,14 +555,7 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
         exit.machine_symbol,
         exit.state_symbol,
     );
-    let entry_contexts: Vec<_> = facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(exit.entry_semantic_contexts)
-        .iter()
-        .map(|context_ref| context_ref.context)
-        .collect();
+    let entry_contexts = active_context_handles(&facts.flow.contexts, exit.entry_semantic_contexts);
     // Entry qualifications are implicit `requires`, not implicit `ensures`.
     // They may expire when the supplied referent changes. Only its declared
     // field/default domains below require restoration here; explicit result

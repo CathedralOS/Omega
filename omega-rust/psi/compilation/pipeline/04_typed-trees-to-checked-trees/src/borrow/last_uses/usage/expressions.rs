@@ -11,17 +11,9 @@ pub(super) fn expression_uses_local_name(
             .is_some_and(|source| expression_uses_local_name(program, source, local_name)),
         typed_trees::expression::ExpressionNode::Match(dispatch) => {
             expression_uses_local_name(program, dispatch.subject, local_name)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|pattern| expression_uses_local_name(program, pattern, local_name))
-                            || expression_uses_local_name(program, arm.value, local_name)
-                    })
+                || crate::flow::match_arm_satisfies(program, dispatch.arms, |expression| {
+                    expression_uses_local_name(program, expression, local_name)
+                })
         }
         typed_trees::expression::ExpressionNode::Atomic(atomic) => {
             expression_uses_local_name(program, atomic.value, local_name)

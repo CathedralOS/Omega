@@ -70,25 +70,10 @@ copy_receipt! {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedLiveRanges {
-    pub(crate) plan: std::sync::Arc<LiveRangePlan>,
-    pub(crate) receipt: LiveRangeValidationReceipt,
-    /// Each function's share of the receipt identity, kept so a successor
-    /// plan that carries a function over unchanged need not hash it again.
-    pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
+shared_plan_carrier!(ValidatedLiveRanges: LiveRangePlan, LiveRangeValidationReceipt {
     /// Report-only counts, bound to the same admitted function as its digest.
     pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,
-}
-
-impl ValidatedLiveRanges {
-    pub fn plan(&self) -> &LiveRangePlan {
-        &self.plan
-    }
-    receipt_accessor_rows!(ref ValidatedLiveRanges {
-        receipt: LiveRangeValidationReceipt,
-    });
-}
+});
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LiveRangeError {

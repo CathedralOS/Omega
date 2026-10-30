@@ -207,11 +207,7 @@ impl<'scope> Values<'scope> {
                 if capture.primitive != primitive {
                     continue;
                 }
-                let query_preserves = facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(flow.calls)
+                let query_preserves = crate::flow::call_flows(&facts.flow.control, flow.calls)
                     .iter()
                     .filter(|call| call.statement_index == statement)
                     .all(|call| {

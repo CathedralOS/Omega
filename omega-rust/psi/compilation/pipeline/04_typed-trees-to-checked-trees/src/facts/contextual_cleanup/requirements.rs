@@ -783,11 +783,7 @@ pub(crate) fn occurrence_contexts(
             statement_index,
             call_ordinal,
             target_symbol,
-        } => facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state.calls)
+        } => crate::flow::call_flows(&facts.flow.control, state.calls)
             .iter()
             .filter(|call| {
                 call.statement_index == statement_index

@@ -151,11 +151,10 @@ pub(super) fn aliases(
         return Some(Vec::new());
     }
     let mut aliases = Vec::new();
-    for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+    for (statement_index, statement) in
+        crate::flow::state_statements(program, state.statement_nodes)
+            .iter()
+            .enumerate()
     {
         let Some(local) = statement.as_local_data() else {
             continue;

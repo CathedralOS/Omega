@@ -90,6 +90,7 @@
 
 use crate::SelectedBuildTimeOperators;
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::unique::extend_unique;
 use diagnostics::Diagnostic;
 use numerics::{
     arithmetic::ArithmeticDomain,
@@ -624,11 +625,7 @@ fn evaluate_root(
             endpoint.expression,
             &invocation,
         )?;
-    for warning in additions {
-        if !warnings.contains(&warning) {
-            warnings.push(warning);
-        }
-    }
+    extend_unique(warnings, additions);
     Ok(ExpressionNode::Integer(literal))
 }
 
@@ -715,11 +712,7 @@ pub(crate) fn integer_root_plan(
             position: IntegerRootPosition::Contract(root.context),
             expression: root.expression,
         });
-        for invocation in root.invocations {
-            if !pending.contains(&invocation) {
-                pending.push(invocation);
-            }
-        }
+        extend_unique(&mut pending, root.invocations);
     }
     Ok(IntegerRootPlan {
         roots,

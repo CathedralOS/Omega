@@ -401,12 +401,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
             crate::values::integer_bounds_at_place(
                 program,
                 semantic,
-                build
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(*active_contexts)
-                    .iter()
-                    .map(|reference| semantic.contexts.get(reference.context)),
+                build.semantic_context_views(semantic, *active_contexts),
                 &subject,
             )
         });

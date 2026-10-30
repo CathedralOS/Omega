@@ -45,12 +45,7 @@ pub(super) fn validate_portable_references(
     for (_, state) in checked.facts.flow.control.states.iter() {
         if references.declaration(state.machine_symbol) {
             references.extend(
-                checked
-                    .facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(state.calls)
+                crate::flow::call_flows(&checked.facts.flow.control, state.calls)
                     .iter()
                     .map(|call| call.target_symbol),
             );

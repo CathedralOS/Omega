@@ -279,10 +279,7 @@ pub(super) fn append_statement_calls<'plans>(
         StatementNode::Expression(expression) => {
             if state.return_type.is_valid()
                 && statement_index + 1
-                    == program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .len()
+                    == crate::flow::state_statements(program, state.statement_nodes).len()
             {
                 let evaluated = execution.evaluated_operand_as(
                     *expression,

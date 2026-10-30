@@ -4,6 +4,7 @@
 //! instance identity, and payload reads require the currently selected case.
 //! Recast sources and contextual predicate proofs retain their distinct duties.
 
+use crate::flow::active_context_handles;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -73,11 +74,7 @@ fn value_semantic_contexts(
             Ok(None) => {}
         }
     }
-    let contexts = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
+    let contexts = crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
         .rfind(|call| call.statement_index == statement_index)
         .map(|call| call.exit_semantic_contexts)
@@ -89,14 +86,7 @@ fn value_semantic_contexts(
                     statement.entry_semantic_contexts
                 })
         });
-    facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(contexts)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>()
+    active_context_handles(&facts.flow.contexts, contexts)
 }
 
 /// Construction children are already evaluated observations, not syntax replay.
@@ -536,11 +526,7 @@ fn completed_owned_call_carries_domain(
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     if !value.is_valid()
-        || !facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state_flow.calls)
+        || !crate::flow::call_flows(&facts.flow.control, state_flow.calls)
             .iter()
             .any(|call| {
                 call.statement_index == statement_index && call.authored_expression == value

@@ -65,35 +65,18 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::remove_selected_copy;
 pub(crate) use validation::measured_steps;
 
-/// An accepted copy removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCopyRemoval {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: CopyRemovalReceipt,
-}
+validated_transformed_receipt!(
+    /// An accepted copy removal with its replay receipt.
+    ValidatedCopyRemoval,
+    CopyRemovalReceipt
+);
 
-validated_transformed_receipt!(ValidatedCopyRemoval, CopyRemovalReceipt);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CopyRemovalReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    copy: SelectedInstructionId,
-}
-
-impl CopyRemovalReceipt {
-    receipt_accessor_rows!(ref CopyRemovalReceipt {
+rewrite_receipt!(CopyRemovalReceipt {
     /// The function the copy was removed from.
-        function_index: usize,
+    function_index: usize,
     /// The removed `CopyI64` instruction's source-side identity.
-        copy: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(CopyRemovalReceipt);
+    copy: SelectedInstructionId,
+});
 
 // Canonical identity of one validated copy removal: every receipt field —
 // the coordinate, both plan identities, and the proof inputs — is part of

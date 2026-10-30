@@ -45,26 +45,12 @@ use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::rematerialize_selected_runtime_value;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRuntimeRematerialization {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RuntimeRematerializationReceipt,
-}
-
 validated_transformed_receipt!(
     ValidatedRuntimeRematerialization,
     RuntimeRematerializationReceipt
 );
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeRematerializationReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-}
-
-receipt_selected_identities!(RuntimeRematerializationReceipt);
+rewrite_receipt!(RuntimeRematerializationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeRematerializationError {

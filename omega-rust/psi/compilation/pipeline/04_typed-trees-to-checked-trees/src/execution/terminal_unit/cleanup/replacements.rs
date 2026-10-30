@@ -62,9 +62,7 @@ pub(super) fn actions(
         };
         let displaced = old_value.source != *source;
         let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
-            program
-                .statement_table
-                .statements(declaration.statement_nodes)
+            crate::flow::state_statements(program, declaration.statement_nodes)
                 .get(*statement_index as usize)
         }) {
             Some(typed_trees::statement::StatementNode::Assignment(assignment)) => {

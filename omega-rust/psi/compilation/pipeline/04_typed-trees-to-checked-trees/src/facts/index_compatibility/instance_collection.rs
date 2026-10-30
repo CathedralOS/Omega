@@ -72,10 +72,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
         flow: &'flow FlowFacts,
         state_flow: &'flow checked_trees::FlowStateFact,
     ) -> Self {
-        let calls = flow
-            .control
-            .calls
-            .span_or_empty(state_flow.calls)
+        let calls = crate::flow::call_flows(&flow.control, state_flow.calls)
             .iter()
             .filter_map(|fact| {
                 validation::find_call_site(

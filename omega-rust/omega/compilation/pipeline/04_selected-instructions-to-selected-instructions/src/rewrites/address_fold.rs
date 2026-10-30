@@ -69,35 +69,18 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::fold_selected_address;
 pub(crate) use validation::measured_steps;
 
-/// An accepted address fold with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAddressFold {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: AddressFoldReceipt,
-}
+validated_transformed_receipt!(
+    /// An accepted address fold with its replay receipt.
+    ValidatedAddressFold,
+    AddressFoldReceipt
+);
 
-validated_transformed_receipt!(ValidatedAddressFold, AddressFoldReceipt);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AddressFoldReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    access: SelectedInstructionId,
-}
-
-impl AddressFoldReceipt {
-    receipt_accessor_rows!(ref AddressFoldReceipt {
+rewrite_receipt!(AddressFoldReceipt {
     /// The function the fold was committed in.
-        function_index: usize,
+    function_index: usize,
     /// The folded displacement-carrying instruction's source-side identity.
-        access: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(AddressFoldReceipt);
+    access: SelectedInstructionId,
+});
 
 // Canonical identity of one validated address fold: every receipt field —
 // the coordinate, both plan identities, and the proof inputs — is part of

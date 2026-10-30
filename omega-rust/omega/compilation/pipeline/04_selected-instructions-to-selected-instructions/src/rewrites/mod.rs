@@ -30,11 +30,23 @@
 //! production route, and compiled nowhere. See its module doc for the
 //! disposition roster.
 
-/// Every validated rewrite exposes the same three accessors: the
-/// transformed plan borrowed and shared, and the receipt the rewrite
-/// replayed. One declarative row per validated type expands that impl.
+/// Every validated rewrite carries the same two fields — the transformed plan
+/// shared by later stages and the receipt the rewrite replayed — and exposes
+/// the same three accessors over them: the plan borrowed and shared, and the
+/// receipt. One declarative row per validated type expands the carrier and
+/// that impl, so a family names its receipt instead of restating the shell.
 macro_rules! validated_transformed_receipt {
-    ($name:ident, $receipt:ident) => {
+    (
+        $(#[$carrier_doc:meta])*
+        $name:ident, $receipt:ident
+    ) => {
+        $(#[$carrier_doc])*
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name {
+            transformed: Arc<SelectedInstructionPlan>,
+            receipt: $receipt,
+        }
+
         impl $name {
             pub fn transformed(&self) -> &SelectedInstructionPlan {
                 &self.transformed
@@ -76,6 +88,48 @@ macro_rules! receipt_selected_identities {
                 self.fuel_schedule
             }
         }
+    };
+}
+
+/// Every selected-rewrite receipt records the same four shared identities and
+/// the coordinate rows its transformation names. One declarative row per
+/// family expands the structure, the coordinate's own accessor rows and the
+/// shared identity accessors, so a family states the rows that distinguish its
+/// receipt — with the prose that says which instruction it folded — instead of
+/// restating the shell around them.
+macro_rules! rewrite_receipt {
+    (
+        $receipt:ident {
+            $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)?
+        }
+    ) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $receipt {
+            source_selected: SelectedInstructionPlanIdentity,
+            transformed_selected: SelectedInstructionPlanIdentity,
+            optimization_unit: OptimizationUnitIdentity,
+            fuel_schedule: FuelScheduleIdentity,
+            $($(#[$meta])* $field: $ty,)*
+        }
+
+        impl $receipt {
+            receipt_accessor_rows!(ref $receipt {
+                $($(#[$meta])* $field: $ty),*
+            });
+        }
+
+        receipt_selected_identities!($receipt);
+    };
+    ($receipt:ident) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $receipt {
+            source_selected: SelectedInstructionPlanIdentity,
+            transformed_selected: SelectedInstructionPlanIdentity,
+            optimization_unit: OptimizationUnitIdentity,
+            fuel_schedule: FuelScheduleIdentity,
+        }
+
+        receipt_selected_identities!($receipt);
     };
 }
 

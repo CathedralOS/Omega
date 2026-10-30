@@ -76,11 +76,7 @@ impl Execution<'_, '_, '_> {
                 self.program,
                 self.semantic,
                 self.context
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(*contexts)
-                    .iter()
-                    .map(|reference| self.semantic.contexts.get(reference.context)),
+                    .semantic_context_views(self.semantic, *contexts),
                 &place,
             );
             match (scalar.as_ref(), value) {
@@ -92,11 +88,7 @@ impl Execution<'_, '_, '_> {
                 self.program,
                 self.semantic,
                 self.context
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(*contexts)
-                    .iter()
-                    .map(|reference| self.semantic.contexts.get(reference.context)),
+                    .semantic_context_views(self.semantic, *contexts),
                 &place,
             );
             match (bounds.take(), range) {

@@ -126,9 +126,7 @@ pub(super) fn guarded(
             // custody owners; they cannot be relabeled as fresh value returns.
             return None;
         };
-        let expression = match program
-            .statement_table
-            .statements(state.statement_nodes)
+        let expression = match crate::flow::state_statements(program, state.statement_nodes)
             .get(*statement_ordinal as usize)?
         {
             StatementNode::Expression(expression) if !is_continuation => *expression,

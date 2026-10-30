@@ -484,10 +484,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         trivial_affine_locals,
         entry_claims,
         &operations,
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len(),
+        crate::flow::state_statements(program, state.statement_nodes).len(),
     );
     trace.phase("statement sequence: completion descriptor retirement");
     append_exit_reference_releases(

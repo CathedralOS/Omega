@@ -30,11 +30,10 @@ pub(super) fn updates_preserve_order(
         .iter()
         .filter(|state| loop_states.contains(&state.symbol))
     {
-        for (statement_index, statement) in program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
+        for (statement_index, statement) in
+            crate::flow::state_statements(program, state.statement_nodes)
+                .iter()
+                .enumerate()
         {
             let StatementNode::Transition(transition) = statement else {
                 continue;

@@ -671,9 +671,7 @@ impl SelectedCleanup {
             .map(|parameter| PlaceRoot::Symbol(parameter.symbol))
             .collect::<Vec<_>>();
         roots.extend(
-            program
-                .statement_table
-                .statements(state.statement_nodes)
+            crate::flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .filter_map(|statement| {
                     statement

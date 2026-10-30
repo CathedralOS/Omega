@@ -179,12 +179,8 @@ pub(crate) fn address_before_statement(
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     let end = order.position(before).or_else(|| {
-        (before
-            == program
-                .statement_table
-                .statements(state.statement_nodes)
-                .len())
-        .then_some(order.indices().len())
+        (before == crate::flow::state_statements(program, state.statement_nodes).len())
+            .then_some(order.indices().len())
     })?;
     let snapshot = if let Some(previous) = order.indices()[..end].last() {
         control
