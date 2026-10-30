@@ -45,7 +45,8 @@ impl InspectionCompilation {
                 .realization
                 .custody
                 .execution
-                .program
+                .provider_source
+                .program()
                 .facts
                 .proof_applications
                 .has_obligations

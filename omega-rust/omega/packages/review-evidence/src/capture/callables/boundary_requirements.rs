@@ -80,7 +80,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
     binding: &PackageReviewExternalBinding,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected_execution = compilation.custody.execution();
-    let plans = selected_execution.selected_provider_plan_facts.plans();
+    let plans = selected_execution.provider_source.plans().plans();
     let provenance = selected_execution.selected_provider_provenance.as_slice();
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(

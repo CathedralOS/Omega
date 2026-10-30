@@ -30,7 +30,7 @@ pub(super) fn produce(
     checked: &compiler::CheckedCompilation,
     machine: &str,
 ) -> Result<CanonicalTerminalArtifact, String> {
-    let program = &checked.execution().program;
+    let program = checked.execution().provider_source.program();
     let facts = &program.facts.proof;
     // This policy is captured from the checked source before any artifact
     // exists. Neither an actual certificate nor its claimed closure grants it.
