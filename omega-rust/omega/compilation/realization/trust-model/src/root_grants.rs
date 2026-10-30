@@ -12,9 +12,6 @@ use crate::{
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
-mod authored;
-pub use authored::collect_product_root_grants;
-
 /// Package claims require package-level review; individual accepted-machine
 /// grants cannot substitute for it. The early typed checking gate reconstructs
 /// its own provider meanings, independent of later sealed checked admission.

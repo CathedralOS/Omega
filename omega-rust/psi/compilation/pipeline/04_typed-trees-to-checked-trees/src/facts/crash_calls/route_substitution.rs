@@ -781,7 +781,8 @@ fn scalar_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedScalarExpression;
     match expression {
-        CheckedScalarExpression::StructuralSequenceLength { .. }
+        CheckedScalarExpression::ConstantApplication { .. }
+        | CheckedScalarExpression::StructuralSequenceLength { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
         CheckedScalarExpression::RepresentationView {
             primitive_type,
@@ -1088,6 +1089,7 @@ fn substitute_checked_scalar_expression(
     use checked_trees::CheckedScalarExpression;
 
     Some(match expression {
+        CheckedScalarExpression::ConstantApplication { .. } => expression.clone(),
         CheckedScalarExpression::Parameter {
             position,
             primitive_type,

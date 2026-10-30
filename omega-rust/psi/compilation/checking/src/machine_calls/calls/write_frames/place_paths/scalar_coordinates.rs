@@ -8,7 +8,6 @@
 use crate::CanonicalPlace;
 use crate::LocalWriteSource;
 use facts::{PlaceRoot, PlaceSegment};
-use symbols::SymbolHandle;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
@@ -118,7 +117,8 @@ impl LocalWriteSource {
             view_primitive,
             preserves_scalar_value,
         };
-        coordinate.label(program)?;
+        // Presentation labels serve legacy bound/write consumers. Typed readers
+        // keep case selectors and freeze runtime indices themselves.
         Some(coordinate)
     }
 }

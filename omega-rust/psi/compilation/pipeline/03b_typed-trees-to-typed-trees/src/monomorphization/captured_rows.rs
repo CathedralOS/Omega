@@ -6,19 +6,23 @@
 use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
+macro_rules! err {
+    ($message:literal) => {
+        vec![Diagnostic::error($message)]
+    };
+}
+
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let mut calls = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for handle in state.statement_nodes.handles() {
-                if let Some(call) = program.statement_table.statement(handle).as_call()
-                    && let Some(dispatch) = &call.static_requirement_dispatch
-                {
+                if let Some(call) = program.statement_table.statement(handle).as_call() {
                     calls.push((
                         CallSite::Statement(handle),
                         machine.symbol,
                         call.target_symbol,
-                        dispatch.clone(),
+                        call.static_requirement_dispatch.clone(),
                     ));
                 }
             }
@@ -31,33 +35,47 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 );
             }
             for handle in expressions {
-                if let Some(call) = program.expression_table.call_node(handle)
-                    && let Some(dispatch) = &call.static_requirement_dispatch
-                {
+                if let Some(call) = program.expression_table.call_node(handle) {
                     calls.push((
                         CallSite::Expression(handle),
                         machine.symbol,
                         call.target_symbol,
-                        dispatch.clone(),
+                        call.static_requirement_dispatch.clone(),
                     ));
                 }
             }
         }
     }
     let mut changed = Vec::new();
-    let selected_roots = program
+    let mut selected_roots = program
         .trait_implementation_applications
         .iter()
         .map(|(_, selected)| (selected.supplying_application, selected.application.clone()))
         .collect::<Vec<_>>();
+    // Source formation also retains applications in unexecuted helpers. Only
+    // a reached Build choice demands its owned realization's capture tuple.
+    // The source census independently excludes discarded preparation rows.
+    selected_roots.extend(
+        program
+            .live_product_operand_applications()
+            .into_iter()
+            .filter_map(|handle| {
+                let selected = program.product_operand_applications.get(handle);
+                if selected.demand
+                    != typed_trees::product_operand::ProductApplicationDemand::Selected
+                {
+                    return None;
+                }
+                Some((
+                    selected.supplying_application,
+                    selected.implementation.as_ref()?.clone(),
+                ))
+            }),
+    );
     for (supplying, application) in selected_roots {
         let conformance = program
             .conformance_by_symbol(application.declaration)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected trait implementation lost its declaration",
-                )]
-            })?
+            .ok_or_else(|| err!("selected trait implementation lost its declaration"))?
             .clone();
         for row in conformance
             .rows
@@ -74,64 +92,16 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         }
     }
     for (site, owner, target, dispatch) in calls {
-        if target != dispatch.realization_state {
-            continue;
-        }
-        let applications = program.selected_conformance_applications(
-            owner,
-            dispatch.selection_application,
-            dispatch.requirement,
-            dispatch.application_report_fingerprint,
-            dispatch.application_commitment,
-        );
-        let [application] = applications.as_slice() else {
-            continue;
-        };
-        let application = (*application).clone();
-        let Some(conformance) = program
-            .conformance_by_symbol(application.declaration)
-            .cloned()
+        let Some((application, supplying_application, realization_machine)) =
+            call_capture(program, owner, target, dispatch.as_ref())?
         else {
-            return Err(vec![Diagnostic::error(
-                "selected capture application lost its map declaration",
-            )]);
-        };
-        let owned = conformance.rows.iter().any(|row| {
-            row.source.owns_realization()
-                && row.realization_machine == dispatch.realization_machine
-                && row.realization_state == dispatch.realization_state
-                && row.requirement == dispatch.requirement
-                && row.declaring_trait == dispatch.declaring_trait
-        });
-        if !owned
-            || (program.conformance_type_parameters(&conformance).is_empty()
-                && conformance.lifetime_parameters.is_empty())
-        {
             continue;
-        }
-        if program.declaration_scope_parent(dispatch.realization_machine) != conformance.symbol {
-            return Err(vec![Diagnostic::error(
-                "owned realization has ambiguous map capture scope",
-            )]);
-        }
-        let supplying_application = if dispatch.selection_application.is_valid() {
-            dispatch.selection_application
-        } else {
-            program
-                .machine_specialization(owner)
-                .map(|receipt| receipt.binding_application)
-                .filter(|application| application.is_valid())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected capture lost its supplying source invocation",
-                    )]
-                })?
         };
         let Some(captured) = realize_capture(
             program,
             &application,
             supplying_application,
-            dispatch.realization_machine,
+            realization_machine,
         )?
         else {
             continue;
@@ -143,18 +113,14 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             .filter(|state| state.template == target)
             .collect::<Vec<_>>();
         let [selected] = selected.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "capture application lost its exact entry correspondence",
-            )]);
+            return Err(err!(
+                "capture application lost its exact entry correspondence"
+            ));
         };
         let selected = selected.instance;
         let name = program
             .state_by_symbol(selected)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "capture application has no retained executable entry",
-                )]
-            })?
+            .ok_or_else(|| err!("capture application has no retained executable entry"))?
             .name
             .clone();
         match site {
@@ -182,6 +148,107 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
     Ok(changed)
 }
 
+/// Explicit selections carry their own invocation custody. A lexical sibling
+/// instead borrows the caller's exact map capture, including phantom operands;
+/// it does not fabricate another authored selection occurrence.
+fn call_capture(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    target: SymbolHandle,
+    dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
+) -> Result<
+    Option<(
+        typed_trees::typed_trees::ClosedConformanceApplication,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+        SymbolHandle,
+    )>,
+    Vec<Diagnostic>,
+> {
+    let Some(dispatch) = dispatch else {
+        let Some(selecting) =
+            program.conformance_by_symbol(program.declaration_scope_parent(owner))
+        else {
+            return Ok(None);
+        };
+        let Some(capture) = program.implementation_capture(
+            owner,
+            program.lifetime_declaration_owner(owner),
+            selecting.symbol,
+        ) else {
+            return Ok(None);
+        };
+        let mut rows = selecting
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization() && row.realization_state == target);
+        let Some(row) = rows.next() else {
+            return Ok(None);
+        };
+        if rows.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "lexical call has ambiguous owned realization rows",
+            )]);
+        }
+        return Ok(Some((
+            capture.conformance_application.clone(),
+            capture.supplying_application,
+            row.realization_machine,
+        )));
+    };
+    if target != dispatch.realization_state {
+        return Ok(None);
+    }
+    let applications = program.selected_conformance_applications(
+        owner,
+        dispatch.selection_application,
+        dispatch.evidence_parameter,
+        dispatch.requirement,
+        dispatch.application_report_fingerprint,
+        dispatch.application_commitment,
+    );
+    let [application] = applications.as_slice() else {
+        return Ok(None);
+    };
+    let conformance = program
+        .conformance_by_symbol(application.declaration)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected capture application lost its map declaration",
+            )]
+        })?;
+    let owned = conformance.rows.iter().any(|row| {
+        row.source.owns_realization()
+            && row.realization_machine == dispatch.realization_machine
+            && row.realization_state == dispatch.realization_state
+            && row.requirement == dispatch.requirement
+            && row.declaring_trait == dispatch.declaring_trait
+    });
+    if !owned
+        || (program.conformance_type_parameters(conformance).is_empty()
+            && conformance.lifetime_parameters.is_empty())
+    {
+        return Ok(None);
+    }
+    let supplying = if dispatch.selection_application.is_valid() {
+        dispatch.selection_application
+    } else {
+        program
+            .machine_specialization(owner)
+            .map(|receipt| receipt.binding_application)
+            .filter(|application| application.is_valid())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected capture lost its supplying source invocation",
+                )]
+            })?
+    };
+    Ok(Some((
+        (*application).clone(),
+        supplying,
+        dispatch.realization_machine,
+    )))
+}
+
 /// Apply only a map's capture telescope. Runtime dispatch and declaration-owned
 /// policy demands share this derivation; neither fabricates an invocation.
 fn realize_capture(
@@ -193,11 +260,7 @@ fn realize_capture(
     let conformance = program
         .conformance_by_symbol(application.declaration)
         .cloned()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected capture lost its map declaration",
-            )]
-        })?;
+        .ok_or_else(|| err!("selected capture lost its map declaration"))?;
     if program.conformance_type_parameters(&conformance).is_empty()
         && conformance.lifetime_parameters.is_empty()
     {
@@ -209,9 +272,7 @@ fn realize_capture(
         .any(|row| row.source.owns_realization() && row.realization_machine == realization_machine)
         || program.declaration_scope_parent(realization_machine) != conformance.symbol
     {
-        return Err(vec![Diagnostic::error(
-            "selected capture has no exact owned realization",
-        )]);
+        return Err(err!("selected capture has no exact owned realization"));
     }
     let supplying_owner = program
         .expression_table
@@ -222,7 +283,10 @@ fn realize_capture(
         .iter()
         .filter(|(_, captured)| {
             captured.template == realization_machine
-                && captured.conformance_application == *application
+                && program.closed_conformance_applications_match(
+                    &captured.conformance_application,
+                    application,
+                )
                 && program
                     .expression_table
                     .static_machine_application(captured.supplying_application)
@@ -235,9 +299,7 @@ fn realize_capture(
         [captured] => captured.clone(),
         [] => {
             let Some(index) = program.machine_position_by_symbol(realization_machine) else {
-                return Err(vec![Diagnostic::error(
-                    "selected capture application lost its owned body",
-                )]);
+                return Err(err!("selected capture application lost its owned body"));
             };
             let template = super::candidate::from_capture(program, index, &conformance);
             let mut machines = Vec::new();
@@ -291,9 +353,9 @@ fn realize_capture(
             let mut machine_ordinal = 0;
             let parameters = program.conformance_type_parameters(&conformance).to_vec();
             if parameters.len() != executable_arguments.len() {
-                return Err(vec![Diagnostic::error(
-                    "map capture tuple differs from its declaration telescope",
-                )]);
+                return Err(err!(
+                    "map capture tuple differs from its declaration telescope"
+                ));
             }
             for (parameter, argument) in parameters.iter().zip(&executable_arguments) {
                 use typed_trees::data::TypeParameterKind;
@@ -350,9 +412,7 @@ fn realize_capture(
                         machine_ordinal += 1;
                     }
                     _ => {
-                        return Err(vec![Diagnostic::error(
-                            "map capture has unsupported declaration operand",
-                        )]);
+                        return Err(err!("map capture has unsupported declaration operand"));
                     }
                 }
             }
@@ -408,11 +468,7 @@ fn realize_capture(
                     let binding = bindings
                         .iter_mut()
                         .find(|binding| binding.parameter == parameter.symbol)
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "capture lost its declared Machine binder",
-                            )]
-                        })?;
+                        .ok_or_else(|| err!("capture lost its declared Machine binder"))?;
                     binding.value =
                         typed_trees::static_applications::StaticMachineBindingValue::Machine(
                             original.clone(),
@@ -451,11 +507,8 @@ fn realize_capture(
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);
             candidate.binding_application = binding;
             let machine = &program.machines()[index];
-            let identity = normalized_machine_identity(program, machine).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "owned capture body has no normalized declaration identity",
-                )]
-            })?;
+            let identity = normalized_machine_identity(program, machine)
+                .ok_or_else(|| err!("owned capture body has no normalized declaration identity"))?;
             let commitment = accepted_template_commitment(program, index);
             let ordinal = program
                 .captured_machine_applications
@@ -476,7 +529,10 @@ fn realize_capture(
                 .iter()
                 .find(|(_, capture)| {
                     capture.template == realization_machine
-                        && capture.conformance_application == *application
+                        && program.closed_conformance_applications_match(
+                            &capture.conformance_application,
+                            application,
+                        )
                         && program
                             .expression_table
                             .static_machine_application(capture.supplying_application)
@@ -484,16 +540,10 @@ fn realize_capture(
                             == supplying_owner
                 })
                 .map(|(_, capture)| capture.clone())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "capture cloning lost its exact substitution relation",
-                    )]
-                })?
+                .ok_or_else(|| err!("capture cloning lost its exact substitution relation"))?
         }
         _ => {
-            return Err(vec![Diagnostic::error(
-                "owned map body has conflicting capture applications",
-            )]);
+            return Err(err!("owned map body has conflicting capture applications"));
         }
     };
     Ok(Some(captured))

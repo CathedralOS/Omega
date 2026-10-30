@@ -3,7 +3,7 @@ use optimization_core::OptimizationValidatorIdentity;
 
 pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v55",
+        b"omega.terminal-target-legalization-independent-replay.v56",
     )
 }
 
@@ -89,6 +89,12 @@ pub enum LegalizationError {
         machine: Option<semantic_vocabulary::MachineId>,
         operation: Option<semantic_vocabulary::OperationId>,
         site: optimization_core::CompilerCheckSite,
+    },
+    /// Preserve the failed descriptor origin reconstruction boundary.
+    DescriptorCallOrigins {
+        machine: semantic_vocabulary::MachineId,
+        result: semantic_vocabulary::PlaceId,
+        reason: &'static str,
     },
     /// A current reference read failed its exact observation/resident join.
     /// This adds context to an unchanged custody refusal; storage geometry

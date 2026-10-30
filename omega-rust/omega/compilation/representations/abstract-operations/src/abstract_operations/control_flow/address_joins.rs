@@ -269,7 +269,10 @@ pub fn referent_type<'a>(
             }
             (
                 StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
             ) if index < length => unique(
                 &mut declarations
                     .clone()

@@ -1,18 +1,19 @@
-//! Invocation-private modeled time for exactly admitted Darwin/Linux calls.
+//! Explicit snapshot or live host time for admitted Darwin/Linux calls.
 //!
 //! Admission selects a complete locator or target/syscall and validates the
 //! retained declaration and evaluated ABI. This is an explicit host embedding
 //! choice, not proof of foreign behavior. Checked calibration, wait splitting
 //! and retries stay in guest code. All selected slots share one supplied clock;
-//! reads do not advance it and finite waits advance both elapsed and Unix time.
+//! snapshot reads do not advance it and finite waits advance its elapsed/Unix
+//! time. Live supply reads the executing OS and finite waits consume real time.
 //! Signed and unsigned 32-bit clock IDs share native word interpretation without
 //! changing either declaration or admitting other widths.
 //! Native placement and authenticated loans select timespec storage, never
 //! record names or host pointers. Read-only requests receive no writeback.
 //!
-//! No host suspension, CPU accounting, signals or descriptor readiness is
-//! simulated. Consequently this model cannot establish native latency or
-//! interruption equivalence. Unsupported operations reject before changing time.
+//! CPU accounting, signals and descriptor readiness remain unsupported. A
+//! private snapshot cannot establish native latency or interruption equivalence.
+//! Unsupported operations reject before changing time.
 //! Darwin nanosleep uses this same signal-free timespec wait. Its invalid-request
 //! path depends on libc errno state, which this snapshot does not provision;
 //! reject that path rather than borrowing Linux's raw error convention.
@@ -43,10 +44,35 @@ pub struct TerminalClockSnapshot {
     pub unix_nanoseconds: u64,
 }
 
+/// A receiving choice between private modeled time and the actual host clocks.
+/// Host waits consume real elapsed time; snapshots advance only their own model.
+#[derive(Clone, Copy)]
+pub enum TerminalClockEnvironment {
+    Snapshot(TerminalClockSnapshot),
+    Host,
+}
+
+impl From<TerminalClockSnapshot> for TerminalClockEnvironment {
+    fn from(snapshot: TerminalClockSnapshot) -> Self {
+        Self::Snapshot(snapshot)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ClockNamespace {
     Darwin,
     Linux,
+}
+
+impl ClockNamespace {
+    fn validate_selector(self, selector: u128) -> Result<(), TerminalEffectRejection> {
+        match (self, selector) {
+            (_, 0) | (Self::Darwin, 4 | 5 | 6 | 8 | 9) | (Self::Linux, 1 | 4 | 7) => Ok(()),
+            _ => Err(TerminalEffectRejection::new(
+                "clock selector requires an unavailable clock environment",
+            )),
+        }
+    }
 }
 
 impl TerminalClockSnapshot {
@@ -60,15 +86,12 @@ impl TerminalClockSnapshot {
         // monotonic IDs. Only realtime and the ordinary monotonic family are
         // admitted on Linux; CPU, alarm, dynamic and coarse clocks need models
         // beyond this nanosecond domain.
-        match (namespace, selector) {
-            (_, 0) => Ok(self.unix_nanoseconds),
-            (ClockNamespace::Darwin, 4 | 5 | 6 | 8 | 9) | (ClockNamespace::Linux, 1 | 4 | 7) => {
-                Ok(self.monotonic_nanoseconds)
-            }
-            _ => Err(TerminalEffectRejection::new(
-                "clock selector requires an unavailable clock model",
-            )),
-        }
+        namespace.validate_selector(selector)?;
+        Ok(if selector == 0 {
+            self.unix_nanoseconds
+        } else {
+            self.monotonic_nanoseconds
+        })
     }
 
     fn advanced(&self, nanoseconds: u64) -> Result<Self, TerminalEffectRejection> {
@@ -102,6 +125,36 @@ impl TerminalClockSnapshot {
     }
 }
 
+impl TerminalClockEnvironment {
+    fn reading(
+        &self,
+        namespace: ClockNamespace,
+        selector: u128,
+    ) -> Result<u64, TerminalEffectRejection> {
+        match self {
+            Self::Snapshot(snapshot) => snapshot.reading(namespace, selector),
+            Self::Host => {
+                // Validate the same supported clock family before observing
+                // the OS. CPU, descriptor and alarm clocks need other custody.
+                namespace.validate_selector(selector)?;
+                native_provider_runtime::read_host_clock_nanoseconds(selector as u32).map_err(
+                    |error| {
+                        TerminalEffectRejection::new(format!("host clock observation: {error}"))
+                    },
+                )
+            }
+        }
+    }
+
+    fn wait(&mut self, nanoseconds: u64) -> Result<(), TerminalEffectRejection> {
+        match self {
+            Self::Snapshot(snapshot) => *snapshot = snapshot.advanced(nanoseconds)?,
+            Self::Host => std::thread::sleep(std::time::Duration::from_nanos(nanoseconds)),
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ClockImplementation {
     Read,
@@ -121,7 +174,7 @@ pub(super) struct ClockImport {
     signature: TerminalImportSignature,
     namespace: ClockNamespace,
     operation: ClockOperation,
-    clock: Arc<Mutex<TerminalClockSnapshot>>,
+    clock: Arc<Mutex<TerminalClockEnvironment>>,
 }
 
 impl ClockImport {
@@ -131,7 +184,7 @@ impl ClockImport {
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
         storage_layouts: &[NativeBorrowedStorageLayout],
-        clock: Option<Arc<Mutex<TerminalClockSnapshot>>>,
+        clock: Option<Arc<Mutex<TerminalClockEnvironment>>>,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
         let Some((namespace, implementation)) = admission::select(binding)? else {
             return Ok(None);
@@ -151,6 +204,25 @@ impl ClockImport {
                 "no isolated clock snapshot was supplied",
             )
         })?;
+        let selected_target = binding
+            .import()
+            .map(|(locator, _)| locator.target())
+            .or_else(|| binding.system_call().map(|call| call.target));
+        let host_target = target::TargetProfile::host_if_supported();
+        if matches!(
+            *clock
+                .lock()
+                .map_err(|_| TerminalRuntimeError::InvalidProvision(
+                    "clock environment lock is poisoned"
+                ))?,
+            TerminalClockEnvironment::Host
+        ) && (host_target.is_none() || selected_target != host_target)
+        {
+            return Err(TerminalRuntimeError::missing(
+                "runtime-clock",
+                "live clock supply requires the exact executing host target",
+            ));
+        }
         Ok(Some(Self {
             signature,
             namespace,
@@ -212,27 +284,33 @@ fn status_result(
 }
 
 fn wait(
-    clock: &Arc<Mutex<TerminalClockSnapshot>>,
+    clock: &Arc<Mutex<TerminalClockEnvironment>>,
     signature: &TerminalImportSignature,
     nanoseconds: u64,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
     let mut clock = clock
         .lock()
         .map_err(|_| TerminalEffectRejection::new("clock snapshot lock is poisoned"))?;
-    let advanced = clock.advanced(nanoseconds)?;
     let result = status_result(signature, 0)?;
-    // No partial advancement on overflow or failed result construction.
-    *clock = advanced;
+    // Result formation precedes either a private update or a real wait.
+    clock.wait(nanoseconds)?;
     Ok(result)
 }
 
 import_signature_via_clone!(ClockImport);
 
 impl TerminalEffectHandler for ClockImport {
-    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        match self.operation {
-            ClockOperation::ReadTimespec(_) | ClockOperation::Nanosleep(_) => &[0],
-            _ => &[],
+    fn storage_requirements(
+        &self,
+        _boundary: semantic_vocabulary::BoundaryMachineId,
+        _arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: match self.operation {
+                ClockOperation::ReadTimespec(_) | ClockOperation::Nanosleep(_) => &[0],
+                _ => &[],
+            },
         }
     }
 

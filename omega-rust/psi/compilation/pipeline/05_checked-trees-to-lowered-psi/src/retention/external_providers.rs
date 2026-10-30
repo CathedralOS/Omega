@@ -78,11 +78,30 @@ pub(crate) fn project(
                 _ => vec![satisfied.symbol()],
             };
             for requirement in requirements {
-                let callable = crate::unit::attached_unit::checked_unit_boundary_identity(
-                    checked,
-                    requirement,
-                )?
-                .render(checked)?;
+                // Declaration projection also visits open trait templates.
+                // They have an exact authored callable but no executable
+                // Terminal selection until an application closes them. Do not
+                // ask the executable call-closure lookup to name a template.
+                let callable = match satisfied {
+                    SatisfiedDeclaration::Trait {
+                        definition,
+                        requirement,
+                    } => {
+                        let identity =
+                            typed.trait_requirement_callable_identity(definition, requirement);
+                        if !identity.is_valid() {
+                            return Err(LoweringError::Unsupported(
+                                "external trait declaration has no exact callable identity",
+                            ));
+                        }
+                        typed.callable_identity_text(identity)
+                    }
+                    _ => crate::unit::attached_unit::checked_unit_boundary_identity(
+                        checked,
+                        requirement,
+                    )?
+                    .render(checked)?,
+                };
                 if !include(identities, &callable) {
                     continue;
                 }

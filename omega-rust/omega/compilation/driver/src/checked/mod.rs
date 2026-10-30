@@ -31,7 +31,9 @@ pub use artifacts::compile_timings::counters::{
     source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use checking::SourceCompilation;
-pub use checking::compile_thread::{COMPILE_STACK_SIZE, run_on_compile_thread};
+pub use checking::compile_thread::{
+    COMPILE_STACK_SIZE, run_on_compile_thread, spawn_compile_worker,
+};
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,

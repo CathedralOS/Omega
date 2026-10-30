@@ -155,7 +155,7 @@ impl RegisterHomeError {
     }
 }
 
-error_report!(
+stage_error_display!(
     RegisterHomeError,
     "Terminal register-home assignment failed"
 );

@@ -233,13 +233,21 @@ impl TerminalImportAdapter for TerminalBuildBindingAdapter {
 }
 
 impl TerminalEffectHandler for TerminalBuildBindingAdapter {
-    fn storage_arguments(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        if self.host.calls.iter().any(|call| {
-            call.boundary == boundary && call.action == TerminalBuildBindingOperation::BindNative
-        }) {
-            &[0]
-        } else {
-            &[]
+    fn storage_requirements(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        _arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: if self.host.calls.iter().any(|call| {
+                call.boundary == boundary
+                    && call.action == TerminalBuildBindingOperation::BindNative
+            }) {
+                &[0]
+            } else {
+                &[]
+            },
         }
     }
 
@@ -529,6 +537,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                     ));
                 }
                 ExecutedBuildSelection::Declaration(ExecutedProductSelection {
+                    static_environment: call.static_environment.clone(),
                     request: request.clone(),
                     selecting_machine: call.selecting_machine,
                     target,

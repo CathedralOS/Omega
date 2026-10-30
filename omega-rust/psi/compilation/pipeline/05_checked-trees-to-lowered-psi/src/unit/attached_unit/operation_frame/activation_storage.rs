@@ -66,7 +66,7 @@ impl OperationFrame<'_, '_> {
                 let id = self.operations.allocate();
                 self.record_source_call(
                     call.coordinate,
-                    call.source_site().flatten(),
+                    call.source_site(),
                     id,
                     call.target.machine,
                 )?;

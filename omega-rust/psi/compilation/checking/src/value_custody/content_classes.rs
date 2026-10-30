@@ -18,6 +18,8 @@
 use checked_trees::{ContentClassFacts, ContentClassRow};
 use typed_trees::types::TypeReferenceHandle;
 
+use crate::value_custody::storage_contents::ContentsRequirement;
+
 /// Classify every type reference the table names.
 ///
 /// The walk is over [`typed_trees::types::TypeReferenceTable::type_reference_rows`],
@@ -35,44 +37,19 @@ fn content_classes(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> ContentClassRow {
+    macro_rules! contents {
+        ($requirement:expr $(,)?) => {
+            crate::has_contents(program, reference, &[], $requirement)
+        };
+    }
     ContentClassRow {
-        plain_owned_with_numeric_constraints: crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        ),
-        plain_owned_with_represented_constraints: crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::RepresentedOwned,
-        ),
-        stored_value_contents: crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::StoredValue,
-        ),
-        linear_owned_contents: crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
-        ),
-        borrow_free_contents: crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::BorrowFree,
-        ),
+        plain_owned_with_numeric_constraints: contents!(ContentsRequirement::NumericOwned),
+        plain_owned_with_represented_constraints: contents!(ContentsRequirement::RepresentedOwned),
+        stored_value_contents: contents!(ContentsRequirement::StoredValue),
+        linear_owned_contents: contents!(ContentsRequirement::LinearOwned),
+        borrow_free_contents: contents!(ContentsRequirement::BorrowFree),
         owned_or_shared_view_fields: crate::has_owned_or_shared_view_fields(program, reference),
-        owned_or_shared_view_contents: crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView,
-        ),
+        owned_or_shared_view_contents: contents!(ContentsRequirement::OwnedOrSharedView),
         closed_primitive_array: crate::is_closed_primitive_array_type(program, reference),
         bounded_byte_capacity: crate::bounded_byte_buffer_capacity(program, reference),
     }

@@ -34,12 +34,15 @@ pub use build_requests::{
 };
 pub use checked_trees_to_lowered_psi::lower_task_activation_demands;
 pub use checked_trees_to_lowered_psi::{
-    ExternalProviderDeclarations, PreparedExternalProviderDeclarations,
+    ExternalProviderDeclarations, PreparedExternalProviderDeclarations, PreparedTerminalRoots,
     project_external_provider_declarations,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
-pub use composition_admission::TerminalCompositionAdmission;
-pub use custody::{ProducedTerminalProgram, TerminalApplicationCustody, TerminalProductionCustody};
+pub use composition_admission::{TerminalAdmissionRoot, TerminalCompositionAdmission};
+pub use custody::{
+    PortableTerminalProgram, ProducedTerminalProgram, TerminalApplicationCustody,
+    TerminalProductionCustody,
+};
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,

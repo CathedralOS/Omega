@@ -25,7 +25,7 @@ use selected_instructions_to_selected_instructions::{
     PressureRematerializationPolicy, RecoveryClassificationError, SpillChoiceError,
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPressureRematerialization, ValidatedRecoveryClassifications, ValidatedSpillChoices,
+    ValidatedPressureRematerialization,
 };
 
 pub(crate) use compute::{
@@ -77,32 +77,33 @@ impl StagedOptimizedActiveResidentRematerialization {
     });
 }
 
-copy_receipt! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-        source: StagedOptimizedAllocationLegalityCustodyReceipt,
-        choices: SpillChoiceIdentity,
-        choice_policy: SpillChoicePolicy,
-        choice_usage: optimization_core::OptimizationWorkUsage,
-        classifications: RecoveryClassificationIdentity,
-        classification_policy: RecoveryClassificationPolicy,
-        classification_usage: optimization_core::OptimizationWorkUsage,
-        rematerialization: PressureRematerializationIdentity,
-        rematerialization_policy: PressureRematerializationPolicy,
-        rematerialization_usage: optimization_core::OptimizationWorkUsage,
-        budget: OptimizationWorkBudget,
-        transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-        liveness: LivenessIdentity,
-        ranges: LiveRangeIdentity,
-        legality: AllocationLegalityIdentity,
-        homes: crate::RegisterHomeIdentity,
-        manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-        function_count: usize,
-        virtual_register_count: usize,
-        applied_count: usize,
-        rewritten_use_count: usize,
-        assignment_count: usize,
+/// Custody receipt for the completed sweep: the proven rematerialization
+/// prefix the pressure stage already minted, plus the terminal homes
+/// assignment and the typed manifest that assignment rebuilt. The prefix
+/// receipt is carried whole, so no stage identity is projected twice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+    prefix: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
+    homes: crate::RegisterHomeIdentity,
+    manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+    assignment_count: usize,
+}
+
+impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+    /// The sweep's recorded identity, which the emission stage projects into
+    /// its manifest prefix. The prefix receipt is carried whole, so every other
+    /// row is read from it directly instead of a per-row delegation table here.
+    pub const fn rematerialization(&self) -> PressureRematerializationIdentity {
+        self.prefix.rematerialization
     }
+
+    receipt_accessor_rows!(
+        StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+            homes: crate::RegisterHomeIdentity,
+            manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+            assignment_count: usize,
+        }
+    );
 }
 
 /// The recorded sweep once its applied rewrite and rebuilt facts are proven
@@ -113,8 +114,6 @@ copy_receipt! {
 #[derive(Debug)]
 pub(crate) struct StagedOptimizedActiveResidentRematerializationPressure {
     source: StagedOptimizedAllocationLegality,
-    choices: ValidatedSpillChoices,
-    classifications: ValidatedRecoveryClassifications,
     rematerialization: ValidatedPressureRematerialization,
     liveness: ValidatedLiveness,
     ranges: ValidatedLiveRanges,
@@ -186,7 +185,7 @@ pub enum OptimizedActiveResidentRematerializationError {
     ReceiptMismatch,
 }
 
-error_report!(
+stage_error_display!(
     OptimizedActiveResidentRematerializationError,
     "optimized active-resident rematerialization failed"
 );

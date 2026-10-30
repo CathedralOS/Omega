@@ -10,7 +10,138 @@
 
 use super::StructuralTerm;
 
+#[cfg(test)]
+mod resolution_payload_tests {
+    use super::*;
+    use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+    #[test]
+    fn payload_comparison_keeps_hidden_descriptors_and_nested_authority() {
+        let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
+        let observed = |reference, descriptor| StructuralTerm::ObservedValue {
+            observed_type: TypeReferenceHandle::from_arena_index(reference),
+            value: Box::new(integer(7)),
+            descriptor,
+        };
+        let nested = |value| StructuralTerm::Constructor {
+            data: "Carrier".to_owned(),
+            case: "Only".to_owned(),
+            fields: vec![("value".to_owned(), value)],
+        };
+        let binary = |reference| StructuralTerm::ScalarBinary {
+            references: [TypeReferenceHandle::from_arena_index(reference); 2],
+            operator: typed_trees::expression::BinaryOperator::Add,
+            meaning: [(
+                PrimitiveType::I32,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            ); 2],
+            left: Box::new(integer(1)),
+            right: Box::new(integer(2)),
+        };
+        let pairs = [
+            (observed(1, None), observed(2, None)),
+            (observed(1, None), observed(1, Some(Box::new(integer(1))))),
+            (
+                observed(1, Some(Box::new(integer(1)))),
+                observed(1, Some(Box::new(integer(2)))),
+            ),
+            (
+                observed(1, Some(Box::new(observed(1, Some(Box::new(integer(1))))))),
+                observed(1, Some(Box::new(observed(1, Some(Box::new(integer(2))))))),
+            ),
+            (binary(1), binary(2)),
+            (
+                StructuralTerm::Float(numerics::literals::FloatLiteral::parse("1.25f32").unwrap()),
+                StructuralTerm::Float(numerics::literals::FloatLiteral::parse("1.25f64").unwrap()),
+            ),
+        ];
+        for (left, right) in pairs {
+            let (left, right) = (nested(left), nested(right));
+            assert_eq!(
+                left, right,
+                "the semantic comparison must erase this metadata"
+            );
+            assert!(left.same_resolution_payload(&left.clone()));
+            assert!(!left.same_resolution_payload(&right));
+            assert!(!right.same_resolution_payload(&left));
+        }
+    }
+}
+
 impl StructuralTerm {
+    /// Recurrence compares the complete retained resolver input. Semantic
+    /// equality alone erases observation authority and float landing metadata;
+    /// those payloads must not collapse two different pending questions.
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        if std::mem::discriminant(self) != std::mem::discriminant(other) || self != other {
+            return false;
+        }
+        self.same_resolution_metadata(other)
+    }
+
+    // Semantic equality already walked the values. Descriptors need their
+    // own full comparison because semantic equality deliberately omits them.
+    fn same_resolution_metadata(&self, other: &Self) -> bool {
+        if std::mem::discriminant(self) != std::mem::discriminant(other) {
+            return false;
+        }
+        if let (
+            Self::ObservedValue {
+                observed_type,
+                value,
+                descriptor,
+            },
+            Self::ObservedValue {
+                observed_type: other_type,
+                value: other_value,
+                descriptor: other_descriptor,
+            },
+        ) = (self, other)
+        {
+            return observed_type == other_type
+                && value.same_resolution_metadata(other_value)
+                && match (descriptor, other_descriptor) {
+                    (None, None) => true,
+                    (Some(left), Some(right)) => left.same_resolution_payload(right),
+                    _ => false,
+                };
+        }
+        let metadata_matches = match (self, other) {
+            (
+                Self::ScalarBinary { references, .. },
+                Self::ScalarBinary {
+                    references: other_references,
+                    ..
+                },
+            ) => references == other_references,
+            (
+                Self::IndexedValue { element_type, .. },
+                Self::IndexedValue {
+                    element_type: other_type,
+                    ..
+                },
+            ) => element_type == other_type,
+            (Self::Float(value), Self::Float(other_value)) => {
+                value.landing() == other_value.landing()
+            }
+            _ => true,
+        };
+        if !metadata_matches {
+            return false;
+        }
+        let mut children = Vec::new();
+        self.for_each_child(|child| children.push(child));
+        let mut index = 0;
+        let mut same = true;
+        other.for_each_child(|child| {
+            same &= children
+                .get(index)
+                .is_some_and(|value| value.same_resolution_metadata(child));
+            index += 1;
+        });
+        same && index == children.len()
+    }
+
     /// Visit every immediate child subterm of `self` once, in declaration
     /// order: a constructor's fields, an application's arguments, and the one
     /// or two operand terms the observation variants carry. A shell's observed
@@ -75,7 +206,8 @@ impl StructuralTerm {
                     ..
                 }
                 | Self::Projection { subject, .. }
-                | Self::IntegerEmbedding { value: subject, .. } => visit(subject),
+                | Self::IntegerEmbedding { value: subject, .. }
+                | Self::ScalarRepresentation { value: subject, .. } => visit(subject),
                 Self::ScalarBinary { left, right, .. }
                 | Self::MathematicalBinary { left, right, .. } => visit(left) || visit(right),
                 _ => false,
@@ -136,22 +268,25 @@ impl PartialEq for StructuralTerm {
                 callable,
                 occurrence,
                 result_type,
+                integer_range,
             } => {
                 let Self::CapturedValue {
                     expression: other_expression,
                     callable: other_callable,
                     occurrence: other_occurrence,
                     result_type: other_result_type,
+                    integer_range: other_range,
                 } = other
                 else {
                     return false;
                 };
-                (expression, callable, occurrence, result_type)
+                (expression, callable, occurrence, result_type, integer_range)
                     == (
                         other_expression,
                         other_callable,
                         other_occurrence,
                         other_result_type,
+                        other_range,
                     )
             }
             Self::BoundProjection { subject, path } => {
@@ -169,6 +304,14 @@ impl PartialEq for StructuralTerm {
                     return false;
                 };
                 value == other_value
+            }
+            Self::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => {
+                matches!(other, Self::ScalarRepresentation { source: other_source, target: other_target, value: other_value }
+                    if source == other_source && target == other_target && value == other_value)
             }
             Self::IntegerEmbedding { reference, value } => {
                 matches!(other, Self::IntegerEmbedding { reference: other_reference, value: other_value }
@@ -346,12 +489,14 @@ impl std::fmt::Debug for StructuralTerm {
                 callable,
                 occurrence,
                 result_type,
+                integer_range,
             } => formatter
                 .debug_struct("CapturedValue")
                 .field("expression", expression)
                 .field("callable", callable)
                 .field("occurrence", occurrence)
                 .field("result_type", result_type)
+                .field("integer_range", integer_range)
                 .finish(),
             Self::BoundProjection { subject, path } => formatter
                 .debug_struct("BoundProjection")
@@ -359,6 +504,16 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("path", path)
                 .finish(),
             Self::Integer(value) => formatter.debug_tuple("Integer").field(value).finish(),
+            Self::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => formatter
+                .debug_struct("ScalarRepresentation")
+                .field("source", source)
+                .field("target", target)
+                .field("value", value)
+                .finish(),
             Self::IntegerEmbedding { reference, value } => formatter
                 .debug_struct("IntegerEmbedding")
                 .field("reference", reference)

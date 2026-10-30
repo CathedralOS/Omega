@@ -1,0 +1,151 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
+index 7d72e6c3191..142ac2838a9 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
+@@ -2057,6 +2057,7 @@ impl<'program> StructuralJudge<'program> {
+         application: &StructuralTerm,
+         depth: usize,
+     ) -> Option<StructuralTerm> {
++        let _profile = phase_profile::guard("05.remaining.unfold");
+         let StructuralTerm::Application {
+             target,
+             selections,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs
+index 5d0ce33a395..2d988199192 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs
+@@ -17,6 +17,7 @@ pub(super) struct ApplicationResolution<'program> {
+ 
+ impl<'program> StructuralJudge<'program> {
+     pub(super) fn resolving_application(mut self, application: &StructuralTerm) -> Option<Self> {
++        let _profile = phase_profile::guard("05.remaining.active_question");
+         let mut context = self.clone();
+         // The context holds its semantic owners, not the active query chain.
+         // The separate predecessor edge below keeps this an acyclic history.
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
+index 9607759961f..a54dbeeab2e 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
+@@ -220,6 +220,7 @@ impl StructuralJudge<'_> {
+         value: &StructuralTerm,
+         depth: usize,
+     ) -> Option<StructuralTerm> {
++        let _profile = phase_profile::guard("05.remaining.normal_form");
+         if depth >= 32 {
+             return None;
+         }
+@@ -422,6 +423,7 @@ impl StructuralJudge<'_> {
+         application: &StructuralTerm,
+         depth: usize,
+     ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
++        let _profile = phase_profile::guard("05.remaining.equations");
+         // Establishing these premises can project an integer predicate back
+         // through this same application with a fresh local recursion depth.
+         // Contracts and bodies share one exact question history; recurrence
+@@ -599,41 +601,71 @@ impl StructuralJudge<'_> {
+         if depth >= 32 {
+             return None;
+         }
++        let has_equations = owner_contracts(self.program, owner)
++            .filter(|contract| contract.kind == SignatureContractKind::Ensures)
++            .any(|contract| {
++                self.program
++                    .proof_facts
++                    .span_or_empty(contract.facts)
++                    .iter()
++                    .any(|fact| matches!(fact, ProofFact::Expression(_)))
++            });
++        let specification_non_boolean = matches!(result, Some(StructuralTerm::Application { .. }))
++            && self
++                .program
++                .primitive_type_reference(owner_return_type(owner))
++                != Some(typed_trees::types::PrimitiveType::Bool);
++        let _profile = phase_profile::guard(if has_equations {
++            "05.remaining.guarantees.with_ensures"
++        } else if specification_non_boolean {
++            "05.remaining.guarantees.without_ensures.specification_non_boolean"
++        } else {
++            "05.remaining.guarantees.without_ensures"
++        });
+         let program = self.program;
+         let parameters = owner_parameters(program, owner);
+         let callable = match owner {
+             SelectedCallContract::Concrete(machine, _) => machine.symbol,
+             _ => owner_symbol(owner),
+         };
+-        for contract in owner_contracts(program, owner)
+-            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+         {
+-            for fact in program.proof_facts.span_or_empty(contract.facts) {
+-                let judgment = match fact {
+-                    ProofFact::Expression(required) => selected_requirement_judgment(
+-                        self,
+-                        *required,
+-                        callable,
+-                        parameters,
+-                        entry_bindings,
+-                        type_bindings,
+-                        depth + 1,
+-                    ),
+-                    ProofFact::Membership(required) => self.selected_membership_requirement(
+-                        required,
+-                        callable,
+-                        parameters,
+-                        entry_bindings,
+-                    ),
+-                    ProofFact::Proposition(_) => StructuralJudgment::Unknown,
+-                };
+-                if !matches!(judgment, StructuralJudgment::Proven) {
+-                    if super::super::struct_trace() {
+-                        eprintln!(
+-                            "STRUCT normal-guarantee requires owner={callable:?} fact={fact:?} judgment={judgment:?} entry_bindings={entry_bindings:?}"
+-                        );
++            let _requirements = phase_profile::guard(if has_equations {
++                "05.remaining.requires.with_ensures"
++            } else if specification_non_boolean {
++                "05.remaining.requires.without_ensures.specification_non_boolean"
++            } else {
++                "05.remaining.requires.without_ensures"
++            });
++            for contract in owner_contracts(program, owner)
++                .filter(|contract| contract.kind == SignatureContractKind::Requires)
++            {
++                for fact in program.proof_facts.span_or_empty(contract.facts) {
++                    let judgment = match fact {
++                        ProofFact::Expression(required) => selected_requirement_judgment(
++                            self,
++                            *required,
++                            callable,
++                            parameters,
++                            entry_bindings,
++                            type_bindings,
++                            depth + 1,
++                        ),
++                        ProofFact::Membership(required) => self.selected_membership_requirement(
++                            required,
++                            callable,
++                            parameters,
++                            entry_bindings,
++                        ),
++                        ProofFact::Proposition(_) => StructuralJudgment::Unknown,
++                    };
++                    if !matches!(judgment, StructuralJudgment::Proven) {
++                        if super::super::struct_trace() {
++                            eprintln!(
++                                "STRUCT normal-guarantee requires owner={callable:?} fact={fact:?} judgment={judgment:?} entry_bindings={entry_bindings:?}"
++                            );
++                        }
++                        return self.unconditional_boolean_result(owner, result?, depth);
+                     }
+-                    return self.unconditional_boolean_result(owner, result?, depth);
+                 }
+             }
+         }
+@@ -716,6 +748,7 @@ impl StructuralJudge<'_> {
+         owner: &SelectedCallContract<'_>,
+         depth: usize,
+     ) -> Option<StructuralTerm> {
++        let _profile = phase_profile::guard("05.remaining.body_boolean");
+         let program = self.program;
+         if depth >= 32
+             || program.primitive_type_reference(owner_return_type(owner))

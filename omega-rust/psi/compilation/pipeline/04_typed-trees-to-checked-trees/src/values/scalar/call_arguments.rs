@@ -82,9 +82,17 @@ pub(crate) fn retain_nested_call_arguments(
                     ) else {
                         continue;
                     };
-                    for (element_index, (element, primitive_type)) in
-                        array.elements.into_iter().enumerate()
-                    {
+                    if !array.all_authored() {
+                        continue;
+                    }
+                    for (element_index, element) in array.elements.into_iter().enumerate() {
+                        let validation::ScalarArrayElement::Authored {
+                            expression: element,
+                            primitive_type,
+                        } = element
+                        else {
+                            continue;
+                        };
                         let Ok(element_ordinal) = u32::try_from(element_index) else {
                             break;
                         };

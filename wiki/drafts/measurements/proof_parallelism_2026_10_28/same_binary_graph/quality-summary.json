@@ -1,0 +1,33 @@
+{
+  "legs": [
+    {
+      "mode": "eager",
+      "leg": "positive",
+      "gate_exit": 1,
+      "baseline_equal": true,
+      "observations": 4
+    },
+    {
+      "mode": "eager",
+      "leg": "negative",
+      "gate_exit": 1,
+      "baseline_equal": true,
+      "observations": 3
+    },
+    {
+      "mode": "lazy",
+      "leg": "positive",
+      "gate_exit": 1,
+      "baseline_equal": true,
+      "observations": 4
+    },
+    {
+      "mode": "lazy",
+      "leg": "negative",
+      "gate_exit": 1,
+      "baseline_equal": true,
+      "observations": 3
+    }
+  ],
+  "golden_recorded": false
+}

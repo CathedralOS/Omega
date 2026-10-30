@@ -52,6 +52,7 @@ impl ValidatedElfDynamicSectionPlan {
         &self.inputs
     }
 
+    #[cfg(test)]
     pub(crate) fn needed_object_count(&self) -> usize {
         self.contents.needed.len()
     }
@@ -76,6 +77,7 @@ impl ValidatedElfDynamicSectionPlan {
         objects.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn required_version_count(&self) -> usize {
         self.contents
             .verneed
@@ -207,22 +209,11 @@ struct Candidate {
 pub(crate) fn plan_elf_dynamic_sections(
     inputs: PlannedElfDynamicLinkInputs,
 ) -> Result<ValidatedElfDynamicSectionPlan, Box<ElfDynamicSectionPlanningError>> {
-    checked::plan_candidate(
-        inputs,
-        derive_contents,
-        |_, _| 0,
-        |inputs, contents, _fingerprint| Candidate {
-            inputs: inputs,
-            contents: contents,
-        },
-        validate_candidate,
-        |candidate| candidate.inputs,
-        |inputs, diagnostic| {
-            Box::new(ElfDynamicSectionPlanningError {
-                inputs: inputs,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: inputs,
+        derive: derive_contents,
+        contents: contents,
+        error: ElfDynamicSectionPlanningError,
     )
 }
 

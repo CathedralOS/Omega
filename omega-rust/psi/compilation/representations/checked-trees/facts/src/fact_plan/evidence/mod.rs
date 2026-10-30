@@ -117,6 +117,17 @@ pub struct QualificationEvidence {
     pub origin: language_semantics::QualificationEvidenceOrigin,
     pub source_symbol: SymbolHandle,
     pub requirement_symbol: SymbolHandle,
+    pub issuer: Handle<BoundaryQualificationIssuerRecord>,
+}
+
+/// Prepared once with declaration contracts, before flow workers share pages.
+/// Every occurrence of this exact issuer uses the same handle, preserving
+/// evidence equality through worker forks, joins and page adoption.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BoundaryQualificationIssuerRecord {
+    pub source_symbol: SymbolHandle,
+    pub requirement_symbol: SymbolHandle,
+    pub issuer: language_semantics::BoundaryQualificationIssuer,
 }
 
 impl QualificationEvidence {
@@ -128,17 +139,20 @@ impl QualificationEvidence {
             origin,
             source_symbol,
             requirement_symbol: SymbolHandle::invalid(),
+            issuer: Handle::invalid(),
         }
     }
 
     pub const fn from_admitted_requirement(
         source_symbol: SymbolHandle,
         requirement_symbol: SymbolHandle,
+        issuer: Handle<BoundaryQualificationIssuerRecord>,
     ) -> Self {
         Self {
             origin: language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
             source_symbol,
             requirement_symbol,
+            issuer,
         }
     }
 }
@@ -481,15 +495,7 @@ impl QualificationPayloadIdentity {
     }
 }
 
-/// Target-neutral mathematical value of an already-rendered scalar. Unknown
-/// is the zero arena entry and never supplies a proof premise.
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-pub enum ScalarValue {
-    #[default]
-    Unknown,
-    Integer(numerics::bignum::BigInt),
-    Boolean(bool),
-}
+pub use numerics::scalar_predicates::ScalarValue;
 
 /// Inclusive mathematical integer bounds. The consumer must establish both
 /// endpoint ordering and the source of the bounds before using this vocabulary.

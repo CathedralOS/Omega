@@ -14,9 +14,16 @@ pub(in crate::machine_calls::calls::write_frames) fn state_effects(
     if inference.active_states.contains(&entry.symbol) {
         return None;
     }
+    let key = inference.slot_effects_key(entry.symbol);
+    if let Some(effects) = inference.cached_slot_effects(&key) {
+        return Some(effects);
+    }
     inference.active_states.push(entry.symbol);
     let result = solve_state_effects(program, machine, entry, symbols, inference);
     inference.active_states.pop();
+    if let Some(effects) = result.as_ref() {
+        inference.retain_slot_effects(key, effects);
+    }
     result
 }
 
@@ -38,7 +45,8 @@ struct SlotEquation<'program> {
 
 /// Least fixed point over normal exits. An unvisited return is not an identity
 /// route: only a real normal exit can seed incoming contents. Root substitution
-/// finiteness bounds the source set before iteration; there is no depth cutoff.
+/// finiteness bounds root growth; window composition keeps same-dimension
+/// narrowing finite at the normal-exit boundary. There is no depth cutoff.
 fn solve_state_effects<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
@@ -408,9 +416,18 @@ fn collect_exit(
             {
                 continue;
             }
-            None => return None,
+            None => {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE slot-exit-source state={} slot={} phase=unknown-contents",
+                        state.name, slot.local_path
+                    );
+                }
+                return None;
+            }
         };
-        for supplied in sources {
+        for mut supplied in sources {
+            super::summary_windows::coarsen(program, &mut supplied);
             let source = &supplied.origin;
             if !source.source.builtin_coordinates {
                 return None;
@@ -419,7 +436,12 @@ fn collect_exit(
                 if !source.source.root.is_valid() {
                     return None;
                 }
-                let parameter = program.state_parameter_by_symbol(state, source.source.root)?;
+                let parameter = program.state_parameter_by_symbol(state, source.source.root).or_else(|| {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE slot-exit-source state={} slot={} phase=local-source source={supplied:?}", state.name, slot.local_path);
+                    }
+                    None
+                })?;
                 // Owned input storage dies in the callee. Only a reference
                 // boundary actually crossed by this source survives invocation.
                 if !frames::type_reference_is_reference(program, parameter.type_reference) {

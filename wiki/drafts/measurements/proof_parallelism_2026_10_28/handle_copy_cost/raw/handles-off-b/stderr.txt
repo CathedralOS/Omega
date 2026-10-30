@@ -1,0 +1,26 @@
+RECONCILE	places	7	12300
+RECONCILE	residences	7	15900
+RECONCILE	memberships	7	0
+RECONCILE	places	2	2900
+RECONCILE	residences	2	7000
+RECONCILE	memberships	2	0
+RECONCILE	places	202	203800
+RECONCILE	residences	202	66500
+RECONCILE	memberships	202	2662978300	analysis_drop_ns=2296400	discovery_ns=97300	graph_drop_ns=2165900	graph_preparation_ns=209669300	history_creation_ns=28100	history_drop_ns=14381100	leaf_query_formation_ns=37300	leaf_root_lookup_ns=325600	merge_ns=1434900	operand_queries_ns=35407900	payload_contract_queries_ns=4536400	payload_target_queries_ns=4543700	reachability_drop_ns=0	reference_context_drop_ns=6947800	reference_queries_ns=597170100	source_contract_queries_ns=1777905000	types_drop_ns=11000	view_queries_ns=5389700
+    40.017 ms  prepare: project -> prepared sources
+ 22913.249 ms  compile: sources -> requested product
+    79.595 ms  publish: retained product -> published product
+    17.598 ms  Source ingress: SourceFiles -> SyntaxTrees
+     2.964 ms  Step: assemble: PreparedSources -> AssembledSyntax
+   198.306 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+   363.401 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+  1159.484 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  8864.322 ms  Stage 05: TypedTrees -> CheckedTrees
+   438.441 ms  Step: settle: CheckedTrees -> SelectedExecution
+  4766.096 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+  4705.981 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.002 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+    11.600 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     5.013 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+    43.181 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+ 23810.264 ms  total elapsed

@@ -9,6 +9,7 @@ name = "selected_dispatch"
 path = "src/lib.rs"
 
 [dependencies]
+provider-selection = { path = "../provider-selection" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }

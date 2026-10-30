@@ -58,6 +58,7 @@ impl ValidatedElfDynamicTagPlan {
         self.contents.rows.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn needed_row_count(&self) -> usize {
         self.descriptors
             .templates()
@@ -193,25 +194,12 @@ struct Candidate {
 pub(crate) fn plan_elf_dynamic_tags(
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
 ) -> Result<ValidatedElfDynamicTagPlan, Box<ElfDynamicTagPlanningError>> {
-    checked::plan_candidate(
-        descriptors,
-        derive_contents,
-        |descriptors, contents| {
-            non_authoritative_tag_compatibility_fingerprint(&descriptors, &contents)
-        },
-        |descriptors, contents, fingerprint| Candidate {
-            descriptors: descriptors,
-            contents: contents,
-            non_authoritative_tag_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.descriptors,
-        |descriptors, diagnostic| {
-            Box::new(ElfDynamicTagPlanningError {
-                descriptors: descriptors,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: descriptors,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_tag_compatibility_fingerprint,
+        error: ElfDynamicTagPlanningError,
     )
 }
 
@@ -241,36 +229,30 @@ fn derive_contents(
             "procedure relocation byte count",
         )?),
     });
-    push_address_row(
-        &mut rows,
-        &mut address_obligations,
-        ElfDynamicTag::ProcedureGot,
-        ElfDynamicAddressTarget::ProcedureGot,
-    )?;
-    push_address_row(
-        &mut rows,
-        &mut address_obligations,
-        ElfDynamicTag::SystemVHash,
-        ElfDynamicAddressTarget::SystemVHash,
-    )?;
-    push_address_row(
-        &mut rows,
-        &mut address_obligations,
-        ElfDynamicTag::GnuHash,
-        ElfDynamicAddressTarget::GnuHash,
-    )?;
-    push_address_row(
-        &mut rows,
-        &mut address_obligations,
-        ElfDynamicTag::DynamicString,
-        ElfDynamicAddressTarget::DynamicString,
-    )?;
-    push_address_row(
-        &mut rows,
-        &mut address_obligations,
-        ElfDynamicTag::DynamicSymbol,
-        ElfDynamicAddressTarget::DynamicSymbol,
-    )?;
+    // The five address-bearing rows that precede `DT_STRTAB`'s size word, in
+    // canonical `.dynamic` order. Each keeps its own tag and future-address
+    // target; only the row emission is shared.
+    for (tag, target) in [
+        (
+            ElfDynamicTag::ProcedureGot,
+            ElfDynamicAddressTarget::ProcedureGot,
+        ),
+        (
+            ElfDynamicTag::SystemVHash,
+            ElfDynamicAddressTarget::SystemVHash,
+        ),
+        (ElfDynamicTag::GnuHash, ElfDynamicAddressTarget::GnuHash),
+        (
+            ElfDynamicTag::DynamicString,
+            ElfDynamicAddressTarget::DynamicString,
+        ),
+        (
+            ElfDynamicTag::DynamicSymbol,
+            ElfDynamicAddressTarget::DynamicSymbol,
+        ),
+    ] {
+        push_address_row(&mut rows, &mut address_obligations, tag, target)?;
+    }
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::DynamicStringSize,
         value: ElfDynamicValue::DynamicStringByteCount(super::super::checked_u64(

@@ -19,6 +19,22 @@ use crate::provider_planning::ProviderBinding;
 
 mod trait_requirements;
 
+/// Source-only consumers request this projection at their boundary. Ordinary
+/// native production must not reconstruct checked instances just to discard
+/// them when it joins the canonical Terminal provider roster.
+pub fn project_checked_provider_instances(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
+    selected: &effects::SelectedProviderPlanFacts,
+) -> Result<effects::SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
+    let (rows, identities) =
+        derive_selected_requirement_specializations(typed, check_facts, selected)?;
+    selected
+        .clone()
+        .with_specialized_requirement_rows(rows, &identities)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
+}
+
 pub(crate) fn derive_selected_requirement_specializations(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,

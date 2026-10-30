@@ -9,13 +9,15 @@ use optimization_unit::{
     NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
+use optimization_unit_semantics::{
+    reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
+};
 use semantic_vocabulary::{BlockId, EdgeId};
 
-use crate::rules::control_flow_cleanup::descriptor_telescope_free;
-use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
-    compose_linear_thread_bindings, linear_thread_ownership_is_identity,
+use crate::rules::control_flow_cleanup::scalar_cleanup_functions;
+use crate::rules::control_flow_cleanup::{
+    provenance_realized_at, thread_accounting_tail, threadable_empty_blocks,
 };
-use crate::rules::control_flow_cleanup::{provenance_realized_at, record_block_effect_drift};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -34,27 +36,11 @@ psi_rule_contract!(
 psi_rule_impl!(PathQualifiedEmptyBlockThreadRule, |unit, analyses| {
     required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
     required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
-    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
+    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(_));
     let mut candidates = Vec::new();
-    for function in &unit.functions {
-        // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-        if !descriptor_telescope_free(function) {
-            continue;
-        }
-        for empty in &function.blocks {
-            if empty.id == function.entry || empty.nodes.len() != 1 {
-                continue;
-            }
-            let O::Jump {
-                structural_bindings: _,
-                psi_edge: outgoing_edge,
-                target,
-                bindings: outgoing_bindings,
-                cleanup_actions: outgoing_cleanup_actions,
-            } = &empty.nodes[0].operation
-            else {
-                continue;
-            };
+    for function in scalar_cleanup_functions(&unit.functions) {
+        for empty in threadable_empty_blocks(function, use_definitions) {
+            let empty_id = empty.block.id;
             let incoming = function
                 .blocks
                 .iter()
@@ -66,53 +52,43 @@ psi_rule_impl!(PathQualifiedEmptyBlockThreadRule, |unit, analyses| {
                         .flat_map(move |(node_index, node)| {
                             node.successors
                                 .iter()
-                                .filter(move |edge| edge.target == empty.id)
+                                .filter(move |edge| edge.target == empty_id)
                                 .map(move |edge| (block, node_index, node, edge))
                         })
                 })
                 .collect::<Vec<_>>();
-            if !outgoing_cleanup_actions.is_empty()
-                || incoming.is_empty()
+            if incoming.is_empty()
                 || (incoming.len() == 1 && matches!(incoming[0].2.operation, O::Jump { .. }))
                 || incoming
                     .iter()
                     .any(|(_, _, _, edge)| !edge.cleanup_actions.is_empty())
-                || empty.parameters.iter().any(|parameter| {
-                    use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine
-                            && use_site.value == parameter.value
-                            && (use_site.block != empty.id || use_site.node != 0)
-                    })
-                })
             {
                 continue;
             }
             if incoming.iter().any(|(_, _, _, edge)| {
-                compose_linear_thread_bindings(&empty.parameters, &edge.bindings, outgoing_bindings)
-                    .is_none()
-                    || !linear_thread_ownership_is_identity(
+                reconstruct_linear_thread_bindings(
+                    &empty.block.parameters,
+                    &edge.bindings,
+                    empty.bindings,
+                )
+                .is_none()
+                    || !reconstruct_linear_thread_ownership_is_identity(
                         unit,
                         function,
-                        frontiers,
                         edge.psi_edge,
-                        empty.id,
-                        *outgoing_edge,
-                        *target,
+                        empty.block.id,
+                        empty.edge,
+                        empty.target,
                     )
             }) {
                 continue;
             }
-            let empty_location = NodeLocation {
-                machine: function.machine,
-                block: empty.id,
-                node: 0,
-            };
             let incoming_edges = incoming
                 .iter()
                 .map(|(_, _, _, edge)| edge.psi_edge)
                 .collect::<Vec<_>>();
             let Some((affected_blocks, provenance)) =
-                path_thread_accounting(function, empty_location, &incoming_edges)
+                path_thread_accounting(function, empty.location, &incoming_edges)
             else {
                 continue;
             };
@@ -124,9 +100,9 @@ psi_rule_impl!(PathQualifiedEmptyBlockThreadRule, |unit, analyses| {
                     provenance,
                     -3,
                     PathQualifiedEmptyBlockRewrite {
-                        empty: empty_location,
-                        outgoing_edge: *outgoing_edge,
-                        target: *target,
+                        empty: empty.location,
+                        outgoing_edge: empty.edge,
+                        target: empty.target,
                     },
                 )
                 .map_err(RuleProposalError::InvalidCandidate)?,
@@ -185,20 +161,5 @@ pub(super) fn path_thread_accounting(
     if realized.len() != incoming_edges.len().checked_mul(2)? {
         return None;
     }
-    let mut expected_effect = 0u64;
-    for block in &function.blocks {
-        if block.id == empty.block {
-            continue;
-        }
-        record_block_effect_drift(
-            function,
-            block,
-            &mut expected_effect,
-            None,
-            &mut affected,
-            &mut realized,
-        )?;
-    }
-    realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
-    Some((affected.into_iter().collect(), realized))
+    thread_accounting_tail(function, empty.block, None, affected, realized)
 }

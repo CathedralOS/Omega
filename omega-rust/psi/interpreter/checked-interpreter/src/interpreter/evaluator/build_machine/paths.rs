@@ -6,7 +6,7 @@
 //! accounting owner, so nested calls retain call-start order and live buffers.
 use crate::interpreter::evaluator::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
-    SymbolHandle, Value,
+    SymbolHandle, Value, trap,
 };
 use crate::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
@@ -105,17 +105,13 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         };
         let Some((facet, operands)) = arguments.split_first() else {
-            return Err(Halt::Trap(
-                "Build path operation has no explicit activation facet".into(),
-            ));
+            return trap("Build path operation has no explicit activation facet");
         };
         let value = match operation {
             BuildPathOperation::Resolve(expected) => {
                 let root = self.build_root_argument(*facet, expected, frame)?;
                 let [relative] = operands else {
-                    return Err(Halt::Trap(
-                        "build-root resolution requires one relative path".into(),
-                    ));
+                    return trap("build-root resolution requires one relative path");
                 };
                 let relative = self.build_relative_bytes(*relative, frame)?;
                 validate_build_relative_path(&relative)?;
@@ -158,9 +154,7 @@ impl<'program> Evaluator<'program> {
                             })
                             .map(|resolution| resolution.root());
                         if issued != Some(root) {
-                            return Err(Halt::Trap(
-                                "Build filesystem path belongs to another facet root".into(),
-                            ));
+                            return trap("Build filesystem path belongs to another facet root");
                         }
                     }
                     crate::interpreter::evaluator::PreparedFilesystemCall::Read { fd, .. }
@@ -172,9 +166,7 @@ impl<'program> Evaluator<'program> {
                             .and_then(|filesystem| filesystem.descriptor_root(*fd))
                             && issued != root
                         {
-                            return Err(Halt::Trap(
-                                "Build descriptor belongs to another facet root".into(),
-                            ));
+                            return trap("Build descriptor belongs to another facet root");
                         }
                     }
                     _ => {}
@@ -213,16 +205,12 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         let [name] = arguments else {
-            return Err(Halt::Trap(
-                "named build input lookup requires one slot name".into(),
-            ));
+            return trap("named build input lookup requires one slot name");
         };
         // Validate the private facet before evaluating the selected name.
         if !matches!(&*facet.borrow(), Value::Struct { type_name, .. } if &**type_name == INPUT_SLOTS_FACET_TYPE)
         {
-            return Err(Halt::Trap(
-                "named build inputs require a compiler-issued facet".into(),
-            ));
+            return trap("named build inputs require a compiler-issued facet");
         }
         let name = self.build_relative_bytes(*name, frame)?;
         validate_build_relative_path(&name)?;
@@ -230,9 +218,7 @@ impl<'program> Evaluator<'program> {
             .map_err(|_| Halt::Trap("named build input slot is not UTF-8".into()))?;
         let facet = facet.borrow();
         let Value::Struct { fields, .. } = &*facet else {
-            return Err(Halt::Trap(
-                "named build inputs lost their compiler-issued facet".into(),
-            ));
+            return trap("named build inputs lost their compiler-issued facet");
         };
         let input = fields.get(name).ok_or_else(|| {
             Halt::Trap(format!(
@@ -252,24 +238,6 @@ impl<'program> Evaluator<'program> {
         self.eval_byte_data_operand(expression, frame, "build-root path", "build-root path")
     }
 
-    pub(in crate::interpreter::evaluator) fn enable_rooted_build_paths_from_arguments(
-        &mut self,
-        arguments: &[build_time_values::BuildTimeValue],
-    ) {
-        self.rooted_build_paths_required = arguments.iter().any(|argument| {
-            let build_time_values::BuildTimeValue::Struct { fields, .. } = argument else {
-                return false;
-            };
-            fields.iter().any(|(_, value)| {
-                matches!(
-                    value,
-                    build_time_values::BuildTimeValue::Struct { type_name, .. }
-                        if matches!(type_name.as_str(), SOURCE_ROOT_FACET_TYPE | OUTPUT_ROOT_FACET_TYPE)
-                )
-            })
-        });
-    }
-
     fn include_build_source(
         &mut self,
         output_root: FilesystemGrantRootIdentity,
@@ -277,20 +245,14 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         let [included] = arguments else {
-            return Err(Halt::Trap(
-                "generated-source handoff requires one Output-rooted path".to_owned(),
-            ));
+            return trap("generated-source handoff requires one Output-rooted path");
         };
         let included = self.eval_expression(*included, frame)?;
         let Some((included_root, relative_path)) = rooted_build_path_parts(&included)? else {
-            return Err(Halt::Trap(
-                "generated-source handoff requires an Output-rooted path".to_owned(),
-            ));
+            return trap("generated-source handoff requires an Output-rooted path");
         };
         if included_root != output_root {
-            return Err(Halt::Trap(
-                "generated-source handoff path belongs to a different build root".to_owned(),
-            ));
+            return trap("generated-source handoff path belongs to a different build root");
         }
         validate_build_relative_path(&relative_path)?;
         self.real_fs
@@ -302,9 +264,7 @@ impl<'program> Evaluator<'program> {
             .as_ref()
             .is_some_and(crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped);
         if !scoped_real_output {
-            return Err(Halt::Trap(
-                "generated-source handoff requires a scoped build-output grant".to_owned(),
-            ));
+            return trap("generated-source handoff requires a scoped build-output grant");
         }
         if self.build_included_sources.len() == MAX_INCLUDED_BUILD_SOURCES {
             return Err(Halt::Resource(format!(
@@ -316,9 +276,7 @@ impl<'program> Evaluator<'program> {
             .iter()
             .any(|source| source.root() == included_root && source.relative_path() == relative_path)
         {
-            return Err(Halt::Trap(
-                "generated-source handoff names the same path more than once".to_owned(),
-            ));
+            return trap("generated-source handoff names the same path more than once");
         }
         self.build_included_sources
             .push(crate::BuildIncludedSource::new(
@@ -373,14 +331,10 @@ fn build_root_facet_identity(
         type_name, fields, ..
     } = value
     else {
-        return Err(Halt::Trap(
-            "Build path operation requires a compiler-issued facet".into(),
-        ));
+        return trap("Build path operation requires a compiler-issued facet");
     };
     if &**type_name != expected {
-        return Err(Halt::Trap(
-            "Build path operation received a different activation facet".into(),
-        ));
+        return trap("Build path operation received a different activation facet");
     }
     fields
         .get("root")
@@ -422,7 +376,7 @@ pub(in crate::interpreter::evaluator) fn validate_build_relative_path(
     relative: &[u8],
 ) -> EvalResult<()> {
     if relative.is_empty() {
-        return Err(Halt::Trap("build-root path is empty".to_owned()));
+        return trap("build-root path is empty");
     }
     if relative.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT {
         return Err(Halt::Resource(format!(
@@ -430,28 +384,22 @@ pub(in crate::interpreter::evaluator) fn validate_build_relative_path(
         )));
     }
     if relative.contains(&0) {
-        return Err(Halt::Trap("build-root path contains NUL".to_owned()));
+        return trap("build-root path contains NUL");
     }
     if std::str::from_utf8(relative).is_err() {
-        return Err(Halt::Trap(
-            "build-root path must use canonical UTF-8 components".to_owned(),
-        ));
+        return trap("build-root path must use canonical UTF-8 components");
     }
     if relative[0] == b'/'
         || relative.contains(&b'\\')
         || (relative.len() >= 2 && relative[1] == b':')
     {
-        return Err(Halt::Trap(
-            "build-root path must not use an absolute or host-specific spelling".to_owned(),
-        ));
+        return trap("build-root path must not use an absolute or host-specific spelling");
     }
     if relative
         .split(|byte| *byte == b'/')
         .any(|component| component.is_empty() || component == b"." || component == b"..")
     {
-        return Err(Halt::Trap(
-            "build-root path must use canonical relative components".to_owned(),
-        ));
+        return trap("build-root path must use canonical relative components");
     }
     Ok(())
 }

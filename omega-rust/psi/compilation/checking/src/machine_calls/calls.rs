@@ -48,7 +48,7 @@ mod machine_parameter_arguments;
 mod type_arguments;
 use machine_parameter_arguments::validate_machine_parameter_arguments;
 pub use type_arguments::call_type_arguments;
-pub(crate) use type_arguments::callable_type_arguments;
+pub(crate) use type_arguments::{callable_type_arguments, declaration_call_type_arguments};
 mod receiver_calls;
 mod receiverless_calls;
 mod recursion;
@@ -84,6 +84,7 @@ pub(crate) use recursion::{
 };
 use result_use::validate_result_use;
 pub use write_frames::CallFrameTables;
+pub(crate) use write_frames::CapturedStorageReadBacking;
 use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
 pub use write_frames::{
@@ -551,6 +552,21 @@ pub(crate) fn selected_float_operation_retains_argument_policy(
         is_sealed_toolchain_float_operator(program, operator)
 }
 
+/// The carrier correspondence an argument roster requires, as the closure
+/// `validate_call_arguments` accepts: `scope` is the checked machine whose
+/// argument positions are read and `required_substitutions` the call's exact
+/// type bindings. Every roster caller admits the same correspondence, so it is
+/// named once here instead of spelled at each site.
+pub(crate) fn call_carrier_matcher<'a>(
+    program: &'a dyn crate::CheckingInput,
+    scope: symbols::SymbolHandle,
+    required_substitutions: &'a [(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool + 'a {
+    move |argument, required| {
+        argument_matches_call_carrier(program, scope, argument, required, required_substitutions)
+    }
+}
+
 /// The selected requirement owns type substitution; permission and value/domain
 /// validation remain common to ordinary and bounded calls.
 /// `argument_scope` retains the resolved callee's diagnostic qualification;
@@ -879,15 +895,7 @@ fn validate_value_call_arguments(
         prior_statements,
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
-        |argument, required| {
-            crate::value_custody::expression_types::argument_matches_call_carrier(
-                program,
-                current_machine.symbol,
-                argument,
-                required,
-                &type_bindings,
-            )
-        },
+        call_carrier_matcher(program, current_machine.symbol, &type_bindings),
         diagnostics,
         formation_obligations,
     );
@@ -917,7 +925,6 @@ pub use receiver_topology::{
 mod argument_correspondence;
 pub(crate) use argument_correspondence::{
     call_binding_correspondence, captured_argument_position, executable_parameters,
-    immutable_runtime_parameter,
 };
 mod occurrences;
 pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};

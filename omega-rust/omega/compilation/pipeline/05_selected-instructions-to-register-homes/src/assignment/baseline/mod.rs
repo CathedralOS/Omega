@@ -117,7 +117,7 @@ pub enum OptimizedRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-error_report!(
+stage_error_display!(
     OptimizedRegisterHomeCustodyError,
     "optimized register-home staging failed"
 );
@@ -177,7 +177,7 @@ pub enum OptimizedPostCopyRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-error_report!(
+stage_error_display!(
     OptimizedPostCopyRegisterHomeCustodyError,
     "optimized post-copy register-home staging failed"
 );

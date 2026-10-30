@@ -1,0 +1,13 @@
+{
+  "path": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\record-wrapper\\omega-after.exe",
+  "sha256": "1c8c49d5c8e627119fe06149b5c60819f2ea9ada59d81b1d5279bce73cb0dcf7",
+  "base_revision": "f31505a4fbd53ebab24f90053ff538e4ad8988f5",
+  "source_overlay_sha256": {
+    "omega-rust/psi/foundation/compiler-storage/src/buffer.rs": "c653bf11f742dd35e946dd9e9fb8e348373f3dec99623cb4c363e45a3b74101b"
+  },
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)"
+}

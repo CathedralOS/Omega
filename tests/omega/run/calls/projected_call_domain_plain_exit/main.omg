@@ -1,0 +1,14 @@
+// Expected exit: 0
+// A completed Unit call publishes its selected domain on existing field storage.
+public domain [u8; 4]::Ascii requires ascii_only(self);
+public domain [u8; 4]::Utf8 requires valid_utf8(self);
+data Cell [copy] { storage: [u8; 4]; }
+machine update(cell: &mut Cell) ensures cell.storage in Utf8 {
+    cell.storage = [65u8, 0u8, 0u8, 0u8];
+}
+machine main() crashes Trap {
+    let mut cell: Cell;
+    update(&mut cell);
+    transition cell.storage[0] == 65 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}

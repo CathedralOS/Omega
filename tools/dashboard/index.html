@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101010"><meta name="description" content="Omega compiler fact coverage, recorded native results, and active outcome claims.">
+<title>Omega · Compiler observatory</title>
+<style>
+:root {
+  color-scheme: dark;
+  --paper:#101010; --card:#1b1b19; --ink:#eeeee9; --muted:#aaa9a2;
+  --line:#343431; --orange:#f2a16b; --orange-soft:#35271e;
+  --blue:#71adff; --blue-soft:#1c2c42; --green:#75d8b0; --green-soft:#1b322b;
+  --red:#ef929a; --red-soft:#3b252d; --radius:16px; --gap:22px;
+  --body:14px; --shadow:none;
+}
+* {box-sizing:border-box}
+[hidden] {display:none!important}
+html {scroll-padding-top:24px}
+body {margin:0;background:var(--paper);color:var(--ink);font:var(--body)/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+button,input,select {font:inherit}
+button,a,input,select {-webkit-tap-highlight-color:transparent}
+button,select {cursor:pointer}
+a {color:var(--blue);text-underline-offset:3px}
+button {border:1px solid var(--line);background:#20252e;color:var(--ink);border-radius:8px;padding:8px 12px}
+button:hover {background:#2a313d}
+button:disabled {cursor:wait;opacity:.6}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,.detail:focus-visible {outline:2px solid var(--blue);outline-offset:4px}
+::selection {background:#35547b;color:white}
+code {font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+.skip {position:absolute;top:-100px;left:20px;z-index:10;background:var(--card);padding:12px}
+.skip:focus {top:12px}
+.topbar {border-bottom:1px solid #252b35}
+.topbar-inner {max-width:1440px;margin:auto;display:flex;align-items:center;gap:38px;padding:19px 32px}
+.brand {display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink);font-weight:650;font-size:17px;letter-spacing:-.3px}
+.mark {display:grid;place-items:center;width:28px;height:28px;border:1px solid #646f80;border-radius:50%;font:20px Georgia,serif}
+.nav {display:flex;gap:26px;flex:1}
+.nav a {color:var(--muted);text-decoration:none;font-size:13px}
+.nav a:hover {color:var(--ink)}
+.mode {font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.mode:before {content:"";width:6px;height:6px;border-radius:50%;background:var(--green)}
+main {max-width:1440px;margin:auto;padding:29px 32px 28px}
+h1 {font-size:28px;line-height:1.2;letter-spacing:-.85px;margin:0 0 9px;font-weight:600}
+h2 {font-size:17px;letter-spacing:-.3px;font-weight:600;margin:0}
+h3 {margin:0;font-size:14px;font-weight:600}
+p {margin:0;color:var(--muted)}
+.intro {display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:18px}
+.intro p {max-width:65ch;font-size:13px}
+.refresh-block {text-align:right}
+.refresh-block small {display:none}
+.refresh {display:inline-flex;gap:8px;align-items:center;background:#252d38;border-color:#3a4657;font-size:12px}
+.refresh:hover {background:#303c4c}
+.source-strip {display:flex;flex-wrap:wrap;gap:7px 20px;font-size:12px;color:#9ca6b5;margin-bottom:22px}
+.source-strip code {color:#cbd5e4;background:#202630;padding:2px 6px;border-radius:4px}
+.panel,.stat {background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);min-width:0}
+.panel {overflow:hidden}
+.chart-deck {margin-bottom:20px}
+.chart-card {padding:23px 24px 18px}
+.history-card {background:linear-gradient(120deg,#1b2028,#171b22 65%)}
+.chart-top {display:flex;align-items:center;justify-content:space-between;gap:16px}
+.history-card .chart-top h2 {font-size:21px;letter-spacing:-.5px}
+.chart-kicker {font-size:13px;color:var(--muted);margin:6px 0 0;max-width:80ch}
+.history-card .chart-metric {display:none}
+.chart-readout {min-height:20px;font-size:12px;color:#aab6c7;margin-top:15px}
+.history-card .chart-readout {margin-top:0;padding-top:12px;border-top:1px solid #2a313b}
+.chart-metric {font-size:28px;line-height:1.2;font-weight:600;letter-spacing:-.8px;display:flex;gap:10px;align-items:baseline;margin-top:18px}
+.chart-metric small {font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted)}
+.bar-readout {color:var(--orange);margin-top:5px}
+.chart-caption {font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+.plot {display:block;width:100%;height:auto;margin:16px 0 13px;overflow:visible}
+.plot text {fill:var(--muted);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.plot .grid-line {stroke:#2b323d;stroke-width:1}
+.plot .axis-line {stroke:#444f5e;stroke-width:1}
+.plot .series-path {fill:none;stroke-width:2.6;stroke-linejoin:round;stroke-linecap:round;transition:opacity .18s ease-out}
+.plot .point {stroke-width:0;cursor:pointer}
+.plot .point-hit {fill:transparent;cursor:pointer}
+.plot .point-hit:focus {outline:none;stroke:var(--ink);stroke-width:2}
+.plot .guide {stroke:#7d899b;stroke-width:1;stroke-dasharray:3 5;opacity:.55}
+.plot .series-end {font-weight:500;font-size:15px}
+.plot .series-leader {fill:none;stroke-width:1;opacity:.45}
+.plot .outcome-bar {fill:#364151;cursor:pointer;transition:fill .16s ease-out}
+.plot .outcome-bar.selected {fill:url(#orange-bar)}
+.plot .bar-hit {fill:transparent;cursor:pointer}
+.plot .bar-hit:focus {outline:none;stroke:var(--orange);stroke-width:2}
+.plot .selected-label {fill:var(--orange);font-weight:600}
+.plot .value-label {fill:var(--ink);font-weight:500}
+.mobile-series {display:none}
+.chart-empty {min-height:270px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:24px;font-size:13px}
+.stats {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:var(--gap)}
+.stat {padding:16px 20px;background:#171c23}
+.stat-label {display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.stat-icon {display:none}
+.stat-value {font-size:28px;letter-spacing:-.9px;font-weight:600;line-height:1.2;margin:8px 0 6px}
+.stat-value span {font-size:13px;color:var(--muted);font-weight:400;letter-spacing:0}
+.stat-note {font-size:12px;color:var(--muted)}
+.workspace {display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.43fr);gap:var(--gap);align-items:start}
+.side {display:grid;gap:var(--gap);min-width:0}
+.panel-head {padding:22px 22px 15px}
+.panel-title {display:flex;gap:12px;justify-content:space-between;align-items:center}
+.panel-head p {font-size:12px;margin-top:5px}
+.count {font-size:12px;background:#222933;border:1px solid #303946;border-radius:5px;padding:2px 7px;white-space:nowrap;color:#b6c0cf}
+.toolbar,.claim-tools {display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:0 22px 17px}
+.search {flex:1;min-width:150px}
+.search input {width:100%;padding:9px 11px;background:#141920;border:1px solid #303947;border-radius:8px;color:var(--ink);caret-color:var(--orange)}
+input::placeholder {color:#909cac}
+select {padding:8px 28px 8px 10px;border:1px solid #354052;border-radius:8px;color:#d8e0ec;background:#1c232d;max-width:100%;font-size:12px}
+.segments {display:flex;gap:3px;padding:3px;border-radius:8px;background:#12171e}
+.segments button {padding:5px 9px;background:transparent;border-color:transparent;border-radius:6px;font-size:12px;white-space:nowrap;color:var(--muted)}
+.segments button[aria-pressed=true] {background:#2b3543;border-color:#3d4a5d;color:var(--ink)}
+.legend {display:flex;flex-wrap:wrap;gap:11px;font-size:12px;padding:0 22px 16px;color:var(--muted)}
+.legend span {display:inline-flex;align-items:center;gap:5px}
+.swatch {height:7px;width:7px;border-radius:2px;display:inline-block}
+.good {background:var(--green-soft);color:var(--green)}
+.retained {background:var(--blue-soft);color:var(--blue)}
+.failed {background:var(--red-soft);color:var(--red)}
+.unmeasured {background:#252d39;color:#a6b1c1}
+.missing {background:transparent;color:#9ca8ba;border:1px dashed #687487}
+.legend .good {background:var(--green)}
+.legend .retained {background:var(--blue)}
+.legend .failed {background:var(--red)}
+.legend .unmeasured {background:#647184}
+.grid-scroll {overflow:auto;max-height:635px;scrollbar-color:#48566a #161b22;scrollbar-width:thin}
+table {width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12px}
+thead {position:sticky;top:0;z-index:2;background:#1e252f}
+th {font-weight:500;color:#b0bac9;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 3px;font-size:12px;text-align:center;line-height:1.4}
+th:first-child {width:38%;text-align:left;padding-left:22px}
+td {padding:10px 3px;border-bottom:1px solid #262e39;text-align:center}
+td:first-child {text-align:left;padding-left:22px;padding-right:12px}
+tr.selected td {background:#2c2723}
+tr:hover td {background:#242c38}
+tr.selected td:first-child {box-shadow:inset 3px 0 var(--orange)}
+.fact-name {border:0;background:transparent;text-align:left;padding:0;font-size:12px;line-height:1.4;overflow-wrap:anywhere;color:#dce3ed;border-radius:3px}
+.fact-name:hover {color:var(--orange);background:transparent}
+.cell {display:inline-grid;place-items:center;min-height:25px;width:100%;max-width:29px;padding:0;border-radius:5px;font-size:13px;font-weight:500;border-color:transparent}
+.cell:hover {filter:brightness(1.25)}
+.cell.missing {border:1px dashed #687487}
+.panel-foot {padding:12px 22px;border-top:1px solid var(--line);font-size:12px;display:flex;justify-content:space-between;gap:12px;color:var(--muted)}
+.detail {padding:18px 22px;background:#21252b;border-top:1px solid #4c4237}
+.detail h3 {overflow-wrap:anywhere;margin-bottom:7px}
+.detail p {font-size:12px}
+.detail dl {display:grid;grid-template-columns:100px minmax(0,1fr);gap:7px 12px;margin:14px 0 0;font-size:12px}
+.detail dt {color:var(--muted)}
+.detail dd {margin:0;overflow-wrap:anywhere}
+.detail details {margin-top:12px;font-size:12px}
+.detail summary {cursor:pointer;color:var(--muted)}
+.detail .links {display:flex;gap:16px;margin-top:12px;font-size:12px}
+.host-list {padding:0 22px 6px}
+.host {padding:16px 0;border-bottom:1px solid var(--line)}
+.host:last-child {border:0}
+.host-top {display:flex;justify-content:space-between;gap:8px;align-items:center}
+.host-title {font-size:13px;font-weight:600}
+.host-arch {font-size:12px;color:var(--muted)}
+.host-number {font-size:25px;font-weight:600;letter-spacing:-.7px;margin-top:8px}
+.host-number span {font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted)}
+.bar {height:5px;display:flex;background:#2a3340;border-radius:3px;overflow:hidden;margin:10px 0}
+.bar span {display:block;background:#689ef2}
+.bar .executed {background:#36577f}
+.host-meta {display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px;margin-top:6px}
+.host details {font-size:12px;margin-top:8px;color:var(--muted)}
+.host summary {cursor:pointer}
+.stamp-list {max-height:160px;overflow:auto;margin-top:8px}
+.stamp {display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.stamp code {font-size:12px}
+.host small {font-size:12px;color:var(--muted)}
+.empty {padding:34px 22px;text-align:center;color:var(--muted);font-size:13px;grid-column:1/-1}
+.notice {margin:0 0 16px;padding:0;border:0;background:transparent;color:#c0a583;font-size:12px}
+.notice summary {cursor:pointer}
+.note-panel {padding:20px 22px}
+.note-panel h3 {font-size:13px;margin-bottom:8px}
+.note-panel p,.note-panel a {font-size:12px}
+.method {display:flex;align-items:center;gap:8px;margin:13px 0 8px;font-size:12px;color:var(--muted)}
+.method:before {content:"";width:5px;height:5px;background:var(--green);border-radius:50%}
+footer {display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:24px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.native-receipts {margin-bottom:var(--gap);box-shadow:none;background:#171c23}
+.native-receipts>summary {padding:13px 20px;cursor:pointer;font-size:13px;color:#d4dce8}
+.native-receipts>summary span {color:var(--muted);font-size:12px;margin-left:12px}
+.native-receipts>.panel {border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none}
+.native-receipts .host-list {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}
+.native-receipts .host {border:0}
+.native-receipts .host-meta {flex-wrap:wrap}
+.sr-only {position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.flash {animation:refresh .35s ease-out}
+@keyframes refresh {from{background:#332b20}to{background:transparent}}
+@media(prefers-reduced-motion:reduce) {*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media(max-width:1100px) {.workspace{grid-template-columns:minmax(0,1fr)}.side{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.side .note-panel{display:none}.host-meta{flex-wrap:wrap}}
+@media(max-width:700px) {
+  .topbar-inner{padding:16px 18px;gap:14px;flex-wrap:wrap}.nav{order:3;flex-basis:100%;gap:22px}.mode{margin-left:auto}.brand{font-size:16px}
+  main{padding:24px 16px}h1{font-size:25px}.intro{display:block}.refresh-block{text-align:left;margin-top:15px}.source-strip{margin-bottom:18px;gap:7px 12px}
+  .chart-card{padding:19px 16px 16px}.chart-top{align-items:start;flex-wrap:wrap;gap:10px}.history-card .chart-top h2{font-size:19px}.chart-kicker{font-size:12px}
+  .plot text{font-size:13px}.plot{margin-top:13px}.chart-readout{font-size:12px}.history-card .chart-readout{min-height:50px}.chart-caption{font-size:12px}
+  .mobile-series{display:grid;gap:8px;margin:12px 0 17px}.mobile-series-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.series-dot{width:7px;height:7px;display:inline-block;border-radius:50%;margin-right:7px}.mobile-series-row strong{font-size:16px;font-weight:500}
+  .stats{grid-template-columns:1fr;gap:9px}.stat{padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:4px 10px}.stat-value{grid-column:2;grid-row:1/3;margin:0;align-self:center;font-size:25px}.stat-note{font-size:12px}.stat-value span{font-size:12px}
+  .workspace,.side{grid-template-columns:1fr;gap:18px}.panel-head{padding:19px 16px 14px}.toolbar,.claim-tools{padding:0 16px 15px}.toolbar .search{flex-basis:100%}.legend{padding:0 16px 14px;gap:8px}
+  .native-receipts .host-list{grid-template-columns:1fr;gap:0}.native-receipts .host{border-bottom:1px solid var(--line)}.native-receipts .host:last-child{border:0}.native-receipts>summary span{display:block;margin:4px 0 0}
+  .grid-scroll{max-height:560px}table{min-width:680px}th:first-child,td:first-child{padding-left:16px}th:first-child{width:36%}.panel-foot{padding:12px 16px;flex-wrap:wrap}.detail{padding:16px}.host-list{padding:0 16px}.claims-list{grid-template-columns:1fr;padding:0 16px 12px}.claim-top{flex-wrap:wrap}.claims-panel{margin-top:18px}
+}
+
+
+.icon{width:17px;height:17px;flex:none;vertical-align:middle}
+.topbar-inner{max-width:1280px;gap:30px;padding:22px 32px}
+.brand{font-size:16px;font-weight:500;gap:10px}.mark{border:0;font-size:24px;width:22px}
+.view-tabs{display:flex;gap:24px;flex:1}.view-tab{padding:7px 0;border:0;border-bottom:1px solid transparent;border-radius:0;background:transparent;color:var(--muted);font-size:14px}
+.view-tab:hover{background:transparent;color:var(--ink)}.view-tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
+.evidence-button,.refresh{display:inline-flex;align-items:center;gap:6px;background:transparent;border:0;color:var(--muted);font-size:12px;padding:8px 0}
+.refresh .icon{width:14px}.refresh:hover,.evidence-button:hover{background:transparent;color:var(--ink)}
+#warning-count{font-size:11px;color:var(--orange)}
+main{max-width:1280px;padding:30px 32px 24px}
+.panel{background:var(--card);border-color:#33332f;box-shadow:none}
+.history-card{background:var(--card);margin-bottom:22px;padding:26px 28px 16px}
+.history-card .chart-top h2{font-size:23px;font-weight:550;letter-spacing:-.4px}
+.chart-kicker{font-size:13px;margin-top:5px;color:var(--muted)}
+.history-card .plot{margin:24px 0 8px}.history-card .chart-readout{border:0;padding:0;min-height:18px;font-size:12px}
+.plot .grid-line{stroke:#30302d}.plot .axis-line{stroke:#4a4a45}.plot .series-path{stroke-width:2.8}.plot .series-end{font-size:16px}
+.comparison-row{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:22px;align-items:stretch}
+.comparison-row .chart-card{padding:24px 24px 16px}.comparison-row h2{font-size:18px;font-weight:550;letter-spacing:-.2px}
+.compact-legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted);margin:18px 0 8px}.compact-legend span{display:flex;align-items:center;gap:6px}.legend-dot{display:inline-block;width:8px;height:8px;border-radius:2px}
+.legend-dot.then,.cohort-bar.then{background:#898b87;fill:#898b87}.legend-dot.same,.cohort-bar.same{background:#63a5ed;fill:#63a5ed}.legend-dot.all,.cohort-bar.all{background:#e2ae78;fill:#e2ae78}
+.legend-dot.recovered{background:#72c8a7}.legend-dot.new{background:#7c8584}
+.cohort-plot{margin:4px 0}.cohort-plot .cohort-host{fill:var(--ink);font-size:15px;font-weight:400}.cohort-plot .cohort-value{fill:var(--ink);font-size:14px;font-weight:500}
+.chart-hit{fill:transparent;cursor:pointer}.chart-hit:focus{outline:none;stroke:var(--blue);stroke-width:1.5}.short-readout{min-height:18px;font-size:12px;color:var(--muted);margin-top:7px}
+#growth-plot{display:grid;gap:29px;padding:24px 0 12px}.growth-host,.growth-values{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px}.growth-host>span:first-child{color:var(--ink)}
+.loss{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}.loss .icon{width:12px;height:12px}
+.growth-track{display:flex;height:18px;border-radius:4px;overflow:hidden;margin:13px 0 11px}.growth-track span{display:block}.growth-recovered{background:#72c8a7}.growth-new{background:#7c8584}
+.growth-values{font-size:12px;color:var(--muted)}.growth-values strong{font-size:17px;font-weight:500;color:var(--ink)}.growth-values .icon{display:none}
+.claims-panel{margin-top:0}.panel-head p:empty,.chart-kicker:empty,.chart-caption:empty{display:none}
+dialog{width:min(900px,calc(100vw - 32px));max-height:85dvh;overflow:auto;background:#191e26;color:var(--ink);border:1px solid #465166;border-radius:16px;padding:23px;box-shadow:0 20px 70px #0008}
+dialog::backdrop{background:#05080dc4;backdrop-filter:blur(5px)}
+.dialog-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}.dialog-head button{font-size:20px;line-height:1;padding:6px 10px}
+dialog>details{padding:14px 0;border-top:1px solid var(--line);margin:0 0 18px}dialog summary{cursor:pointer}dialog p{font-size:13px;margin:10px 0}dialog code{display:block;margin:8px 0}
+dialog .source-strip{margin:12px 0}dialog #generated-help{font-size:12px;color:var(--muted)}dialog .native-receipts{margin-top:16px}dialog .note-panel{margin-top:16px}
+#cohort-details>details{padding:12px 0;border-top:1px solid var(--line)}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:5;background:#263447;border:1px solid #4c6381;border-radius:9px;padding:10px 16px;font-size:13px;box-shadow:var(--shadow)}
+footer{font-size:12px;margin-top:20px;padding-top:14px}
+@media(max-width:900px){.comparison-row{grid-template-columns:1fr}.comparison-row .chart-card{padding:22px 24px}}
+@media(max-width:700px){
+ .topbar-inner{padding:16px 20px;gap:20px;flex-wrap:wrap}.brand{font-size:15px}.view-tabs{order:3;flex-basis:100%;gap:28px}.refresh{margin-left:auto}.evidence-button{margin-left:0}
+ main{padding:20px 14px}.history-card{padding:21px 18px 14px;margin-bottom:16px}.history-card .chart-top{align-items:center;flex-wrap:wrap}.history-card .chart-top h2{font-size:20px}.history-card .plot{margin-top:20px}.history-card .chart-readout{min-height:0}.chart-kicker{font-size:12px}
+ .comparison-row{gap:16px}.comparison-row .chart-card{padding:21px 18px 14px}.comparison-row h2{font-size:18px}.compact-legend{gap:12px}.cohort-plot .cohort-host,.cohort-plot .cohort-value{font-size:13px}
+ .short-readout{font-size:12px}.growth-values strong{font-size:16px}#growth-plot{gap:26px}
+ dialog{padding:18px}footer #footer-time{display:none}
+}
+
+.stats{gap:18px}.stat{background:var(--card);padding:20px 24px}.stat-label{font-size:13px}.stat-value{font-size:32px;font-weight:550;margin:9px 0 5px}.stat-note{font-size:12px}
+.workspace{display:grid;grid-template-columns:1fr;gap:22px}.fact-results{padding:24px 28px}.fact-results h2,.panel-title h2{font-size:21px;font-weight:550}.fact-results .chart-kicker{margin-top:5px}
+#outcome-plot{display:grid;gap:9px;margin-top:22px}.result-row{display:grid;grid-template-columns:100px minmax(0,1fr) 65px;align-items:center;gap:20px;padding:10px 0;border:0;background:transparent;text-align:left;font-size:14px;color:var(--muted)}.result-row:hover{background:transparent;color:var(--ink)}.result-row strong{text-align:right;font-size:18px;font-weight:500;color:var(--ink)}
+.result-track{height:15px;background:#292b28;border-radius:4px;overflow:hidden}.result-fill{height:100%;display:block;border-radius:4px}.result-fill.good{background:#72c8a7}.result-fill.retained{background:#63a5ed}.result-fill.failed{background:#e09999}.result-fill.unmeasured{background:#838984}.result-fill.selected{filter:brightness(1.12)}
+.panel-head{padding:24px 24px 17px}.panel-head p{font-size:13px;margin-top:5px}.count{background:transparent;border:0;color:var(--muted);padding:0;font-size:13px}
+.toolbar,.claim-tools{padding:0 24px 18px;gap:12px}.search input,select{background:#22231f;border-color:#41423c;color:var(--ink);font-size:13px}.search input{padding:10px 12px}.search input::placeholder{color:#aaa9a2}.segments{background:#121310}.segments button{font-size:13px;padding:7px 10px}.segments button[aria-pressed=true]{background:#343630;border-color:#4c4f45;color:var(--ink)}
+.legend{font-size:12px;padding:0 24px 18px;gap:16px}.grid-scroll{max-height:720px;scrollbar-color:#62675d #20211e}.grid-scroll table{min-width:850px;font-size:13px}.grid-scroll thead{background:#24251f}.grid-scroll th{font-size:12px;color:#b9bdb4;padding:12px 4px}.grid-scroll th:first-child{width:34%;padding-left:24px}.grid-scroll .source-column{width:70px}.grid-scroll td{padding:12px 4px;border-bottom-color:#30312b}.grid-scroll td:first-child{padding-left:24px;padding-right:18px;background:var(--card)}.fact-name{font-size:14px;color:var(--ink);line-height:1.5}.source-count>span:first-child{font-size:14px;color:var(--ink)}.source-count small{font-size:12px;color:var(--muted);margin-left:2px}.source-track{display:block;width:42px;height:3px;margin:5px auto 0;background:#363a32;border-radius:2px;overflow:hidden}.source-track i{display:block;height:100%;background:#a0b3a3}
+.grid-scroll tr:hover td{background:#292b24}.grid-scroll tr.selected td{background:#302d25}.cell{max-width:31px;min-height:29px}.good{background:#20372d;color:#8dd9b5}.retained{background:#223345;color:#9ec6f3}.failed{background:#3b2828;color:#efaaaa}.unmeasured{background:#30332d;color:#b3b9ad}.missing{color:#a8afa0;border-color:#6d7765}.detail{background:#24251f;border-top-color:#665d48}.panel-foot{font-size:12px;padding:13px 24px}
+.work-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.work-stats .stat-value{margin-bottom:0}.claims-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:0 24px 24px;max-height:none;overflow:visible;align-items:start}.claim{min-width:0;border:1px solid #3b3d35;border-radius:12px;padding:20px;background:#20211d}.claim h3{font-size:16px;font-weight:550;line-height:1.4;overflow-wrap:anywhere}.claim h3::first-letter{text-transform:uppercase}.claim-top{display:flex;justify-content:space-between;align-items:start;gap:16px}.lease{white-space:nowrap;font-size:12px;padding:3px 8px;border-radius:5px;background:#22382c;color:#9ed4b3}.lease.expired{background:#3c3021;color:#e6bf8a}.claim-owner{font-size:13px;margin:8px 0 15px;color:var(--muted);overflow-wrap:anywhere}.claim-note{overflow-wrap:anywhere;font-size:14px;color:#d4d7cd;line-height:1.6;max-width:70ch;margin-top:0;white-space:pre-wrap}.claim-paths{display:flex;flex-wrap:wrap;gap:5px;margin-top:16px}.claim-paths code{font-size:12px;line-height:1.5;background:#2d3028;color:#c4cbb9;border-radius:4px;padding:3px 6px;max-width:100%;overflow-wrap:anywhere}.claim-bottom{display:flex;align-items:start;justify-content:space-between;gap:14px;font-size:12px;margin-top:18px;padding-top:13px;border-top:1px solid #373a31}.claim-bottom details{font-size:12px;text-align:right;min-width:0}.claim-bottom summary{color:#b8c4ac;cursor:pointer}.claim-bottom details[open]{max-width:55%}.claim-bottom details>div{margin-top:8px;overflow-wrap:anywhere}
+@media(max-width:800px){.claims-list{grid-template-columns:1fr}.stats{gap:10px}.stat{padding:17px 18px}.stat-value{font-size:28px}}
+@media(max-width:700px){.stats{grid-template-columns:1fr}.stat{display:grid;grid-template-columns:1fr auto;gap:4px 12px}.stat-value{grid-column:2;grid-row:1/3;margin:0}.stat-note{max-width:none}.fact-results{padding:21px 18px}.fact-results h2,.panel-title h2{font-size:20px}.result-row{grid-template-columns:76px minmax(0,1fr) 48px;gap:10px;font-size:13px}.result-row strong{font-size:16px}.result-track{height:13px}.panel-head{padding:21px 18px 16px}.toolbar,.claim-tools{padding:0 18px 18px}.toolbar .search{flex-basis:100%}.legend{padding:0 18px 16px;gap:12px}.grid-scroll th:first-child{width:170px}.grid-scroll th:first-child,.grid-scroll td:first-child{position:sticky;left:0;z-index:1;padding-left:18px}.grid-scroll th:first-child{z-index:3;background:#24251f}.grid-scroll td{padding-top:13px;padding-bottom:13px}.fact-name{font-size:13px}.work-stats{grid-template-columns:1fr 1fr}.work-stats .stat{display:block;padding:16px}.work-stats .stat-label{font-size:12px}.work-stats .stat-value{margin-top:9px}.claims-list{padding:0 18px 18px;gap:14px}.claim{padding:18px}.claim h3{font-size:16px}.claim-top{flex-wrap:nowrap}.claim-bottom{flex-wrap:wrap}.panel-foot{padding:13px 18px}}
+
+.view-anchor{display:block;height:0;scroll-margin-top:180px}.view-anchor:focus{outline:none}.legend .unmeasured{background:#838984}
+.claims-panel{background:transparent;border:0;overflow:visible}.claims-panel .panel-head{padding:4px 0 18px}.claims-panel .claim-tools{padding:0 0 22px}.claims-panel .claims-list{padding:0}.claims-panel .claim{background:var(--card)}
+.performance-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:22px}.performance-heading h2{font-size:24px;font-weight:550}.performance-heading p{font-size:13px;margin-top:5px}.performance-heading select{max-width:530px}.performance-cost-card{padding:24px 28px 16px;margin-bottom:22px}.performance-pair{margin-bottom:22px}.performance-pair h2,.performance-cost-card h2{font-size:21px;font-weight:550}.performance-key{display:flex;flex-wrap:wrap;gap:9px 16px;font-size:12px;color:var(--muted)}.performance-key span{display:flex;align-items:center;gap:6px}.performance-key i{width:7px;height:7px;border-radius:50%}
+#performance-runtime{display:grid;gap:23px;padding:27px 0 15px}.performance-run>div:first-child,.performance-run-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:14px}.performance-run strong{font-size:19px;font-weight:500;white-space:nowrap}.performance-run strong small{font-size:12px;color:var(--muted)}.performance-variant{display:block;color:var(--muted);font-size:12px;margin-top:3px}.runtime-track{height:10px;background:#30322d;border-radius:3px;margin:10px 0}.runtime-track span{display:block;height:100%;border-radius:3px}.performance-run-meta{font-size:12px;color:var(--muted)}.performance-footprint-card{margin-bottom:22px}.performance-table{overflow:auto}.performance-table table{table-layout:auto;min-width:980px}.performance-table thead{background:#24251f}.performance-table tr:hover td{background:#292b24}.performance-table th{text-align:right}.performance-table th:first-child{text-align:left;width:auto}.performance-table td{border-color:#30312b;font-size:13px;padding:14px 20px;text-align:right;white-space:nowrap}.performance-table td:first-child{white-space:normal;min-width:210px;text-align:left}.performance-table small{display:block;color:var(--muted);font-size:12px;margin-top:4px}.performance-evidence>summary{padding:17px 24px;cursor:pointer;font-size:14px}.performance-evidence>div{padding:0 24px 24px}.performance-evidence p{font-size:13px;max-width:75ch;margin:12px 0}.performance-evidence details{border-top:1px solid var(--line);padding:14px 0}.performance-evidence details summary{cursor:pointer;font-size:13px}.performance-evidence dl{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 16px;font-size:12px}.performance-evidence dt{color:var(--muted)}.performance-evidence dd{margin:0;overflow-wrap:anywhere}.performance-evidence code{overflow-wrap:anywhere}.performance-evidence a{font-size:13px}
+@media(max-width:800px){.performance-heading{align-items:start;flex-direction:column;gap:16px}.performance-heading label,.performance-heading select{width:100%;max-width:100%}}
+@media(max-width:700px){.view-tabs{gap:20px}.view-tab{font-size:14px}.performance-cost-card{padding:21px 18px 14px;margin-bottom:16px}.performance-cost-card h2,.performance-pair h2{font-size:19px}.performance-pair{margin-bottom:16px}.performance-run>div:first-child{font-size:13px}.performance-run strong{font-size:17px}.performance-run-meta{font-size:12px}.performance-evidence>summary{padding:17px 18px}.performance-evidence>div{padding:0 18px 18px}.performance-evidence dl{grid-template-columns:1fr;gap:4px}.performance-evidence dd{margin-bottom:9px}}
+
+</style>
+</head>
+<body>
+<a class="skip" href="#facts">Skip to fact coverage</a>
+<header class="topbar"><div class="topbar-inner"><a class="brand" href="#"><span class="mark" aria-hidden="true">Ω</span>omega</a><nav class="view-tabs" role="tablist" aria-label="Dashboard views"><button class="view-tab" id="tab-overview" role="tab" aria-controls="view-overview" aria-selected="true" data-view="overview">Overview</button><button class="view-tab" id="tab-performance" role="tab" aria-controls="view-performance" aria-selected="false" data-view="performance">Performance</button><button class="view-tab" id="tab-facts" role="tab" aria-controls="view-facts" aria-selected="false" data-view="facts">Facts</button><button class="view-tab" id="tab-work" role="tab" aria-controls="view-work" aria-selected="false" data-view="work">Work</button></nav><button class="refresh" id="refresh"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18A8 8 0 0 1 5 16"/></svg><span id="refresh-label">Refresh evidence</span></button><small id="refresh-help" hidden></small><span class="mode" id="mode" hidden>Snapshot</span><button class="evidence-button" id="open-evidence" aria-label="Evidence details"><span>Details</span><span id="warning-count" hidden></span></button></div></header>
+<main>
+<h1 class="sr-only">Omega compiler progress</h1>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<section class="view-panel" id="view-overview" data-view-panel="overview" role="tabpanel" aria-labelledby="tab-overview">
+<section class="panel chart-card history-card" id="chart-history" aria-labelledby="history-heading">
+<div class="chart-top"><div><h2 id="history-heading">Programs that run, over time</h2><p class="chart-kicker">Recorded native runs · daily</p></div><label><span class="sr-only">Native history target</span><select id="history-target"></select></label></div>
+<div id="history-plot"></div><div class="chart-readout" id="history-readout" aria-live="polite"></div>
+</section>
+<div class="comparison-row">
+<section class="panel chart-card" id="chart-cohort" aria-labelledby="cohort-heading"><div class="chart-top"><div><h2 id="cohort-heading">Same programs vs. all programs</h2><p class="chart-kicker">Sep 30 set held fixed</p></div></div><div class="compact-legend"><span><i class="legend-dot then"></i>Sep 30</span><span><i class="legend-dot same"></i>Same set now</span><span><i class="legend-dot all"></i>All now</span></div><div id="cohort-plot"></div><div id="cohort-readout" class="short-readout" aria-live="polite"></div></section>
+<section class="panel chart-card" id="chart-growth" aria-labelledby="growth-heading"><div class="chart-top"><div><h2 id="growth-heading">Where new runs came from</h2><p class="chart-kicker">Since Sep 30</p></div></div><div class="compact-legend"><span><i class="legend-dot recovered"></i>Recovered</span><span><i class="legend-dot new"></i>New programs</span></div><div id="growth-plot"></div></section>
+</div>
+</section>
+<section class="view-panel" id="view-performance" data-view-panel="performance" role="tabpanel" aria-labelledby="tab-performance" hidden><span id="performance" class="view-anchor" tabindex="-1"></span>
+<div class="performance-heading"><div><h2>Performance</h2><p id="performance-age"></p><p id="performance-quality"></p></div><label><span class="sr-only">Benchmark host and producer context</span><select id="performance-host"></select></label></div>
+<div class="stats" id="performance-stats"></div>
+<section class="panel chart-card performance-cost-card"><h2>Recorded compile cost</h2><p class="chart-kicker">ms / project KLOC · log scale · project files only</p><div id="performance-cost"></div><div id="performance-readout" class="short-readout" aria-live="polite"></div></section>
+<div class="comparison-row performance-pair"><section class="panel chart-card"><h2>Compilation scaling</h2><p class="chart-kicker">Project LOC → compile seconds · log axes</p><div id="performance-scaling"></div></section>
+<section class="panel chart-card"><h2>Native runtime</h2><p class="chart-kicker">Whole process · includes startup</p><div id="performance-runtime"></div><p id="performance-pairs" class="chart-caption"></p></section></div>
+<section class="panel performance-footprint-card"><div class="panel-head"><h2>Recorded measurements</h2><p>Latest recorded row per workload / selection</p></div><div class="performance-table" id="performance-footprint"></div></section>
+<details class="panel performance-evidence"><summary>Benchmark evidence &amp; measurement limits</summary><div id="performance-evidence"></div></details>
+</section>
+<section class="view-panel" id="view-facts" data-view-panel="facts" role="tabpanel" aria-labelledby="tab-facts" hidden><span class="view-anchor" id="facts" tabindex="-1"></span><div class="stats" id="stats"></div>
+
+<div class="workspace"><section class="panel chart-card fact-results" aria-labelledby="outcome-heading"><div class="chart-top"><h2 id="outcome-heading">Fact results</h2><label><span class="sr-only">Fact chart target</span><select id="chart-target"></select></label></div><p class="chart-kicker">Recorded by place</p><div class="sr-only" id="outcome-metric"></div><div class="sr-only" id="outcome-readout" aria-live="polite"></div><div id="outcome-plot"></div><p class="chart-caption"></p></section><section class="panel" id="fact-grid" aria-labelledby="facts-heading"><div class="panel-head"><div class="panel-title"><h2 id="facts-heading">Fact coverage</h2><span class="count" id="fact-count"></span></div><p>Source + rejects · results by target</p></div>
+<div class="toolbar"><label class="search"><span class="sr-only">Find a fact</span><input id="fact-search" type="search" placeholder="Find a fact…" autocomplete="off"></label><label><span class="sr-only">Fact evidence target</span><select id="target"></select></label><div class="segments" aria-label="Fact coverage filter"><button data-filter="all" aria-pressed="true">All facts</button><button data-filter="gaps" aria-pressed="false">Missing places</button></div></div>
+<div class="legend"><span><i class="swatch good"></i>Pass</span><span><i class="swatch retained"></i>Qualified</span><span><i class="swatch failed"></i>Failure</span><span><i class="swatch unmeasured"></i>No record</span><span><i class="swatch missing"></i>Missing</span></div>
+<div class="grid-scroll" role="region" aria-label="Fact coverage table, scroll horizontally on narrow screens" tabindex="0"><table><caption class="sr-only">Fact coverage by transport place for the selected target</caption><thead id="fact-head"></thead><tbody id="fact-body"></tbody></table></div>
+<div class="panel-foot"><span id="fact-shown"></span><span>Source coverage</span></div><div class="detail" id="detail" role="region" aria-label="Selected fact evidence" tabindex="-1" hidden></div>
+</section>
+
+</div>
+</section>
+<section class="view-panel" id="view-work" data-view-panel="work" role="tabpanel" aria-labelledby="tab-work" hidden><span class="view-anchor" id="claims" tabindex="-1"></span><div class="stats work-stats" id="work-stats"></div><section class="panel claims-panel" id="claims-panel" aria-labelledby="claims-heading"><div class="panel-head"><div class="panel-title"><h2 id="claims-heading">Claimed work</h2><span class="count" id="claims-count"></span></div><p>Owner-reported · lease state</p></div><div class="claim-tools"><label class="search"><span class="sr-only">Find an outcome or owner</span><input id="claim-search" type="search" placeholder="Find an outcome or owner…" autocomplete="off"></label><div class="segments" aria-label="Claim lease filter"><button data-claims="active" aria-pressed="true">Active</button><button data-claims="expired" aria-pressed="false">Expired / unresolved</button></div></div><div class="claims-list" id="claim-list"></div><div class="panel-foot"><span id="claim-shown"></span><span id="registry"></span></div></section>
+</section>
+<footer><span>Omega</span><span id="footer-time"></span><a href="https://www.mebius.design/freebies/charts" target="_blank" rel="noreferrer">Design ↗</a></footer>
+<dialog id="evidence-dialog" aria-labelledby="evidence-title"><div class="dialog-head"><h2 id="evidence-title">Evidence</h2><button id="close-evidence" aria-label="Close evidence">×</button></div>
+<details open><summary>Comparison method</summary><div id="cohort-details"></div></details>
+<div class="source-strip"><span>Checkout <code id="revision"></code></span><span id="tree"></span><span id="generated"></span></div><span id="generated-help">Fixed snapshot. See the linked guide to update it.</span><div id="status" role="status" aria-live="polite"></div><details class="panel native-receipts"><summary>Native result receipts <span>Exit oracles · row revisions · host freshness</span></summary><section class="panel" id="native-summary" aria-labelledby="native-heading"><div class="panel-head"><div class="panel-title"><h2 id="native-heading">Native results</h2><span class="count">4 targets</span></div><p>Recorded exit-oracle matches / valid golden rows.</p></div><div class="host-list" id="hosts"></div><div class="panel-foot"><span>Goldens are historical observations.</span></div></section></details><section class="panel note-panel"><h3>Evidence, with its limits</h3><p>A filled row tracks source coverage. Acceptance also needs both engines, fact-sensitive rejects, fixture pins, and the owning requirement.</p><div class="method">No compiler runs during refresh</div><a id="method-link">How to keep this current ↗</a></section></dialog>
+</main>
+<script>
+'use strict';
+let data = /*__SNAPSHOT__*/;
+const live = /*__LIVE__*/false;
+const $ = id => document.getElementById(id);
+const icon = name => '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+({'chart': '<path d="M4 19V5m0 14h16M7 14l4-5 4 3 5-8"/>', 'grid': '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>', 'work': '<path d="M3 12h4l3-8 4 16 3-8h4"/>', 'info': '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>', 'refresh': '<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18A8 8 0 0 1 5 16"/>', 'up': '<path d="M12 20V4m-6 6 6-6 6 6"/>', 'down': '<path d="M12 4v16m-6-6 6 6 6-6"/>'})[name]+'</svg>';
+
+const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const number = value => Number(value || 0).toLocaleString();
+const date = value => value ? new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}) : 'Not dated';
+const short = value => String(value || 'unknown').slice(0,11);
+const readableName = value => String(value).replace(/[_-]+/g,' ');
+const names = {local:'Local',field:'Field',parameter:'Parameter',call_result:'Call result',match_join:'Match join',const_name:'Const name',other_state:'Nested machine',other_machine:'Other machine',target_body:'Other target'};
+const hosts = {windows_x86_64:['Windows','x86_64'],linux_x86_64:['Linux','x86_64'],macos_arm64:['macOS','arm64'],linux_arm64:['Linux','arm64']};
+let filter = 'all', claimFilter = 'active', selection = null, historySelection = null, outcomeSelection = 'retained';
+function source(path,label){if(!data.source_base)return escapeHTML(label);return `<a target="_blank" rel="noreferrer" href="${escapeHTML(data.source_base + path.split('/').map(encodeURIComponent).join('/'))}">${escapeHTML(label)} ↗</a>`;}
+function qualified(o){return data.dirty || !o || o.dirty || o.stale_cli || !o.profile_verified || o.revision !== data.revision;}
+function cellState(place){
+ if(!place.program)return ['missing','−','Missing positive source'];
+ const observations = place.observations[$('target').value];
+ const o = observations?.positive;
+ if(!o)return ['unmeasured','·',place.twins.length?'Source + reject twin; no positive observation':'Positive source; reject twin missing'];
+ if(o.state==='pass'){
+  const rejects=observations.controls;
+  const complete=place.twins.length>0 && rejects.length===place.twins.length && rejects.every(c=>c.observation?.state==='rejected');
+  const historical=qualified(o)||!complete||rejects.some(c=>qualified(c.observation));
+  return historical?['retained','◐','Recorded pass with historical, missing, or qualified evidence']:['good','✓','Recorded positive pass and reject controls at this clean revision'];
+ }
+ if(['checked','not-host-runnable','no-oracle','skipped'].includes(o.state))return ['unmeasured','·',`Recorded ${o.state}; no runtime acceptance`];
+ return ['failed','!','Recorded '+o.state];
+}
+function renderHistory() {
+ const colors={windows_x86_64:'#42cba5',linux_x86_64:'#62a5ff',macos_arm64:'#f18a62',linux_arm64:'#b29af5'};
+ const target=$('history-target').value;
+ const series=data.native.filter(host=>(target==='all'||host.target===target)&&(host.history||[]).length)
+   .map(host=>({host,color:colors[host.target],points:host.history,name:hosts[host.target].join(' ').replace('x86_64','x86-64')}));
+ if(!series.length){
+  $('history-readout').textContent='No committed native history available for this target.';
+  $('history-plot').innerHTML='<div class="chart-empty">No native golden has been recorded for this host.</div>';
+  return;
+ }
+ const narrow=matchMedia('(max-width:700px)').matches;
+ const W=narrow?350:1050,H=narrow?295:340,L=narrow?40:52,R=W-(narrow?12:220),T=16,B=H-39;
+ const times=series.flatMap(s=>s.points.map(p=>Date.parse(p.date)));
+ const first=Math.min(...times),last=Math.max(...times),span=last-first;
+ const ceiling=Math.max(2000,Math.ceil(Math.max(...series.flatMap(s=>s.points.map(p=>p.executed)))/2000)*2000);
+ const x=p=>span?L+(Date.parse(p.date)-first)/span*(R-L):(L+R)/2;
+ const y=n=>B-n/ceiling*(B-T);
+ const ticks=Array.from({length:5},(_,i)=>ceiling*i/4);
+ const endpoints=series.map((s,i)=>({i,point:s.points.at(-1),desired:y(s.points.at(-1).executed)})).sort((a,b)=>a.desired-b.desired);
+ endpoints.forEach((entry,i)=>entry.labelY=Math.max(entry.desired,i?endpoints[i-1].labelY+27:T+12));
+ const overflow=endpoints.at(-1).labelY-(B-6);
+ if(overflow>0)endpoints.forEach(entry=>entry.labelY-=overflow);
+ const dateLabels=Array.from({length:narrow?3:5},(_,i)=>first+span*i/(narrow?2:4));
+ $('history-plot').innerHTML=`<svg class="plot comparison-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Recorded native executions by host, on shared date and count axes">
+  ${ticks.map(n=>`<line class="grid-line" x1="${L}" x2="${R}" y1="${y(n)}" y2="${y(n)}"/><text x="${L-10}" y="${y(n)+5}" text-anchor="end">${number(n)}</text>`).join('')}
+  <line class="axis-line" x1="${L}" x2="${R}" y1="${B}" y2="${B}"/>
+  <line id="history-guide" class="guide" y1="${T}" y2="${B}" style="opacity:0"/>
+  ${series.map((s,i)=>`<g data-host-series="${i}"><path class="series-path" stroke="${s.color}" d="${s.points.map((p,j)=>(j?'L':'M')+x(p).toFixed(2)+','+y(p.executed).toFixed(2)).join(' ')}"/>
+   ${s.points.map((p,j)=>`<circle class="point" fill="${s.color}" cx="${x(p)}" cy="${y(p.executed)}" r="2.8"/><circle class="point-hit" data-point="${i}:${j}" cx="${x(p)}" cy="${y(p.executed)}" r="9" tabindex="${j===s.points.length-1?'0':'-1'}" role="button" aria-label="${escapeHTML(s.name+', '+date(p.date)+': '+number(p.executed)+' executed, '+number(p.fixtures)+' valid rows, revision '+short(p.revision))}"/>`).join('')}</g>`).join('')}
+  ${!narrow?endpoints.map(entry=>{const s=series[entry.i],p=entry.point;return `<path class="series-leader" stroke="${s.color}" d="M${x(p)+5},${y(p.executed)} L${R+8},${entry.labelY} H${R+14}"/><text class="series-end" style="fill:${s.color}" x="${R+21}" y="${entry.labelY+5}">${escapeHTML(s.name)} ${number(p.executed)}</text>`;}).join(''):''}
+  <circle id="history-selected" r="5" fill="var(--ink)" stroke="var(--card)" stroke-width="2" style="opacity:0"/>
+  ${dateLabels.map((time,i)=>`<text x="${span?L+(time-first)/span*(R-L):(L+R)/2}" y="${H-8}" text-anchor="${i===0?'start':i===dateLabels.length-1?'end':'middle'}">${escapeHTML(new Date(time).toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</text>`).join('')}
+ </svg>
+ <div class="mobile-series">${series.map(s=>`<div class="mobile-series-row"><span><i class="series-dot" style="background:${s.color}"></i>${escapeHTML(s.name)}</span><strong style="color:${s.color}">${number(s.points.at(-1).executed)}</strong></div>`).join('')}</div>`;
+ const select=(seriesIndex,pointIndex)=>{
+  historySelection={target:series[seriesIndex].host.target,index:pointIndex};
+  const s=series[seriesIndex],p=s.points[pointIndex],base=data.source_base.split('/blob/')[0];
+  $('history-readout').innerHTML=`<span style="color:${s.color}">${escapeHTML(s.name)} · ${number(p.executed)} executed</span> · ${escapeHTML(date(p.date))} · ${number(p.fixtures)} valid rows · `+(base?`<a target="_blank" rel="noreferrer" href="${escapeHTML(base+'/commit/'+p.revision)}">${escapeHTML(short(p.revision))} ↗</a>`:escapeHTML(short(p.revision)));
+  $('history-guide').setAttribute('x1',x(p));$('history-guide').setAttribute('x2',x(p));$('history-guide').style.opacity='.55';
+  $('history-selected').setAttribute('cx',x(p));$('history-selected').setAttribute('cy',y(p.executed));$('history-selected').setAttribute('fill',s.color);$('history-selected').style.opacity='1';
+ };
+ $('history-plot').querySelectorAll('[data-point]').forEach(hit=>{
+  const [i,j]=hit.dataset.point.split(':').map(Number);
+  hit.onpointerenter=()=>select(i,j);hit.onfocus=()=>select(i,j);hit.onclick=()=>select(i,j);
+  hit.onkeydown=event=>{
+   if(['ArrowLeft','ArrowRight'].includes(event.key)){
+    event.preventDefault();const next=Math.max(0,Math.min(series[i].points.length-1,j+(event.key==='ArrowLeft'?-1:1)));
+    $('history-plot').querySelector(`[data-point="${i}:${next}"]`).focus();
+   }else if(['Enter',' '].includes(event.key)){event.preventDefault();select(i,j);}
+  };
+ });
+ const prior=historySelection&&series.findIndex(s=>s.host.target===historySelection.target);
+ if(historySelection&&prior>=0)select(prior,Math.min(historySelection.index,series[prior].points.length-1));
+ else $('history-readout').textContent='';
+}
+
+function renderOutcomes(){
+ const counts={good:0,retained:0,failed:0,unmeasured:0};
+ for(const fact of data.facts)for(const place of fact.places){const state=cellState(place)[0];counts[state==='missing'?'unmeasured':state]++;}
+ const categories=[['good','Pass','Recorded pass + rejects'],['retained','Qualified','Historical or qualified pass'],['failed','Failure','Recorded failure'],['unmeasured','No record','Unmeasured / source absent']];
+ const total=data.facts.length*9;
+ $('outcome-plot').innerHTML=categories.map(([key,label,full])=>`<button class="result-row" data-outcome="${key}" aria-label="${escapeHTML(full+': '+number(counts[key])+' of '+number(total)+' fact places')}"><span id="bar-label-${key}">${label}</span><span class="result-track"><span id="bar-${key}" class="result-fill ${key}" style="width:${total?counts[key]/total*100:0}%"></span></span><strong>${number(counts[key])}</strong></button>`).join('');
+ const select=key=>{outcomeSelection=key;const category=categories.find(c=>c[0]===key);$('outcome-metric').innerHTML=number(counts[key])+'<small>of '+number(data.facts.length*9)+' places</small>';$('outcome-readout').textContent=category[2]+' · '+hosts[$('target').value].join(' / ');for(const [k]of categories){$('bar-'+k).classList.toggle('selected',k===key);$('bar-label-'+k).classList.toggle('selected-label',k===key);}};
+ $('outcome-plot').querySelectorAll('[data-outcome]').forEach(hit=>{hit.onpointerenter=()=>select(hit.dataset.outcome);hit.onfocus=()=>select(hit.dataset.outcome);hit.onclick=()=>select(hit.dataset.outcome);hit.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select(hit.dataset.outcome);}};});select(outcomeSelection);
+}
+function showDetail(fact,place){
+ selection=[fact.name,place.name];renderFacts();
+ const bundle=place.observations[$('target').value], o=bundle?.positive;
+ const detail=$('detail');detail.hidden=false;
+ const qualities=o?[data.dirty?'current checkout modified':null,o.dirty?'dirty producing tree':null,o.stale_cli?'stale CLI reported':null,!o.profile_verified?'compiler profile absent':null,o.revision!==data.revision?'different revision':null].filter(Boolean):[];
+ detail.innerHTML=`<div class="panel-title"><h3>${escapeHTML(fact.name)} / ${escapeHTML(names[place.name])}</h3><button id="close-detail" aria-label="Close fact details">×</button></div><p>${escapeHTML(cellState(place)[2])}</p><dl><dt>Source</dt><dd>${place.program?'Positive present':'Positive missing'} · ${place.twins.length} reject twin(s)</dd><dt>Target</dt><dd>${escapeHTML($('target').value)}</dd><dt>Observation</dt><dd>${escapeHTML(o?.state || 'No record')} ${o?'· '+escapeHTML(date(o.started)):''}</dd><dt>Producer revision</dt><dd><code>${escapeHTML(o?.revision || 'Unrecorded')}</code></dd>${qualities.length?`<dt>Qualification</dt><dd>${escapeHTML(qualities.join('; '))}</dd>`:''}${o?`<dt>Run record</dt><dd><code>${escapeHTML(o.record)}</code></dd>`:''}${o?.detail?`<dt>Diagnostic</dt><dd>${escapeHTML(o.detail)}</dd>`:''}</dl><div class="links">${place.program?source(fact.path+'/'+place.name+'/main.omg','Positive source'):''}${fact.readme?source(fact.path+'/README.md','Fact requirement'):''}</div><details><summary>Reject controls and acceptance boundary</summary>${(bundle?.controls||[]).map(c=>`<p>${escapeHTML(c.path)}: ${escapeHTML(c.observation?.state||'unmeasured')} · ${escapeHTML(short(c.observation?.revision))}${c.observation?' · '+escapeHTML(date(c.observation.started)):''}</p>`).join('')}<p>Fixture pins and fact-sensitive diagnostics are not audited here. A recorded pass is evidence of the gate’s reported outcome; it does not close the parent capability.</p></details>`;
+ $('close-detail').onclick=()=>{detail.hidden=true;selection=null;renderFacts();const cell=[...$('fact-body').querySelectorAll('[data-place]')].find(b=>b.dataset.fact===fact.name&&b.dataset.place===place.name);if(cell){cell.focus({preventScroll:true});cell.scrollIntoView({block:'nearest'});}};
+ detail.focus({preventScroll:true});detail.scrollIntoView({block:'nearest'});
+}
+function renderPerformance(){
+ const all=data.performance?.records||[],contexts=[...new Map(all.map(r=>[r.context_id,r.context])).entries()];
+ const current=$('performance-host').value;
+ const preferred=[...all].reverse().find(r=>r.compile)||all.at(-1);
+ const selected=contexts.some(([id])=>id===current)?current:preferred?.context_id;
+ $('performance-host').innerHTML=contexts.map(([id,c])=>`<option value="${id}">${escapeHTML((hosts[c.target]?.join(' ')||c.target)+' · '+(c.cpu||'Unknown CPU')+' · '+(c.omega_profile||'unknown profile')+(c.effective_profile?' opt '+c.effective_profile.opt_level:'')+(c.machine_id?' · host '+c.machine_id.slice(0,6):''))}</option>`).join('');
+ $('performance-host').disabled=!contexts.length;if(selected)$('performance-host').value=selected;
+ const rows=all.filter(r=>r.context_id===selected),pretty=n=>Number(n).toLocaleString(undefined,{maximumSignificantDigits:4}),stamp=t=>new Date(t).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+ const warnings=[...(rows.at(-1)?.observation_warnings||[])];
+ if(rows.some(r=>!r.measurement?.compiler_profile))warnings.unshift('Effective producer optimization unrecorded');
+ $('performance-quality').textContent=warnings.join(' · ');
+ $('performance-age').textContent=rows.length?'Measured · '+stamp(rows[0].recorded)+' – '+stamp(rows.at(-1).recorded):'No benchmark records';
+ $('performance-stats').innerHTML=[['Observations',rows.length],['Project LOC known',rows.filter(r=>r.project?.sloc>0).length],['Exit-verified records',rows.filter(r=>r.runtime_oracle).length]].map(([label,n])=>`<article class="stat"><div class="stat-label">${label}</div><div class="stat-value">${number(n)}</div></article>`).join('');
+ const subjects=[...new Set(all.map(r=>r.subject.name))].sort(),palette=['#63a5ed','#ea9b6b','#72c8a7','#c4a3e6','#d9c07e'];
+ const color=r=>palette[subjects.indexOf(r.subject.name)%palette.length],name=r=>readableName(r.subject.name),variant=r=>(r.selection.enabled.length+' enabled / '+r.selection.disabled.length+' disabled');
+ const narrow=matchMedia('(max-width:700px)').matches;
+ const compact=n=>n>=1e6?pretty(n/1e6)+'M':n>=1e3?pretty(n/1e3)+'k':pretty(n);
+ function logAxis(values,lo,hi){
+  const a=Math.floor(Math.log10(Math.min(...values))),b=Math.max(a+1,Math.ceil(Math.log10(Math.max(...values))));
+  const ticks=Array.from({length:b-a+1},(_,i)=>10**(a+i));
+  return {at:n=>lo+(Math.log10(n)-a)/(b-a)*(hi-lo),ticks:ticks.filter((_,i)=>ticks.length<7||i%Math.ceil(ticks.length/6)===0)};
+ }
+ const cost=rows.filter(r=>r.compile_ms_kloc>0);
+ if(!cost.length){$('performance-cost').innerHTML='<div class="chart-empty">No source-bound compile timings</div>';$('performance-scaling').innerHTML='<div class="chart-empty">Project LOC unavailable</div>';}
+ else{
+  const W=narrow?350:1050,H=narrow?300:340,L=narrow?48:65,R=W-(narrow?16:240),T=20,B=H-38;
+  const y=logAxis(cost.map(r=>r.compile_ms_kloc),B,T),times=cost.map(r=>Date.parse(r.recorded)),first=Math.min(...times),last=Math.max(...times),span=last-first;
+  const x=r=>span?L+(Date.parse(r.recorded)-first)/span*(R-L):(L+R)/2;
+  const latest=[...new Map(cost.map(r=>[r.subject.name,r])).values()].map(r=>({r,y:y.at(r.compile_ms_kloc)})).sort((a,b)=>a.y-b.y);
+  latest.forEach((v,i)=>v.label=Math.max(v.y,i?latest[i-1].label+25:T+12));
+  const excess=latest.at(-1).label-(B-5);if(excess>0)latest.forEach(v=>v.label-=excess);
+  $('performance-cost').innerHTML=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Historical compile milliseconds per authored project KLOC, logarithmic vertical axis">
+  ${y.ticks.map(n=>`<line class="grid-line" x1="${L}" x2="${R}" y1="${y.at(n)}" y2="${y.at(n)}"/><text x="${L-9}" y="${y.at(n)+5}" text-anchor="end">${compact(n)}</text>`).join('')}
+  ${cost.map(r=>`<circle fill="${color(r)}" cx="${x(r)}" cy="${y.at(r.compile_ms_kloc)}" r="4"/><circle class="point-hit" data-performance="${r.id}" cx="${x(r)}" cy="${y.at(r.compile_ms_kloc)}" r="10" tabindex="0" role="button" aria-label="${escapeHTML(name(r)+', '+stamp(r.recorded)+': '+pretty(r.compile_ms_kloc)+' ms per project KLOC; '+variant(r))}"/>`).join('')}
+  ${!narrow?latest.map(({r,label})=>`<path class="series-leader" stroke="${color(r)}" d="M${x(r)+6},${y.at(r.compile_ms_kloc)} L${R+10},${label} H${R+17}"/><text class="series-end" style="fill:${color(r)}" x="${R+23}" y="${label+5}">${escapeHTML(name(r))}</text>`).join(''):''}
+  ${Array.from({length:3},(_,i)=>first+span*i/2).map((t,i)=>`<text x="${span?L+(t-first)/span*(R-L):(L+R)/2}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${escapeHTML(new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</text>`).join('')}</svg>
+  ${narrow?`<div class="performance-key">${latest.map(({r})=>`<span><i style="background:${color(r)}"></i>${escapeHTML(name(r))}</span>`).join('')}</div>`:''}`;
+  const SW=narrow?350:500,SH=300,SL=52,SR=SW-20,SB=SH-43;
+  const sx=logAxis(cost.map(r=>r.project.sloc),SL,SR),sy=logAxis(cost.map(r=>r.compile.median/1000),SB,18);
+  $('performance-scaling').innerHTML=`<svg class="plot" viewBox="0 0 ${SW} ${SH}" role="group" aria-label="Project source lines against compile seconds, both axes logarithmic">
+  ${sy.ticks.map(n=>`<line class="grid-line" x1="${SL}" x2="${SR}" y1="${sy.at(n)}" y2="${sy.at(n)}"/><text x="${SL-8}" y="${sy.at(n)+5}" text-anchor="end">${compact(n)}</text>`).join('')}
+  ${sx.ticks.map(n=>`<text x="${sx.at(n)}" y="${SH-17}" text-anchor="middle">${compact(n)}</text>`).join('')}
+  ${cost.map(r=>`<circle fill="${color(r)}" fill-opacity=".7" cx="${sx.at(r.project.sloc)}" cy="${sy.at(r.compile.median/1000)}" r="5"/><circle class="point-hit" data-performance="${r.id}" cx="${sx.at(r.project.sloc)}" cy="${sy.at(r.compile.median/1000)}" r="11" tabindex="0" role="button" aria-label="${escapeHTML(name(r)+': '+r.project.sloc+' project source lines; '+pretty(r.compile.median/1000)+' compile seconds')}"/>`).join('')}</svg>`;
+ }
+ const latest=new Map();rows.forEach(r=>latest.set(r.path,r));
+ const runtime=[...latest.values()].filter(r=>r.runtime_oracle),maximum=Math.max(1,...runtime.map(r=>r.runtime.median));
+ $('performance-runtime').innerHTML=runtime.length?runtime.map(r=>`<div class="performance-run"><div><span>${escapeHTML(name(r))}${r.selection.enabled.length||r.selection.disabled.length||runtime.filter(other=>other.subject.name===r.subject.name).length>1?`<small class="performance-variant" title="${escapeHTML(variant(r))}">${r.selection.enabled.length||r.selection.disabled.length?r.selection.enabled.length+' on · '+r.selection.disabled.length+' off':'Default'}</small>`:''}</span><strong>${pretty(r.runtime.median)} <small>ms</small></strong></div><div class="runtime-track"><span style="width:${r.runtime.median/maximum*100}%;background:${color(r)}"></span></div><div class="performance-run-meta"><span>${r.runtime.samples.length} runs · ${pretty(r.runtime.min)}–${pretty(r.runtime.max)} ms</span><span>${r.baseline_ratio!==null?pretty(r.baseline_ratio)+'× observed':r.baseline_id?'Baseline only':'Unpaired'}</span></div>${r.measurement?.work_units?`<div class="performance-run-meta">${pretty(r.runtime.median*1e6/r.measurement.work_units)} ns / declared work unit</div>`:''}</div>`).join(''):'<div class="chart-empty">No exit-verified runtime observations on this host</div>';
+ const pairs=runtime.filter(r=>r.baseline_ratio!==null).length;
+ $('performance-pairs').textContent=pairs?pairs+' matched median comparisons':'Speedup unavailable · no matched baseline';
+ const mb=n=>n===null?'—':pretty(n/1048576),kb=n=>n===null?'—':pretty(n/1024);
+ $('performance-footprint').innerHTML=`<table><thead><tr><th>Workload / selection</th><th>Project LOC</th><th>Preparation s</th><th>Compile s</th><th>Runtime ms</th><th>Compile MiB</th><th>Runtime MiB</th><th>Image KiB</th><th>Recorded</th></tr></thead><tbody>${[...latest.values()].map(r=>`<tr><td><span>${escapeHTML(name(r))}</span><small>${escapeHTML(variant(r))}${r.applicability?' · unavailable':''}</small></td><td>${r.project.sloc??'—'}</td><td>${r.preparation?pretty(r.preparation.median/1000):'—'}</td><td>${r.compile?pretty(r.compile.median/1000):'—'}</td><td>${r.runtime?pretty(r.runtime.median)+(!r.runtime_oracle?'<small>Unverified exit</small>':''):'—'}</td><td>${mb(r.compile_memory)}</td><td>${mb(r.run_memory)}</td><td>${kb(r.code_bytes)}${r.code_stable===false?' *':''}</td><td>${escapeHTML(stamp(r.recorded))}</td></tr>`).join('')||'<tr><td colspan="9">No observations</td></tr>'}</tbody></table>`;
+ const base=data.source_base.split('/blob/')[0];
+ $('performance-evidence').innerHTML=`<p>Project KLOC counts nonblank, non-comment lines in tracked .omg files below the benchmark directory at the recorded source revision. Sources outside that directory, including external dependencies, are excluded; unused tracked project files can be included. Full compiled-source throughput is unavailable. No current checkout LOC is substituted.</p><p>Timings include process startup. Each point keeps its samples and host context. Variants and changed project inputs are separate observations; dots do not imply a fixed-workload improvement. Speedup is a ratio of medians only when source revision, recorded input, dependency lock, recorded machine ID, target, toolchain, effective profile and protocol match. Source cleanliness is required. Other external inputs, file-cache/load effects and stdout correctness are not established by an exit check.</p>${rows.map(r=>`<details><summary>${escapeHTML(name(r))} · ${escapeHTML(stamp(r.recorded))} · ${escapeHTML(variant(r))}</summary><dl><dt>Compile</dt><dd>${r.compile?pretty(r.compile.median)+' ms median · '+pretty(r.compile.min)+'–'+pretty(r.compile.max)+' ms · '+r.compile.samples.length+' samples':escapeHTML(r.compile_reason||'Unavailable')}</dd><dt>Runtime</dt><dd>${r.runtime?pretty(r.runtime.median)+' ms · '+(r.runtime_oracle?'exit verified':'exit oracle unavailable'):escapeHTML(r.runtime_reason||r.runtime_status)}</dd><dt>Project source</dt><dd>${r.project.sloc??'Unknown'} lines · ${r.project.files?.length??'Unknown'} files · ${escapeHTML(r.project.error||r.project.sha256||'')}</dd><dt>Rules</dt><dd>Enabled: ${escapeHTML(r.selection.enabled.join(', ')||'none')} · disabled: ${escapeHTML(r.selection.disabled.join(', ')||'none')}</dd><dt>Source revision</dt><dd><code>${escapeHTML(r.subject.source_revision)}</code></dd><dt>Producer</dt><dd><code>${escapeHTML(r.host.omega_binary_sha256||'Digest unrecorded')}</code>${escapeHTML(r.host.omega_version||' · version unrecorded')}</dd><dt>Effective profile</dt><dd>${escapeHTML(r.measurement?.compiler_profile?.opt_level||'Unrecorded; profile name alone does not establish optimization')}</dd><dt>Compile samples</dt><dd>${r.compile?r.compile.samples.map(pretty).join(' · '):'—'}</dd><dt>Run samples</dt><dd>${r.runtime?r.runtime.samples.map(pretty).join(' · '):'—'}</dd></dl>${r.baseline_id?`<p>Baseline <code>${escapeHTML(r.baseline_id)}</code></p>`:''}<p>${escapeHTML((r.notes||[]).join('\n'))}</p>${base&&r.record_revision?`<a href="${escapeHTML(base+'/blob/'+r.record_revision+'/'+r.path)}" target="_blank" rel="noreferrer">Recorded JSON ↗</a>`:`<code>${r.record_revision?'Record: ':'Working-tree record: '}${escapeHTML(r.path)}${r.record_revision?' @ '+escapeHTML(r.record_revision):''}</code>`}</details>`).join('')}${(data.performance?.errors||[]).map(e=>`<p>${escapeHTML(e)}</p>`).join('')}`;
+ const select=id=>{const r=rows.find(r=>r.id===id);$('performance-readout').textContent=name(r)+' · '+stamp(r.recorded)+' · '+pretty(r.compile.median)+' ms median ('+pretty(r.compile.min)+'–'+pretty(r.compile.max)+') · '+r.project.sloc+' project lines · '+variant(r);};
+ for(const container of ['performance-cost','performance-scaling'])$(container).querySelectorAll('[data-performance]').forEach(hit=>{hit.onpointerenter=()=>select(hit.dataset.performance);hit.onfocus=()=>select(hit.dataset.performance);hit.onclick=()=>select(hit.dataset.performance);hit.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select(hit.dataset.performance);}};});
+}
+
+
+function renderCohort(){
+ const rows=data.native.filter(host=>host.cohort?.available);
+ const percent=(n,d)=>d?Math.round(n/d*100):null;
+ const title=host=>hosts[host.target].join(' ').replace('x86_64','x86-64');
+ if(!rows.length){$('cohort-plot').innerHTML=$('growth-plot').innerHTML='<div class="chart-empty">No baseline recorded</div>';$('cohort-details').textContent='No usable September 30 baseline was found.';return;}
+ const narrow=matchMedia('(max-width:700px)').matches,W=narrow?350:580,H=35+rows.length*110,L=narrow?78:112,R=W-(narrow?33:50),barWidth=R-L;
+ $('cohort-plot').innerHTML=`<svg class="plot cohort-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="September 30 recorded run rate, same frozen fixture IDs now, and all programs now">
+ ${[0,25,50,75,100].map(n=>`<line class="grid-line" x1="${L+barWidth*n/100}" x2="${L+barWidth*n/100}" y1="20" y2="${H-27}"/><text x="${L+barWidth*n/100}" y="${H-6}" text-anchor="middle">${n}%</text>`).join('')}
+ ${rows.map((host,i)=>{const c=host.cohort,y=26+i*110;const values=[['then',c.baseline_runs,c.baseline_total,'Sep 30'],['same',c.same_now_runs,c.baseline_total,'Same set now'],['all',c.current_runs,c.current_total,'All programs now']];return `<text x="${L-15}" y="${y+43}" text-anchor="end" class="cohort-host">${escapeHTML(hosts[host.target][0])}</text>${values.map(([key,n,d,label],j)=>{const p=percent(n,d),width=barWidth*(p??0)/100;return `<g><rect class="cohort-bar ${key}" x="${L}" y="${y+j*28}" width="${width}" height="17" rx="4"/><text x="${L+width+8}" y="${y+j*28+13}" class="cohort-value">${p===null?'—':p+'%'}</text><rect class="chart-hit" data-cohort="${host.target}:${key}" x="${L}" y="${y+j*28-3}" width="${barWidth+(narrow?30:45)}" height="25" role="button" tabindex="0" aria-label="${escapeHTML(title(host)+', '+label+': '+number(n)+' recorded runs of '+number(d)+' fixture IDs'+(p===null?', unavailable':', '+p+' percent'))}"/></g>`;}).join('')}`;}).join('')}</svg>`;
+ const max=Math.max(1,...rows.map(host=>host.cohort.recovered+host.cohort.new_running));
+ $('growth-plot').innerHTML=rows.map(host=>{const c=host.cohort;return `<div class="growth-row"><div class="growth-host"><span>${escapeHTML(title(host))}</span><span class="loss" title="Observed losses; removed running fixtures are tracked separately">${icon('down')} ${number(c.lost)} lost</span></div><div class="growth-track" role="img" aria-label="${escapeHTML(title(host)+': '+number(c.recovered)+' old failures now run; '+number(c.new_running)+' programs absent on September 30 run now')}"><span class="growth-recovered" style="width:${c.recovered/max*100}%"></span><span class="growth-new" style="width:${c.new_running/max*100}%"></span></div><div class="growth-values"><span>${icon('up')} <strong>${number(c.recovered)}</strong> recovered</span><span><strong>${number(c.new_running)}</strong> new</span></div></div>`;}).join('');
+ $('cohort-details').innerHTML=`<p>Frozen September 30 fixture IDs. Missing IDs remain in the original denominator. Counts are recorded native executions, not full oracle or source-equivalence proofs.</p><p>“New” means absent from the baseline and running now; first-recording success is not audited. Source changes can also explain recovery, so this is not a causal compiler benchmark.</p>${rows.map(host=>{const c=host.cohort;return `<details><summary>${escapeHTML(title(host))} · ${number(c.baseline_total)} original IDs</summary><p>${number(c.baseline_runs)} ran then · ${number(c.same_now_runs)} recorded now · ${number(c.missing)} missing (${number(c.missing_previously_running)} previously ran).</p><p>All programs now: ${number(c.current_runs)} / ${number(c.current_total)} (${percent(c.current_runs,c.current_total)===null?'unavailable':percent(c.current_runs,c.current_total)+'%'}).</p><p>${number(c.recovered)} recovered · ${number(c.lost)} observed losses · ${number(c.new_running)} new running.</p><code>${escapeHTML(c.baseline_revision)}</code></details>`;}).join('')}`;
+ $('cohort-plot').querySelectorAll('[data-cohort]').forEach(hit=>{const [target,key]=hit.dataset.cohort.split(':');const select=()=>{const c=rows.find(h=>h.target===target).cohort;const values={then:[c.baseline_runs,c.baseline_total,'Sep 30'],same:[c.same_now_runs,c.baseline_total,'Same set now'],all:[c.current_runs,c.current_total,'All programs now']};const [n,d,label]=values[key];$('cohort-readout').textContent=`${hosts[target][0]} · ${label} · ${number(n)} / ${number(d)}`;};hit.onpointerenter=select;hit.onfocus=select;hit.onclick=select;hit.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select();}};});
+}
+
+function selectView(name,focus=false){
+ if(!['overview','performance','facts','work'].includes(name))name='overview';
+ document.querySelectorAll('[data-view-panel]').forEach(panel=>panel.hidden=panel.dataset.viewPanel!==name);
+ const tabs=[...document.querySelectorAll('[data-view]')];
+ tabs.forEach(tab=>{const selected=tab.dataset.view===name;tab.setAttribute('aria-selected',selected);tab.tabIndex=selected?0:-1;if(selected&&focus)tab.focus();});
+ if(name==='overview'){renderHistory();renderCohort();}
+ if(name==='facts')renderOutcomes();if(name==='performance')renderPerformance();
+}
+
+function renderFacts(){
+ const query=readableName($('fact-search').value).toLowerCase();
+ const facts=data.facts.filter(f=>readableName(f.name).toLowerCase().includes(query)&&(filter!=='gaps'||f.places.some(p=>!p.program||!p.twins.length)));
+ $('fact-head').innerHTML='<tr><th scope="col">Fact</th><th scope="col" class="source-column" title="Positive source plus reject twin, out of nine places">Source</th>'+data.places.map(p=>`<th scope="col">${escapeHTML(names[p])}</th>`).join('')+'</tr>';
+ $('fact-body').innerHTML=facts.length?facts.map(f=>`<tr class="${selection?.[0]===f.name?'selected':''}"><td><button class="fact-name" data-fact="${escapeHTML(f.name)}">${escapeHTML(readableName(f.name))}</button></td><td class="source-count"><span>${f.places.filter(p=>p.program&&p.twins.length).length}<small>/9</small></span><span class="source-track" aria-hidden="true"><i style="width:${f.places.filter(p=>p.program&&p.twins.length).length/9*100}%"></i></span></td>${f.places.map(p=>{const s=cellState(p);return `<td><button class="cell ${s[0]}" data-fact="${escapeHTML(f.name)}" data-place="${p.name}" title="${escapeHTML(s[2])}" aria-label="${escapeHTML(f.name+', '+names[p.name]+': '+s[2])}">${s[1]}</button></td>`;}).join('')}</tr>`).join(''):'<tr><td colspan="11"><div class="empty">No facts match this search.</div></td></tr>';
+ $('fact-shown').textContent=`${number(facts.length)} of ${number(data.facts.length)} shown`;
+ $('fact-body').querySelectorAll('[data-fact]').forEach(button=>button.onclick=()=>{const f=data.facts.find(f=>f.name===button.dataset.fact);showDetail(f,f.places.find(p=>p.name===button.dataset.place)||f.places[0]);});
+}
+function renderNative(){
+ $('hosts').innerHTML=data.native.map(host=>{
+ const title=hosts[host.target], c=host.counts;
+ if(!host.available)return `<article class="host"><div class="host-top"><span class="host-title">${title[0]}</span><span class="host-arch">${title[1]}</span></div><div class="host-number">—</div><small>${escapeHTML(host.error?'Golden unreadable':'No native golden recorded')}</small></article>`;
+ const percent=c.fixtures?c.authored/c.fixtures*100:0, remainder=c.fixtures?Math.max(0,c.executed-c.authored)/c.fixtures*100:0;
+ return `<article class="host"><div class="host-top"><span class="host-title">${title[0]}</span><span class="host-arch">${title[1]}</span></div><div class="host-number">${number(c.authored)} <span>/ ${number(c.fixtures)} valid rows</span></div><div class="bar" role="img" aria-label="${number(c.authored)} exit matches; ${number(c.executed)} executed; ${number(c.fixtures)} valid golden rows"><span style="width:${percent}%"></span><span class="executed" style="width:${remainder}%"></span></div><div class="host-meta"><span>${number(c.executed)} executed · ${number(c.checked)} checked</span><span>${number(c.regressed)} regressed</span></div><div class="host-meta"><span>Golden updated ${escapeHTML(date(host.golden_updated))}</span></div><details><summary>Provenance & limits</summary><p>${number(c.unverified)} runs without exit oracle · ${number(c.oracle_mismatch.length)} exit mismatches · ${number(c.stdout_differs)} output mismatches. Exit matches alone do not establish output or Terminal agreement.</p><div class="stamp-list">${Object.entries(host.stamps).sort((a,b)=>b[1]-a[1]).map(([stamp,n])=>`<div class="stamp"><code>${escapeHTML(stamp)}</code><span>${number(n)} rows</span></div>`).join('')}</div>${(host.golden_paths||[host.path]).map(path=>source(path,path.includes('corpus_both_')?'Dual-engine golden':'Native golden')).join(' · ')}</details></article>`;
+ }).join('');
+}
+function claimRows(){
+ if(!data.claims.available)return [];
+ // Snapshot leases can expire while the page is open; expiry never proves work stopped.
+ const all=[...data.claims.active,...data.claims.expired];
+ const now=Date.now();return all.filter(c=>claimFilter==='active'?Date.parse(c.expires_utc)>now:Date.parse(c.expires_utc)<=now);
+}
+function renderClaims(){
+ const query=readableName($('claim-search').value).toLowerCase();const all=claimRows();
+ const rows=all.filter(c=>readableName(c.item+' '+c.owner+' '+(c.note||'')).toLowerCase().includes(query));
+ const leases=data.claims.available?[...data.claims.active,...data.claims.expired]:[];
+ const active=leases.filter(c=>Date.parse(c.expires_utc)>Date.now()).length;
+ $('work-stats').innerHTML=[['Active leases',active],['Unresolved leases',leases.length-active]].map(([label,count])=>`<article class="stat"><div class="stat-label">${label}</div><div class="stat-value">${data.claims.available?number(count):'—'}</div></article>`).join('');
+ $('claim-list').innerHTML=!data.claims.available?`<div class="empty">${escapeHTML(data.claims.error)}</div>`:!rows.length?`<div class="empty">${query?'No claims match this search.':claimFilter==='active'?'No unexpired claims in this snapshot.':'No expired unresolved claims in this snapshot.'}</div>`:rows.map(c=>`<article class="claim"><div class="claim-top"><h3 title="${escapeHTML(c.item)}">${escapeHTML(readableName(c.item).toLowerCase())}</h3><span class="lease ${claimFilter==='expired'?'expired':''}">${claimFilter==='active'?'Active':'Unresolved'}</span></div><div class="claim-owner" aria-label="Owner">${escapeHTML(c.owner)}</div><p class="claim-note">${escapeHTML(c.note||'No progress note recorded.')}</p>${(c.paths||[]).length?`<div class="claim-paths" aria-label="Claim scope">${c.paths.map(path=>`<code>${escapeHTML(path)}</code>`).join('')}</div>`:''}<div class="claim-bottom"><span>${claimFilter==='active'?'Until':'Expired'} ${escapeHTML(date(c.expires_utc))}</span><details><summary>Details</summary><div>Claim <code>${escapeHTML(c.item)}</code></div><div>Ticket <code>${escapeHTML(c.ticket)}</code></div></details></div></article>`).join('');
+ $('claim-shown').textContent=data.claims.available?`${number(rows.length)} of ${number(all.length)} ${claimFilter==='active'?'active':'unresolved'} claims shown`:'Registry state unknown';
+ $('registry').textContent=data.claims.available?'Registry '+short(data.claims.version):'Refresh to retry';
+}
+function render(){
+ $('revision').textContent=short(data.revision);$('tree').textContent=data.dirty?'Working tree modified':'Clean tracked tree';$('generated').textContent='Collected '+date(data.generated);
+ $('footer-time').textContent='Evidence snapshot · '+date(data.generated);
+ $('mode').textContent=live?'Local':'Snapshot';
+ $('refresh-label').textContent=live?'Refresh':'Snapshot';$('refresh').title=live?'Refresh evidence':'Snapshot details';
+ $('refresh-help').textContent=live?'Reads records and registry; does not run compiler gates.':'A fixed snapshot. An agent must export and publish to update it.';
+ const covered=data.facts.filter(f=>f.places.every(p=>p.program&&p.twins.length)).length;
+ const observed=data.facts.reduce((n,f)=>n+f.places.filter(p=>p.observations[$('target').value]?.positive).length,0);
+ const active=data.claims.available?[...data.claims.active,...data.claims.expired].filter(c=>Date.parse(c.expires_utc)>Date.now()).length:null;
+ $('stats').innerHTML=`<article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">▦</span>Source rows</div><div class="stat-value">${number(covered)} <span>/ ${number(data.facts.length)}</span></div><div class="stat-note">9 places + rejects</div></article><article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">↗</span>Recorded places</div><div class="stat-value">${number(observed)} <span>/ ${number(data.facts.length*9)}</span></div><div class="stat-note">Includes qualified records</div></article><article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">⌁</span>Active claims</div><div class="stat-value" id="active-claims-value">${active===null?'—':number(active)}</div><div class="stat-note">${active===null?'Registry unavailable · work state unknown':'Owner-reported leases'}</div></article>`;
+ $('fact-count').textContent=number(data.facts.length)+' facts';$('claims-count').textContent=active===null?'Unknown':number(active)+' active';
+ if(data.source_base)$('method-link').href=data.source_base.split('/blob/')[0]+'/blob/main/tools/dashboard/README.md';
+ $('warning-count').hidden=!(data.warnings||[]).length;$('warning-count').textContent=(data.warnings||[]).length;
+ const warnings=data.warnings||[];$('status').innerHTML=warnings.length?`<details class="notice"><summary>${number(warnings.length)} evidence input warning(s)</summary>${warnings.map(w=>`<p>${escapeHTML(w)}</p>`).join('')}</details>`:'';
+ renderFacts();renderNative();renderClaims();renderHistory();renderOutcomes();renderCohort();renderPerformance();
+}
+$('target').innerHTML=data.targets.map(t=>`<option value="${t}">${hosts[t].join(' · ')}</option>`).join('');
+$('history-target').innerHTML='<option value="all">All hosts</option>'+$('target').innerHTML;$('chart-target').innerHTML=$('target').innerHTML;
+$('performance-host').onchange=()=>{$('performance-readout').textContent='';renderPerformance();};
+$('history-target').onchange=()=>{historySelection=null;renderHistory();};
+$('chart-target').onchange=()=>{$('target').value=$('chart-target').value;$('target').onchange();};
+$('fact-search').oninput=renderFacts;$('claim-search').oninput=renderClaims;
+$('target').onchange=()=>{$('chart-target').value=$('target').value;$('detail').hidden=true;selection=null;render();};
+document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.setAttribute('aria-pressed',x===b));renderFacts();});
+document.querySelectorAll('[data-claims]').forEach(b=>b.onclick=()=>{claimFilter=b.dataset.claims;document.querySelectorAll('[data-claims]').forEach(x=>x.setAttribute('aria-pressed',x===b));renderClaims();});
+$('refresh').onclick=async()=>{
+ if(!live){$('evidence-dialog').showModal();return;}
+
+ $('refresh').disabled=true;$('refresh-label').textContent='Reading evidence…';
+ try{const response=await fetch('/api/snapshot',{cache:'no-store'});if(!response.ok)throw Error('Evidence reader returned '+response.status);const next=await response.json();if(next.schema!=='omega-dashboard-v1')throw Error('Unexpected evidence format');data=next;selection=null;$('detail').hidden=true;render();$('stats').classList.remove('flash');void $('stats').offsetWidth;$('stats').classList.add('flash');}
+ catch(error){$('toast').hidden=false;$('toast').textContent='Refresh failed — open Details';$('status').innerHTML='<div class="notice">Refresh failed. Previous snapshot retained. '+escapeHTML(error.message)+'</div>';}
+ finally{$('refresh').disabled=false;$('refresh-label').textContent='Refresh evidence';}
+};
+
+const openEvidence=()=>{$('evidence-dialog').showModal();};
+$('open-evidence').onclick=openEvidence;$('close-evidence').onclick=()=>{$('evidence-dialog').close();};
+document.querySelectorAll('[data-evidence]').forEach(button=>button.onclick=openEvidence);
+const viewTabs=[...document.querySelectorAll('[data-view]')];
+viewTabs.forEach((tab,i)=>{tab.onclick=()=>selectView(tab.dataset.view);tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();selectView(viewTabs[(i+(event.key==='ArrowLeft'?-1:1)+viewTabs.length)%viewTabs.length].dataset.view,true);}};});
+addEventListener('hashchange',()=>selectView(location.hash==='#performance'?'performance':location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview'));
+
+let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{renderHistory();renderOutcomes();renderCohort();if(!$('view-performance').hidden)renderPerformance();},150);});
+render();selectView(location.hash==='#performance'?'performance':location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview');setInterval(()=>{renderClaims();if(data.claims.available){const active=[...data.claims.active,...data.claims.expired].filter(c=>Date.parse(c.expires_utc)>Date.now()).length;$('active-claims-value').textContent=number(active);$('claims-count').textContent=number(active)+' active';}},60000);
+</script>
+</body></html>

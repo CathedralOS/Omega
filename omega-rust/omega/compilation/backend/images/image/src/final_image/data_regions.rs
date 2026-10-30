@@ -527,22 +527,7 @@ mod tests {
 
     #[test]
     fn placed_data_inventory_is_replayed_from_final_bytes_and_exact_partition() {
-        let image = data_image(
-            (0..20).collect(),
-            vec![
-                region(FinalDataRegionOrigin::CompilerData, 0, 8, "table"),
-                region(FinalDataRegionOrigin::ImportBindingSlot, 12, 8, "_getpid"),
-            ],
-        );
-        let inventory = place_data_regions(
-            &image,
-            FinalImageLayout {
-                data_address: 0x4000,
-                ..FinalImageLayout::default()
-            },
-        )
-        .expect("valid data regions should place");
-
+        let (image, inventory) = placed_data_inventory();
         validate_placed_data_region_inventory(&inventory, &image.memory.data)
             .expect("the exact placed inventory should replay");
 

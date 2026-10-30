@@ -52,6 +52,9 @@ pub enum ClosedScalarContractValue {
     /// mutable post-state values do not inhabit this namespace. Structural
     /// observations retain their authored parameter root; case guarantees
     /// additionally have an explicit result root, not a scalar ordinal.
+    /// Target-dependent operands retain exact `ConstantApplication` leaves;
+    /// absence of a closed atom must not erase this authored clause. The
+    /// publication namespace supplies values only after target discharge.
     Predicate(crate::CheckedBooleanExpression),
     /// One authored floating entry range in that same entry-parameter
     /// namespace. The clause keeps IEEE bit-exact endpoints and the authored

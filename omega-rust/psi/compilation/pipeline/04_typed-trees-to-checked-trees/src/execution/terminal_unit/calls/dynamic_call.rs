@@ -11,8 +11,8 @@
 //!
 //! Owned structural results use the ordinary result-custody judgment against
 //! the public slot signature. Returned loans still require a public origin
-//! contract; erased or mutable owned scalar formals and suspending requirements
-//! retain their existing proof-lane and suspension coverage boundaries.
+//! contract; erased or mutable owned scalar formals retain their existing
+//! proof-lane coverage boundaries. Suspension retains the ordinary call frontier.
 //! A requirement contract needs no route evidence: checking discharged its
 //! `requires` against these operands, and every selectable implementation
 //! refines it where its conformance is checked.
@@ -69,11 +69,7 @@ pub(super) fn build(
     if !result_matches {
         return None;
     }
-    phase("call operation: dynamic requirement suspension");
     let requirement = program.dynamic_slot_requirement(slot)?;
-    if requirement.suspends {
-        return None;
-    }
     phase("call operation: dynamic structural arguments");
     let structural_arguments = structural_call_arguments(
         program,
@@ -164,9 +160,7 @@ pub(super) fn build(
     let parts = CheckedUnitCallParts {
         coordinate,
         completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-        // Structural completion retains the producer's exact authored
-        // occurrence when nested callers adopt its result namespace.
-        source_site: structural_result.and(source_site),
+        source_site,
         // No single implementation's contract report describes the call;
         // the slot is the target identity.
         target: CheckedUnitCallTarget {

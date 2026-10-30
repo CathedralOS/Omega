@@ -6,7 +6,9 @@
 //! The complete input identity additionally joins the selected toolchain library.
 
 pub fn compiler_input_identity() -> Result<[u8; 32], String> {
-    let library = package_compilation::toolchain_library::identity()?;
+    let library = phase_profile::scope("source.compiler_library_identity", || {
+        package_compilation::toolchain_library::identity()
+    })?;
     let mut digest = optimization_core::digest_encoder::DomainDigestEncoder::new(
         b"omega-accepted-compiler-inputs-v1\0",
     );

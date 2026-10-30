@@ -1,6 +1,6 @@
 use crate::{
-    DomainEstablishmentRoute, DomainPredicateBody, QualificationEvidenceOrigin, SemanticDomainId,
-    SemanticDomainTable,
+    DomainEstablishmentRoute, DomainPredicatePresence, QualificationEvidenceOrigin,
+    SemanticDomainId, SemanticDomainTable,
 };
 
 #[test]
@@ -59,15 +59,15 @@ fn establishment_routes_keep_source_and_requirement_identity_independent() {
 }
 
 #[test]
-fn domain_predicate_body_distinguishes_bodyless_from_explicit_predicates() {
+fn domain_predicate_presence_distinguishes_bodyless_from_explicit_predicates() {
     assert_eq!(
-        DomainPredicateBody::default(),
-        DomainPredicateBody::Bodyless
+        DomainPredicatePresence::default(),
+        DomainPredicatePresence::Absent
     );
-    assert!(!DomainPredicateBody::Bodyless.is_present());
-    assert!(DomainPredicateBody::Present.is_present());
-    assert_eq!(DomainPredicateBody::Bodyless.as_str(), "bodyless");
-    assert_eq!(DomainPredicateBody::Present.as_str(), "present");
+    assert!(!DomainPredicatePresence::Absent.is_present());
+    assert!(DomainPredicatePresence::Present.is_present());
+    assert_eq!(DomainPredicatePresence::Absent.as_str(), "bodyless");
+    assert_eq!(DomainPredicatePresence::Present.as_str(), "present");
 }
 
 #[test]

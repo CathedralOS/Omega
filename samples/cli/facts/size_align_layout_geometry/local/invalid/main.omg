@@ -1,5 +1,5 @@
 // Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
-// Invalid: Pair has a single field lo: u64 (size == 8u64, align == 8u64), so size - (align * 2u64) underflows u64.
+// Place: local. The size and alignment queries are copied into locals before subtracting.
 // Expected exit: 0
 
 data Pair {
@@ -12,7 +12,7 @@ machine main() crashes Trap {
     let local_size: u64 = s;
     let local_align: u64 = a;
     let diff: u64 = local_size - (local_align * 2u64);
-    transition diff == 0 {
+    transition diff == 0 && local_size == 16u64 && local_align == 8u64 {
         true -> done()
         _ -> bad()
     }

@@ -10,8 +10,8 @@
 //!
 //! The requirement's contract needs no evidence on the route: checking
 //! discharged its `requires` against these operands and every selectable
-//! implementation refines it where its conformance is checked. A suspending
-//! requirement declines here; the route carries no suspension frontier.
+//! implementation refines it where its conformance is checked. Suspension
+//! retains the same call occurrence and its independently checked frontier.
 use super::call_arguments::ComputedCallOperands;
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
@@ -34,9 +34,6 @@ impl Builder<'_, '_> {
             return None;
         }
         let requirement = program.dynamic_slot_requirement(slot)?;
-        if requirement.suspends {
-            return None;
-        }
         let (source_call, call_ordinal) = self.call_ordinal(expression, call.target_symbol)?;
         let arity = match program.finite_signature_family(requirement) {
             typed_trees::finite_family::FamilyProbe::Finite { arity, .. } => arity,

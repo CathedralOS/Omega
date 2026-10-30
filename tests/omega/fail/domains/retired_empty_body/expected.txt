@@ -1,0 +1,2 @@
+empty domain bodies are retired
+end the declaration with `;`

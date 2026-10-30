@@ -108,6 +108,14 @@ Common fields can be accessed without a case test; payload fields need the
 matching case. Case-bearing types use case construction, not a record literal
 that omits the case.
 
+Common fields come first; all inline cases follow them as a consecutive tail.
+Construction may supply common and payload fields together, as above. Matching
+instead decomposes the common fields and one case-only view: a named outer
+pattern can bind `RoomEvent { consumed, case as action }`, or a positional one
+can bind `(consumed, action)`. An inner match on action then handles Nothing or
+Treasure's gold. Case patterns bind payload fields only, never consumed again.
+See [data and case patterns](chapter_6_pattern_matching_dispatch.md#data-and-case-patterns).
+
 Omitted fields still need valid zero values. Zeroed storage selects the first
 case, but observation requires its common fields and active payload to be
 established. Zero does not prove an authority qualification or mean “empty.”

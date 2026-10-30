@@ -279,6 +279,7 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
             );
             let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
                 entry: Some(companion.program_entry().checked_entry()),
+                filesystem: Default::default(),
                 native_provider: None,
                 artifact,
                 target: Some(profile.target_name()),

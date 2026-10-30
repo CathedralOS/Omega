@@ -431,6 +431,12 @@ pub(crate) fn projected_argument_path(
         }
         count
     };
+    let prefix_container = |position| {
+        prefix_container_type_reference(program, state_symbol, statement_index, place, position)
+    };
+    // Case selection keeps the same carrier. Remember crossings already
+    // consumed there; a real field/element projection starts a new carrier.
+    let mut consumed_carrier_crossings = inherited_crossings;
     let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
         // Parameters already denote their borrowed storage. Below that root,
@@ -443,17 +449,12 @@ pub(crate) fn projected_argument_path(
             && matches!(
                 segment,
                 facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
                     | facts::PlaceSegment::FixedIndex { .. }
                     | facts::PlaceSegment::Index { .. }
             )
         {
-            let mut reference = prefix_container_type_reference(
-                program,
-                state_symbol,
-                statement_index,
-                place,
-                position,
-            )?;
+            let mut reference = prefix_container(position)?;
             let mut crossings = 0usize;
             while let Some(shell) = validation::reference_shell(program, reference)
                 && validation::stores_reference_shape(program, reference, &[])
@@ -461,14 +462,13 @@ pub(crate) fn projected_argument_path(
                 crossings += 1;
                 reference = shell.referee;
             }
-            let inherited = place.segments[..position]
-                .iter()
-                .all(|prefix| matches!(prefix, facts::PlaceSegment::Case { .. }))
-                .then_some(inherited_crossings)
-                .unwrap_or(0);
-            for _ in 0..crossings.saturating_sub(inherited) {
+            for _ in 0..crossings.saturating_sub(consumed_carrier_crossings) {
                 path.push(CheckedUnitStructuralPathSegment::Referent);
             }
+            consumed_carrier_crossings = crossings;
+        }
+        if !matches!(segment, facts::PlaceSegment::Case { .. }) {
+            consumed_carrier_crossings = 0;
         }
         match segment {
             facts::PlaceSegment::Field { symbol } => {
@@ -480,13 +480,7 @@ pub(crate) fn projected_argument_path(
                 path.push(CheckedUnitStructuralPathSegment::Field(identity));
             }
             facts::PlaceSegment::FixedIndex { index } => {
-                let container = prefix_container_type_reference(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    place,
-                    position,
-                )?;
+                let container = prefix_container(position)?;
                 fixed_index_within_extent(program, container, *index)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(*index).ok()?,
@@ -500,13 +494,7 @@ pub(crate) fn projected_argument_path(
                 // literal-bound check `FixedIndex` segments take rather than
                 // reaching for runtime-selector evidence.
                 if let Some(index) = constant_local_index(program, state_symbol, *expression) {
-                    let container = prefix_container_type_reference(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        place,
-                        position,
-                    )?;
+                    let container = prefix_container(position)?;
                     fixed_index_within_extent(program, container, index)?;
                     path.push(CheckedUnitStructuralPathSegment::FixedIndex(
                         u64::try_from(index).ok()?,
@@ -552,13 +540,7 @@ pub(crate) fn projected_argument_path(
                 // literal extent bounds the window — the same shape the
                 // `FixedIndex` walk proves — since a stored view carries no
                 // runtime bound evidence of its own.
-                let container = prefix_container_type_reference(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    place,
-                    position,
-                )?;
+                let container = prefix_container(position)?;
                 fixed_byte_range_within_extent(program, container, *start, *end)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
                     start: u64::try_from(*start).ok()?,
@@ -569,13 +551,7 @@ pub(crate) fn projected_argument_path(
                 // Resolve the exact case and its following field together.
                 // The canonical type walker alone skips Case markers; it is
                 // not evidence that a payload belongs to the selected case.
-                let reference = prefix_container_type_reference(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    place,
-                    position,
-                )?;
+                let reference = prefix_container(position)?;
                 let reference = validation::unwrapped_type_reference(program, reference)?;
                 let owner = program.closed_data_definition(reference)?;
                 let mut cases =
@@ -618,8 +594,28 @@ pub(crate) fn projected_argument_path(
             }
         }
     }
-    let projected =
+    let mut projected =
         validation::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+    // A whole parameter already denotes its ingress storage, just as the
+    // root of a member/index path above does. Its declared reference is not
+    // an extra stored descriptor to cross. Locals and completed values keep
+    // their stored reference shells; their producer owns those descriptors.
+    // View carriers already contain their bounds and backing: only the common
+    // stored-reference classification denotes a shell to peel here.
+    if place.segments.is_empty()
+        && validation::stores_reference_shape(program, projected, &[])
+        && let Some(symbol) = place.root.as_symbol()
+        && let Some(state) = program.state_by_symbol(state_symbol)
+        && program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| super::super::types::parameter_is_root(parameter, symbol))
+    {
+        projected = validation::structural_storage_type(program, projected, &[]);
+        if !projected.is_valid() {
+            return None;
+        }
+    }
     Some((projected, path))
 }
 

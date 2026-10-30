@@ -83,14 +83,12 @@ pub(super) fn observe(
             continue;
         }
         let mut origins = Vec::new();
-        let current = live
+        let snapshot = live
             .stored_reference_effects
             .observations
             .get(&function.machine)?
-            .get(&live.reference_position)?
-            .get(&location)?
-            .origins
-            .as_ref()?;
+            .get(&live.reference_position)?;
+        let current = sources_at_storage(snapshot, &location)?;
         for source in current {
             let origin = match source {
                 DescriptorSourceOrigin::Provider(provider) => {
@@ -172,4 +170,45 @@ pub(super) fn observe(
     // An incomplete slot or incompatible interpretation declines the whole
     // observation. This joins possible addresses, not permissions.
     combine_alternatives(function, candidates).ok()
+}
+
+/// A demanded alias and its physical carrier are separate snapshot coordinates.
+/// Reanchoring a borrowed arrival can ask for the latter without introducing
+/// another read. Join only the producer's exact same-cut storage association;
+/// equal referent types or an earlier descriptor capture prove no such relation.
+fn sources_at_storage<'snapshot>(
+    snapshot: &'snapshot BTreeMap<
+        terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+        terminal_semantics::descriptor_results::DescriptorSourceObservation,
+    >,
+    location: &terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+) -> Option<Vec<&'snapshot DescriptorSourceOrigin>> {
+    // A requested occurrence is authoritative, including unknown contents.
+    // Other observations must not revive a replaced or unresolved direct row.
+    if let Some(observed) = snapshot.get(location) {
+        return Some(
+            observed
+                .origins
+                .as_ref()
+                .filter(|origins| !origins.is_empty())?
+                .iter()
+                .collect(),
+        );
+    }
+    let mut sources = Vec::new();
+    for observed in snapshot
+        .values()
+        .filter(|observed| observed.storage.as_ref() == Some(location))
+    {
+        // Every exact alias participates. One unknown observation withholds
+        // the whole answer; none is not an empty or type-seeded descriptor.
+        sources.extend(
+            observed
+                .origins
+                .as_ref()
+                .filter(|origins| !origins.is_empty())?
+                .iter(),
+        );
+    }
+    (!sources.is_empty()).then_some(sources)
 }

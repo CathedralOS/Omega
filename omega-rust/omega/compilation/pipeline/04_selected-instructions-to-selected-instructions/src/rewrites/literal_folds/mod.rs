@@ -256,12 +256,20 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
     }
 }
 
-copy_receipt! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct StagedOptimizedLiteralFoldIterationReceipt {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StagedOptimizedLiteralFoldIterationReceipt {
+    evidence: StagedOptimizedLiteralFoldAttemptReceipt,
+    fresh_liveness: selected_instructions::LivenessIdentity,
+    fresh_ranges: selected_instructions::LiveRangeIdentity,
+    fresh_legality: register_homes::AllocationLegalityIdentity,
+}
+
+impl StagedOptimizedLiteralFoldIterationReceipt {
+    receipt_accessor_rows!(nested StagedOptimizedLiteralFoldIterationReceipt, evidence {
         source_selected: SelectedInstructionPlanIdentity,
         source_ranges: selected_instructions::LiveRangeIdentity,
         source_legality: register_homes::AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
         choices: register_homes::SpillChoiceIdentity,
         choice_policy: SpillChoicePolicy,
         choice_usage: OptimizationWorkUsage,
@@ -271,11 +279,13 @@ copy_receipt! {
         fold: LiteralFoldIdentity,
         fold_policy: LiteralFoldPolicy,
         fold_usage: OptimizationWorkUsage,
-        transformed_selected: SelectedInstructionPlanIdentity,
+        applied_count: usize,
+    });
+    receipt_accessor_rows!(StagedOptimizedLiteralFoldIterationReceipt {
         fresh_liveness: selected_instructions::LivenessIdentity,
         fresh_ranges: selected_instructions::LiveRangeIdentity,
         fresh_legality: register_homes::AllocationLegalityIdentity,
-    }
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

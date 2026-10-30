@@ -1,210 +1,58 @@
 //! Exact narrow pointer reads reject opcode, operand and displacement substitutions.
 
-use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind,
-    encode_x86_64_selected_memory_form, replay_battery, validate_x86_64_selected_memory_form,
-};
-#[test]
-fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
-    let physical =
-        register_model::validate_physical_register_model(crate::x86_64_physical_register_model())
-            .unwrap();
-    for width in [1_u16, 2] {
-        let family = if width == 1 {
-            MachineAlternativeFamily::Load8
-        } else {
-            MachineAlternativeFamily::Load16
-        };
-        let alternative = MachineAlternativeKey { family, variant: 0 };
-        for byte_offset in [0, 2, 4096] {
-            let kind = if width == 1 {
-                SelectedInstructionKind::Load8 { byte_offset }
-            } else {
-                SelectedInstructionKind::Load16 { byte_offset }
-            };
-            let displacement = i64::from(byte_offset);
-            for base_name in ["rax", "rbp", "r12", "r13", "r15"] {
-                let base = physical.model().view_named(base_name).unwrap().id;
-                let destination = physical.model().view_named("r11").unwrap().id;
-                let operands = [base, destination];
-                let encoded = encode_x86_64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    displacement,
-                )
-                .unwrap();
-                assert_eq!(encoded.footprint().register_reads, [base]);
-                assert_eq!(encoded.footprint().register_writes, [destination]);
-                assert_eq!(
-                    encoded.footprint().encoded.memory,
-                    MachineEncodedMemoryEffect::ReadPointerV1 {
-                        pointer_operand: 0,
-                        byte_count: width
-                    }
-                );
-                assert_eq!(
-                    encoded.footprint().encoded.stack,
-                    MachineEncodedStackEffect::UnchangedV1
-                );
-                assert_eq!(
-                    encoded.footprint().encoded.trap,
-                    MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-                );
-                assert!(!encoded.footprint().writes_rflags);
-                assert_eq!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .unwrap(),
-                    encoded
-                );
-                replay_battery::replay_rejects_byte_mutations(encoded.bytes(), |bytes| {
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        bytes,
-                    )
-                });
-                replay_battery::replay_rejects_substituted_requests(
-                    encoded.bytes(),
-                    kind,
-                    alternative,
-                    &operands,
-                    displacement,
-                    |kind, alternative, operands, displacement, bytes| {
-                        validate_x86_64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            operands,
-                            displacement,
-                            bytes,
-                        )
-                    },
-                );
-                for changed_operands in [
-                    [destination, base],
-                    [destination, destination],
-                    [base, base],
-                ] {
-                    assert!(
-                        validate_x86_64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &changed_operands,
-                            displacement,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                }
-                let changed_kind = if width == 1 {
-                    SelectedInstructionKind::Load16 { byte_offset }
-                } else {
-                    SelectedInstructionKind::Load8 { byte_offset }
-                };
-                assert!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        changed_kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                // The complete address is read before the result is defined.
-                assert!(
-                    encode_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[base, base],
-                        displacement
-                    )
-                    .is_ok()
-                );
-            }
-        }
+use super::{encode_x86_64_selected_memory_form, validate_x86_64_selected_memory_form};
+use crate::selected_form_encoding::ValidatedX86_64SelectedFormEncoding;
+use isa_conformance::narrow_load::{self, Exact, Footprint, Roster};
+
+/// Report one validated narrow load as the shared conformance footprint.
+fn observed(encoded: &ValidatedX86_64SelectedFormEncoding) -> Footprint {
+    Footprint {
+        bytes: encoded.bytes().to_vec(),
+        register_reads: encoded.footprint().register_reads.clone(),
+        register_writes: encoded.footprint().register_writes.clone(),
+        memory: encoded.footprint().encoded.memory,
+        stack: encoded.footprint().encoded.stack,
+        trap: encoded.footprint().encoded.trap,
+        flags_untouched: !encoded.footprint().writes_rflags,
     }
 }
 
 #[test]
-fn narrow_loads_have_zero_extending_opcodes_and_reject_invalid_addresses() {
+fn narrow_loads_bind_widths_footprints_opcodes_and_refuse_substituted_requests() {
     let physical =
         register_model::validate_physical_register_model(crate::x86_64_physical_register_model())
             .unwrap();
-    let operands = ["rax", "rcx"].map(|name| physical.model().view_named(name).unwrap().id);
-    for (kind, family, expected) in [
-        (
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
-            MachineAlternativeFamily::Load8,
-            vec![0x48, 0x0f, 0xb6, 0x88, 0, 0, 0, 0],
-        ),
-        (
-            SelectedInstructionKind::Load16 { byte_offset: 0 },
-            MachineAlternativeFamily::Load16,
-            vec![0x48, 0x0f, 0xb7, 0x88, 0, 0, 0, 0],
-        ),
-    ] {
-        let alternative = MachineAlternativeKey { family, variant: 0 };
-        let encoded =
-            encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 0).unwrap();
-        assert_eq!(encoded.bytes(), expected);
-        let mut signed = expected.clone();
-        signed[2] = if family == MachineAlternativeFamily::Load8 {
-            0xbe
-        } else {
-            0xbf
-        };
-        assert!(
+    narrow_load::conformance(
+        &physical,
+        &Roster {
+            bases: &["rax", "rbp", "r12", "r13", "r15"],
+            destination: "r11",
+            offsets: |_width| vec![0, 2, 4096],
+        },
+        &Exact {
+            operands: ["rax", "rcx"],
+            expected: [
+                (1, &[0x48, 0x0f, 0xb6, 0x88, 0, 0, 0, 0]),
+                (2, &[0x48, 0x0f, 0xb7, 0x88, 0, 0, 0, 0]),
+            ],
+            signed_opcode: (2, [0xbe, 0xbf]),
+            invalid_views: &["rsp", "eax", "xmm0"],
+            invalid_offsets: &[(1, u32::MAX)],
+        },
+        |kind, alternative, operands, displacement| {
+            encode_x86_64_selected_memory_form(&physical, kind, alternative, operands, displacement)
+                .map(|encoded| observed(&encoded))
+        },
+        |kind, alternative, operands, displacement, bytes| {
             validate_x86_64_selected_memory_form(
                 &physical,
                 kind,
                 alternative,
-                &operands,
-                0,
-                &signed
+                operands,
+                displacement,
+                bytes,
             )
-            .is_err()
-        );
-        for name in ["rsp", "eax", "xmm0"] {
-            let invalid = physical.model().view_named(name).unwrap().id;
-            for changed in [[invalid, operands[1]], [operands[0], invalid]] {
-                assert!(
-                    encode_x86_64_selected_memory_form(&physical, kind, alternative, &changed, 0)
-                        .is_err()
-                );
-            }
-        }
-    }
-    let invalid = u32::MAX;
-    assert!(
-        encode_x86_64_selected_memory_form(
-            &physical,
-            SelectedInstructionKind::Load8 {
-                byte_offset: invalid
-            },
-            MachineAlternativeKey {
-                family: MachineAlternativeFamily::Load8,
-                variant: 0
-            },
-            &operands,
-            i64::from(invalid)
-        )
-        .is_err()
+            .map(|encoded| observed(&encoded))
+        },
     );
 }

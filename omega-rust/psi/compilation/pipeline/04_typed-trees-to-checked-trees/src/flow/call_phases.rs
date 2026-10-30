@@ -114,12 +114,7 @@ pub(super) fn build_call_exit_contexts(
     let mut ensured = build_call_contract_contexts(
         semantic,
         build,
-        ProgramPoint::CallEnsures {
-            machine_symbol: machine.symbol,
-            state_symbol: state.symbol,
-            statement_index: borrow_call.statement_index,
-            call_ordinal: borrow_call.call_ordinal,
-        },
+        crate::flow::call_ensures_point(machine, state, borrow_call),
     );
     let retained_contexts = copied_guarantees::retain_guarantees(
         program,

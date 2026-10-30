@@ -37,6 +37,7 @@ pub use functions::SelectedFunctions;
 pub mod effects;
 pub mod identity;
 pub mod instructions;
+pub mod kind_encoding;
 mod packed_byte_width;
 pub use packed_byte_width::PackedByteWidth;
 pub mod live_ranges;
@@ -44,6 +45,7 @@ pub mod liveness;
 pub mod plan_identity;
 pub mod provenance;
 pub mod structural_case;
+pub mod terminator_encoding;
 pub mod values;
 
 pub use calls::normalized_foreign::SelectedNormalizedForeignCall;

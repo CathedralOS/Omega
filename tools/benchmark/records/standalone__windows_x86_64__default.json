@@ -1,10 +1,10 @@
 {
-  "schema": "omega-benchmark-record/1",
-  "recorded_utc": "2026-09-23T10:14:21Z",
+  "schema": "omega-benchmark-record/2",
+  "recorded_utc": "2026-10-29T22:29:38Z",
   "subject": {
     "name": "standalone",
     "root": "samples/cli/basics/standalone/main.omg",
-    "source_revision": "0758547f31effa829bdb043749e69d41d7eb13a5"
+    "source_revision": "8badab9ee404808dbc2024bbc3534f4d08de8e49"
   },
   "key": {
     "target": "windows_x86_64",
@@ -12,45 +12,74 @@
       "enabled": [],
       "disabled": []
     },
-    "selection_source": "build.omg enable calls plus --enable/--disable"
+    "selection_source": "build.omg enable calls plus --enable/--disable",
+    "selection_receipt": {
+      "requested": [
+        "ControlFlowCleanup"
+      ],
+      "applied": [],
+      "effective": []
+    },
+    "probe_disable": "ControlFlowCleanup"
   },
   "host": {
-    "os": "darwin",
-    "machine": "arm64",
-    "cpu": "Apple M2 Max",
-    "logical_cpus": 12,
-    "python": "3.9.6",
+    "os": "win32",
+    "machine": "AMD64",
+    "cpu": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+    "logical_cpus": 32,
+    "python": "3.15.1",
     "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
-    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/500e901f2ac79b1edb3d16c6caa05552e0aedbfd5321d37c06e7c9b98780b017/debug/omega",
-    "omega_profile": "dev"
+    "omega_binary": "target\\release\\omega.exe",
+    "omega_binary_sha256": "7e8f008562203f0788e1bc276c436493e64ae0e6fde00ec6f46303ae5297a321",
+    "omega_version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)",
+    "omega_profile": "unknown"
+  },
+  "measurement": {
+    "protocol": "omega-benchmark-process-v1/fresh-build-dir",
+    "source_clean": true,
+    "input_sha256": "bc39c6f22c06587337742b3c74f14550d59aebe1267ef3bdd14cab56c84ab3be",
+    "dependency_lock_sha256": "bd2482169dcb06834d74a40b9da415a313066302d64a981bbc9b46484cde4c50",
+    "dependency_lock_stable": true,
+    "machine_id": "8ab77c7698c9e3d6218b31cb3050314a3417fd802ad2850fe36d406dd064c58c",
+    "compiler_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    },
+    "work_units": null,
+    "runtime_scope": "whole-process-including-startup",
+    "file_cache": "uncontrolled"
   },
   "metrics": {
     "compile_time_ms": {
       "status": "measured",
       "unit": "ms",
       "samples": [
-        36851.734833,
-        56606.752333000004,
-        72837.71841600002
+        1861.6756000046735,
+        559.0444999979809,
+        628.2768999953987
       ],
-      "median_ms": 56606.752333000004,
-      "min_ms": 36851.734833,
+      "median_ms": 628.2768999953987,
+      "min_ms": 559.0444999979809,
       "stage_timings_last_sample_ms": {
-        "prepare: project -> prepared sources": 106.197,
-        "compile: sources -> requested product": 72383.255,
-        "publish: retained product -> published product": 318.034,
-        "Stage 01: SourceFiles -> TokenStreams": 18.335,
-        "Stage 02: TokenStreams -> SyntaxTrees": 11.982,
-        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 198.053,
-        "Stage 04: SymbolResolvedTrees -> TypedTrees": 67.393,
-        "Stage 05: TypedTrees -> CheckedTrees": 56170.277,
-        "total elapsed": 72822.409
+        "prepare: project -> prepared sources": 18.431,
+        "compile: sources -> requested product": 99.584,
+        "publish: retained product -> published product": 3.114,
+        "Stage 05: TypedTrees -> CheckedTrees": 2.277,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 20.952,
+        "Step: settle: CheckedTrees -> SelectedExecution": 53.469,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 2.407,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 2.268,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.042,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.009,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.024,
+        "total elapsed": 475.06
       }
     },
     "peak_memory_bytes": {
       "status": "measured",
       "unit": "bytes",
-      "compile_max_rss": 111902720,
+      "compile_max_rss": 916328448,
       "run_max_rss": null
     },
     "code_size_bytes": {
@@ -77,6 +106,12 @@
     }
   },
   "notes": [
-    "cross-target compile-only leg measured from macOS arm64 host; standalone emits no ProcessExit provider so runtime is structurally skipped"
+    "Producer freshly built from main 8badab9ee404808dbc2024bbc3534f4d08de8e49; release opt-level 3.",
+    "Other fresh attempts: structural_proofs rejected with four checking diagnostics; prime_counter package preparation exceeded a 20-minute limit (no timed compiles or native runs). Raw evidence and replay: tools/benchmark/evidence/2026-10-29-windows/README.md",
+    "Batch evidence and unmeasured attempts: tools/benchmark/evidence/2026-10-29-windows/README.md"
+  ],
+  "observation_warnings": [
+    "Structural proofs rejected",
+    "Prime preparation timed out (20 min)"
   ]
 }

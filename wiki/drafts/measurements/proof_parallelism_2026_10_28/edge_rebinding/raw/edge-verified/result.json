@@ -1,0 +1,26 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\edge-rebinding\\omega.exe",
+    "run",
+    "--both",
+    "--keep",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 21.591127600011532,
+  "exit_code": 0,
+  "cpu_seconds": 27.015625,
+  "peak_working_set_bytes": 4090130432,
+  "producer": "edge-rebinding",
+  "compiler_sha256": "b73010a4870658f67907f309a08ed9cf89234e98baf575460ef72fb24b3544f0",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "434f7fd1ac68333d225c72e8d28075cc2c1070c3aac720b56855be57f791c19d",
+  "cache_mode": "shared user cache",
+  "reconciliation_mode": "off",
+  "reconciliation": [],
+  "terminal_stdout_agrees": true,
+  "guest_stdout_sha256": "0e1e29e8d6ab7c2f123f8146b8ac62be6c828a67bf5541548734962b013fa5a6",
+  "retained_image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8"
+}

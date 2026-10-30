@@ -1,0 +1,14 @@
+{
+  "exit_codes": {
+    "tests": 0,
+    "build": 0,
+    "comparison": 0,
+    "phase-comparison": 0
+  },
+  "measured_compile_native_observations": 42,
+  "focused_rust_tests_passed": 2,
+  "first_test_attempt_exit": 101,
+  "first_test_attempt_log": "build/spill-summary/tests-first.log",
+  "test_target_alias": "build/p -> build/pass-producer",
+  "candidate_source_restored": true
+}

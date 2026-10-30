@@ -18,8 +18,10 @@ mod application;
 mod compiler;
 mod components;
 mod pipeline;
+mod preparation;
 mod realization;
 mod request;
+mod scalar_completion;
 
 #[cfg(test)]
 mod pipeline_boundary;
@@ -27,8 +29,10 @@ mod pipeline_boundary;
 pub use application::{TerminalApplication, admit_package_permissions};
 pub use compiler::compile;
 pub use components::ComponentCompilation;
+pub use preparation::{PreparedNativeCompilation, prepare};
 pub use realization::RealizedNativeProduct;
 pub use request::NativeCompileRequest;
+pub use scalar_completion::NativeScalarCompletion;
 pub use terminal_psi_to_abstract_operations::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
 };

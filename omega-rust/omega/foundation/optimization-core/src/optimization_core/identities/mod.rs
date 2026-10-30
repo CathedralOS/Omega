@@ -83,6 +83,12 @@ macro_rules! canonical_identity {
     };
 }
 
+macro_rules! s {
+    ($name:ident => $domain:literal) => {
+        canonical_identity!($name, $domain);
+    };
+}
+
 mod artifacts;
 mod bundle;
 mod decisions;

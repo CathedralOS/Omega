@@ -528,6 +528,23 @@ fn shared_source_compatible(
             == Some(StructuralAccess::SharedBorrow)
 }
 
+/// The shared-cohort rule as the compatibility predicate observations supply:
+/// an observation may only join a live loan whose leaf is a shared descriptor,
+/// so cohort peers never block each other.
+fn shared_borrow_compatibility<'a>(
+    function: &'a PsiOptimizationFunction,
+    structural_types: &'a BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>,
+) -> impl Fn(&LiveReference) -> bool + 'a {
+    move |reference| {
+        shared_source_compatible(
+            function,
+            structural_types,
+            reference,
+            StructuralAccess::SharedBorrow,
+        )
+    }
+}
+
 /// Capture shared descriptor occurrences without moving their source carriers.
 /// The same storage read serves value copies and block-argument snapshots;
 /// backing and immediate-parent lineage survive, but each destination has its
@@ -686,7 +703,20 @@ fn normalized_direct_source(
     live: &[LiveReference],
     source: &StructuralArgument,
 ) -> Result<(ReferenceOrigin, ReferenceParent), OptimizationUnitValidationError> {
-    let refusal = |reason| invalid(function, block, Some(node), reason);
+    let fail = |reason| invalid(function, block, Some(node), reason);
+    // Every branch that roots a fresh loan at a projected carrier owes the same
+    // refusal: a live loan that cannot share this access still suspends it.
+    let reject_suspended = |root: &ReferenceOrigin| {
+        if live.iter().any(|reference| {
+            origins_overlap(&reference.root, root)
+                && !shared_source_compatible(function, structural_types, reference, source.access)
+        }) {
+            return Err(fail(
+                "projected referent remains suspended by a live reference",
+            ));
+        }
+        Ok(())
+    };
     if let Some(crossing) = source
         .path
         .iter()
@@ -702,7 +732,7 @@ fn normalized_direct_source(
                 .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity)
                     && !shared_source_compatible(function, structural_types, reference, source.access))
             {
-                return Err(refusal("reference parent remains suspended by a live child"));
+                return Err(fail("reference parent remains suspended by a live child"));
             }
             return Ok((
                 projected_origin(&parent.root, suffix),
@@ -720,17 +750,17 @@ fn normalized_direct_source(
                     carrier_path,
                 )
             })
-            .ok_or_else(|| refusal("projected reference custody is not yet supported"))?;
+            .ok_or_else(|| fail("projected reference custody is not yet supported"))?;
         if structural_types.get(&leaf).is_some_and(|declaration| {
             matches!(
                 declaration.shape,
                 terminal_psi::StructuralTypeShape::Reference { .. }
             )
         }) {
-            return Err(refusal("reference carrier is no longer live"));
+            return Err(fail("reference carrier is no longer live"));
         }
         if !suffix.is_empty() {
-            return Err(refusal(
+            return Err(fail(
                 "reference projection has no live supplying descriptor",
             ));
         }
@@ -741,21 +771,14 @@ fn normalized_direct_source(
             }
             .into(),
         );
-        if live.iter().any(|reference| {
-            origins_overlap(&reference.root, &root)
-                && !shared_source_compatible(function, structural_types, reference, source.access)
-        }) {
-            return Err(refusal(
-                "projected referent remains suspended by a live reference",
-            ));
-        }
+        reject_suspended(&root)?;
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else if source.path.is_empty() {
         if live.iter().any(|reference| {
             origin_place(&reference.root) == source.place
                 && !shared_source_compatible(function, structural_types, reference, source.access)
         }) {
-            return Err(refusal(
+            return Err(fail(
                 "original referent remains suspended by a live reference",
             ));
         }
@@ -769,17 +792,10 @@ fn normalized_direct_source(
             }
             .into(),
         );
-        if live.iter().any(|reference| {
-            origins_overlap(&reference.root, &root)
-                && !shared_source_compatible(function, structural_types, reference, source.access)
-        }) {
-            return Err(refusal(
-                "projected referent remains suspended by a live reference",
-            ));
-        }
+        reject_suspended(&root)?;
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else {
-        Err(refusal("projected reference custody is not yet supported"))
+        Err(fail("projected reference custody is not yet supported"))
     }
 }
 
@@ -1113,14 +1129,7 @@ pub(super) fn apply_operation(
                         live,
                         location.root,
                         region.direct_path(),
-                        |reference| {
-                            shared_source_compatible(
-                                function,
-                                structural_types,
-                                reference,
-                                StructuralAccess::SharedBorrow,
-                            )
-                        },
+                        shared_borrow_compatibility(function, structural_types),
                     )?;
                 }
             }
@@ -1224,14 +1233,7 @@ pub(super) fn apply_operation(
                 live,
                 *source,
                 region.direct_path(),
-                |reference| {
-                    shared_source_compatible(
-                        function,
-                        structural_types,
-                        reference,
-                        StructuralAccess::SharedBorrow,
-                    )
-                },
+                shared_borrow_compatibility(function, structural_types),
             )?;
         }
         O::StructuralScalarFieldRead {
@@ -1255,14 +1257,7 @@ pub(super) fn apply_operation(
                 live,
                 *source,
                 &region,
-                |reference| {
-                    shared_source_compatible(
-                        function,
-                        structural_types,
-                        reference,
-                        StructuralAccess::SharedBorrow,
-                    )
-                },
+                shared_borrow_compatibility(function, structural_types),
             )?;
         }
         O::StructuralCase { source, path, .. } => {
@@ -1296,14 +1291,7 @@ pub(super) fn apply_operation(
                 live,
                 *source,
                 region.direct_path(),
-                |reference| {
-                    shared_source_compatible(
-                        function,
-                        structural_types,
-                        reference,
-                        StructuralAccess::SharedBorrow,
-                    )
-                },
+                shared_borrow_compatibility(function, structural_types),
             )?;
         }
         O::EstablishByteSequenceConcatenation { .. }

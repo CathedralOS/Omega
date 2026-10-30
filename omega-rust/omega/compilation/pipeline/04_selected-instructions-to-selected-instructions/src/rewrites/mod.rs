@@ -161,6 +161,7 @@ mod runtime_spill;
 mod runtime_split;
 mod selected_lowering;
 mod selected_operands;
+mod settlement_gaps;
 pub mod unexecuted;
 mod window_hazards;
 
@@ -267,7 +268,7 @@ pub(crate) use selected_lowering::literal_fold_identity;
 // test corpus.
 pub(crate) use selected_lowering::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,
-    LiteralFoldValidationReceipt, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
+    LiteralFoldValidationReceipt, PairResultDisposition, PairUnitDefRelation,
     SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
     SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,
 };
@@ -384,12 +385,8 @@ pub(crate) fn integer_copy_row<'environment, E>(
     let Some(row) = environment.constraint(environment.selected_keys().copy_i64) else {
         return Err(mismatch());
     };
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
+    if !declares_pair(row, RegisterOperandAccess::Use, RegisterOperandAccess::Def)
         || row.operands[0].class != value_class
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Def
         || row.operands[1].class != output_class
         || !row.implicit_uses.is_empty()
         || !row.implicit_defs.is_empty()
@@ -401,6 +398,23 @@ pub(crate) fn integer_copy_row<'environment, E>(
         return Err(mismatch());
     }
     Ok(row)
+}
+
+/// Whether `row` declares the two operand positions every admission restates:
+/// operand 0 is `first_access` and operand 1 is `second_access`. Class, tie,
+/// and clobber checks stay with the caller; those are that family's contract.
+pub(crate) fn declares_pair(
+    row: &RegisterInstructionConstraint,
+    first_access: RegisterOperandAccess,
+    second_access: RegisterOperandAccess,
+) -> bool {
+    let [first, second] = row.operands.as_slice() else {
+        return false;
+    };
+    first.operand == 0
+        && first.access == first_access
+        && second.operand == 1
+        && second.access == second_access
 }
 
 /// A rewrite's candidate carrier in the emitted two-operand form every

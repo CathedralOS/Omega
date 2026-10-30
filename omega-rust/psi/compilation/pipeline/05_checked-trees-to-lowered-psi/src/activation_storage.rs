@@ -2,9 +2,7 @@
 //! the shared type roster. They describe frame geometry, never claim authority.
 
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::{
-    CheckedUnitCallRoute, CheckedUnitEffectOperationPlan, CheckedUnitLocalBindingPlan,
-};
+use checked_trees::{CheckedUnitCallRoute, CheckedUnitEffectOperationPlan};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape,

@@ -8,6 +8,7 @@ use crate::name::Identifier;
 use crate::typed_trees::remapped;
 
 mod copies;
+pub use copies::TypeExpressionCopy;
 mod display;
 mod substitution;
 
@@ -1174,7 +1175,7 @@ pub struct DomainConstraint {
     pub symbol: SymbolHandle,
     pub semantic_id: language_semantics::SemanticDomainId,
     pub classification: Option<language_semantics::DomainClassification>,
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub semantic_roles: language_semantics::DomainSemanticRoles,
     pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
     /// Temporary source custody retained only until carrier-aware domain
@@ -1589,14 +1590,19 @@ mod tests {
         let carrier = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("u64"));
         let replacement = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("u32"));
         let mut table = TypeReferenceTable::new();
+        macro_rules! found {
+            ($carrier:expr => $domain:expr => $expected:expr) => {
+                assert_eq!(
+                    table.find_arithmetic_result_type_reference($carrier, $domain),
+                    $expected
+                );
+            };
+        }
         let base_type = table.insert(TypeReferenceNode::Named {
             symbol: carrier,
             name: Identifier::from("u64"),
         });
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Wrapping),
-            None
-        );
+        found!(carrier => Wrapping => None);
         let constraints =
             table.insert_constraints([TypeConstraintNode::ArithmeticDomain(Wrapping)]);
         let first = table.insert(TypeReferenceNode::Constrained {
@@ -1609,40 +1615,22 @@ mod tests {
         });
         let before_lookup = table.clone();
         let before_rendering = format!("{table:?}");
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Wrapping),
-            Some(first)
-        );
+        found!(carrier => Wrapping => Some(first));
         assert_eq!(table, before_lookup);
         assert_eq!(format!("{table:?}"), before_rendering);
 
         table.substitute_node(first, TypeReferenceNode::Unit);
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Wrapping),
-            Some(duplicate)
-        );
+        found!(carrier => Wrapping => Some(duplicate));
         table.set_constraint_at_offset(
             constraints,
             0,
             TypeConstraintNode::ArithmeticDomain(Saturating),
         );
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Wrapping),
-            None
-        );
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Saturating),
-            Some(duplicate)
-        );
+        found!(carrier => Wrapping => None);
+        found!(carrier => Saturating => Some(duplicate));
         table.constraints_mut(constraints)[0] = TypeConstraintNode::ArithmeticDomain(Trapping);
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Saturating),
-            None
-        );
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Trapping),
-            Some(duplicate)
-        );
+        found!(carrier => Saturating => None);
+        found!(carrier => Trapping => Some(duplicate));
 
         table.substitute_node(
             base_type,
@@ -1651,23 +1639,14 @@ mod tests {
                 name: Identifier::from("u32"),
             },
         );
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(carrier, Trapping),
-            None
-        );
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(replacement, Trapping),
-            Some(duplicate)
-        );
+        found!(carrier => Trapping => None);
+        found!(replacement => Trapping => Some(duplicate));
         let extra = table.insert_constraints([
             TypeConstraintNode::ArithmeticDomain(Trapping),
             TypeConstraintNode::Named(Identifier::from("Extra")),
         ]);
         table.set_constraint_span(duplicate, extra);
-        assert_eq!(
-            table.find_arithmetic_result_type_reference(replacement, Trapping),
-            None
-        );
+        found!(replacement => Trapping => None);
     }
 
     #[test]

@@ -322,6 +322,7 @@ pub struct TypedTrees {
     /// The shared program keeps their authored symbolic nodes; checking
     /// records what it needs from each; a closed copy carries the values.
     pub constant_recipes: Arena<constant_recipes::RetainedConstantRecipe>,
+    pub constant_expression_contexts: Arena<constant_recipes::ConstantExpressionContext>,
     /// Every recipe's value under this copy's target capsule. Empty in the
     /// shared program: no consumer may guess a value the capsule has not fixed.
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
@@ -391,8 +392,23 @@ pub struct DataApplicationView {
     is_closed: bool,
 }
 
+/// One designated source type's independent formation obligation. This is
+/// source custody, not an executable call or provider selection.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct DesignatedStaticTypeArgument {
+    pub owner: symbols::SymbolHandle,
+    pub reference: types::TypeReferenceHandle,
+    pub source_span: source::SourceSpan,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
+    pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
+    pub retained_product_application_handles:
+        Arena<Handle<crate::product_operand::ProductOperandApplication>>,
+    pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
+    pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
+    pub product_operand_applications: Arena<crate::product_operand::ProductOperandApplication>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
     /// opaque occurrence identities in this ledger, never source rendering.
@@ -452,6 +468,10 @@ pub struct TypedTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeRoots {
+    /// Closed choices admitted through dependency Build output custody.
+    /// These explicit roots are independent of authored body occurrences.
+    pub retained_product_applications:
+        HandleSpan<Handle<crate::product_operand::ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
@@ -484,6 +504,7 @@ impl TypedTreeRoots {
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
+            retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,
             domain_definitions,
@@ -606,6 +627,7 @@ impl TypedTrees {
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
             constant_recipes: Arena::new(),
+            constant_expression_contexts: Arena::new(),
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             callable_identity_memo: OwnedIndex::default(),

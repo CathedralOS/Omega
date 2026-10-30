@@ -101,7 +101,7 @@ pub(super) fn build(
                 ..Default::default()
             },
         )?;
-        return trap_returning_completion(builder, *psi_edge);
+        return exit_after(builder, *psi_edge).map(Some);
     }
     let target_operations::ExternalCompletionBinding::Boundary(binding) = binding else {
         return Err(SelectedInstructionError::custody());
@@ -148,7 +148,7 @@ pub(super) fn build(
             environment,
             builder,
         )?;
-        return trap_returning_completion(builder, *psi_edge);
+        return exit_after(builder, *psi_edge).map(Some);
     }
     if !matches!(
         binding.realization,
@@ -193,40 +193,36 @@ pub(super) fn build(
             ..Default::default()
         },
     )?;
-    hosted_exit_process(builder, *psi_edge)
+    exit_terminator(builder, *psi_edge).map(Some)
 }
 
-/// A checked completion and a non-returning foreign call share one physical
-/// fail-stop. Either promise has no normal successor if the callee returns.
-/// The trap is not a source Crash outcome: it establishes neither crash
-/// permission nor a normal successor.
-#[track_caller]
-fn trap_returning_completion(
+/// Physical fail-stop shared by both admitted completion forms: the completed
+/// call has no normal successor even if a malformed body returns, and the trap
+/// is not a source Crash outcome, so it establishes no crash permission.
+fn exit_after(
     builder: &mut Builder<'_>,
-    completion_edge: semantic_vocabulary::EdgeId,
-) -> Result<Option<SelectedTerminator>, SelectedInstructionError> {
+    psi_edge: semantic_vocabulary::EdgeId,
+) -> Result<SelectedTerminator, SelectedInstructionError> {
     builder.emit(
         SelectedInstructionKind::Crash,
         builder.constraints.keys.crash,
         &[],
         SelectedInstructionProvenance {
-            edges: vec![completion_edge],
+            edges: vec![psi_edge],
             ..Default::default()
         },
     )?;
-    hosted_exit_process(builder, completion_edge)
+    exit_terminator(builder, psi_edge)
 }
 
-#[track_caller]
-fn hosted_exit_process(
+/// The exit terminator names the instruction just emitted for this edge.
+fn exit_terminator(
     builder: &Builder<'_>,
-    completion_edge: semantic_vocabulary::EdgeId,
-) -> Result<Option<SelectedTerminator>, SelectedInstructionError> {
-    let Some(instruction) = builder.instructions.last().cloned() else {
-        return Err(SelectedInstructionError::custody());
-    };
-    Ok(Some(SelectedTerminator::HostedExitProcess {
-        instruction,
-        completion_edge,
-    }))
+    psi_edge: semantic_vocabulary::EdgeId,
+) -> Result<SelectedTerminator, SelectedInstructionError> {
+    let instruction = builder.instructions.last().cloned();
+    Ok(SelectedTerminator::HostedExitProcess {
+        instruction: instruction.ok_or_else(SelectedInstructionError::custody)?,
+        completion_edge: psi_edge,
+    })
 }

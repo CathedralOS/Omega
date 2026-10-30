@@ -3,7 +3,7 @@
 use reading_provider::main::Reading;
 data Carrier [copy] { before: u64; total: u64; after: u64; }
 machine journey(expected: u64) reaches Reading crashes Trap {
-    let carrier: Carrier = Carrier { before: 17u64, total: Reading::total(), after: 29u64 };
+    let carrier: Carrier = Carrier { before: 17u64, total: Reading<17u64>::total(), after: 29u64 };
     let difference: u64 = carrier.total - 1000u64;
     transition carrier.before == 17u64 && carrier.after == 29u64 && difference == expected { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }

@@ -184,8 +184,10 @@ pub(super) fn validate(
             let declaration = plan
                 .structural_type(result.structural_type)
                 .ok_or(LegalizationError::custody())?;
-            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                declaration.shape
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = declaration.shape
             else {
                 return Err(LegalizationError::custody());
             };

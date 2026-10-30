@@ -32,6 +32,26 @@ struct RelaxationTrace {
     functions: Vec<ResolvedSelectedFunctionLayout>,
 }
 
+/// The conditional evidence a row carries: every relaxation site reads the
+/// branch through this one projection, and a row without one is malformed.
+pub(super) fn conditional_evidence(
+    row: &machine_code::ResolvedSelectedFormRow,
+) -> Result<&machine_code::ResolvedConditionalBranchEvidence, OptimizedX86BranchRelaxationError> {
+    row.branch
+        .as_deref()
+        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+        .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
+            row.instruction,
+        ))
+}
+
+/// The malformed-row refusal: every relaxation site names the row it refused.
+pub(super) fn malformed(
+    instruction: selected_instructions::SelectedInstructionId,
+) -> OptimizedX86BranchRelaxationError {
+    OptimizedX86BranchRelaxationError::MalformedBranch(instruction)
+}
+
 /// The roots every revision and artifact identity is bound to. The producer
 /// takes them as data, so it needs no staged carrier and is exercisable on a
 /// bare function roster.

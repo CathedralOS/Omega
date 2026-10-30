@@ -165,8 +165,15 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
         }
 
         if input.at_punctuation(PunctuationKind::Dot) {
+            let mut access_source_span = input.source_span(
+                input
+                    .tokens
+                    .first()
+                    .expect("recognized member punctuation has a source token"),
+            );
             let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
             let (member, rest) = after_dot.take_identifier()?;
+            access_source_span.span.end = member.source_span().span.end;
 
             if rest.at_punctuation(PunctuationKind::Less) {
                 let retired = match member.as_str(syntax_trees) {
@@ -254,6 +261,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     .expressions
                     .insert(ExpressionNode::Member(TableMemberExpression {
                         receiver: expression,
+                        access_source_span,
                         member,
                         case_variant: None,
                     }));
@@ -724,6 +732,15 @@ fn try_parse_static_argument<'tokens, 'source>(
             try_parse_static_symbol_application(syntax_trees, input)?
         {
             input = rest;
+            let mut application = application;
+            if input.at_punctuation(PunctuationKind::ColonColon) {
+                let next = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let Some((member, rest)) = try_parse_static_argument(syntax_trees, next)? else {
+                    return Ok(None);
+                };
+                application.member = syntax_trees.expressions.insert_static_member(member);
+                input = rest;
+            }
             Some(application)
         } else {
             None
@@ -918,6 +935,7 @@ fn parse_static_symbol_application<'tokens, 'source>(
             cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
             break Ok(Some((
                 Box::new(syntax_trees::expression::StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
                     lifetime_arguments: lifetime_arguments.into_boxed_slice(),
                     arguments: arguments.into_boxed_slice(),
                 }),

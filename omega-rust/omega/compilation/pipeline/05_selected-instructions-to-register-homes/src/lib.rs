@@ -66,12 +66,14 @@ macro_rules! copy_receipt {
     };
 }
 
-/// `Display` and `Error` for a refusal that renders one context and its `Debug` value.
-macro_rules! error_report {
-    ($error:ty, $message:literal) => {
+/// The one error surface every stage error shares: its variant list is the
+/// report, so `Display` names the stage and `Error` adds no behavior beyond
+/// what the variants already carry.
+macro_rules! stage_error_display {
+    ($error:ty, $stage:literal) => {
         impl std::fmt::Display for $error {
             fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(formatter, concat!($message, ": {:?}"), self)
+                write!(formatter, "{}: {self:?}", $stage)
             }
         }
 

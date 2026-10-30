@@ -13,6 +13,7 @@
 
 pub use declarations::traits::conformance_applications;
 pub mod execution_projection;
+pub mod product_entries;
 pub mod product_queries;
 pub use declarations::operators::{
     OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
@@ -20,7 +21,10 @@ pub use declarations::operators::{
     derive_pre_flow_operator_selections, scoped_operator_application,
 };
 pub use declarations::traits::refinement_fit;
-pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_correspondence};
+pub use declarations::traits::{
+    ProviderRegionCorrespondence, closed_provider_region_correspondence,
+    provider_region_correspondence,
+};
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
@@ -32,6 +36,7 @@ pub use proof_contracts::qualification_evidence::{
 pub use proof_contracts::{
     contract_argument_root, contract_structure, expression_owners, mathematical_applications,
 };
+pub use value_custody::field_domains::readable_fixed_array_elements;
 pub use value_custody::partial_affine_residuals::{
     CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability, reconstruct,
     reconstruct_case_selected_regions,
@@ -184,9 +189,9 @@ pub use value_custody::storage_contents::{
     ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };
 pub use value_custody::struct_literals::{
-    ArrayWindowShape, array_window_shape, case_predicates_admit_zero,
-    selected_construction_definition, selected_construction_field_type,
-    validate_value_construction,
+    ArrayWindowShape, array_window_shape, case_predicates_admit_zero, selected_construction_case,
+    selected_construction_definition, selected_construction_field,
+    selected_construction_field_type, validate_value_construction,
 };
 pub use value_custody::structural_identity::{
     logical_structural_type_identity, stored_structural_type_identity, stores_reference_shape,
@@ -211,7 +216,8 @@ pub use value_custody::atomic_operations::{
     place_is_atomic_storage,
 };
 pub use value_custody::places::{
-    AttachedStorageRoot, StructuralScalarField, StructuralSource, assignment_target_indexes,
+    AttachedStorageRoot, ScalarCoordinateProjection, StructuralScalarCoordinate,
+    StructuralScalarField, StructuralSource, assignment_target_indexes,
     assignment_target_selectors, attached_storage_root, canonical_storage_label,
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
     ensured_range_call_endpoints, exact_attached_field, exact_attached_storage_field,
@@ -219,10 +225,12 @@ pub use value_custody::places::{
     fixed_array_type_extent, fixed_array_type_length, has_builtin_subslice_meaning,
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
     place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
-    saved_dispatch_subject, structural_atomic_field, structural_scalar_field,
-    structural_scalar_field_at_coordinate, structural_scalar_field_in_parameters,
-    structural_scalar_field_of_evaluated_receiver, structural_source, subslice_expression,
-    value_element_has_builtin_coordinate, value_has_builtin_coordinates,
+    saved_dispatch_subject, structural_atomic_field, structural_scalar_coordinate,
+    structural_scalar_coordinate_in_type, structural_scalar_field,
+    structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source, subslice_expression, value_element_has_builtin_coordinate,
+    value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -230,13 +238,14 @@ pub use proof_contracts::bound_expression_meaning::{
     has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
     has_builtin_decomposed_guard_meaning, has_builtin_domain_decomposed_guard_meaning,
     has_builtin_or_sealed_float_comparison_meaning, has_exact_case_membership_meaning,
-    has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
-    has_exact_integer_domain_subject, has_exact_parameter_case_membership_meaning,
+    has_exact_data_case_membership_meaning, has_exact_declaration_case_membership_meaning,
+    has_exact_domain_case_membership_meaning, has_exact_integer_domain_subject,
     sealed_float_comparison, sealed_float_comparison_declaration,
 };
 pub use proof_contracts::contextual_identity::{
     contextual_identity_subject_type, contextual_proposition_children,
 };
+pub use proof_contracts::contract_entailment::declaration_projection_cases_hold;
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
@@ -321,12 +330,13 @@ pub use declarations::traits::{
 pub use machine_calls::effect_inference::{
     boundary_signature_service_reach, declared_machine_invocations, declared_signature_invocations,
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
-    infer_operational_may, infer_operational_may_for_cleanup_dependencies, infer_service_reaches,
+    infer_operational_may, infer_operational_may_for_dependencies, infer_service_reaches,
     infer_synchronous_invocations, invocation_target_label,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
+pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
     PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
     ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,
@@ -396,10 +406,10 @@ pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
 pub use value_custody::literals::validate_anonymous_numeric_formation;
 pub use value_custody::literals::{
-    ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
-    closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
-    is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
-    scalar_array_preserves_memberships,
+    ScalarArrayElement, ScalarArrayElements, closed_array_store_type,
+    closed_constant_array_elements, closed_literal_array_elements, closed_record_scalar_projection,
+    closed_scalar_place_projection, is_closed_primitive_array_type, peel_arithmetic_policy,
+    scalar_array_elements, scalar_array_preserves_memberships,
 };
 pub use value_custody::logical_matches::{
     LogicalMatchBinding, LogicalRecordCapture, expression_has_closed_value_captures,
@@ -492,9 +502,10 @@ pub use proof_contracts::contract_entailment::refuted_requires::instantiated_val
 pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
-    ScopedCallCompletion, scoped_arithmetic_comparisons_unsatisfiable,
+    ScopedCallCompletion, ScopedCallResultObservation, scoped_arithmetic_comparisons_unsatisfiable,
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
-    scoped_arithmetic_values_relation, scoped_completed_call_guarantees,
+    scoped_arithmetic_values_relation, scoped_call_result_observations,
+    scoped_completed_call_guarantees,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
@@ -586,11 +597,11 @@ pub use value_custody::places::{
     StorageObservationTypePathError, canonical_owned_place_type_reference,
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_source_type_application, canonical_place_type_reference,
-    collection_element_type_reference, contextual_canonical_place_from_expression,
-    data_member_symbol_by_name, declared_data_type, effective_member_symbol,
-    expression_place_type_reference, expression_root_symbol, expression_type_reference_in_state,
-    expression_type_symbol, first_valid_name_path_symbol, index_place_segment,
-    loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
+    canonical_qualification_path, collection_element_type_reference,
+    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
+    effective_member_symbol, expression_place_type_reference, expression_root_symbol,
+    expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
+    index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
     nearest_scoped_local, observed_storage_type_references, owned_projection_type_reference,
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,

@@ -98,10 +98,10 @@ impl StructuralJudge<'_> {
             owned && self.has_admitted_nominal_subject(dispatch.subject, &value, reference);
         let completed = if owned {
             let snapshot = self.capture_unknown_value(dispatch.subject, scope)?;
-            self.intake_equation(snapshot.clone(), value, 0);
+            self.intake_equation(snapshot.clone(), value.clone(), 0);
             snapshot
         } else {
-            value
+            value.clone()
         };
         std::sync::Arc::make_mut(&mut self.normal_results)
             .push((capture.value_anchor, completed.clone()));
@@ -111,10 +111,38 @@ impl StructuralJudge<'_> {
                     anchor: capture.value_anchor,
                     reference,
                     value: completed.clone(),
+                    observed_value: value,
                 },
             );
         }
         Some(completed)
+    }
+
+    /// A tag observation follows the exact owned value captured by this Match.
+    /// This receipt is produced by subject evaluation, not by value-equation
+    /// rewriting. Storage fences still govern obtaining the source observation.
+    pub(super) fn completed_match_case_observation(
+        &self,
+        value: &StructuralTerm,
+    ) -> StructuralTerm {
+        let mut observed = value.clone();
+        for _ in 0..self.completed_nominal_captures.len() {
+            let Some(identity) = observed.observation_identity_key() else {
+                break;
+            };
+            let Some(capture) = self
+                .completed_nominal_captures
+                .iter()
+                .rev()
+                .find(|capture| {
+                    capture.value.observation_identity_key().as_ref() == Some(&identity)
+                })
+            else {
+                break;
+            };
+            observed = capture.observed_value.clone();
+        }
+        observed
     }
 
     pub(super) fn retire_match_subject(&mut self, dispatch: &TableMatchExpression) {

@@ -1,0 +1,5 @@
+# Retain original observations and patch bytes on Windows.
+raw/** -text -diff
+*.log -text -diff
+instrumentation.patch -text -diff
+producer-policy-comparison.txt -text -diff

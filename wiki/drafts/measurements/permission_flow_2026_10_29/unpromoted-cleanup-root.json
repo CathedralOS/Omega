@@ -1,0 +1,7 @@
+{
+  "source_base": "505424a1b12340a3001b1d28fc5ac298e5de4ec8",
+  "patch_sha256": "fbfe588a765aa691d3de9d2923697a62f9f556998e0c5db4d37317ea4689e0b2",
+  "producer_sha256": "7fcbe1161cabc31f8be5c8da7ad698cc6fcb5629d2d5c049aa7e52db37d71445",
+  "screen_executed": false,
+  "reason": "Existing diagnostic screen directory caused refusal before any candidate observation. Mechanism superseded by exact root ownership prerequisite."
+}

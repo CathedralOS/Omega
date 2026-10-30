@@ -27,6 +27,12 @@ pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequenc
 
 mod callback_application;
 pub use callback_application::TerminalCallbackApplication;
+mod callback_declarations;
+pub use callback_declarations::{
+    CallbackContractEnvelope, CallbackContractRefinement, CallbackDeclarationRoster,
+    CallbackEntryResources, CallbackRequirementDeclaration, CallbackRequirementId,
+    CallbackUseDeclaration, CallbackUseId,
+};
 
 #[cfg(test)]
 mod source_guards;

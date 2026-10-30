@@ -1,49 +1,69 @@
 // Multiplying two bounded unsigned u64 values (factor >= 10u64 && factor <= 20u64 and scale >= 3u64 && scale <= 4u64) establishes the exact post-multiplication interval (product >= 30u64 && product <= 80u64), discharging exact subtraction 80u64 - product and product - 30u64 across all nine places.
 // Expected exit: 0
 
-linux_x86_64 machine target_probe(factor: u64, scale: u64) -> u64
-    requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
-{
-    let product: u64 = factor * scale;
-    let upper_diff: u64 = 80u64 - product;
-    let lower_diff: u64 = product - 30u64;
-    upper_diff + lower_diff
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(factor: u64, scale: u64) -> u64
-    requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
-{
-    let product: u64 = factor * scale;
-    let upper_diff: u64 = 80u64 - product;
-    let lower_diff: u64 = product - 30u64;
-    upper_diff + lower_diff
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(factor: u64, scale: u64) -> u64
-    requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
-{
-    let product: u64 = factor * scale;
-    let upper_diff: u64 = 80u64 - product;
-    let lower_diff: u64 = product - 30u64;
-    upper_diff + lower_diff
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(factor: u64, scale: u64) -> u64
-    requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
-{
-    let product: u64 = factor * scale;
-    let upper_diff: u64 = 80u64 - product;
-    let lower_diff: u64 = product - 30u64;
-    upper_diff + lower_diff
+boundary trait SelectedProbe {
+    machine target_probe(factor: u64, scale: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(factor: u64, scale: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let product: u64 = factor * scale;
+        let upper_diff: u64 = 80u64 - product;
+        let lower_diff: u64 = product - 30u64;
+        upper_diff + lower_diff
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(factor: u64, scale: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let product: u64 = factor * scale;
+        let upper_diff: u64 = 80u64 - product;
+        let lower_diff: u64 = product - 30u64;
+        upper_diff + lower_diff
+    }
 }
 
 machine probe(factor: u64, scale: u64) -> u64
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
 {
-    target_probe(factor, scale)
+    SelectedProbe::target_probe(factor, scale)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let combined: u64 = probe(15u64, 4u64);
     transition combined == 50u64 {
         true -> done()
@@ -51,4 +71,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

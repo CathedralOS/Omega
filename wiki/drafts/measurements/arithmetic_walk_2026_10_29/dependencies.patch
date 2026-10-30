@@ -1,0 +1,20 @@
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs b/omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs
+index f26e84b290a..17b113bc7d8 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs
+@@ -168,0 +169 @@ pub(crate) fn declaration_call_dependencies(
++    let _profile = phase_profile::guard("05.calls.dependencies");
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/contract_dependencies.rs b/omega-rust/psi/compilation/checking/src/machine_calls/contract_dependencies.rs
+index f33e8da948c..bf81d653172 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/contract_dependencies.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/contract_dependencies.rs
+@@ -88,0 +89 @@ fn independent_declarations(
++    let _profile = phase_profile::guard("05.calls.independence");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+index a6c88017e45..826abf00efc 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+@@ -26,0 +27 @@ pub(super) fn normal_return_interval(
++    let _profile = phase_profile::guard("05.calls.ensured_interval");
+@@ -538,0 +540 @@ pub(super) fn normal_return_recipe(
++    let _profile = phase_profile::guard("05.calls.recipe");

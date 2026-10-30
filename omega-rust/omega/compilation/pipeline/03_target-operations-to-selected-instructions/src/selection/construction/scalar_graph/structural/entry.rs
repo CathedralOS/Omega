@@ -1,35 +1,12 @@
 //! Capture incoming parameter ABI storage before ordinary graph operations.
 use super::{
-    Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarFunction,
+    Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarFunction, PlaceId,
     ScalarType, SelectedInstructionProvenance, StructuralAccess, ValueLocation, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-
-macro_rules! entry_fixed_register {
-    ($builder:expr, $environment:expr, $place:expr, $parameter_index:expr, $register:expr) => {{
-        let fixed = $environment
-            .fixed_register_view($register)
-            .ok_or_else(|| invalid())?;
-        let input = VirtualRegisterId($builder.registers.len().try_into().map_err(|_| invalid())?);
-        $builder.registers.push(VirtualRegister {
-            id: input,
-            scalar_type: ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-            ),
-            class: $builder.class,
-            origin: VirtualRegisterOrigin::StructuralParameter {
-                place: $place,
-                parameter_index: $parameter_index,
-            },
-            definition_site: None,
-            entry_fixed_view: Some(fixed),
-        });
-        input
-    }};
-}
 
 pub(in crate::selection) fn entry(
     function: usize,
@@ -126,8 +103,10 @@ pub(in crate::selection) fn entry(
                 else {
                     return Err(invalid());
                 };
-                let input =
-                    entry_fixed_register!(builder, environment, place, parameter_index, *register);
+                let fixed = environment
+                    .fixed_register_view(*register)
+                    .ok_or_else(|| invalid())?;
+                let input = fixed_input_register(builder, place, parameter_index, fixed)?;
                 let offset = *value_byte_offset;
                 let output = transport_register(builder, place, offset)?;
                 builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
@@ -206,7 +185,10 @@ pub(in crate::selection) fn entry(
             }
             _ => return Err(invalid()),
         };
-        let input = entry_fixed_register!(builder, environment, place, parameter_index, *pointer);
+        let fixed = environment
+            .fixed_register_view(*pointer)
+            .ok_or_else(|| invalid())?;
+        let input = fixed_input_register(builder, place, parameter_index, fixed)?;
         let output = transport_register(builder, place, 0)?;
         builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
         builder.transport.pointers.push((place, output));
@@ -215,6 +197,32 @@ pub(in crate::selection) fn entry(
         }
     }
     Ok(())
+}
+
+/// Push the entry-fixed carrier one register arrival binds. Keeping the view on
+/// the register lets later block bindings read the parameter's physical slice
+/// without re-deriving it from the register environment.
+fn fixed_input_register(
+    builder: &mut Builder<'_>,
+    place: PlaceId,
+    parameter_index: usize,
+    fixed: register_model::RegisterViewId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let input = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    builder.registers.push(VirtualRegister {
+        id: input,
+        scalar_type: ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+        ),
+        class: builder.class,
+        origin: VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index,
+        },
+        definition_site: None,
+        entry_fixed_view: Some(fixed),
+    });
+    Ok(input)
 }
 
 /// Field loads need an addressable value, not an incoming register interpreted

@@ -1,0 +1,493 @@
+{
+  "base": "06ceadd67dc43b6902171cc71e640c39e7be38f2",
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\owner-lifecycle\\diagnostic\\producer\\omega.exe",
+    "sha256": "fd0d41a1a821d2cb0a54ad3e1016d0c5c66c7aaf8f348b50919845533f282ca9",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    },
+    "source_revision": "bb3f3c457e7682ad92ef97fca02f89790d6260b6"
+  },
+  "diagnostic_only": true,
+  "qualification": {
+    "id": "4eeaa1c750874431a81b4cfeb85c57a0",
+    "check": "owner-lifecycle-attribution",
+    "revision": "bb3f3c457e7682ad92ef97fca02f89790d6260b6",
+    "exit": 0,
+    "invalidations": [],
+    "receipt": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\4eeaa1c750874431a81b4cfeb85c57a0.json",
+      "sha256": "33863952a5e8fcfd68a88c0272556aa75cc434de01ce02b73132a8fa5d741df7"
+    }
+  },
+  "bound_outputs": 125,
+  "codec_test": 1,
+  "warm": [
+    {
+      "subject": "length",
+      "wall_ms": 861.4423999970313,
+      "cli_elapsed_ms": 406.024,
+      "root_cpu": {
+        "kernel_ms": 265.625,
+        "user_ms": 265.625
+      },
+      "spans": {
+        "06.1.d.05.j.1_build_domains": [
+          0.033,
+          4
+        ],
+        "06.1.d.05.j.2_prepared_conflicts": [
+          0.02,
+          4
+        ],
+        "06.1.d.05.j.3_compute_bitmask": [
+          0.018,
+          4
+        ],
+        "06.1.d.05_stage_register_allocation": [
+          0.301,
+          1
+        ],
+        "06.1.d.06.a_post_allocation_machine": [
+          2.077,
+          1
+        ],
+        "06.1.d.06.b_stage_function_frame": [
+          0.153,
+          1
+        ],
+        "06.1.d.06.c_selected_form_encoding": [
+          0.186,
+          1
+        ],
+        "06.1.d.06.d_resolved_selected_form_layout": [
+          0.119,
+          1
+        ],
+        "06.1.d.06.e_resolved_layout_opt": [
+          0.002,
+          1
+        ],
+        "06.1.d.06.f_assemble_fixed_frame": [
+          0.125,
+          1
+        ],
+        "06.1.d.06.g_emit_fragment_object": [
+          0.268,
+          1
+        ],
+        "06.1.d.06_stage_frame_realization": [
+          3.006,
+          1
+        ],
+        "build.admit_outputs": [
+          2.2,
+          1
+        ],
+        "build.create_session": [
+          46.645,
+          1
+        ],
+        "build.resolve_sources": [
+          199.179,
+          1
+        ],
+        "lifecycle.project_owners_drop": [
+          9.014,
+          1
+        ],
+        "lifecycle.session_store": [
+          0.003,
+          2
+        ],
+        "source.graph.decode.checks": [
+          57.568,
+          1
+        ],
+        "source.graph.decode.finalize_reader": [
+          0.184,
+          1
+        ],
+        "source.graph.decode.preparation": [
+          15.371,
+          1
+        ],
+        "source.graph.decode.sources": [
+          8.289,
+          1
+        ],
+        "source.graph.load.decode": [
+          81.441,
+          1
+        ],
+        "source.graph.load.digest": [
+          17.242,
+          1
+        ],
+        "source.graph.load.read": [
+          15.855,
+          1
+        ],
+        "source.graph.load.require_after": [
+          15.003,
+          1
+        ],
+        "source.graph.load.require_before": [
+          17.251,
+          1
+        ],
+        "lifecycle.cli_report_drop": [
+          0.018,
+          1
+        ]
+      },
+      "counters": {
+        "05.b.retained_match.hit": 2,
+        "source.graph.decode.sibling_build_rows": 1,
+        "source.graph.decode.sibling_product_rows": 1,
+        "source.graph.decode.source_rows": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 1
+      }
+    },
+    {
+      "subject": "dispatch",
+      "wall_ms": 678.5949000041,
+      "cli_elapsed_ms": 439.033,
+      "root_cpu": {
+        "kernel_ms": 312.5,
+        "user_ms": 250.0
+      },
+      "spans": {
+        "06.1.d.05.j.1_build_domains": [
+          0.016,
+          5
+        ],
+        "06.1.d.05.j.2_prepared_conflicts": [
+          0.018,
+          5
+        ],
+        "06.1.d.05.j.3_compute_bitmask": [
+          0.015,
+          5
+        ],
+        "06.1.d.05_stage_register_allocation": [
+          0.244,
+          1
+        ],
+        "06.1.d.06.a_post_allocation_machine": [
+          2.032,
+          1
+        ],
+        "06.1.d.06.b_stage_function_frame": [
+          0.117,
+          1
+        ],
+        "06.1.d.06.c_selected_form_encoding": [
+          0.119,
+          1
+        ],
+        "06.1.d.06.d_resolved_selected_form_layout": [
+          0.075,
+          1
+        ],
+        "06.1.d.06.e_resolved_layout_opt": [
+          0.001,
+          1
+        ],
+        "06.1.d.06.f_assemble_fixed_frame": [
+          0.096,
+          1
+        ],
+        "06.1.d.06.g_emit_fragment_object": [
+          0.258,
+          1
+        ],
+        "06.1.d.06_stage_frame_realization": [
+          2.748,
+          1
+        ],
+        "build.admit_outputs": [
+          2.635,
+          1
+        ],
+        "build.create_session": [
+          56.279,
+          1
+        ],
+        "build.resolve_sources": [
+          222.068,
+          1
+        ],
+        "lifecycle.project_owners_drop": [
+          6.907,
+          1
+        ],
+        "lifecycle.session_store": [
+          0.002,
+          2
+        ],
+        "source.graph.decode.checks": [
+          55.49,
+          1
+        ],
+        "source.graph.decode.finalize_reader": [
+          0.161,
+          1
+        ],
+        "source.graph.decode.preparation": [
+          17.3,
+          1
+        ],
+        "source.graph.decode.sources": [
+          8.999,
+          1
+        ],
+        "source.graph.load.decode": [
+          81.983,
+          1
+        ],
+        "source.graph.load.digest": [
+          17.646,
+          1
+        ],
+        "source.graph.load.read": [
+          17.647,
+          1
+        ],
+        "source.graph.load.require_after": [
+          16.875,
+          1
+        ],
+        "source.graph.load.require_before": [
+          18.117,
+          1
+        ],
+        "lifecycle.cli_report_drop": [
+          0.02,
+          1
+        ]
+      },
+      "counters": {
+        "05.b.retained_match.hit": 2,
+        "source.graph.decode.sibling_build_rows": 1,
+        "source.graph.decode.sibling_product_rows": 1,
+        "source.graph.decode.source_rows": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 1
+      }
+    },
+    {
+      "subject": "stack32",
+      "wall_ms": 1761.5291999973124,
+      "cli_elapsed_ms": 1236.746,
+      "root_cpu": {
+        "kernel_ms": 390.625,
+        "user_ms": 921.875
+      },
+      "spans": {
+        "06.1.d.05.b_fixed_occurrences": [
+          0.672,
+          1
+        ],
+        "06.1.d.05.c2_initial_assign": [
+          1.088,
+          1
+        ],
+        "06.1.d.05.c_initial_analyze": [
+          2.925,
+          1
+        ],
+        "06.1.d.05.d_split_probe": [
+          11.281,
+          2187
+        ],
+        "06.1.d.05.e_remat_probe": [
+          10.48,
+          2187
+        ],
+        "06.1.d.05.f_crossing_spill": [
+          1.183,
+          7
+        ],
+        "06.1.d.05.h_bounded_spill": [
+          305.61,
+          2159
+        ],
+        "06.1.d.05.i.1_liveness": [
+          12.849,
+          13
+        ],
+        "06.1.d.05.i.2_live_ranges": [
+          20.207,
+          13
+        ],
+        "06.1.d.05.i.3_legality": [
+          9.776,
+          13
+        ],
+        "06.1.d.05.i_batch_reanalyze": [
+          40.421,
+          11
+        ],
+        "06.1.d.05.j.1_build_domains": [
+          7.382,
+          20
+        ],
+        "06.1.d.05.j.2_prepared_conflicts": [
+          10.461,
+          20
+        ],
+        "06.1.d.05.j.3_compute_bitmask": [
+          15.86,
+          20
+        ],
+        "06.1.d.05.j_probe_all": [
+          32.117,
+          11
+        ],
+        "06.1.d.05.k_seal_and_manifest": [
+          9.533,
+          1
+        ],
+        "06.1.d.05.pressure.unplaced_victim": [
+          1.506,
+          2004
+        ],
+        "06.1.d.05.spill.derive": [
+          161.762,
+          2166
+        ],
+        "06.1.d.05.spill.mutate": [
+          101.526,
+          2166
+        ],
+        "06.1.d.05.spill.seal": [
+          40.868,
+          2166
+        ],
+        "06.1.d.05_stage_register_allocation": [
+          448.262,
+          1
+        ],
+        "06.1.d.06.a_post_allocation_machine": [
+          34.909,
+          1
+        ],
+        "06.1.d.06.b_stage_function_frame": [
+          3.739,
+          1
+        ],
+        "06.1.d.06.c_selected_form_encoding": [
+          22.374,
+          1
+        ],
+        "06.1.d.06.d_resolved_selected_form_layout": [
+          7.586,
+          1
+        ],
+        "06.1.d.06.e_resolved_layout_opt": [
+          0.006,
+          1
+        ],
+        "06.1.d.06.f_assemble_fixed_frame": [
+          16.729,
+          1
+        ],
+        "06.1.d.06.g_emit_fragment_object": [
+          13.51,
+          1
+        ],
+        "06.1.d.06_stage_frame_realization": [
+          99.056,
+          1
+        ],
+        "build.admit_outputs": [
+          12.432,
+          1
+        ],
+        "build.create_session": [
+          91.275,
+          1
+        ],
+        "build.resolve_sources": [
+          337.046,
+          1
+        ],
+        "lifecycle.project_owners_drop": [
+          11.088,
+          1
+        ],
+        "lifecycle.session_store": [
+          0.003,
+          2
+        ],
+        "source.graph.decode.checks": [
+          92.484,
+          1
+        ],
+        "source.graph.decode.finalize_reader": [
+          0.291,
+          1
+        ],
+        "source.graph.decode.preparation": [
+          22.467,
+          1
+        ],
+        "source.graph.decode.sources": [
+          15.63,
+          1
+        ],
+        "source.graph.load.decode": [
+          130.909,
+          1
+        ],
+        "source.graph.load.digest": [
+          21.153,
+          1
+        ],
+        "source.graph.load.read": [
+          24.604,
+          1
+        ],
+        "source.graph.load.require_after": [
+          30.9,
+          1
+        ],
+        "source.graph.load.require_before": [
+          27.947,
+          1
+        ],
+        "lifecycle.cli_report_drop": [
+          0.025,
+          1
+        ]
+      },
+      "counters": {
+        "05.b.retained_match.hit": 2,
+        "06.1.d.05.crossing_not_used": 7,
+        "source.graph.decode.sibling_build_rows": 1,
+        "source.graph.decode.sibling_product_rows": 1,
+        "source.graph.decode.source_rows": 1,
+        "source.graph.loaded": 1,
+        "source.graph.prepared_hits": 1
+      }
+    }
+  ],
+  "quality": {
+    "qualification": {
+      "validation": 18,
+      "controls": 6
+    },
+    "lookup-controls": {
+      "validation": 0,
+      "controls": 5
+    },
+    "junction-controls": {
+      "validation": 0,
+      "controls": 4
+    }
+  },
+  "decision": "No large teardown opportunity: project owner retirement7-11ms, CLI report0.02ms, reader finalization below0.3ms and no warm store attempts. Check decoding55-92ms alone lacks requested whole-run headroom. Preserve attribution, remove all four temporary Rust edits, and investigate per-function native allocation/realization distribution before another candidate; no lazy/parallel restore or speed claim."
+}

@@ -12,7 +12,7 @@ use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
 };
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralPlaceKind};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape,
 };

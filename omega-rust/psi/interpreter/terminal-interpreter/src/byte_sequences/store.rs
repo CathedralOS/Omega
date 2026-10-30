@@ -81,7 +81,7 @@ impl TerminalExecution<'_> {
                 self.invalidate_stored_provenance(&field.parent);
             }
             MutableByteSequenceStorage::Owned(home) => {
-                *self.byte_owner_bytes_mut(&home)? = bytes.detached_descriptor();
+                *self.byte_owner_bytes_mut(&home)? = bytes.owned_snapshot();
             }
             MutableByteSequenceStorage::Array { .. } => return Err(malformed()),
         }

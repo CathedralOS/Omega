@@ -114,7 +114,7 @@ impl Execution<'_, '_, '_> {
         // These owned scalar facts carry no new referent authority or lifetime.
         if let Some(value) = scalar.filter(|_| scalar_complete) {
             let value = self.semantic.scalar_values.append(value);
-            self.append_constructed_observation(
+            self.append_value_observation(
                 expression,
                 &[],
                 FactPayload::AssignedScalarValue { value },
@@ -124,7 +124,7 @@ impl Execution<'_, '_, '_> {
         }
         if let Some(bounds) = bounds.filter(|_| bounds_complete) {
             let bounds = self.semantic.integer_ranges.append(bounds);
-            self.append_constructed_observation(
+            self.append_value_observation(
                 expression,
                 &[],
                 FactPayload::AssignedIntegerBounds { bounds },

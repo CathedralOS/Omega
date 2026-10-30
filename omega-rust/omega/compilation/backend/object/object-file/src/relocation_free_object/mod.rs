@@ -545,15 +545,18 @@ pub(crate) fn decode_relocation_free_object(
     Ok(object)
 }
 
+macro_rules! enc {
+    ($a:expr => $b:expr) => {
+        crate::codec_bytes::push_encoded($a, $b)
+    };
+}
+
 fn encode_plan_content(
     object: &RelocationFreeObjectPlan,
 ) -> Result<Vec<u8>, RelocationFreeObjectError> {
     let mut output = Vec::new();
     output.extend_from_slice(&object.source_text_section.bytes());
-    crate::codec_bytes::push_encoded(
-        &mut output,
-        object.psi.vocabulary_marker.get().to_le_bytes(),
-    );
+    enc!(&mut output => object.psi.vocabulary_marker.get().to_le_bytes());
     output.extend_from_slice(object.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut output, object.fuel_schedule.marker().to_le_bytes());
     output.extend_from_slice(&object.selected.bytes());
@@ -579,10 +582,7 @@ fn encode_plan_content(
         });
     }
     crate::codec_bytes::push_encoded(&mut output, object.semantic_entry.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(
-        &mut output,
-        object.semantic_entry_symbol.get().to_le_bytes(),
-    );
+    enc!(&mut output => object.semantic_entry_symbol.get().to_le_bytes());
     crate::codec_bytes::push_count_u64(&mut output, object.normalized_imports.len());
     for import in &object.normalized_imports {
         crate::codec_bytes::push_encoded(&mut output, import.symbol.get().to_le_bytes());
@@ -699,14 +699,8 @@ fn encode_normalized_foreign_resolution(
     crate::codec_bytes::push_encoded(output, resolution.opcode_section_offset.to_le_bytes());
     crate::codec_bytes::push_encoded(output, resolution.field_function_offset.to_le_bytes());
     crate::codec_bytes::push_encoded(output, resolution.field_section_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(
-        output,
-        resolution.next_instruction_function_offset.to_le_bytes(),
-    );
-    crate::codec_bytes::push_encoded(
-        output,
-        resolution.next_instruction_section_offset.to_le_bytes(),
-    );
+    enc!(output => resolution.next_instruction_function_offset.to_le_bytes());
+    enc!(output => resolution.next_instruction_section_offset.to_le_bytes());
     output.push(resolution.field_byte_width);
     crate::codec_bytes::push_encoded(output, resolution.addend.to_le_bytes());
     encode_placed_callback_materializations(output, &resolution.callback_materializations);
@@ -742,10 +736,7 @@ fn encode_placed_callback_materializations(
                 crate::codec_bytes::push_encoded(output, byte_offset.to_le_bytes());
             }
         }
-        crate::codec_bytes::push_encoded(
-            output,
-            materialization.code_function_offset.to_le_bytes(),
-        );
+        enc!(output => materialization.code_function_offset.to_le_bytes());
         crate::codec_bytes::push_encoded(output, materialization.code_section_offset.to_le_bytes());
         crate::codec_bytes::push_encoded(output, materialization.code_byte_count.to_le_bytes());
         match materialization.encoding {
@@ -764,22 +755,10 @@ fn encode_placed_callback_materializations(
                 page_offset_relocation_section_offset,
             } => {
                 output.push(2);
-                crate::codec_bytes::push_encoded(
-                    output,
-                    page_relocation_function_offset.to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(
-                    output,
-                    page_relocation_section_offset.to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(
-                    output,
-                    page_offset_relocation_function_offset.to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(
-                    output,
-                    page_offset_relocation_section_offset.to_le_bytes(),
-                );
+                enc!(output => page_relocation_function_offset.to_le_bytes());
+                enc!(output => page_relocation_section_offset.to_le_bytes());
+                enc!(output => page_offset_relocation_function_offset.to_le_bytes());
+                enc!(output => page_offset_relocation_section_offset.to_le_bytes());
             }
         }
     }

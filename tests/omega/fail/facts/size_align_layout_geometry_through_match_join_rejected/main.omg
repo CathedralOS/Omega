@@ -1,5 +1,5 @@
 // Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
-// Invalid: Pair has a single field lo: u64 (size == 8u64, align == 8u64), so joined_size - (joined_align * 2u64) underflows u64.
+// Place: match join. Both match arms evaluate the size and alignment queries and join before subtracting.
 // Expected exit: 0
 
 data Pair {
@@ -9,7 +9,7 @@ data Pair {
 machine main() crashes Trap {
     let s: u64 = size_of<Pair>();
     let a: u64 = align_of<Pair>();
-    let joined_size: u64 = match s == 8 {
+    let joined_size: u64 = match s == 16 {
         true -> s
         _ -> s
     };
@@ -18,7 +18,7 @@ machine main() crashes Trap {
         _ -> a
     };
     let diff: u64 = joined_size - (joined_align * 2u64);
-    transition diff == 0 {
+    transition diff == 0 && joined_size == 16u64 && joined_align == 8u64 {
         true -> done()
         _ -> bad()
     }

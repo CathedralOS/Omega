@@ -57,8 +57,8 @@ fn parses_domain_definition_surface() {
     assert_eq!(domains[0].name.as_str(&parsed), "Player::Alive");
     assert!(domains[0].target_type.is_valid());
     assert_eq!(
-        domains[0].predicate_body,
-        language_core::DomainPredicateBody::Present
+        domains[0].predicate_presence,
+        language_core::DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
     assert!(domains[0].semantic_clause_token_count > 3);
@@ -101,8 +101,8 @@ fn parses_domain_requires_and_requirement_routes_independently() {
     let domain = super::root_domain(&parsed, "domain");
 
     assert_eq!(
-        domain.predicate_body,
-        language_core::DomainPredicateBody::Present
+        domain.predicate_presence,
+        language_core::DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domain.facts).len(), 1);
     assert_eq!(
@@ -177,11 +177,7 @@ fn rejects_unknown_or_duplicate_domain_classifications() {
             "at most one compiler-owned classification",
         ),
     ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "classification must reject",
-        );
+        let error = super::parse_tokenized_error(source, "classification must reject");
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }
@@ -194,11 +190,7 @@ fn rejects_domain_classification_after_requires() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         "#;
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "classification order must reject",
-    );
+    let error = super::parse_tokenized_error(source, "classification order must reject");
     super::expect_error(
         &error,
         "classification must appear immediately after the domain head",
@@ -213,11 +205,7 @@ fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
         }
         "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "route bodies must be retired",
-    );
+    let error = super::parse_tokenized_error(source, "route bodies must be retired");
     super::expect_error(&error, "domain route bodies are retired");
     assert!(error.message.contains("`established by Trait::requirement"));
 }
@@ -230,13 +218,45 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
         }
         "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "body predicates must be retired",
-    );
+    let error = super::parse_tokenized_error(source, "body predicates must be retired");
     super::expect_error(&error, "domain predicates must be written in `requires`");
     assert!(error.message.contains("`established by Trait::requirement"));
+}
+
+#[test]
+fn rejects_empty_domain_bodies_with_migration_guidance() {
+    for source in [
+        "domain u64::Tagged {}",
+        "domain u64::Positive requires self > 0 { }",
+        "domain<T> T::Tagged {}",
+    ] {
+        let error = super::parse_source_error(
+            source,
+            "tokenize should succeed",
+            "empty domain bodies must be retired",
+        );
+        super::expect_error(&error, "empty domain bodies are retired");
+        assert!(error.message.contains("end the declaration with `;`"));
+    }
+}
+
+#[test]
+fn domain_semicolon_preserves_following_mathematical_declarations() {
+    for following in [
+        "proposition same(value: u64) = value == value;",
+        "let identity(value: u64): u64 = value;",
+    ] {
+        let source = format!("domain u64::Positive requires self > 0;\n{following}");
+        let parsed = super::parse_source(&source, "each declaration owns its semicolon");
+        let domain = parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Domain(domain) => Some(domain),
+                _ => None,
+            })
+            .expect("domain declaration remains present");
+        assert_eq!(parsed.items.proof_facts(domain.facts).len(), 1);
+    }
 }
 
 #[test]
@@ -247,11 +267,7 @@ fn rejects_nested_domain_operators_with_top_level_home_guidance() {
         }
         "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "nested operators must be retired",
-    );
+    let error = super::parse_tokenized_error(source, "nested operators must be retired");
     super::expect_error(
         &error,
         "domain operators must be ordinary top-level declarations",
@@ -264,7 +280,7 @@ fn rejects_nested_domain_operators_with_top_level_home_guidance() {
 }
 
 #[test]
-fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
+fn parses_domain_predicate_absence_distinct_from_true_predicate() {
     let source = r#"
         domain Reservation::Issued;
         domain Reservation::Recorded;
@@ -285,15 +301,15 @@ fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
     assert_eq!(domains.len(), 3);
     for domain in &domains[..2] {
         assert_eq!(
-            domain.predicate_body,
-            language_core::DomainPredicateBody::Bodyless
+            domain.predicate_presence,
+            language_core::DomainPredicatePresence::Absent
         );
         assert!(domain.facts.is_empty());
         assert_eq!(domain.semantic_clause_token_count, 0);
     }
     assert_eq!(
-        domains[2].predicate_body,
-        language_core::DomainPredicateBody::Present
+        domains[2].predicate_presence,
+        language_core::DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[2].facts).len(), 1);
     assert!(domains[2].semantic_clause_token_count > 0);
@@ -326,8 +342,8 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
         .collect::<Vec<_>>();
     assert_eq!(paths, ["Socket::Connected", "Socket::Authenticated"]);
     assert_eq!(
-        domain.predicate_body,
-        language_core::DomainPredicateBody::Bodyless
+        domain.predicate_presence,
+        language_core::DomainPredicatePresence::Absent
     );
     assert!(domain.facts.is_empty());
     assert!(domain.operators.is_empty());
@@ -860,11 +876,7 @@ fn rejects_malformed_nominal_machine_parameter_requirements() {
 
     for (contract, expected) in cases {
         let source = format!("machine register<machine Selected>() {contract} {{ Selected() }}");
-        let error = super::parse_source_error(
-            &source,
-            "tokenize should succeed",
-            "malformed nominal binder must reject",
-        );
+        let error = super::parse_tokenized_error(&source, "malformed nominal binder must reject");
         super::expect_error(&error, expected);
     }
 }
@@ -936,11 +948,7 @@ fn rejects_higher_order_parameter_without_nested_contract() {
         {
         }
         "#;
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "missing nested contract must fail",
-    );
+    let error = super::parse_tokenized_error(source, "missing nested contract must fail");
     super::expect_error(
         &error,
         "machine parameter `Inner` requires an authored declaration-site contract",
@@ -954,11 +962,7 @@ fn rejects_machine_parameter_without_authored_contract() {
             0
         }
         "#;
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "missing contract must fail",
-    );
+    let error = super::parse_tokenized_error(source, "missing contract must fail");
     super::expect_error(&error, "requires an authored declaration-site contract");
 }
 

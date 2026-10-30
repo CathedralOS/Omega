@@ -31,8 +31,8 @@ pub use arrivals::{
     occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
 };
 pub(crate) use arrivals::{
-    OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_integer_child_values,
-    occurrence_value_environment, occurrence_value_environments,
+    OccurrenceValueEnvironments, ReturnInference, inferred_normal_return_interval,
+    occurrence_integer_child_values, occurrence_value_environment, occurrence_value_environments,
 };
 use projected_facts::ProjectedOperand;
 
@@ -1244,7 +1244,7 @@ pub(crate) fn incoming_guard_environments(
         return cached;
     }
     let environments = std::sync::Arc::new(arrivals::incoming_environments(
-        program, machine, frames, None,
+        program, machine, frames, None, None,
     ));
     // Publish only after all arrivals and requirements are complete. The
     // mutex is never held while recursive source queries compute the batch.
@@ -1276,7 +1276,7 @@ pub(crate) fn incoming_guard_environment(
             return environment.clone();
         }
     }
-    arrivals::incoming_environments(program, machine, frames, None)
+    arrivals::incoming_environments(program, machine, frames, None, None)
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))
         .unwrap_or_default()

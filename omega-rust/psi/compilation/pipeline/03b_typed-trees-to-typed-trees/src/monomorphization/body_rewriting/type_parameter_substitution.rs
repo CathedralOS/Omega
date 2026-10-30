@@ -53,7 +53,7 @@ pub(crate) fn substitute_cloned_type_parameters(
                     })
             });
         let replacement = definition.unwrap_or(binding.expect("complete specialization"));
-        let replacement_handle = copy_type_reference(source, program, replacement, &[]);
+        let replacement_handle = copy_type_reference(source, program, replacement, &[])?;
         let owner = if definition.is_some() {
             candidate.template.template_symbol
         } else {
@@ -120,7 +120,7 @@ pub(crate) fn substitute_cloned_type_parameters(
             program,
             binding.expect("complete const specialization"),
             &[],
-        );
+        )?;
         for occurrence in occurrences {
             program
                 .type_reference_table

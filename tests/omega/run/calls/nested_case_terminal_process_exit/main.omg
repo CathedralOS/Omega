@@ -1,0 +1,24 @@
+// A returned case retains its selected cleanup before a nested terminal call.
+// Expected exit: 0
+use omega_language_std::console;
+machine observe(output: &mut u64, input: &mut [u8]) reaches Console {
+    transition block Console::read_line(input) {
+        LineReadResult::LineComplete { count } -> block received(output, input, count)
+        LineReadResult::EndOfInput { count } -> block received(output, input, count)
+        _ -> invalid(output)
+    }
+    machine received(output: &mut u64, input: &mut [u8], count: u64) {
+        output = count;
+        transition count > 0 {
+            true -> block observe(output, input)
+            false -> finished()
+        }
+    }
+    machine invalid(output: &mut u64) { output = 99; Console::exit_process(99); }
+    machine finished() { Console::exit_process(0); }
+}
+machine main() crashes Trap {
+    let mut output: u64 = 99;
+    let mut input: [u8; 8];
+    block observe(&mut output, &mut input);
+}

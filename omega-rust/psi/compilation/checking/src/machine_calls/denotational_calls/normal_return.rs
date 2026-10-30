@@ -185,6 +185,11 @@ fn closed_expression(
     if !expression.is_valid() || depth >= 128 {
         return false;
     }
+    // Closed type propositions observe the immutable application tuple, not
+    // runtime storage. Unresolved type operands remain outside this closure.
+    if program.static_type_predicate_operands(expression).is_some() {
+        return program.static_type_predicate_value(expression).is_some();
+    }
     let child =
         |expression| closed_expression(program, machine, state, expression, available, depth + 1);
     match program.expression_table.expression(expression) {
@@ -195,9 +200,20 @@ fn closed_expression(
                 && available.contains(&path.symbol)
         }
         ExpressionNode::Binary(binary) => {
-            crate::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
-                && child(binary.left)
-                && child(binary.right)
+            let builtin = crate::has_builtin_bound_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            );
+            let operand_types = [binary.left, binary.right].map(|operand| {
+                crate::expression_result_type_reference(program, machine, state, operand)
+            });
+            let sealed_comparison = crate::proof_contracts::bound_expression_meaning::
+                sealed_float_comparison_declaration_for_operands(
+                    program, machine.symbol, expression, binary.operator, &operand_types,
+                ).is_some();
+            (builtin || sealed_comparison) && child(binary.left) && child(binary.right)
         }
         ExpressionNode::Call(call) => {
             plain_value_call_target(program, call).is_some()
@@ -207,7 +223,27 @@ fn closed_expression(
                     .iter()
                     .all(|argument| child(*argument))
         }
-        // Broader projections, adapters and reference reads need their own
+        // The shared closure has already joined each borrow to immutable,
+        // invocation-owned backing. A checked representation view changes its
+        // interpretation, not the captured input or the observation's authority.
+        ExpressionNode::Borrow(borrow) => {
+            borrow.access == language_semantics::ReferenceAccess::Shared && child(borrow.target)
+        }
+        ExpressionNode::Cast(cast) => {
+            // Normal-result identity does not prove conversion formation. An
+            // admitted value-preserving conversion depends only on this exact
+            // completed operand, as does an already checked representation view.
+            let source =
+                crate::expression_result_type_reference(program, machine, state, cast.value);
+            (cast.form.is_recast()
+                || source.is_some_and(|source| {
+                    crate::proof_contracts::contract_entailment::denotation_preserving_conversion(
+                        program, cast, source,
+                    )
+                }))
+                && child(cast.value)
+        }
+        // Broader projections and executable adapters still need their own
         // exact read/meaning custody, not a syntactic claim of purity.
         _ => false,
     }

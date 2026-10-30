@@ -1,49 +1,69 @@
 // Fact: an 8-bit unsigned u8 exact multiplication of bounded inputs (lhs >= 10u8 && lhs <= 15u8, rhs >= 8u8 && rhs <= 12u8) establishes prod >= 80u8 && prod <= 180u8 so exact 8-bit subtractions 180u8 - prod and prod - 80u8 are proved overflow-free across all nine places.
 // Expected exit: 0
 
-linux_x86_64 machine target_probe(lhs: u8, rhs: u8) -> u8
-    requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8
-{
-    let prod: u8 = lhs * rhs;
-    let headroom: u8 = 180u8 - prod;
-    let margin: u8 = prod - 80u8;
-    headroom + margin
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(lhs: u8, rhs: u8) -> u8
-    requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8
-{
-    let prod: u8 = lhs * rhs;
-    let headroom: u8 = 180u8 - prod;
-    let margin: u8 = prod - 80u8;
-    headroom + margin
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(lhs: u8, rhs: u8) -> u8
-    requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8
-{
-    let prod: u8 = lhs * rhs;
-    let headroom: u8 = 180u8 - prod;
-    let margin: u8 = prod - 80u8;
-    headroom + margin
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(lhs: u8, rhs: u8) -> u8
-    requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8
-{
-    let prod: u8 = lhs * rhs;
-    let headroom: u8 = 180u8 - prod;
-    let margin: u8 = prod - 80u8;
-    headroom + margin
+boundary trait SelectedProbe {
+    machine target_probe(lhs: u8, rhs: u8) -> u8
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(lhs: u8, rhs: u8) -> u8
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let prod: u8 = lhs * rhs;
+        let headroom: u8 = 180u8 - prod;
+        let margin: u8 = prod - 80u8;
+        headroom + margin
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(lhs: u8, rhs: u8) -> u8
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let prod: u8 = lhs * rhs;
+        let headroom: u8 = 180u8 - prod;
+        let margin: u8 = prod - 80u8;
+        headroom + margin
+    }
 }
 
 machine probe(lhs: u8, rhs: u8) -> u8
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 12u8
 {
-    target_probe(lhs, rhs)
+    SelectedProbe::target_probe(lhs, rhs)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let combined: u8 = probe(12u8, 10u8);
     transition combined == 100u8 {
         true -> done()
@@ -51,4 +71,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

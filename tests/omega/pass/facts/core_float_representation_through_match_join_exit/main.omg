@@ -1,0 +1,31 @@
+// The ordinary float bit wrappers preserve a negative signaling NaN's exact sign and payload through transport, permitting subtraction of its presented bits.
+// Place: match_join.
+// Expected exit: 0
+use omega::language::core::float;
+
+machine consume(value: f32) -> u32
+requires float::to_bits(value) == 0xFF80_0123u32
+ensures result == 0u32
+{ float::to_bits(value) - 0xFF80_0123u32 }
+
+data Envelope { before: u32; value: f32; marker: u32; }
+machine probe(flag: bool) -> u32 crashes Trap {
+    let held: Envelope = match flag {
+        true -> Envelope { before: 0x1357_9BDFu32, value: float::from_bits(0xFF80_0123u32), marker: 1u32 },
+        false -> Envelope { before: 0x1357_9BDFu32, value: float::from_bits(0xFF80_0123u32), marker: 2u32 }
+    };
+    transition held.before == 0x1357_9BDFu32 {
+        true -> (consume(held.value) + held.marker)
+        _ -> wrong()
+    }
+    machine wrong() -> u32 { crash Trap; }
+}
+
+machine main() crashes Trap {
+
+    let presented: f32 = float::from_bits(0xFF80_0123u32);
+    let quieted: u32 = float::to_bits(float::quiet<f32>(presented));
+    transition probe(true) == 1u32 && probe(false) == 2u32 && float::is_signaling_nan<f32>(presented) && quieted == 0xFFC0_0123u32 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

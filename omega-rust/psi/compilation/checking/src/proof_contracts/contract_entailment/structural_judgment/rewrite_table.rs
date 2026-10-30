@@ -32,21 +32,20 @@ impl RewriteTable {
                 self.has_mathematical_equal_pattern = true;
             }
         }
-        let deferred_measure_occurrence =
-            match (entry.0.semantic_value(), entry.1.semantic_value()) {
-                (
-                    StructuralTerm::CollectionMeasure { collection, .. },
-                    StructuralTerm::Integer(_),
-                ) => match collection.semantic_value() {
+        let deferred_measure_occurrence = match (entry.0.semantic_value(), entry.1.semantic_value())
+        {
+            (StructuralTerm::CollectionMeasure { collection, .. }, StructuralTerm::Integer(_)) => {
+                match collection.semantic_value() {
                     StructuralTerm::CapturedValue { occurrence, .. }
                         if self.find(collection.semantic_value()).is_none() =>
                     {
                         Some(*occurrence as u32)
                     }
                     _ => None,
-                },
-                _ => None,
-            };
+                }
+            }
+            _ => None,
+        };
         if let Some(occurrence) = deferred_measure_occurrence {
             self.deferred_collection_measures.push((occurrence, index));
         } else {
@@ -216,6 +215,10 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
         StructuralTerm::IntegerEmbedding { .. } => (15, 0),
         StructuralTerm::MathematicalBinary { operator, .. } => (16, discriminant_key(operator)),
         StructuralTerm::CollectionMeasure { measure, .. } => (17, discriminant_key(measure)),
+        StructuralTerm::ScalarRepresentation { source, target, .. } => (
+            19,
+            discriminant_key(source) ^ discriminant_key(target).rotate_left(32),
+        ),
     }
 }
 
@@ -230,7 +233,10 @@ fn is_potential_integer_premise(predicate: &StructuralTerm, truth: &StructuralTe
         | StructuralTerm::Opaque(_)
         | StructuralTerm::BoundProjection { .. } => false,
         StructuralTerm::BoundValue(_) | StructuralTerm::CapturedValue { .. }
-            if matches!(predicate.semantic_value(), StructuralTerm::CapturedValue { .. }) =>
+            if matches!(
+                predicate.semantic_value(),
+                StructuralTerm::CapturedValue { .. }
+            ) =>
         {
             false
         }
@@ -278,7 +284,8 @@ fn term_has_mathematical_or_integer_embedding(term: &StructuralTerm) -> bool {
             term_has_mathematical_or_integer_embedding(collection)
                 || term_has_mathematical_or_integer_embedding(index)
         }
-        StructuralTerm::Projection { subject, .. } => {
+        StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::ScalarRepresentation { value: subject, .. } => {
             term_has_mathematical_or_integer_embedding(subject)
         }
         StructuralTerm::ScalarBinary { left, right, .. } => {
@@ -300,11 +307,8 @@ fn max_captured_occurrence(term: &StructuralTerm) -> usize {
         StructuralTerm::CapturedValue { occurrence, .. } => *occurrence,
         StructuralTerm::ObservedValue {
             value, descriptor, ..
-        } => max_captured_occurrence(value).max(
-            descriptor
-                .as_deref()
-                .map_or(0, max_captured_occurrence),
-        ),
+        } => max_captured_occurrence(value)
+            .max(descriptor.as_deref().map_or(0, max_captured_occurrence)),
         StructuralTerm::Constructor { fields, .. } => fields
             .iter()
             .map(|(_, value)| max_captured_occurrence(value))
@@ -325,7 +329,8 @@ fn max_captured_occurrence(term: &StructuralTerm) -> usize {
         | StructuralTerm::MathematicalBinary { left, right, .. } => {
             max_captured_occurrence(left).max(max_captured_occurrence(right))
         }
-        StructuralTerm::IntegerEmbedding { value, .. } => max_captured_occurrence(value),
+        StructuralTerm::IntegerEmbedding { value, .. }
+        | StructuralTerm::ScalarRepresentation { value, .. } => max_captured_occurrence(value),
         StructuralTerm::Variable(_)
         | StructuralTerm::BoundValue(_)
         | StructuralTerm::BoundProjection { .. }
@@ -339,6 +344,7 @@ fn term_may_produce_mathematical_value(term: &StructuralTerm) -> bool {
     !matches!(
         term.semantic_value(),
         StructuralTerm::Float(_)
+            | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }
             | StructuralTerm::Constructor { .. }

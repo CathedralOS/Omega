@@ -26,7 +26,7 @@ use lowered_psi::LoweredSourceFrontierBindings;
 use semantic_vocabulary::{MachineId, ObligationId, ProofTerm, ScalarTerm, ValueId};
 use terminal_psi::{
     ClaimTransfer, CrashRouteBucket, Operation, OperationKind, OperationResult, StructuralArgument,
-    StructuralMultiplicity, ValueDeclaration,
+    StructuralMultiplicity,
 };
 
 /// One direct in-module call, before its Terminal spelling is chosen.
@@ -82,14 +82,11 @@ impl DirectCall {
     }
 }
 
-/// How an emitted call operation records its source-call occurrence: against
-/// the caller's lowered frontier rows, or against the scalar values live in
-/// its operand frame before the call.
+/// Source-call custody is either the exact caller frontier or a sealed quotient request.
 pub(crate) enum CallRecord<'a> {
     /// A separately checked sealed source request, never an ordinary call fact.
     Quotient(checked_trees::CheckedStructuralValueHandle),
     Frontier(&'a LoweredSourceFrontierBindings),
-    Values(&'a [ValueDeclaration]),
 }
 
 /// The one call emitter: every direct-call route resolves its callee, mints
@@ -125,14 +122,6 @@ pub(crate) fn emit_direct_call(
             selected_state,
             frontier_before_call,
         )?,
-        CallRecord::Values(source_values_before_call) => operations
-            .record_source_call_with_values(
-                coordinate,
-                source_site,
-                operation,
-                selected_state,
-                source_values_before_call,
-            )?,
     }
     operations.push(Operation::unsuspended(
         operation,

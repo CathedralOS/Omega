@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::obligation_provenance;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
@@ -140,7 +141,7 @@ fn element_view_read(
         length,
         obligation,
         accepted_fact,
-        row.operation,
+        row,
     )?;
     let output = builder.register(
         definition.value,
@@ -152,7 +153,7 @@ fn element_view_read(
         pointer,
         physical_index,
         address,
-        super::obligated_provenance(row.operation, vec![index, length], vec![obligation]),
+        obligation_provenance(row, &[index, length], &[obligation]),
     )?;
     let address =
         super::runtime_address::scale(builder, row, source, byte_offset, address, indices)?;

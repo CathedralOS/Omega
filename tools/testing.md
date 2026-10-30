@@ -48,6 +48,37 @@ scoped change: retain the command, revision, and evidence, and report them witho
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
 
+### Exact fixtures on a hosted pilot
+
+The existing `Compiler queue pilot` manual dispatch accepts a comma-separated
+`fixtures` string and `native_host` (`linux_x86_64` or `windows_x86_64`). A
+nonempty selection replaces its default smoke; it does not extend a foreign
+cohort or start the full corpus. PR and merge-group pilot checks keep their
+existing Linux check behavior.
+
+For example, qualify the unchanged conversion witness with its existing
+unproved-conversion control on the requested work ref:
+
+```sh
+gh workflow run compiler-pilot.yml --ref work/NAME \
+  -f native_host=linux_x86_64 \
+  -f fixtures=pass/float/named_integer_conversion_source_proofs_exit,fail/float/named_float_to_integer_no_context_unproven
+```
+
+Select `windows_x86_64` for a separate matching-host run. Host-specific caches,
+concurrency groups and artifact names keep their observations distinct; Windows
+uses the short `D:/ot` target directory. The artifact retains the actual producer
+profiles, source revision and corpus observations, not just workflow success.
+
+Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
+or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must be existing normalized
+`pass/group/name` or `fail/group/name` directories containing `main.omg`.
+Empty entries, duplicates, traversal, missing roots and substring-filter
+collisions refuse before building; malformed input never selects default smoke.
+An unset/empty environment variable leaves the default unchanged. Pass fixtures
+run both engines with the existing numeric and stream oracles; fail fixtures
+run the existing source/rejection gate only.
+
 ### Optimized validation compilers
 
 All normal compiler builds use at least opt-level 1. Dev and test profiles
@@ -278,6 +309,35 @@ and package crates carry no behavior tests; do not add them back. A test that
 scans a crate's own sources as an architecture guard is the one exception. The `compiler`
 crate's only test target is `corpus_runner`; see
 `omega-rust/omega/compilation/driver/tests/README.md`.
+
+## Cache independence
+
+`cache_gate.py` compares warm and empty-cache CLI invocations on disposable
+projects, using child-process cache directories rather than the user's cache.
+Supply two optimized producers with different compiler input identities:
+
+```bash
+python tools/build_slot.py --slots 2 -- python tools/cache_gate.py \
+  --cli /path/to/current/omega --other-cli /path/to/previous/omega \
+  --output build/cache-independence
+```
+
+The output directory must be new. The gate requires observed retained-check
+hits before mutation. It changes bodies, same-size/timestamp-preserving
+contracts, declared path dependencies, transitive modules, module existence,
+and the selected build entry. Stale locked compilations must refuse; explicit
+updates must agree with fresh compilation. It also corrupts or removes retained
+records, leaves incomplete temporary records, terminates its own writer during
+record staging, and switches compiler identities. If it misses the interruption
+window, the gate fails rather than counting interruption coverage.
+
+Accepted pairs must produce byte-identical native images and matching native
+exit/stdout/stderr; invalid pairs must reject with the intended diagnostic and
+publish no image. Logs, source snapshots, artifact digests, producer profiles,
+and comparison results remain under the output directory. Test fixtures alone
+receive automatic review decisions. These checks cover the native host and
+named mutations, not every dependency kind, power-loss behavior, or malicious
+cache forgery. They are correctness checks, not compilation benchmarks.
 
 ## Corpus outcome gate
 

@@ -43,7 +43,7 @@ pub(super) fn append_derived_predicates(
         if !domain.establishment_routes.is_empty()
             || !typed_trees::domain::index_parameters(program, domain).is_empty()
             || domain.alias.is_some()
-            || !domain.predicate_body.is_present()
+            || !domain.predicate_presence.is_present()
             || !value_proves_predicate(
                 program,
                 semantic,
@@ -226,14 +226,7 @@ pub(super) fn append_element_replacement_predicates(
         .place_segments
         .span_or_empty(semantic.places.get(carrier).segments)
         .iter()
-        .all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-            )
-        })
+        .all(|segment| crate::flow::fixed_selection_segment(segment))
     {
         return;
     }

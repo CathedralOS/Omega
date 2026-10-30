@@ -22,9 +22,7 @@ use checked_trees::{
     BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
     FlowSemanticContextRef, ProofFacts,
 };
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -415,12 +413,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
         return;
     }
 
-    let point = ProgramPoint::CallEnsures {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
-        statement_index: borrow_call.statement_index,
-        call_ordinal: borrow_call.call_ordinal,
-    };
+    let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let mut refs = HandleSpan::empty();
     for (payload, evidence) in transfers {
         let fact = semantic.append_fact(Fact {
@@ -472,6 +465,12 @@ fn append_call_result_field_domain_facts<'plans>(
     else {
         return;
     };
+    // Live borrowed guarantees are published with their completed descriptor
+    // and write dependencies by expression::result_memberships. Owned results
+    // retain their detached completion namespace here.
+    if validation::reference_shell(program, return_type).is_some() {
+        return;
+    }
     let key = (
         borrow_call.target_symbol,
         selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
@@ -499,12 +498,7 @@ fn append_call_result_field_domain_facts<'plans>(
     if paths.is_empty() {
         return;
     }
-    let point = ProgramPoint::CallEnsures {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
-        statement_index: borrow_call.statement_index,
-        call_ordinal: borrow_call.call_ordinal,
-    };
+    let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let evidence = QualificationEvidence::from_origin(
         language_semantics::QualificationEvidenceOrigin::Propagated,
         borrow_call.target_symbol,
@@ -520,28 +514,30 @@ fn append_call_result_field_domain_facts<'plans>(
     // or another domain application cannot stand in for this result row.
     let realization = checked_realization_result_identities(program, build, call);
     let rows = paths.iter().filter(|row| {
-        let (_, domain_symbol, _) = *row;
-        if realization
-            .as_ref()
-            .is_some_and(|guaranteed| !guaranteed.contains(*row))
-            && program
-                .domain_definition(*domain_symbol)
-                .is_some_and(|domain| {
-                    domain.establishment_routes.iter().any(|route| {
-                        matches!(
-                            route,
-                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
-                        )
-                    })
-                })
-        {
-            return false;
-        }
-        true
+        result_identity_is_available(program, realization.as_deref().map(Vec::as_slice), row)
     });
     super::call_results::append_memberships(
         semantic, build, exit, expression, point, evidence, rows,
     );
+}
+
+/// Preserve the issuer fence for owned and borrowed normal-result publishers.
+/// A direct checked adapter owes the exact result row independently; its
+/// requirement's boundary-only authority cannot supply a missing promise.
+pub(in crate::flow) fn result_identity_is_available(
+    program: &dyn ::validation::CheckingInput,
+    realization: Option<&[validation::field_domains::FieldDomainIdentity]>,
+    row: &validation::field_domains::FieldDomainIdentity,
+) -> bool {
+    !realization.is_some_and(|guaranteed| !guaranteed.contains(row))
+        || !program.domain_definition(row.1).is_some_and(|domain| {
+            domain.establishment_routes.iter().any(|route| {
+                matches!(
+                    route,
+                    language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
+                )
+            })
+        })
 }
 
 /// The checked adapter's exact result obligations, when this is a direct call.
@@ -550,7 +546,7 @@ fn append_call_result_field_domain_facts<'plans>(
 /// publisher. Scanning domain symbols alone would let `ensures input in D`
 /// authorize an unrelated `result in D`. An empty checked-body roster grants
 /// nothing; absence denotes a crossing or bodyless provider and adds no fence.
-fn checked_realization_result_identities<'plans>(
+pub(in crate::flow) fn checked_realization_result_identities<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     call: &typed_trees::expression::TableCallExpression,
@@ -642,12 +638,7 @@ fn append_call_parameter_domain_facts<'plans>(
         return;
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
-    let point = ProgramPoint::CallEnsures {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
-        statement_index: borrow_call.statement_index,
-        call_ordinal: borrow_call.call_ordinal,
-    };
+    let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let evidence = QualificationEvidence::from_origin(
         language_semantics::QualificationEvidenceOrigin::Propagated,
         borrow_call.target_symbol,
@@ -804,7 +795,7 @@ pub(crate) fn call_result_qualification_identities(
 /// scans. Used inside `call_result_identities`, so each call occurrence pays
 /// the indexed lookup at most once per build. Two calls to one requirement
 /// can have different local index tuples and therefore different result facts.
-fn call_result_qualification_identities_indexed<'plans>(
+pub(in crate::flow) fn call_result_qualification_identities_indexed<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
@@ -829,7 +820,7 @@ fn call_result_qualification_identities_indexed<'plans>(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
-    if !super::call_results::carries_identity_rows(program, return_type) {
+    if !return_type.is_valid() {
         return Vec::new();
     }
     let domain_rows = build
@@ -863,7 +854,7 @@ fn result_identity_rows(
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    if !super::call_results::carries_identity_rows(program, return_type) {
+    if !return_type.is_valid() {
         return Vec::new();
     }
     let mut domains = super::call_results::type_domain_rows(program, return_type);
@@ -877,16 +868,11 @@ fn result_identity_rows(
     domains
 }
 
-fn append_ensures_result_rows(
+fn visit_qualified_ensures(
     program: &dyn ::validation::CheckingInput,
-    parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
     qualification_contract: &validation::CallQualificationContract<'_>,
-    domains: &mut Vec<(
-        Vec<facts::PlaceSegment>,
-        SymbolHandle,
-        language_semantics::SemanticDomainId,
-    )>,
+    mut visit: impl FnMut(&typed_trees::typed_trees::declarations::domain::ProofMembershipFact),
 ) {
     for contract in contracts
         .iter()
@@ -908,28 +894,44 @@ fn append_ensures_result_rows(
             {
                 continue;
             }
-            // This occurrence is already selected from this exact callable's
-            // ensures, including bodyless trait requirements. It must be the
-            // reserved result form, never a same-spelled parameter.
-            if !program
-                .expression_table
-                .names_reserved_result(membership.value)
-                || parameters.is_some_and(|parameters| {
-                    !language_core::signature_reserves_result(
-                        parameters.iter().map(|parameter| parameter.name.as_str()),
-                    )
-                })
-            {
-                continue;
-            }
-            let row = (
-                Vec::new(),
-                membership.domain_symbol,
-                membership.semantic_domain,
-            );
-            crate::collections::push_unique(&mut *domains, row);
+            visit(membership);
         }
     }
+}
+
+fn append_ensures_result_rows(
+    program: &dyn ::validation::CheckingInput,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
+    contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
+    domains: &mut Vec<(
+        Vec<facts::PlaceSegment>,
+        SymbolHandle,
+        language_semantics::SemanticDomainId,
+    )>,
+) {
+    visit_qualified_ensures(program, contracts, qualification_contract, |membership| {
+        // This occurrence is already selected from this exact callable's
+        // ensures, including bodyless trait requirements. It must be the
+        // reserved result form, never a same-spelled parameter.
+        if !program
+            .expression_table
+            .names_reserved_result(membership.value)
+            || parameters.is_some_and(|parameters| {
+                !language_core::signature_reserves_result(
+                    parameters.iter().map(|parameter| parameter.name.as_str()),
+                )
+            })
+        {
+            return;
+        }
+        let row = (
+            Vec::new(),
+            membership.domain_symbol,
+            membership.semantic_domain,
+        );
+        crate::collections::push_unique(&mut *domains, row);
+    });
 }
 
 /// The out-parameter obligation vocabulary for the provisional publisher and
@@ -997,38 +999,18 @@ fn parameter_identity_rows(
     qualification_contract: &validation::CallQualificationContract<'_>,
 ) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let mut rows = Vec::new();
-    for contract in contracts
-        .iter()
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
-    {
-        for (fact_handle, fact) in contract
-            .facts
-            .handles()
-            .zip(program.proof_facts.span_or_empty(contract.facts))
-        {
-            let Some(membership) = fact.as_membership() else {
-                continue;
-            };
-            if qualification_contract
-                .fact_source(contract.kind.clone(), fact)
-                .is_none()
-                && !qualification_contract
-                    .declares_membership_obligation(contract.kind.clone(), fact_handle)
-            {
-                continue;
-            }
-            let Some(position) = ensured_parameter_position(program, parameters, membership.value)
-            else {
-                continue;
-            };
-            let row = (
-                position,
-                membership.domain_symbol,
-                membership.semantic_domain,
-            );
-            crate::collections::push_unique(&mut rows, row);
-        }
-    }
+    visit_qualified_ensures(program, contracts, qualification_contract, |membership| {
+        let Some(position) = ensured_parameter_position(program, parameters, membership.value)
+        else {
+            return;
+        };
+        let row = (
+            position,
+            membership.domain_symbol,
+            membership.semantic_domain,
+        );
+        crate::collections::push_unique(&mut rows, row);
+    });
     rows
 }
 

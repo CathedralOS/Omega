@@ -1,0 +1,1 @@
+scalar predicate is false: requires contract for call require_size from main state entry statement 0

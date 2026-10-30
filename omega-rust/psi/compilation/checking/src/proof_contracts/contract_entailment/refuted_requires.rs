@@ -281,6 +281,7 @@ pub(super) fn instantiated_fact_judgment(
         fact,
         map,
         &[],
+        &[],
         caller_scope,
     )
 }
@@ -298,8 +299,18 @@ pub(super) fn instantiated_selected_fact_judgment(
         typed_trees::types::TypeReferenceHandle,
         typed_trees::expression::StaticMachineArgument,
     )],
+    type_map: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
+    if program.static_type_predicate_operands(fact).is_some() {
+        return super::structural_terms::static_type_predicate_term(program, fact, type_map)
+            .map_or(StructuralJudgment::Unknown, |predicate| {
+                judge.judge_observed_predicate(predicate, 0)
+            });
+    }
     if program
         .expression_table
         .call_node(fact)
@@ -360,12 +371,13 @@ pub(super) fn instantiated_selected_fact_judgment(
             StructuralJudgment::Unknown => {}
         }
     }
-    // Bind completed operands before walking a descriptor path: a symbolic
-    // formal alone cannot authorize its stored shared-reference crossings.
+    // Bind completed operands before walking their paths. Scalar cells and
+    // descriptor measures share the typed owner; a symbolic formal alone
+    // cannot authorize stored reference crossings or recover expired contents.
     if judge.has_runtime_body_values()
         && machine_map.is_empty()
         && matches!(
-            judge.captured_metadata_predicate_judgment(callee_owner, callee_parameters, fact, map),
+            judge.captured_operand_predicate_judgment(callee_owner, callee_parameters, fact, map),
             StructuralJudgment::Proven
         )
     {
@@ -387,6 +399,7 @@ pub(super) fn instantiated_selected_fact_judgment(
                     binary.left,
                     map,
                     machine_map,
+                    type_map,
                     caller_scope,
                 ),
                 instantiated_selected_fact_judgment(
@@ -397,6 +410,7 @@ pub(super) fn instantiated_selected_fact_judgment(
                     binary.right,
                     map,
                     machine_map,
+                    type_map,
                     caller_scope,
                 ),
             );

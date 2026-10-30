@@ -1,11 +1,13 @@
 //! Optimizer module role: executable entrance. Control-flow cleanup: the
 //! pass's exact rule order, one file per graph transformation beneath it --
 //! constant-conditional folding, linear and path-qualified empty-block
-//! threading (sharing `empty_block_thread_bindings`), adjacent and
-//! non-adjacent block merges (sharing `block_merge_substitutions` and
-//! `merge_boundary_ownership` with shared-jump fusion), and unreachable
-//! private-machine pruning.
+//! threading (sharing the bypassable-empty-block walk and the ownership
+//! predicate the replay checkers also reconstruct through), adjacent and
+//! non-adjacent block merges (sharing the unique-predecessor merge walk,
+//! `block_merge_substitutions` and `merge_boundary_ownership` with shared-jump
+//! fusion), and unreachable private-machine pruning.
 
+use crate::UseDefinitionAnalysis;
 use crate::rules::catalog::BuiltInRuleRegistration;
 use abstract_operations::{AbstractOperation as O, ValueBinding};
 use optimization_core::{
@@ -22,7 +24,6 @@ use std::collections::BTreeSet;
 mod adjacent_block_merge;
 mod block_merge_substitutions;
 mod constant_conditional_fold;
-mod empty_block_thread_bindings;
 mod linear_empty_block_thread;
 mod merge_boundary_ownership;
 mod non_adjacent_block_merge;
@@ -168,6 +169,42 @@ pub(super) fn record_node_provenance<'node>(
     Some(())
 }
 
+/// Stamp each provenance-bearing node of the merged block at the position the
+/// merge gives it: target node `i` lands at predecessor node `predecessor.node
+/// + i`. Both merges restate their target's roster this way.
+pub(super) fn record_merged_node_positions(
+    function: &PsiOptimizationFunction,
+    predecessor: NodeLocation,
+    target: BlockId,
+    target_block: &OptimizationBlock,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in target_block.nodes.iter().enumerate() {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let input = PsiRealizationSite::Node(NodeLocation {
+            machine: function.machine,
+            block: target,
+            node: u32::try_from(node_index).ok()?,
+        });
+        let output = PsiRealizationSite::Node(NodeLocation {
+            machine: function.machine,
+            block: predecessor.block,
+            node: predecessor
+                .node
+                .checked_add(u32::try_from(node_index).ok()?)?,
+        });
+        realized.push(provenance_realized_at(
+            input,
+            output,
+            &node.provenance,
+            &node.fuel,
+        ));
+    }
+    Some(())
+}
+
 /// A scalar CFG rewrite applies only where no block declares descriptor
 /// telescoping parameters: structural substitution is outside these rules.
 pub(super) fn descriptor_telescope_free(function: &PsiOptimizationFunction) -> bool {
@@ -177,12 +214,24 @@ pub(super) fn descriptor_telescope_free(function: &PsiOptimizationFunction) -> b
         .all(|block| block.structural_parameters.is_empty())
 }
 
+/// The functions a scalar CFG rewrite traverses: a descriptor telescope requires
+/// structural substitution, so every such rewrite declines it once, here,
+/// instead of at each rule's own loop head.
+pub(super) fn scalar_cleanup_functions(
+    functions: &[PsiOptimizationFunction],
+) -> impl Iterator<Item = &PsiOptimizationFunction> {
+    functions
+        .iter()
+        .filter(|function| descriptor_telescope_free(function))
+}
+
 /// The terminal jump a block-erasing rewrite starts from: the block's last node
 /// must be a cleanup-free jump, and its own location is where the rewrite's
 /// patch begins. Every merge, fusion and thread rule begins here, so the
 /// requirement that an erased edge carries no cleanup action is stated once
 /// instead of at each rewrite's eligibility gate.
 pub(super) struct TerminalJump<'a> {
+    pub(super) block: &'a OptimizationBlock,
     pub(super) location: NodeLocation,
     pub(super) edge: EdgeId,
     pub(super) target: BlockId,
@@ -208,6 +257,7 @@ pub(super) fn terminal_jump<'a>(
         return None;
     }
     Some(TerminalJump {
+        block,
         location: NodeLocation {
             machine: function.machine,
             block: block.id,
@@ -217,6 +267,48 @@ pub(super) fn terminal_jump<'a>(
         target: *target,
         bindings,
     })
+}
+
+/// One unique-predecessor merge candidate: the block holding a terminal jump
+/// and the block that jump alone enters; `admit` states the roster relation the
+/// adjacent and non-adjacent merges each require.
+pub(super) struct MergeCandidate<'a> {
+    pub(super) predecessor_position: usize,
+    pub(super) jump: TerminalJump<'a>,
+    pub(super) target_position: usize,
+    pub(super) target: &'a OptimizationBlock,
+}
+
+pub(super) fn merge_candidates<'a>(
+    function: &'a PsiOptimizationFunction,
+    admit: impl Fn(&MergeCandidate<'a>) -> bool,
+) -> Vec<MergeCandidate<'a>> {
+    function
+        .blocks
+        .iter()
+        .enumerate()
+        .filter_map(|(predecessor_position, predecessor)| {
+            let jump = terminal_jump(function, predecessor)?;
+            let (target_position, target) = function
+                .blocks
+                .iter()
+                .enumerate()
+                .find(|(_, block)| block.id == jump.target)?;
+            let unique_entry = target.id != function.entry
+                && function
+                    .block_edges()
+                    .filter(|edge| edge.target == target.id)
+                    .count()
+                    == 1;
+            let candidate = MergeCandidate {
+                predecessor_position,
+                jump,
+                target_position,
+                target,
+            };
+            (unique_entry && admit(&candidate)).then_some(candidate)
+        })
+        .collect()
 }
 
 /// One block's node scan against the running effect ledger: a node whose
@@ -249,4 +341,57 @@ pub(super) fn record_block_effect_drift(
         *expected_effect = expected_effect.checked_add(1)?;
     }
     Some(())
+}
+
+/// Every block an empty-block thread can bypass: a non-entry block holding
+/// exactly one node, whose cleanup-free terminal jump leaves no parameter
+/// observed past the block's own entry. The incoming sites a thread admits, and
+/// how their provenance is restamped, stay with each rule.
+pub(super) fn threadable_empty_blocks<'a>(
+    function: &'a PsiOptimizationFunction,
+    use_definitions: &'a UseDefinitionAnalysis,
+) -> impl Iterator<Item = TerminalJump<'a>> + 'a {
+    function.blocks.iter().filter_map(|block| {
+        if block.id == function.entry || block.nodes.len() != 1 {
+            return None;
+        }
+        let jump = terminal_jump(function, block)?;
+        let parameter_escapes = block.parameters.iter().any(|parameter| {
+            use_definitions.uses.iter().any(|(machine, use_site)| {
+                *machine == function.machine
+                    && use_site.value == parameter.value
+                    && (use_site.block != block.id || use_site.node != 0)
+            })
+        });
+        (!parameter_escapes).then_some(jump)
+    })
+}
+
+/// Close a thread's accounting: every other block's nodes are checked against
+/// the running effect ledger -- `excluded` is the one decision site the rewrite
+/// itself restates -- then the affected roster and provenance rows return in
+/// canonical order. The linear thread excludes its retargeted predecessor.
+pub(super) fn thread_accounting_tail(
+    function: &PsiOptimizationFunction,
+    empty: BlockId,
+    excluded: Option<NodeLocation>,
+    mut affected: BTreeSet<BlockId>,
+    mut realized: Vec<ProvenanceRewrite>,
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let mut expected_effect = 0u64;
+    for block in &function.blocks {
+        if block.id == empty {
+            continue;
+        }
+        record_block_effect_drift(
+            function,
+            block,
+            &mut expected_effect,
+            excluded,
+            &mut affected,
+            &mut realized,
+        )?;
+    }
+    realized.sort_by_key(ProvenanceRewrite::canonical_sort_key);
+    Some((affected.into_iter().collect(), realized))
 }

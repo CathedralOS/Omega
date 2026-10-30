@@ -207,7 +207,10 @@ fn resolve_path<'types>(
             }
             (
                 terminal_psi::StructuralPathSegment::FixedIndex(index),
-                terminal_psi::StructuralTypeShape::FixedArray { element, length },
+                terminal_psi::StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
             ) if index < length => *element,
             (
                 terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
@@ -260,7 +263,10 @@ pub(crate) fn byte_carrier_leaf_window(
     let Some(declaration) = types.get(&parent) else {
         return false;
     };
-    let terminal_psi::StructuralTypeShape::FixedArray { element, length } = &declaration.shape
+    let terminal_psi::StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = &declaration.shape
     else {
         return false;
     };

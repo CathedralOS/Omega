@@ -1,0 +1,40 @@
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
+index a0e8aa1afae..bb70070bb6b 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
+@@ -120,6 +120,7 @@ impl<'program> CaseEvidence<'program> {
+         let mut previous = None;
+         let mut previous_root = None;
+         let mut root_is_plain_without_cleanup = false;
++        let mut root_is_owned = false;
+         let mut subject_cleanup_types = Vec::new();
+         for observation in &self.observations {
+             let subject = &observation.place;
+@@ -130,17 +131,24 @@ impl<'program> CaseEvidence<'program> {
+                     root: subject.root,
+                     segments: Vec::new(),
+                 };
+-                root_is_plain_without_cleanup = validation::canonical_owned_place_type_reference(
++                let root_type = validation::canonical_owned_place_type_reference(
+                     self.program,
+                     self.state.symbol,
+                     self.statement_index,
+                     &root,
+-                )
+-                .is_some_and(|reference| {
++                );
++                root_is_plain_without_cleanup = root_type.is_some_and(|reference| {
+                     validation::has_plain_contents_without_nominal_cleanup(self.program, reference)
+                 });
++                root_is_owned = root_type.is_some();
+                 previous_root = Some(&subject.root);
+             }
++            // Owned projection validates every prefix, including this same
++            // empty root. A failed root check rejects all its descendants;
++            // observing a saved reference never grants ownership of its referee.
++            if !root_is_owned {
++                continue;
++            }
+             if previous == Some(subject) {
+                 continue;
+             }

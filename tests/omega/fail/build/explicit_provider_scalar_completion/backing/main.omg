@@ -1,0 +1,20 @@
+use omega::language::core::program_image;
+
+data Pair { left: u64; right: u64; }
+machine identity(value: u64) -> u64 { value }
+const OFFSET: u64 = identity(size_of<Pair>()) + 48u64;
+machine require_offset() requires OFFSET == 65u64 {}
+
+public SelectedImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr {
+        require_offset();
+        transition OFFSET == 64u64 {
+            true -> 64
+            _ -> 128
+        }
+    }
+}
+
+public OtherImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 128 }
+}

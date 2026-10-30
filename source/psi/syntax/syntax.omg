@@ -835,7 +835,6 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedEstablishedBy;
     case ExpectedDomainRoute;
     case ExpectedDomainEnd;
-    case ExpectedDomainBodyEnd;
     case DomainCapacityExceeded;
     case NamePathCapacityExceeded;
     case ExpectedConstantName;

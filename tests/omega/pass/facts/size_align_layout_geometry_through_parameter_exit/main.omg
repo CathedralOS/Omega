@@ -18,8 +18,10 @@ machine receive_align(a: u64) -> u64 {
 machine main() crashes Trap {
     let s: u64 = size_of<Pair>();
     let a: u64 = align_of<Pair>();
-    let diff: u64 = receive_size(s) - (receive_align(a) * 2u64);
-    transition diff == 0 {
+    let received_size: u64 = receive_size(s);
+    let received_align: u64 = receive_align(a);
+    let diff: u64 = received_size - (received_align * 2u64);
+    transition diff == 0 && received_size == 16u64 && received_align == 8u64 {
         true -> done()
         _ -> bad()
     }

@@ -354,8 +354,21 @@ fn complete_build_source(
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
+    if computed_build_config
+        .declared_product_selections
+        .iter()
+        .any(|request| {
+            request
+                .operands
+                .iter()
+                .any(|operand| operand.application.is_some())
+        })
+    {
+        source = source
+            .materialize_authored_bodies(&mut crate::observations::PsiStageTimings::new(timings))?;
+    }
     super::product_selections::admit(
-        source.typed(),
+        &mut source,
         Arc::make_mut(&mut computed_build_config),
         package_inputs,
     )?;
@@ -459,7 +472,6 @@ pub(super) fn complete_product_frontend(
 ) -> Result<
     (
         typed_trees::TypedTrees,
-        Vec<build_time_evaluation::PreCheckEvaluation>,
         build_time_evaluation::SourceCompletionAccounting,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
@@ -520,16 +532,12 @@ pub(super) fn complete_product_frontend(
     } else {
         source.finish()
     };
-    let bindings = provider_planning::program_entry::collect_root_bindings(
-        &prepared.typed,
-        &computed_build_config.root_binding_requests,
-    )?;
+    let bindings = prepared.admit_root_bindings(&computed_build_config.root_binding_requests)?;
     Arc::make_mut(&mut computed_build_config)
         .config
         .root_bindings = bindings;
     Ok((
         prepared.typed,
-        prepared.pending_pre_checks,
         prepared.accounting,
         computed_build_config,
         admission,

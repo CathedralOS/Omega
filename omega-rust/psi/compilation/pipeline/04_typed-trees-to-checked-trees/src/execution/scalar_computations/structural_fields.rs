@@ -110,6 +110,77 @@ impl Builder<'_, '_> {
             },
         )
     }
+
+    /// Read one scalar leaf `row[indices]` a runtime subvalue row contributes
+    /// to a scalar array construction. The row's canonical place supplies the
+    /// receiver; the leaf is an ordinary storage observation at its declared
+    /// carrier, never a move or re-evaluation of the row's owner.
+    pub(super) fn projected_element_scalar(
+        &mut self,
+        row: ExpressionHandle,
+        indices: &[u32],
+        leaf_type: typed_trees::types::TypeReferenceHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let coordinate = self.canonical_place(row)?;
+        let facts::PlaceRoot::Symbol(symbol) = coordinate.root else {
+            return None;
+        };
+        let mut segments = coordinate.segments.clone();
+        for index in indices {
+            segments.push(facts::PlaceSegment::FixedIndex {
+                index: usize::try_from(*index).ok()?,
+            });
+        }
+        let field = validation::structural_scalar_field_at_element_coordinate(
+            self.program,
+            self.state,
+            symbol,
+            &segments,
+        )?;
+        if field.primitive_type != primitive_type
+            || self
+                .program
+                .normalized_type_identity(field.result_type_reference)
+                != self.program.normalized_type_identity(leaf_type)
+        {
+            return None;
+        }
+        self.structural_field(row, field)
+    }
+
+    /// A projected element leaf records at the same `ArrayElement` coordinate
+    /// an authored leaf would, so the result consumer reads one vocabulary.
+    pub(super) fn record_projected_element_root(
+        &mut self,
+        statement_ordinal: u32,
+        role: checked_trees::CheckedScalarExpressionRole,
+        row: ExpressionHandle,
+        indices: &[u32],
+        leaf_type: typed_trees::types::TypeReferenceHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    ) {
+        if self
+            .plans
+            .root_at(self.state, statement_ordinal, role)
+            .is_some()
+        {
+            return;
+        }
+        if let Some(root) = self.projected_element_scalar(row, indices, leaf_type, primitive_type) {
+            self.plans.nodes.get_mut(root).authored_root = row;
+            self.plans
+                .roots
+                .append(checked_trees::CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal,
+                    role,
+                    root,
+                });
+        }
+    }
+
     /// Read the scalar endpoint of an ordinary completed value projection.
     /// The projection owns selection from the saved descriptor, including any
     /// subsequent live reference crossings. It never re-reads the old carrier.
@@ -118,12 +189,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: typed_trees::types::PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        let reference = validation::expression_type_reference_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let reference = self.expression_type(expression)?;
         let observation = self.scalar_observation_type(reference)?;
         if observation.primitive_type != expected {
             return None;
@@ -148,16 +214,13 @@ impl Builder<'_, '_> {
             return arena::HandleSpan::empty();
         }
         let receiver = self.structural_values.nodes.get(receiver_value);
-        if !validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            receiver.expression,
-        )
-        .is_some_and(|place| {
-            place.root == facts::PlaceRoot::Expression(receiver.expression)
-                && place.segments.is_empty()
-        }) {
+        if !self
+            .canonical_place(receiver.expression)
+            .is_some_and(|place| {
+                place.root == facts::PlaceRoot::Expression(receiver.expression)
+                    && place.segments.is_empty()
+            })
+        {
             return arena::HandleSpan::empty();
         }
         if !validation::reference_shell(self.program, receiver.type_reference)
@@ -205,24 +268,15 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ScalarObservation> {
-        if validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )
-        .is_some_and(|place| place.root.as_symbol().is_some())
+        if self
+            .canonical_place(expression)
+            .is_some_and(|place| place.root.as_symbol().is_some())
         {
             // Established storage already has the ordinary named/projected
             // observation route. It must not be copied into another home.
             return None;
         }
-        let reference = validation::expression_type_reference_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let reference = self.expression_type(expression)?;
         let observation = self.scalar_observation_type(reference)?;
         // This entrance is specifically a computed reference read. Direct
         // primitive captured values use the same typed observation above.
@@ -331,12 +385,7 @@ impl Builder<'_, '_> {
                     ExpressionNode::Indexed(indexed) => indexed.collection,
                     _ => break,
                 };
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    receiver,
-                ) else {
+                let Some(place) = self.canonical_place(receiver) else {
                     continue;
                 };
                 if !crate::flow::canonical_places_agree(self.program, &place, &source_place) {
@@ -391,48 +440,6 @@ impl Builder<'_, '_> {
         )
     }
 
-    /// Observe the common formal-relative coordinate from an immutable entry
-    /// snapshot. Empty paths use the scalar telescope; projected paths use the
-    /// same declared structural field operation as ordinary source reads.
-    pub(super) fn scalar_coordinate(
-        &mut self,
-        expression: ExpressionHandle,
-        coordinate: &validation::CanonicalPlace,
-        expected_type: typed_trees::types::PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        let facts::PlaceRoot::Symbol(symbol) = coordinate.root else {
-            return None;
-        };
-        if coordinate.segments.is_empty() {
-            let position = self
-                .parameters
-                .iter()
-                .position(|parameter| parameter.symbol == symbol)?;
-            if self.parameter_types.get(position) != Some(&expected_type) {
-                return None;
-            }
-            return Some(self.insert(
-                expected_type,
-                CheckedScalarComputationKind::Value(
-                    checked_trees::CheckedScalarExpression::Parameter {
-                        position,
-                        primitive_type: expected_type,
-                    },
-                ),
-            ));
-        }
-        let field = validation::structural_scalar_field_at_coordinate(
-            self.program,
-            self.authored_parameters,
-            symbol,
-            &coordinate.segments,
-        )?;
-        if field.primitive_type != expected_type {
-            return None;
-        }
-        self.structural_field(expression, field)
-    }
-
     pub(super) fn structural_field(
         &mut self,
         expression: ExpressionHandle,
@@ -457,40 +464,43 @@ impl Builder<'_, '_> {
             }
             _ => return None,
         };
-        Some(
-            self.insert(
-                field.primitive_type,
-                CheckedScalarComputationKind::StructuralField {
-                    atomic_ordering: None,
-                    result_type: field.result_type_reference,
-                    source_expression: expression,
-                    receiver_expression: match self.program.expression_table.expression(expression)
-                    {
+        Some(self.insert(
+            field.primitive_type,
+            CheckedScalarComputationKind::StructuralField {
+                atomic_ordering: None,
+                result_type: field.result_type_reference,
+                source_expression: expression,
+                receiver_expression: if expression.is_valid() {
+                    match self.program.expression_table.expression(expression) {
                         ExpressionNode::Member(member) => self
                             .program
                             .saved_argument_source(member.receiver)
                             .unwrap_or(member.receiver),
                         ExpressionNode::Indexed(indexed) => indexed.collection,
                         _ => ExpressionHandle::invalid(),
-                    },
-                    source_type: field.type_reference,
-                    receiver_value,
-                    subject: CheckedUnitStructuralArgumentPlan {
-                        projection_evaluations: Default::default(),
-                        source,
-                        path: field.path,
-                        type_identity: validation::structural_type_identity(
-                            self.program,
-                            field.carrier_type_reference,
-                            &[],
-                            &[],
-                        ),
-                        access: CheckedStructuralAccess::SharedBorrow,
-                    },
-                    field: field.field,
-                    field_identity: field.field_identity,
+                    }
+                } else {
+                    // An admitted coordinate names established formal
+                    // storage without an authored source occurrence.
+                    ExpressionHandle::invalid()
                 },
-            ),
-        )
+                source_type: field.type_reference,
+                receiver_value,
+                subject: CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source,
+                    path: field.path,
+                    type_identity: validation::structural_type_identity(
+                        self.program,
+                        field.carrier_type_reference,
+                        &[],
+                        &[],
+                    ),
+                    access: CheckedStructuralAccess::SharedBorrow,
+                },
+                field: field.field,
+                field_identity: field.field_identity,
+            },
+        ))
     }
 }

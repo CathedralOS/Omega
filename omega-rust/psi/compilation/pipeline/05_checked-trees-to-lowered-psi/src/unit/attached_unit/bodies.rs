@@ -312,7 +312,7 @@ impl<'a> UnitBody<'a> {
             }
             if let Some(call) = operation.call()
                 && call.structural_result().is_some()
-                && let Some(Some(checked_trees::NominalMachineUseSite::Expression(expression))) =
+                && let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
                     call.source_site()
             {
                 let root = facts::PlaceRoot::Expression(expression);

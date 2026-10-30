@@ -40,7 +40,7 @@ mod placement_lifecycles;
 mod primitive_storage;
 mod program_image;
 mod records;
-pub(super) mod references;
+pub(crate) mod references;
 mod row;
 pub(super) mod scalar_arrays;
 pub(super) mod scalar_sources;

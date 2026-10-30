@@ -4,6 +4,7 @@ use super::{
     TerminalAffineCleanupAction, UnitAffineCleanupRecord, UnitParameterHomeRecord,
     exact_owned_projection, exact_projected_affine_parameter,
 };
+use crate::object_artifact::test_support::structural_declaration;
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{
     EdgeId, MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,
@@ -34,17 +35,11 @@ fn field(identity: &str) -> StructuralPathSegment {
 }
 
 fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
-    StructuralTypeDeclaration {
-        quotient_carrier: None,
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        id: type_id(value),
-        identity: terminal_psi::TerminalIdentityIndex(50 + value as u32),
+    structural_declaration(
+        type_id(value),
+        terminal_psi::TerminalIdentityIndex(50 + value as u32),
         shape,
-    }
+    )
 }
 
 fn structural_field(value: u64, identity: &str, child: u64) -> StructuralFieldDeclaration {
@@ -81,6 +76,39 @@ fn token() -> StructuralTypeDeclaration {
     )
 }
 
+/// The declaration graph both projection tests open with: a token leaf, the
+/// three-element array a record's `items` field holds, that record beside a
+/// token `tail`, and an array of `outer_length` such records.
+fn array_record_graph(outer_length: u64) -> Vec<StructuralTypeDeclaration> {
+    vec![
+        token(),
+        declaration(
+            2,
+            StructuralTypeShape::FixedArray {
+                element: type_id(1),
+                length: terminal_psi::ArrayExtent::Literal(3),
+            },
+        ),
+        declaration(
+            3,
+            StructuralTypeShape::Record {
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+                fields: vec![
+                    structural_field(1, "items", 2),
+                    structural_field(2, "tail", 1),
+                ],
+            },
+        ),
+        declaration(
+            4,
+            StructuralTypeShape::FixedArray {
+                element: type_id(3),
+                length: terminal_psi::ArrayExtent::Literal(outer_length),
+            },
+        ),
+    ]
+}
+
 fn residual(path: Vec<StructuralPathSegment>, child: u64) -> StructuralAffineDiscard {
     StructuralAffineDiscard {
         place: PlaceId::new(1).unwrap(),
@@ -114,7 +142,7 @@ fn wider_array_replays_reverse_residuals_and_rejects_partition_mutations() {
             2,
             StructuralTypeShape::FixedArray {
                 element: type_id(1),
-                length: 5,
+                length: terminal_psi::ArrayExtent::Literal(5),
             },
         ),
     ];
@@ -142,40 +170,14 @@ fn wider_array_replays_reverse_residuals_and_rejects_partition_mutations() {
 
 #[test]
 fn mixed_paths_preserve_maximal_untouched_rows() {
-    let declarations = vec![
-        token(),
-        declaration(
-            2,
-            StructuralTypeShape::FixedArray {
-                element: type_id(1),
-                length: 3,
-            },
-        ),
-        declaration(
-            3,
-            StructuralTypeShape::Record {
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-                fields: vec![
-                    structural_field(1, "items", 2),
-                    structural_field(2, "tail", 1),
-                ],
-            },
-        ),
-        declaration(
-            4,
-            StructuralTypeShape::FixedArray {
-                element: type_id(3),
-                length: 3,
-            },
-        ),
-        declaration(
-            5,
-            StructuralTypeShape::Record {
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-                fields: vec![structural_field(1, "rows", 4)],
-            },
-        ),
-    ];
+    let mut declarations = array_record_graph(3);
+    declarations.push(declaration(
+        5,
+        StructuralTypeShape::Record {
+            storage: terminal_psi::StructuralRecordStorage::Packed,
+            fields: vec![structural_field(1, "rows", 4)],
+        },
+    ));
     let moved = vec![(vec![field("rows"), index(1), field("items"), index(1)], 1)];
     let residuals = vec![
         residual(vec![field("rows"), index(2)], 3),
@@ -232,7 +234,7 @@ fn huge_dimension_is_rejected_against_supplied_cleanup_before_enumeration() {
             2,
             StructuralTypeShape::FixedArray {
                 element: type_id(1),
-                length: u64::MAX,
+                length: terminal_psi::ArrayExtent::Literal(u64::MAX),
             },
         ),
     ];
@@ -253,7 +255,7 @@ fn malformed_type_graphs_do_not_authorize_empty_cleanup() {
             2,
             StructuralTypeShape::FixedArray {
                 element: type_id(1),
-                length: 1,
+                length: terminal_psi::ArrayExtent::Literal(1),
             },
         ),
     ];
@@ -265,13 +267,13 @@ fn malformed_type_graphs_do_not_authorize_empty_cleanup() {
     let mut cycle = declarations.clone();
     cycle[0].shape = StructuralTypeShape::FixedArray {
         element: type_id(2),
-        length: 1,
+        length: terminal_psi::ArrayExtent::Literal(1),
     };
     assert!(!partition(&cycle, 2, &moved, &[]));
     let mut missing = declarations.clone();
     missing[1].shape = StructuralTypeShape::FixedArray {
         element: type_id(3),
-        length: 1,
+        length: terminal_psi::ArrayExtent::Literal(1),
     };
     assert!(!partition(&missing, 2, &moved, &[]));
     let mut reordered = declarations;
@@ -331,33 +333,7 @@ fn argument(
 
 #[test]
 fn full_path_layout_keeps_root_array_metadata_and_record_root_absence() {
-    let mut declarations = vec![
-        token(),
-        declaration(
-            2,
-            StructuralTypeShape::FixedArray {
-                element: type_id(1),
-                length: 3,
-            },
-        ),
-        declaration(
-            3,
-            StructuralTypeShape::Record {
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-                fields: vec![
-                    structural_field(1, "items", 2),
-                    structural_field(2, "tail", 1),
-                ],
-            },
-        ),
-        declaration(
-            4,
-            StructuralTypeShape::FixedArray {
-                element: type_id(3),
-                length: 5,
-            },
-        ),
-    ];
+    let mut declarations = array_record_graph(5);
     let array_home = home(4, 20);
     let projected = argument(
         &array_home,
@@ -442,7 +418,7 @@ fn function_closure_checks_calls_and_partition_even_when_no_residual_remains() {
                 2,
                 StructuralTypeShape::FixedArray {
                     element: type_id(1),
-                    length: 5,
+                    length: terminal_psi::ArrayExtent::Literal(5),
                 },
             ),
         ]

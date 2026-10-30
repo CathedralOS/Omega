@@ -14,7 +14,7 @@ use optimization_unit::{
     NodeLocation, OptimizationFact, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
     PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
@@ -66,24 +66,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let value_types = function
-        .parameters
-        .iter()
-        .map(|row| (row.value, row.scalar_type))
-        .chain(function.blocks.iter().flat_map(|block| {
-            block
-                .parameters
-                .iter()
-                .map(|row| (row.value, row.scalar_type))
-        }))
-        .chain(function.blocks.iter().flat_map(|block| {
-            block.nodes.iter().flat_map(|node| {
-                node.definitions
-                    .iter()
-                    .map(|row| (row.value, row.scalar_type))
-            })
-        }))
-        .collect::<BTreeMap<_, _>>();
+    let value_types = super::scalar_value_types(function);
     let (_, redundant_operation, redundant_result, redundant_type, redundant_obligation) =
         match proof_class {
             ScalarCseProofClass::CompatiblePolicy => {

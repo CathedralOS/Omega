@@ -1,0 +1,214 @@
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 44565c76071..ae05b65b7d4 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -138,6 +138,8 @@ impl State {
+ struct CachedHistory {
+     relevant: super::payload_reachability::Reachability,
+     snapshots: BTreeMap<DescriptorPosition, State>,
++    scalar_rebindings:
++        BTreeMap<(DescriptorPosition, usize), super::scalar_contracts::ScalarArrivalRebinding>,
+ }
+ 
+ /// Exact declaration data in one current executable representation. Prepared
+@@ -569,7 +571,12 @@ fn payload_contract_at_cut(
+             )?,
+             None => super::payload_reachability::predecessors(machine, position)?,
+         };
+-        let previous = cached.take();
++        let mut previous = cached.take();
++        // Edges belong to this history's immutable machine, independently of query prefixes.
++        let mut scalar_rebindings = previous
++            .as_mut()
++            .map(|previous| std::mem::take(&mut previous.scalar_rebindings))
++            .unwrap_or_default();
+         let frontier = previous
+             .as_ref()
+             .and_then(|previous| relevant.compatible_frontier(&previous.relevant, &machine.flow));
+@@ -1029,19 +1036,23 @@ fn payload_contract_at_cut(
+                         .get(&current)
+                         .and_then(|edges| edges.get(ordinal))
+                     {
+-                        let rebound = super::scalar_contracts::arrival_requirements(
+-                            &incoming_requirements,
+-                            bindings,
+-                            parameters,
+-                        );
++                        let rebound = scalar_rebindings
++                            .entry((current, ordinal))
++                            .or_insert_with(|| {
++                                super::scalar_contracts::ScalarArrivalRebinding::new(
++                                    bindings,
++                                    parameters,
++                                    &incoming_requirements,
++                                )
++                            })
++                            .requirements(&incoming_requirements);
+                         // Rebinding can return the complete incoming theory
+                         // unchanged. Appending it would detach and deep-clone
+                         // a snapshot only to deduplicate it immediately below.
+-                        // Still compute every substitution: even an empty map
+-                        // can normalize a proposition into a genuinely new row.
+-                        if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
++                        // Cached rows still include every normalization and substitution.
++                        if !contains_rebound_premises(&arrival.scalar_requirements, rebound) {
+                             Arc::make_mut(&mut arrival.scalar_requirements)
+-                                .extend(rebound.into_iter().map(Arc::new));
++                                .extend(rebound.iter().cloned());
+                         }
+                         canonicalize_snapshot(&mut arrival.scalar_requirements);
+                     }
+@@ -1085,6 +1096,7 @@ fn payload_contract_at_cut(
+         *cached = Some(CachedHistory {
+             relevant,
+             snapshots,
++            scalar_rebindings,
+         });
+         failure = "requested payload root has no reached incoming membership history";
+         let mut current = match cut {
+@@ -1141,19 +1153,22 @@ fn payload_contract_at_cut(
+ /// before testing its complete theory by a single ordered scan. Normalization
+ /// can reorder IEEE/math propositions, so unordered results retain the exact
+ /// binary-search path. Equal duplicates reuse one retained row; no input moves.
+-fn contains_rebound_premises(
++fn contains_rebound_premises<Rebound: Borrow<semantic_vocabulary::Proposition>>(
+     retained: &[Arc<semantic_vocabulary::Proposition>],
+-    rebound: &[semantic_vocabulary::Proposition],
++    rebound: &[Rebound],
+ ) -> bool {
+-    if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
+-        return rebound.iter().all(|premise| {
++    if rebound
++        .windows(2)
++        .any(|pair| pair[0].borrow() > pair[1].borrow())
++    {
++        return rebound.iter().map(Borrow::borrow).all(|premise| {
+             retained
+                 .binary_search_by(|stored| stored.as_ref().cmp(premise))
+                 .is_ok()
+         });
+     }
+     let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+-    rebound.iter().all(|premise| {
++    rebound.iter().map(Borrow::borrow).all(|premise| {
+         while remaining
+             .peek()
+             .is_some_and(|candidate| *candidate < premise)
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+index f836d799185..cf5ea40f6d5 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+@@ -6,6 +6,113 @@
+ use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
+ use std::borrow::Borrow;
+ use std::collections::BTreeMap;
++use std::sync::Arc;
++
++/// One edge's fixed substitution, retaining only its last immutable input.
++pub(super) struct ScalarArrivalRebinding {
++    bindings: Vec<(ValueId, ScalarTerm)>,
++    parameters: Vec<ValueId>,
++    incoming: Arc<Vec<Arc<Proposition>>>,
++    rebound: Vec<Arc<Proposition>>,
++}
++
++impl ScalarArrivalRebinding {
++    pub(super) fn new(
++        bindings: &[(ValueId, ScalarTerm)],
++        parameters: &[ValueId],
++        incoming: &Arc<Vec<Arc<Proposition>>>,
++    ) -> Self {
++        Self {
++            bindings: bindings.to_vec(),
++            parameters: parameters.to_vec(),
++            incoming: incoming.clone(),
++            rebound: arrival_requirements(incoming, bindings, parameters)
++                .into_iter()
++                .map(Arc::new)
++                .collect(),
++        }
++    }
++
++    pub(super) fn requirements(
++        &mut self,
++        incoming: &Arc<Vec<Arc<Proposition>>>,
++    ) -> &[Arc<Proposition>] {
++        // Holding the input keeps its allocation immutable and prevents address reuse.
++        if !Arc::ptr_eq(&self.incoming, incoming) {
++            self.rebound = arrival_requirements(incoming, &self.bindings, &self.parameters)
++                .into_iter()
++                .map(Arc::new)
++                .collect();
++            self.incoming = incoming.clone();
++        }
++        &self.rebound
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use semantic_vocabulary::ScalarType;
++
++    #[test]
++    fn payload_scalar_rebinding_reuses_only_the_exact_immutable_input() {
++        let identity = |value| ValueId::new(value).unwrap();
++        let value = |value| ScalarTerm::value(identity(value), ScalarType::Boolean);
++        let bindings = vec![(identity(1), value(2)), (identity(2), value(1))];
++        let parameters = vec![identity(1), identity(2), identity(3)];
++        for mask in 0..16 {
++            let mut incoming = Arc::new(
++                (1..=4)
++                    .filter(|index| mask & (1 << (index - 1)) != 0)
++                    .map(|index| {
++                        Arc::new(Proposition::Equal(value(index), ScalarTerm::Boolean(true)))
++                    })
++                    .collect::<Vec<_>>(),
++            );
++            let mut cache = ScalarArrivalRebinding::new(&bindings, &parameters, &incoming);
++            let expected = arrival_requirements(&incoming, &bindings, &parameters);
++            assert_eq!(
++                cache
++                    .requirements(&incoming)
++                    .iter()
++                    .map(Arc::as_ref)
++                    .collect::<Vec<_>>(),
++                expected.iter().collect::<Vec<_>>()
++            );
++            let retained = cache.requirements(&incoming).to_vec();
++            assert!(
++                cache
++                    .requirements(&incoming)
++                    .iter()
++                    .zip(&retained)
++                    .all(|(left, right)| Arc::ptr_eq(left, right))
++            );
++
++            Arc::make_mut(&mut incoming).push(Arc::new(Proposition::Falsehood));
++            let expected = arrival_requirements(&incoming, &bindings, &parameters);
++            assert_eq!(
++                cache
++                    .requirements(&incoming)
++                    .iter()
++                    .map(Arc::as_ref)
++                    .collect::<Vec<_>>(),
++                expected.iter().collect::<Vec<_>>()
++            );
++
++            let equal_allocation = Arc::new(incoming.as_ref().clone());
++            assert!(!Arc::ptr_eq(&incoming, &equal_allocation));
++            assert_eq!(
++                cache
++                    .requirements(&equal_allocation)
++                    .iter()
++                    .map(Arc::as_ref)
++                    .collect::<Vec<_>>(),
++                expected.iter().collect::<Vec<_>>()
++            );
++            assert!(Arc::ptr_eq(&cache.incoming, &equal_allocation));
++        }
++    }
++}
+ 
+ pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition> {
+     let mut pending = propositions.iter().rev().collect::<Vec<_>>();

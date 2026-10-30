@@ -1,15 +1,12 @@
-//! Public execution service for argument-taking build machines.
+//! Preparation of exact checked Build entries and Terminal constant execution.
 //!
-//! The caller owns target selection and decides which already-validated grant
-//! applies. Psi owns the target-neutral interpreter entry and the distinction
-//! between a pure invocation and an explicitly granted one.
+//! Omega's Build evaluation owner installs host grants and executes activations
+//! through Terminal Psi. This module retains source/entry custody; it does not
+//! offer a second argument-mutating Build interpreter.
 
-use build_time_values::BuildTimeValue;
-use checked_interpreter::MeasuredBuildMachineEvaluation;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::product_operand::ProductEntryCompatibility;
 
 mod numeric_imports;
 #[cfg(test)]
@@ -36,42 +33,12 @@ pub enum BuildMachineExecutionMode {
     /// Execute through the effect-free build-time entry.
     Pure,
     /// Execute through the granted build entry with the supplied filesystem
-    /// realization. Other granted host services remain governed by that
-    /// entry's existing checked-interpreter contract.
+    /// realization. Build's Terminal host installs only admitted services.
     Granted {
         filesystem: BuildMachineFilesystemAccess,
         filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout,
     },
 }
-
-#[derive(Debug)]
-pub enum BuildMachineEvaluationError {
-    Entry(String),
-    Pure(String),
-    Granted(checked_interpreter::BuildMachineEvaluationFailure),
-}
-
-impl BuildMachineEvaluationError {
-    pub fn observations(&self) -> Option<&checked_interpreter::EvaluationObservations> {
-        match self {
-            Self::Entry(_) => None,
-            Self::Pure(_) => None,
-            Self::Granted(failure) => failure.observations(),
-        }
-    }
-}
-
-impl std::fmt::Display for BuildMachineEvaluationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Entry(diagnostic) => formatter.write_str(diagnostic),
-            Self::Pure(diagnostic) => formatter.write_str(diagnostic),
-            Self::Granted(failure) => std::fmt::Display::fmt(failure, formatter),
-        }
-    }
-}
-
-impl std::error::Error for BuildMachineEvaluationError {}
 
 /// A private, target-neutral program prepared for build-machine evaluation.
 ///
@@ -162,6 +129,10 @@ impl PreparedBuildMachineProgram {
         // pending type bounds unreplaced, so it cannot execute before a later
         // preparation validates its fully evaluated arguments.
         crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut typed)?;
+        crate::const_evaluation::const_applications::defer_pending_const_applications(
+            &mut typed,
+            &crate::build_time_evaluation::EvaluationDomain::all(),
+        )?;
         let typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
         Ok(Self {
             program: PreparedBuildMachineBody::Typed(Box::new(typed)),
@@ -207,9 +178,7 @@ impl PreparedBuildMachineProgram {
         let PreparedBuildMachineBody::Checked(program) = &self.program else {
             return Err("constant invocation requires a checked preparation".into());
         };
-        let symbol = self
-            .validate_entry(entry)
-            .map_err(|error| error.to_string())?;
+        let symbol = self.validate_entry(entry)?;
         super::selected_operators::validate_selected_operators(self.typed(), operators)?;
         accounting.evaluate_terminal(
             self.interpreter_program(),
@@ -305,66 +274,15 @@ impl PreparedBuildMachineProgram {
         })
     }
 
-    fn validate_entry(
-        &self,
-        entry: &PreparedBuildMachineEntry,
-    ) -> Result<SymbolHandle, BuildMachineEvaluationError> {
+    fn validate_entry(&self, entry: &PreparedBuildMachineEntry) -> Result<SymbolHandle, String> {
         if !Arc::ptr_eq(&self.identity, &entry.program_identity) {
-            return Err(BuildMachineEvaluationError::Entry(
+            return Err(
                 "prepared build-machine entry belongs to a different prepared program".to_owned(),
-            ));
+            );
         }
         // Entry construction checked membership and static closure. The prepared program
         // is immutable, so matching its identity preserves that check without
         // searching the machine roster again at execution.
         Ok(entry.symbol)
-    }
-}
-
-/// One measured build-machine invocation: the exact prepared entry, its arguments, the
-/// pure or granted execution mode, and the sponsor that pays for its custody.
-pub struct BuildMachineInvocation<'a> {
-    pub entry: &'a PreparedBuildMachineEntry,
-    pub arguments: Vec<BuildTimeValue>,
-    pub mode: BuildMachineExecutionMode,
-    pub sponsor: Option<&'a BuildEvaluationSponsor>,
-    pub product_entry_compatibility: Option<&'a dyn ProductEntryCompatibility>,
-}
-
-/// Evaluate one build machine and measure its evaluation. All build-machine
-/// evaluations enter here: the mode selects the pure or filesystem-granted
-/// interpreter and the sponsor, when present, is charged for result custody.
-pub fn evaluate_build_machine_measured(
-    program: &PreparedBuildMachineProgram,
-    invocation: BuildMachineInvocation<'_>,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
-    let symbol = program.validate_entry(invocation.entry)?;
-    let request = checked_interpreter::BuildMachineEvaluationRequest {
-        entry: checked_interpreter::BuildMachineEntry::Symbol(symbol),
-        arguments: invocation.arguments,
-        operators: &[],
-        machine_bodies: &[],
-        sponsor: invocation.sponsor,
-        product_entry_compatibility: invocation.product_entry_compatibility,
-    };
-    match invocation.mode {
-        BuildMachineExecutionMode::Pure => checked_interpreter::evaluate_build_machine_arguments(
-            program.interpreter_program(),
-            request,
-        )
-        .map_err(BuildMachineEvaluationError::Pure),
-        BuildMachineExecutionMode::Granted {
-            filesystem,
-            filesystem_metadata_layout,
-        } => checked_interpreter::evaluate_granted_build_machine_arguments(
-            program.interpreter_program(),
-            request,
-            checked_interpreter::InterpretOptions {
-                filesystem,
-                filesystem_metadata_layout,
-                ..Default::default()
-            },
-        )
-        .map_err(BuildMachineEvaluationError::Granted),
     }
 }

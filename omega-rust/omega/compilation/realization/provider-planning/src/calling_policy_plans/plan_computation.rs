@@ -32,6 +32,12 @@ use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
+macro_rules! row {
+    ($a:expr => $b:expr) => {
+        ($a, $b)
+    };
+}
+
 pub(crate) fn evaluate_default_calling_application(
     typed: &TypedTrees,
     native_target: NativeTarget,
@@ -351,15 +357,6 @@ pub fn compute_boundary_calling_plans(
             boundary_entry_plan: validated.plan().clone(),
             validated_boundary_entry_plan: validated,
             callback_binders: signature.callback_binders.clone(),
-            synchronous_callback_binders: super::callback_bindings::synchronous_callback_binders(
-                typed,
-                boundary_trait,
-                requirement_machine,
-                &signature.callback_binders,
-            )
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
-            })?,
             callback_demands: signature.callback_demands.clone(),
             callback_context_closed: false,
             native_parameters: signature.native_parameters.clone(),
@@ -620,48 +617,30 @@ pub(crate) fn build_boundary_signature(
         type_name: "BoundarySignature".to_owned(),
         fields: vec![
             ("shapes".to_owned(), BuildTimeValue::Array(shapes)),
-            (
-                "shape_count".to_owned(),
-                BuildTimeValue::Int(signature.shapes.len() as i64),
-            ),
+            row!("shape_count".to_owned() => BuildTimeValue::Int(signature.shapes.len() as i64)),
             ("fields".to_owned(), BuildTimeValue::Array(fields)),
-            (
-                "field_count".to_owned(),
-                BuildTimeValue::Int(signature.fields.len() as i64),
-            ),
+            row!("field_count".to_owned() => BuildTimeValue::Int(signature.fields.len() as i64)),
             ("parameters".to_owned(), BuildTimeValue::Array(parameters)),
             (
                 "parameter_count".to_owned(),
                 BuildTimeValue::Int(signature.parameters.len() as i64),
             ),
-            (
-                "native_parameters".to_owned(),
-                BuildTimeValue::Array(native_parameters),
-            ),
+            row!("native_parameters".to_owned() => BuildTimeValue::Array(native_parameters)),
             (
                 "native_parameter_count".to_owned(),
                 BuildTimeValue::Int(signature.native_parameters.len() as i64),
             ),
-            (
-                "callback_binders".to_owned(),
-                BuildTimeValue::Array(callback_binders),
-            ),
+            row!("callback_binders".to_owned() => BuildTimeValue::Array(callback_binders)),
             (
                 "callback_binder_count".to_owned(),
                 BuildTimeValue::Int(signature.callback_binders.len() as i64),
             ),
-            (
-                "callback_demands".to_owned(),
-                BuildTimeValue::Array(callback_demands),
-            ),
+            row!("callback_demands".to_owned() => BuildTimeValue::Array(callback_demands)),
             (
                 "callback_demand_count".to_owned(),
                 BuildTimeValue::Int(signature.callback_demands.len() as i64),
             ),
-            (
-                "has_result".to_owned(),
-                BuildTimeValue::Bool(signature.result.is_some()),
-            ),
+            row!("has_result".to_owned() => BuildTimeValue::Bool(signature.result.is_some())),
             (
                 "result".to_owned(),
                 BuildTimeValue::Int(i64::from(signature.result.unwrap_or(0))),
@@ -693,14 +672,8 @@ fn build_native_place(place: &NativePlace) -> BuildTimeValue {
             case(
                 "NativePlace::Field",
                 vec![
-                    (
-                        "parameter".to_owned(),
-                        BuildTimeValue::Int(parameter.get() as i64),
-                    ),
-                    (
-                        "layout".to_owned(),
-                        BuildTimeValue::Int(layout.get() as i64),
-                    ),
+                    row!("parameter".to_owned() => BuildTimeValue::Int(parameter.get() as i64)),
+                    row!("layout".to_owned() => BuildTimeValue::Int(layout.get() as i64)),
                     ("field_path".to_owned(), BuildTimeValue::Array(slots)),
                     (
                         "field_path_count".to_owned(),
@@ -720,10 +693,7 @@ fn build_boundary_value_shape(shape: BoundaryValueShape) -> BuildTimeValue {
         BoundaryValueClass::FixedArray { element, length } => case(
             "FixedArray",
             vec![
-                (
-                    "element".to_owned(),
-                    BuildTimeValue::Int(i64::from(element)),
-                ),
+                row!("element".to_owned() => BuildTimeValue::Int(i64::from(element))),
                 ("length".to_owned(), BuildTimeValue::Int(i64::from(length))),
             ],
         ),
@@ -733,14 +703,8 @@ fn build_boundary_value_shape(shape: BoundaryValueShape) -> BuildTimeValue {
         } => case(
             "Record",
             vec![
-                (
-                    "first_field".to_owned(),
-                    BuildTimeValue::Int(i64::from(first_field)),
-                ),
-                (
-                    "field_count".to_owned(),
-                    BuildTimeValue::Int(i64::from(field_count)),
-                ),
+                row!("first_field".to_owned() => BuildTimeValue::Int(i64::from(first_field))),
+                row!("field_count".to_owned() => BuildTimeValue::Int(i64::from(field_count))),
             ],
         ),
     };
@@ -748,14 +712,8 @@ fn build_boundary_value_shape(shape: BoundaryValueShape) -> BuildTimeValue {
         type_name: "ValueShape".to_owned(),
         fields: vec![
             ("class".to_owned(), class),
-            (
-                "byte_size".to_owned(),
-                BuildTimeValue::Int(i64::from(shape.byte_size)),
-            ),
-            (
-                "alignment".to_owned(),
-                BuildTimeValue::Int(i64::from(shape.alignment)),
-            ),
+            row!("byte_size".to_owned() => BuildTimeValue::Int(i64::from(shape.byte_size))),
+            row!("alignment".to_owned() => BuildTimeValue::Int(i64::from(shape.alignment))),
         ],
     }
 }
@@ -764,14 +722,8 @@ fn build_boundary_value_field(field: BoundaryValueField) -> BuildTimeValue {
     BuildTimeValue::Struct {
         type_name: "ValueField".to_owned(),
         fields: vec![
-            (
-                "shape".to_owned(),
-                BuildTimeValue::Int(i64::from(field.shape)),
-            ),
-            (
-                "byte_offset".to_owned(),
-                BuildTimeValue::Int(i64::from(field.byte_offset)),
-            ),
+            row!("shape".to_owned() => BuildTimeValue::Int(i64::from(field.shape))),
+            row!("byte_offset".to_owned() => BuildTimeValue::Int(i64::from(field.byte_offset))),
         ],
     }
 }

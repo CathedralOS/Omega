@@ -686,7 +686,7 @@ fn construction_field_domain_identities<'program>(
         .filter(|constraint| {
             validation::field_domains::domain_requires_provenance(program, constraint.symbol)
                 || program.domain_definitions().iter().any(|domain| {
-                    domain.symbol == constraint.symbol && domain.predicate_body.is_present()
+                    domain.symbol == constraint.symbol && domain.predicate_presence.is_present()
                 })
         })
         .collect()

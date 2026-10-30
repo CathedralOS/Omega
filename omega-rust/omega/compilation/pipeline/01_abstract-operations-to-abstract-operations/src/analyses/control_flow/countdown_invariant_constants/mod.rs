@@ -134,40 +134,24 @@ pub(crate) fn validate_moved_constant_locations<E>(
     {
         return Ok(());
     }
+    // Every refusal below names the same certificate coordinate pair.
+    let rejected = || unsupported(function.machine, certificate.guard.zero_operation);
     let [entry] = component.entries.as_slice() else {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     };
     if component.members.contains(&entry.source) || entry.target != certificate.header {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     }
-    let preheader = function
-        .block(entry.source)
-        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
-    let jump_index = preheader
-        .nodes
-        .len()
-        .checked_sub(1)
-        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    let preheader = function.block(entry.source).ok_or_else(rejected)?;
+    let jump_index = preheader.nodes.len().checked_sub(1).ok_or_else(rejected)?;
     let O::Jump {
         psi_edge, target, ..
     } = preheader.nodes[jump_index].operation
     else {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     };
     if psi_edge != entry.edge || target != certificate.header {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     }
     let moved = constants
         .iter()
@@ -176,18 +160,13 @@ pub(crate) fn validate_moved_constant_locations<E>(
             (constant.location.block != original).then_some(constant)
         })
         .collect::<Vec<_>>();
-    let suffix_start = jump_index
-        .checked_sub(moved.len())
-        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    let suffix_start = jump_index.checked_sub(moved.len()).ok_or_else(rejected)?;
     if moved.iter().enumerate().any(|(offset, constant)| {
         constant.location.machine != function.machine
             || constant.location.block != preheader.id
             || usize::try_from(constant.location.node).ok() != Some(suffix_start + offset)
     }) {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
+        return Err(rejected());
     }
     Ok(())
 }

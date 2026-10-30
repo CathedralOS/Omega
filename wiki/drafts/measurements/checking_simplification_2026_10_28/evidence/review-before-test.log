@@ -1,0 +1,31 @@
+test_review_keeps_utf8_lf_framing_when_decisions_are_edited (test_benchmark.ReviewSettlement.test_review_keeps_utf8_lf_framing_when_decisions_are_edited) ... FAIL
+
+======================================================================
+FAIL: test_review_keeps_utf8_lf_framing_when_decisions_are_edited (test_benchmark.ReviewSettlement.test_review_keeps_utf8_lf_framing_when_decisions_are_edited)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\tools/tests\test_benchmark.py", line 456, in test_review_keeps_utf8_lf_framing_when_decisions_are_edited
+    benchmark.settle_package_review(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        Path("/fake/omega"), project, "windows_x86_64")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "baseline-benchmark.py", line 521, in settle_package_review
+    # unsettled whenever the chosen document was already decided.
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    code, text = run_plain(
+    ^^^^^^^^^^^^^^^^^^^^^^^
+        [str(omega), "update", "--resume",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\tools/tests\test_benchmark.py", line 447, in fake_run
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        review.read_bytes(),
+        ^^^^^^^^^^^^^^^^^^^^
+        original.replace(b" pending\n", b" accept\n"))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'finding caf\xc3\xa9\r\ndecision row 0123 accept\r\n' != b'finding caf\xc3\xa9\ndecision row 0123 accept\n'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.119s
+
+FAILED (failures=1)

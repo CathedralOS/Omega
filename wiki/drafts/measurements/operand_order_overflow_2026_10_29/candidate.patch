@@ -1,0 +1,73 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
+index 7f080eb69db..eebb84fcdc8 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
+@@ -2141,7 +2141,9 @@ impl<'program> StructuralJudge<'program> {
+         // This is an admitted application body, not another runtime event.
+         // Nested calls still pass specification_application_candidate; both
+         // ordinary and normalized terminal values use that same admission.
+-        let specification = self.resolving_application(application)?;
++        let mut specification = self.clone();
++        specification.specification_terms = true;
++        let specification = specification.resolving_application(application)?;
+ 
+         let mut environment = environment;
+         let statements = program.statement_table.statements(state.statement_nodes);
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs
+index 611a1df10b3..0cbfadc9722 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/resolution_queries.rs
+@@ -2,7 +2,8 @@
+ //!
+ //! Integer premise projection can return to the resolver with a fresh local
+ //! depth. Retain the exact question and its premise context until its body
+-//! finishes instead of treating that return as a new independent computation.
++//! or selected-contract query finishes instead of treating that return as a new
++//! independent computation.
+ 
+ use super::{StructuralJudge, StructuralTerm};
+ use std::sync::Arc;
+@@ -14,9 +15,8 @@ pub(super) struct ApplicationResolution<'program> {
+ }
+ 
+ impl<'program> StructuralJudge<'program> {
+-    pub(super) fn resolving_application(&self, application: &StructuralTerm) -> Option<Self> {
++    pub(super) fn resolving_application(mut self, application: &StructuralTerm) -> Option<Self> {
+         let mut context = self.clone();
+-        context.specification_terms = true;
+         // The context holds its semantic owners, not the active query chain.
+         // The separate predecessor edge below keeps this an acyclic history.
+         context.active_application = None;
+@@ -29,14 +29,12 @@ impl<'program> StructuralJudge<'program> {
+             }
+             previous = active.previous.as_deref();
+         }
+-        let mut resolving = self.clone();
+-        resolving.specification_terms = true;
+-        resolving.active_application = Some(Arc::new(ApplicationResolution {
++        self.active_application = Some(Arc::new(ApplicationResolution {
+             application: application.clone(),
+             context,
+             previous: self.active_application.clone(),
+         }));
+-        Some(resolving)
++        Some(self)
+     }
+ 
+     fn same_resolution_context(&self, other: &Self) -> bool {
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
+index 3f2c1689aab..d1cf3846f3c 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
+@@ -433,7 +433,10 @@ impl StructuralJudge<'_> {
+             .zip(arguments)
+             .map(|(parameter, value)| (parameter.symbol, value.clone()))
+             .collect::<Vec<_>>();
+-        self.selected_guarantees(&owner, &bindings, &bindings, &[], Some(application), depth)
++        // Requirements may project premises that ask for this same equation.
++        self.clone()
++            .resolving_application(application)?
++            .selected_guarantees(&owner, &bindings, &bindings, &[], Some(application), depth)
+             .map(|guarantees| guarantees.equations)
+     }
+ 

@@ -1,0 +1,67 @@
+[
+  {
+    "fixture": "pass/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 2.627977700001793,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\00.txt",
+    "producer_sha256": "36c34d2b0d2dfa870cb829dcc54777ebf1fef5cd645679b72d79f065ac2b7082",
+    "source_sha256": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44"
+  },
+  {
+    "fixture": "pass/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.2754646999965189,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\01.txt",
+    "producer_sha256": "36c34d2b0d2dfa870cb829dcc54777ebf1fef5cd645679b72d79f065ac2b7082",
+    "source_sha256": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44"
+  },
+  {
+    "fixture": "pass/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 2.794845099997474,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\02.txt",
+    "producer_sha256": "36c34d2b0d2dfa870cb829dcc54777ebf1fef5cd645679b72d79f065ac2b7082",
+    "source_sha256": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44",
+    "artifact_sha256": "a801218d94469d0458693fef8f6899127c3886050780e2761adb87a37c7133fd",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/specification_result_without_guarantees_requires_formation",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.7572772999992594,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\remaining-first-checking\\cases\\candidate-specification_result_without_guarantees_requires_formation\\03.txt",
+    "producer_sha256": "36c34d2b0d2dfa870cb829dcc54777ebf1fef5cd645679b72d79f065ac2b7082",
+    "source_sha256": "1edacffded3d14befa8c39c477054b16558468c6f9037b2a7e768ec04cb19b44"
+  }
+]

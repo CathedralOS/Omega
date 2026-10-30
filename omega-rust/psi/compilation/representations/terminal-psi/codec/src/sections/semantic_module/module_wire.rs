@@ -30,7 +30,11 @@ pub(crate) mod placed_plan_wire;
 pub(crate) mod placed_view_wire;
 pub(crate) mod placement_lifecycle_wire;
 mod proof_output_wire;
+mod proof_scope_wire;
+mod scalar_application_wire;
 mod scalar_block_invariant_wire;
+mod scalar_condition_wire;
+mod scalar_predicate_wire;
 mod target_family_wire;
 mod target_layout_wire;
 mod task_activation_wire;
@@ -67,10 +71,18 @@ use crate::sections::semantic_module::wire::{decode_bytes, decode_counted, decod
 
 pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
+    macro_rules! c {
+        ($label:expr => $items:expr => $encode:expr) => {
+            writer.counted($label, $items, $encode)
+        };
+    }
     writer.bytes(MAGIC);
     writer.u16(FORMAT_MARKER);
     writer.u16(module.vocabulary_marker.get());
-    target_family_wire::encode_callable(&mut writer, module.entry);
+    writer.boolean(module.entry.is_some());
+    if let Some(entry) = module.entry {
+        target_family_wire::encode_callable(&mut writer, entry);
+    }
     writer.len("identities", module.identities.entries().len())?;
     for identity in module.identities.entries() {
         writer.string("identity", identity)?;
@@ -100,11 +112,8 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     quotient_wire::encode(&mut writer, &module.quotients)?;
     folded_constant_wire::encode(&mut writer, &module.folded_constants)?;
-    writer.counted(
-        "structural types",
-        &module.structural_types,
-        encode_structural_type,
-    )?;
+    scalar_application_wire::encode(&mut writer, &module.scalar_applications)?;
+    c!("structural types" => &module.structural_types => encode_structural_type)?;
     writer.len("structural referents", module.structural_referents.len())?;
     for referent in &module.structural_referents {
         writer.id(referent.id);
@@ -115,11 +124,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         &module.structural_domains,
         declaration_wire::encode_structural_domain,
     )?;
-    writer.counted(
-        "services",
-        &module.services,
-        declaration_wire::encode_service,
-    )?;
+    c!("services" => &module.services => declaration_wire::encode_service)?;
     writer.ids(
         "concrete root service reach",
         &module.root_service_reach.concrete,
@@ -129,11 +134,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         &module.root_service_reach.installation_dependencies,
         declaration_wire::encode_installation_reach_dependency,
     )?;
-    writer.counted(
-        "placed-view plans",
-        &module.placed_view_plans,
-        placed_plan_wire::encode,
-    )?;
+    c!("placed-view plans" => &module.placed_view_plans => placed_plan_wire::encode)?;
     writer.counted(
         "placement lifecycle plans",
         &module.placement_lifecycle_plans,
@@ -149,21 +150,13 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         &module.reborrow_restored_call_uses,
         encode_reborrow_restored_call_use,
     )?;
-    writer.counted(
-        "boundary machines",
-        &module.boundary_machines,
-        encode_boundary_machine,
-    )?;
+    c!("boundary machines" => &module.boundary_machines => encode_boundary_machine)?;
     writer.counted(
         "external provider conformances",
         &module.external_providers,
         external_provider_wire::encode,
     )?;
-    writer.counted(
-        "provider candidates",
-        &module.provider_candidates,
-        encode_provider_candidate,
-    )?;
+    c!("provider candidates" => &module.provider_candidates => encode_provider_candidate)?;
     dynamic_dispatch_wire::encode_dynamic_dispatch(&mut writer, &module.dynamic_dispatch)?;
     writer.counted(
         "float-meaning projections",
@@ -185,11 +178,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         &module.proposition_applications,
         encode_proposition_application,
     )?;
-    writer.counted(
-        "evidence terms",
-        &module.evidence_terms,
-        evidence_wire::encode_evidence_term,
-    )?;
+    c!("evidence terms" => &module.evidence_terms => evidence_wire::encode_evidence_term)?;
     writer.counted(
         "evidence contract lanes",
         &module.evidence_contract_lanes,
@@ -230,11 +219,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         &module.operation_crash_contracts,
         operation_crash_contract_wire::encode_operation_crash_contract,
     )?;
-    writer.counted(
-        "machines",
-        &module.machines,
-        super::machine_wire::encode_machine,
-    )?;
+    c!("machines" => &module.machines => super::machine_wire::encode_machine)?;
     writer.counted(
         "target-machine families",
         &module.target_machine_families,
@@ -250,11 +235,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         &module.boundary_application_demands,
         boundary_application_wire::encode_demand,
     )?;
-    writer.counted(
-        "callback applications",
-        &module.callback_applications,
-        callback_application_wire::encode,
-    )?;
+    c!("callback applications" => &module.callback_applications => callback_application_wire::encode)?;
     writer.counted(
         "boundary application candidates",
         &module.boundary_application_candidates,
@@ -272,7 +253,11 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         ));
     }
     let vocabulary_marker = VocabularyMarker::CURRENT;
-    let entry = target_family_wire::decode_callable(reader)?;
+    let entry = if reader.boolean()? {
+        Some(target_family_wire::decode_callable(reader)?)
+    } else {
+        None
+    };
     let identity_entries = decode_counted(reader, |reader| reader.string("identity"))?;
     if identity_entries.first().map(String::as_str) != Some("") {
         return Err(CodecError::MalformedStructuralFoundation(
@@ -334,6 +319,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let quotients = quotient_wire::decode(reader)?;
     let folded_constants = folded_constant_wire::decode(reader)?;
+    let scalar_applications = scalar_application_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_referents = decode_counted(reader, |reader| {
         Ok(terminal_psi::StructuralReferentIdentity {
@@ -394,6 +380,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, boundary_application_wire::decode_candidate)?;
     let task_activation_demands = decode_demands(reader)?;
     Ok(TerminalModule {
+        scalar_applications,
         folded_constants,
         indexed_theorems,
         mathematical_carriers,

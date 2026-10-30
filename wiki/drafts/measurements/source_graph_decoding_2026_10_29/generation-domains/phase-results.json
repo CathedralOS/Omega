@@ -1,0 +1,54 @@
+{
+  "length": {
+    "source.graph.load.decode": {
+      "baseline": 270.09,
+      "candidate": 222.837
+    },
+    "source.graph.decode.preparation": {
+      "baseline": 53.947,
+      "candidate": 50.831
+    },
+    "source.graph.decode.sources": {
+      "baseline": 29.118,
+      "candidate": 27.77
+    },
+    "source.graph.decode.checks": {
+      "baseline": 185.024,
+      "candidate": 144.664
+    },
+    "build.resolve_sources": {
+      "baseline": 464.11,
+      "candidate": 408.649
+    },
+    "total elapsed": {
+      "baseline": 686.638,
+      "candidate": 626.152
+    }
+  },
+  "square": {
+    "source.graph.load.decode": {
+      "baseline": 265.433,
+      "candidate": 224.797
+    },
+    "source.graph.decode.preparation": {
+      "baseline": 52.823,
+      "candidate": 50.565
+    },
+    "source.graph.decode.sources": {
+      "baseline": 28.902,
+      "candidate": 27.951
+    },
+    "source.graph.decode.checks": {
+      "baseline": 184.302,
+      "candidate": 146.044
+    },
+    "build.resolve_sources": {
+      "baseline": 469.65,
+      "candidate": 419.532
+    },
+    "total elapsed": {
+      "baseline": 695.721,
+      "candidate": 642.072
+    }
+  }
+}

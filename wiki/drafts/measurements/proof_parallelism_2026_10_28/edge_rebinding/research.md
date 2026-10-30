@@ -1,0 +1,15 @@
+# Exact edge substitution reuse (2026-10-29)
+
+Question: can repeated scalar-premise traversal and rebinding on the same Dungeon source be reduced without reusing proof judgments?
+
+Existing evidence: ../payload_replay/README.md records edge processing at 75-76% of source replay. Existing snapshots already share immutable premise allocations and move the last successor; those are not new optimizations. The carrier-index and output-roster experiments failed and are not repeated.
+
+Search: `site:doc.rust-lang.org std sync Arc ptr_eq allocation`. Read the official https://doc.rust-lang.org/std/sync/struct.Arc.html (displayed std 1.99.1), especially ptr_eq and make_mut. ptr_eq compares allocations; holding a strong clone prevents in-place mutation through make_mut and prevents address reuse. This is API justification, not a measured speedup.
+
+Mechanism: each replay history's exact immutable machine edge retains its fixed scalar bindings, formal retirement set, last complete ordered input snapshot, and complete result of the existing arrival_requirements transformation. Only an allocation-identical input reuses the result. Changed allocations recompute through the original operation, including normalization, duplicate rows, simultaneous substitutions, old-formal retirement and generated equalities. The resulting immutable propositions are shared when appended; the current arrival still retires overwritten values, computes its own containment, normalizes, publishes and meets every incoming path.
+
+Scope: scalar_contracts.rs owns the pure transformation cache and its source-free regression check. payload_history.rs owns one cache per encountered (position, successor ordinal) inside the exact machine's history, and the generic premise containment reader. No external API, source construct, configuration, proof rule, authority or IR encoding changes. Map keys are existing graph coordinates in bounded query scratch; no persistent compiler-object index is introduced.
+
+Safety: the cache constructor captures the entire immutable binding and formal roster. Each lookup's complete ordered premise allocation is immutable while held. Its output is syntactic substitution, not an established proof or a caller fact. Prefix incompatibility does not change the borrowed machine or the captured substitution. Query failure drops the history, and scalar-snapshot preparation already clears it. Other uses of arrival_requirements are unchanged.
+
+Possible loss: retaining inputs may force extra copy-on-write detachment or keep more memory alive; extra per-edge maps may exceed reuse benefit. Measure whole-compile CPU/wall, source-replay time and peak working set. Reject unsupported benefit or changed image/output. Use alternating fresh-cache runs against the frozen payload baseline with exactly the same outer instrumentation, unchanged 203 source files and each compiler's normally accepted lock. If a candidate is retained, remove diagnostics and run focused acceptance on the exact final compiler.

@@ -21,6 +21,8 @@ use terminal_psi::TerminalMachineProvenance;
 pub(super) struct TerminalBehaviorExclusions<'a> {
     authored: &'a [effects::AuthoredBehaviorExclusion],
     providers: &'a effects::SelectedProviderPlanFacts,
+    native_sources:
+        &'a Result<std::sync::Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     profile: target::TargetProfile,
 }
 
@@ -28,11 +30,16 @@ impl<'a> TerminalBehaviorExclusions<'a> {
     pub(super) fn new(
         authored: &'a [effects::AuthoredBehaviorExclusion],
         providers: &'a effects::SelectedProviderPlanFacts,
+        native_sources: &'a Result<
+            std::sync::Arc<backend_plan::NativeProviderSources>,
+            Vec<Diagnostic>,
+        >,
         profile: target::TargetProfile,
     ) -> Option<Self> {
         (!authored.is_empty()).then_some(Self {
             authored,
             providers,
+            native_sources,
             profile,
         })
     }
@@ -42,34 +49,59 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
     fn admit(
         &self,
         module: &terminal_psi::TerminalModule,
-        entry: semantic_vocabulary::MachineId,
-        provenance: &terminal_psi::TerminalMachineProvenance,
+        roots: &mut dyn Iterator<
+            Item = Result<psi_compiler::TerminalAdmissionRoot, Vec<Diagnostic>>,
+        >,
     ) -> Result<(), Vec<Diagnostic>> {
+        // Projection errors precede policy setup for the first root, but a
+        // later projection must not hide an earlier root's behavior refusal.
+        let Some(first) = roots.next() else {
+            return Ok(());
+        };
+        let first = first?;
         let exclusions = authored_behavior_exclusion_set_in(self.authored, module);
         if exclusions.is_empty() {
             // Every authored row named a service this composition never
-            // declares: nothing in it can invoke that service.
+            // declares. Still consume the exact body correspondences: an
+            // empty exclusion set does not excuse a missing admission root.
+            for root in roots {
+                root?;
+            }
             return Ok(());
         }
-        // Admit this selected execution, not every retained target sibling.
-        // Prohibited possible behavior and incomplete evidence both refuse;
-        // neither is a claim that a runtime execution was observed.
-        let report = establish_behavior_exclusions(
+        // Read the associations in this actual unoptimized composition, not a
+        // checked-source reconstruction that native publication would replace.
+        // Deferred native preparation errors matter only when this composition
+        // actually has an exclusion to establish.
+        let sources = self.native_sources.as_ref().map_err(Clone::clone)?;
+        let providers = backend_plan::close_checked_provider_specializations(
+            self.providers.clone(),
+            &sources.declarations,
             module,
-            &[entry],
-            &exclusions,
-            self.providers,
-            self.profile.target_name(),
-        );
-        match report.verdict() {
-            BehaviorExclusionVerdict::Satisfied => Ok(()),
-            _ => Err(behavior_exclusion_diagnostics(
-                self.authored,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // One application owns this provider/exclusion context. Judge its
+        // entry, callbacks and physical adapter in order, not as one union:
+        // the first failing root owns the report and its caller attribution.
+        for root in std::iter::once(Ok(first)).chain(roots) {
+            let root = root?;
+            let report = establish_behavior_exclusions(
                 module,
-                provenance,
-                &report,
-            )),
+                &[root.machine],
+                &exclusions,
+                &providers,
+                self.profile.target_name(),
+            );
+            if report.verdict() != BehaviorExclusionVerdict::Satisfied {
+                return Err(behavior_exclusion_diagnostics(
+                    self.authored,
+                    module,
+                    &root.provenance,
+                    &report,
+                ));
+            }
         }
+        Ok(())
     }
 }
 
@@ -88,9 +120,9 @@ fn behavior_exclusion_diagnostics(
         // The rejection points at the authored `exclude_*` selection that
         // named the requirement, not an internal Terminal coordinate, and
         // names it as authored rather than by its hermetic identity.
-        let row = authored
-            .iter()
-            .find(|row| row.resolve(module) == Some(prohibited.exclusion));
+        let row = authored.iter().find(|row| {
+            effects::resolve_authored_behavior_exclusion(row, module) == Some(prohibited.exclusion)
+        });
         let excluded = row
             .and_then(AuthoredBehaviorExclusion::authored_label)
             .unwrap_or_else(|| prohibited.exclusion.describe(module));

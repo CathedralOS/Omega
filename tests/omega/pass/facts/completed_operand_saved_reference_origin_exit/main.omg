@@ -1,0 +1,23 @@
+// Independent returned-reference origin control.
+// Expected exit: 0
+data Leaf { count: u64; stamp: u64; }
+data Payload<'storage> { guard: u64; case Pending(value: &'storage Leaf); case Empty; }
+machine input<'storage>(value: &'storage mut Leaf, other: &'storage mut Leaf, select: bool) -> Payload<'storage>
+requires other.count == 8;
+ensures (result in Payload::Pending) && result.value.count <= 7;
+{
+ value.count = 7;
+ let mut current: &'storage Leaf = value;
+ let saved: &'storage Leaf = current;
+ current = other;
+ Payload::Pending { guard: 827, value: saved }
+}
+machine main() crashes Trap {
+ let mut value: Leaf = Leaf { count: 55, stamp: 413 };
+ let mut other: Leaf = Leaf { count: 8, stamp: 919 };
+ let payload: Payload = input(&mut value, &mut other, true);
+ transition payload.value.count == 7 && payload.value.stamp == 413 && payload.guard == 827 {
+  true -> done() false -> bad()
+ }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}

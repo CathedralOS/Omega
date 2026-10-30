@@ -1,0 +1,26 @@
+// The ordinary float bit wrappers preserve a negative signaling NaN's exact sign and payload through transport, permitting subtraction of its presented bits.
+// Expected exit: 0
+// Smaller representation witness: distinct ordinary names isolate view/call proof from overload selection.
+machine word_from_present(value: f32) -> u32 {
+    let reference: &u32 = &value as &u32;
+    let word: u32 = reference;
+    word
+}
+machine present_from_word(word: u32) -> f32
+ensures word_from_present(result) == word
+{
+    let reference: &f32 = &word as &f32;
+    let value: f32 = reference;
+    value
+}
+machine consume(value: f32) -> u32
+requires word_from_present(value) == 0xFF80_0123u32
+ensures result == 0u32
+{ word_from_present(value) - 0xFF80_0123u32 }
+machine main() crashes Trap {
+    let value: f32 = present_from_word(0xFF80_0123u32);
+    let remainder: u32 = consume(value);
+    transition remainder == 0u32 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

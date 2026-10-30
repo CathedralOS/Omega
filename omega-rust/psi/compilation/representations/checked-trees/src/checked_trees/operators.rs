@@ -27,13 +27,13 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub use numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 
-/// Collision-resistant commitment to the exact selected ProviderPlan.
-///
-/// Psi owns this opaque byte carrier so checked operator evidence can retain
-/// Omega's plan digest without introducing an upward dependency on
-/// `effects`. The provider-planning boundary is responsible for copying
-/// the digest from the exact selected plan.
 typed_trees::digest_commitment! {
+    /// Collision-resistant commitment to the exact selected ProviderPlan.
+    ///
+    /// Psi owns this opaque byte carrier so checked operator evidence can retain
+    /// Omega's plan digest without introducing an upward dependency on
+    /// `effects`. The provider-planning boundary is responsible for copying
+    /// the digest from the exact selected plan.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
     CheckedProviderPlanCommitment
 }
@@ -65,6 +65,9 @@ pub enum CheckedOperatorResolutionStatus {
 pub struct CheckedOperatorUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
+    /// Checked publication records the enclosing machine's type telescope.
+    /// A concrete operator inside a generic machine is still a template use.
+    pub is_generic_template: bool,
     pub occurrence: CheckedOperatorOccurrence,
     pub spelling: OperatorSpelling,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
@@ -175,6 +178,7 @@ impl CheckedOperatorUseFact {
 pub struct CheckedNamedOperatorUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
+    pub is_generic_template: bool,
     pub selected_operator_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
 }
@@ -194,6 +198,38 @@ pub struct CheckedNamedRequirementUseFact {
     /// state, which is what the typed call targets).
     pub requirement_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
+}
+
+/// Requirement-side coordinates exist independently of satisfaction or use.
+/// The two classifications remain distinct: a token-bearing requirement can
+/// be used both as an operator and as a direct call to the same declaration.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedProviderRequirementKind {
+    Operator {
+        /// Dormant selected declarations require Product boundary membership.
+        /// Occurrence admission intentionally does not repeat that filter.
+        is_product_boundary: bool,
+    },
+    DirectCall {
+        diagnostic_name: String,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedProviderRequirement {
+    pub symbol: SymbolHandle,
+    pub kind: CheckedProviderRequirementKind,
+    /// Export coordinate of the provider slot, never a source spelling lookup.
+    pub schema_identity: String,
+    pub package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+}
+
+impl Default for CheckedProviderRequirementKind {
+    fn default() -> Self {
+        Self::Operator {
+            is_product_boundary: false,
+        }
+    }
 }
 
 /// One crash-qualified selected use, identified by the exact `uses` or
@@ -228,6 +264,9 @@ pub struct CheckedBoundaryOperatorApplicationDemand {
 /// declarations their portable identities. This is a candidate, not selection.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryBodyCandidate {
+    /// Declaration eligibility is retained independently of executable demand.
+    pub declaration: Handle<CheckedBoundaryOperatorDeclaration>,
+    pub is_product: bool,
     pub selection: SymbolHandle,
     pub selection_identity: CallableIdentityId,
     pub target: Option<String>,
@@ -235,6 +274,15 @@ pub struct CheckedBoundaryBodyCandidate {
     pub entry: SymbolHandle,
     pub contract: [u8; 32],
     pub specialization: Option<(SymbolHandle, [u8; 32])>,
+}
+
+/// A checked operator satisfaction, including open declarations which are not
+/// executable candidates. Its presence never establishes a closed application.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedBoundaryOperatorDeclaration {
+    pub requirement: SymbolHandle,
+    pub machine: SymbolHandle,
+    pub selection: language_semantics::BoundaryBodySelection,
 }
 
 /// One checked open application exported by a generic machine. This is
@@ -301,6 +349,7 @@ impl Default for CheckedOperatorUseFact {
         Self {
             expression: ExpressionHandle::invalid(),
             origin: CheckedValueOrigin::default(),
+            is_generic_template: false,
             occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
@@ -560,6 +609,10 @@ pub struct ExactIntegerCastFact {
 #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
+    /// Complete requirement-side classification, including unused declarations
+    /// and declarations with no implementation. Candidate absence is not evidence
+    /// that a requirement belongs to another admission category.
+    pub provider_requirements: Arena<CheckedProviderRequirement>,
     /// Every exact integer conversion validation proved, so a later lowering
     /// of the same authored expression spells it as the retained one did.
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
@@ -585,6 +638,7 @@ pub struct CheckedOperatorFacts {
     /// coverage; later authority-bearing consumers must fail closed.
     pub boundary_applications: Vec<CheckedBoundaryOperatorApplicationDemand>,
     pub boundary_body_candidates: Arena<CheckedBoundaryBodyCandidate>,
+    pub boundary_declarations: Arena<CheckedBoundaryOperatorDeclaration>,
     /// D29 open demands retained separately from closed applications so no
     /// downstream consumer can accidentally interpret them as coverage.
     pub symbolic_boundary_applications: Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
@@ -647,6 +701,7 @@ impl std::fmt::Debug for CheckedOperatorFacts {
         formatter
             .debug_struct("CheckedOperatorFacts")
             .field("uses", &self.uses)
+            .field("provider_requirements", &self.provider_requirements)
             .field("exact_integer_casts", &self.exact_integer_casts)
             .field("decided_formations", &self.decided_formations)
             .field("trap_free_expressions", &self.trap_free_expressions)
@@ -699,6 +754,40 @@ impl CheckedOperatorRealizationContract {
 }
 
 impl CheckedOperatorFacts {
+    /// Borrow one exact application's checked eligibility. The caller selects
+    /// only its payload; requirement/declaration correspondence stays here.
+    pub fn project_body_candidates<'facts, Body>(
+        &'facts self,
+        application: &CheckedBoundaryOperatorApplicationDemand,
+        payload: impl Fn(&'facts CheckedBoundaryBodyCandidate) -> Body,
+    ) -> Result<
+        Vec<language_semantics::CheckedBodyCandidate<'facts, Body>>,
+        language_semantics::boundary_provider_review::BoundaryApplicationEvidenceError,
+    > {
+        use language_semantics::boundary_provider_review::BoundaryApplicationEvidenceError as Error;
+        let bodies = self
+            .boundary_body_candidates
+            .span(application.body_candidates)
+            .ok_or(Error::MissingBodySpan)?;
+        let mut candidates = Vec::with_capacity(bodies.len());
+        for body in bodies {
+            if !self.boundary_declarations.is_valid(body.declaration) {
+                return Err(Error::MissingDeclaration);
+            }
+            let declaration = self.boundary_declarations.get(body.declaration);
+            if declaration.requirement != application.requirement_symbol {
+                return Err(Error::DifferentRequirement);
+            }
+            candidates.push(language_semantics::CheckedBodyCandidate {
+                body: payload(body),
+                declaration: &declaration.selection,
+                target: body.target.as_deref(),
+                is_product: body.is_product,
+            });
+        }
+        Ok(candidates)
+    }
+
     /// Whether checking decided every formation condition of this integer
     /// operation occurrence.
     pub fn formation_is_decided(&self, expression: ExpressionHandle) -> bool {
@@ -766,6 +855,7 @@ impl CheckedOperatorFacts {
     ) -> Self {
         Self {
             uses,
+            provider_requirements: Arena::new(),
             exact_integer_casts: Vec::new(),
             decided_formations: Vec::new(),
             trap_free_expressions: Vec::new(),
@@ -777,6 +867,7 @@ impl CheckedOperatorFacts {
             operator_realization_contracts: Vec::new(),
             boundary_applications: Vec::new(),
             boundary_body_candidates: Arena::new(),
+            boundary_declarations: Arena::new(),
             symbolic_boundary_applications: Vec::new(),
             expression_uses: arena::OwnedIndex::default(),
         }

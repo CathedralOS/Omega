@@ -1,0 +1,5 @@
+# Preserve diagnostic patches and raw captured bytes on Windows.
+* -text
+raw/** -whitespace
+*.patch -whitespace
+*.gz -diff

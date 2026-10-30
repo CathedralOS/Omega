@@ -29,3 +29,16 @@ pub(crate) use validation::storage_path_relations::{
     place_segment_has_static_identity, place_segment_has_unresolved_identity,
     static_place_segment_pair_equal,
 };
+
+/// A segment that selects a fixed coordinate: a field, a selected case, or a
+/// statically known fixed-array element. A runtime `Index`, a window, and an
+/// opaque selector stay variable, so a path through them names no single
+/// storage.
+pub(crate) fn fixed_selection_segment(segment: &facts::PlaceSegment) -> bool {
+    matches!(
+        segment,
+        facts::PlaceSegment::Field { .. }
+            | facts::PlaceSegment::Case { .. }
+            | facts::PlaceSegment::FixedIndex { .. }
+    )
+}

@@ -194,16 +194,10 @@ pub enum PostAllocationMachineOptimizationError {
     CountOverflow,
 }
 
-impl std::fmt::Display for PostAllocationMachineOptimizationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "post-allocation machine optimization failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for PostAllocationMachineOptimizationError {}
+stage_error_display!(
+    PostAllocationMachineOptimizationError,
+    "post-allocation machine optimization failed"
+);
 
 #[cfg(test)]
 mod tests;

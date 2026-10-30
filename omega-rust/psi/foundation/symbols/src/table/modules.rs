@@ -592,12 +592,12 @@ impl SymbolTable {
                 .has_exact_import
     }
 
-    pub(super) fn select_namespace_candidate(
+    pub(super) fn select_namespace_candidates(
         &self,
         candidates: &[SymbolHandle],
         name: &str,
         reference: SourceSpan,
-    ) -> SymbolLookup {
+    ) -> Vec<SymbolHandle> {
         let current_module = self.source_module(reference.source_id);
         let shared_extension = self.source_file(reference).is_some_and(|file| {
             file.resolution_stratum == source::SourceResolutionStratum::CurrentActivationExtension
@@ -628,7 +628,7 @@ impl SymbolTable {
             })
             .collect::<Vec<_>>();
         if !local.is_empty() {
-            return SymbolLookup::from_candidates(local.into_iter());
+            return local;
         }
         let source_scope = self.source_lookup_scope(reference.source_id);
         let imported = candidates
@@ -661,7 +661,7 @@ impl SymbolTable {
             })
             .collect::<Vec<_>>();
         if !imported.is_empty() {
-            return SymbolLookup::from_candidates(imported.into_iter());
+            return imported;
         }
         // A package's module-less files form one logical module (owner ruling
         // 2026-10-10): imports stay local to the file that authors them, but a
@@ -678,19 +678,23 @@ impl SymbolTable {
                         .symbol_provenance_source_span(*candidate)
                         .is_some_and(|span| self.same_source_package(reference, span))
             });
-            let package = SymbolLookup::from_candidates(package);
-            if !matches!(package, SymbolLookup::NotFound) {
+            let package = package.collect::<Vec<_>>();
+            if !package.is_empty() {
                 return package;
             }
         }
         // Compiler-installed vocabulary remains available without an authored
         // import. Loaded user declarations have no such authority: every one
         // must have been selected by the local/module or direct-import routes.
-        SymbolLookup::from_candidates(candidates.iter().copied().filter(|candidate| {
-            self.name(*candidate) == name
-                && !self.symbol_module(*candidate).is_valid()
-                && self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
-        }))
+        candidates
+            .iter()
+            .copied()
+            .filter(|candidate| {
+                self.name(*candidate) == name
+                    && !self.symbol_module(*candidate).is_valid()
+                    && self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
+            })
+            .collect()
     }
 
     fn import_owner_matches(
@@ -726,15 +730,15 @@ impl SymbolTable {
             })
     }
 
-    /// `Some(None)` is an authoritative failed or ambiguous logical lookup;
-    /// `None` leaves an ordinary unqualified legacy lookup to its existing path.
-    pub(super) fn find_module_qualified_reference(
+    /// An empty roster is an authoritative failed logical lookup. `None`
+    /// leaves an unqualified lookup to its ordinary source-scope precedence.
+    pub(super) fn find_module_qualified_candidates(
         &self,
         name: &str,
         kinds: &[SymbolKind],
         reference: SourceSpan,
         matches_candidate: &mut impl FnMut(SymbolHandle) -> bool,
-    ) -> Option<SymbolLookup> {
+    ) -> Option<Vec<SymbolHandle>> {
         // A package need not author a module declaration to have an imported
         // namespace. In particular, generated target-family heads retain the
         // member's source, which may be another loaded file of the dependency.
@@ -968,18 +972,16 @@ impl SymbolTable {
             }
         }
         if !module_local_matches.is_empty() {
-            Some(SymbolLookup::from_candidates(
-                module_local_matches.into_iter(),
-            ))
+            Some(module_local_matches)
         } else if qualified {
             if matches.is_empty() && carrier_domain_matches.len() == 1 {
-                return Some(SymbolLookup::Unique(carrier_domain_matches[0]));
+                return Some(carrier_domain_matches);
             }
-            Some(SymbolLookup::from_candidates(matches.into_iter()))
+            Some(matches)
         } else if matches.is_empty() {
             None
         } else {
-            Some(SymbolLookup::from_candidates(matches.into_iter()))
+            Some(matches)
         }
     }
 }

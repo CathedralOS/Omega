@@ -8,6 +8,7 @@ use crate::proposition::{IntegerType, IntegerValue};
 impl ScalarTerm {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
+            Self::Application { scalar_type, .. } => *scalar_type,
             Self::IeeeFloatLiteral(value) => ScalarType::IeeeFloat(value.format()),
             Self::IeeeFloatField { format, .. } => ScalarType::IeeeFloat(*format),
             Self::Value { scalar_type, .. } | Self::StructuralRead { scalar_type, .. } => {

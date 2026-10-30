@@ -5,7 +5,6 @@
 
 use super::{TraitTypeBinding, TraitTypeBindingTarget};
 use crate::type_regions::{ReferenceStep, TypeRegionScope};
-use symbols::SymbolHandle;
 use typed_trees::type_identity::{NormalizedTypeIdentity, TypeIdentityRequest};
 use typed_trees::types::TypeReferenceHandle;
 

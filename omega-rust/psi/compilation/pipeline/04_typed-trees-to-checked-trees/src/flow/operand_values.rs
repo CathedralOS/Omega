@@ -5,11 +5,12 @@
 
 mod captured_operand;
 mod reference_places;
+mod result_memberships;
 pub(crate) use captured_operand::CapturedOperand;
 pub(crate) use reference_places::{
-    captured_operand_reference_places_with_formation, captured_reference_places,
-    captured_reference_places_with_formation,
+    captured_operand_reference_places_with_formation, captured_reference_places_with_formation,
 };
+pub(crate) use result_memberships::CapturedResultMemberships;
 
 use checked_trees::{FlowControlFacts, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, PlaceRoot, PlaceSegment};

@@ -40,6 +40,12 @@ use typed_trees::expression::{
 use typed_trees::statement::TransitionGuardNode;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 
+macro_rules! atom {
+    ($tag:expr => $value:expr) => {
+        atom($tag, $value)
+    };
+}
+
 /// Encoding version. Bump when the canonicalization itself changes so keys
 /// computed under a previous schema never alias current ones.
 pub const KEY_SCHEMA: u32 = 2;
@@ -100,10 +106,7 @@ pub fn proof_obligation_key(
             "bounded-assignment",
             [
                 machine_state_identity(program, obligation.machine_symbol, obligation.state_symbol),
-                atom(
-                    "guard-source",
-                    symbol_identity(program, obligation.state_guard_source),
-                ),
+                atom!("guard-source" => symbol_identity(program, obligation.state_guard_source)),
                 obligation
                     .state_guard
                     .as_ref()
@@ -116,10 +119,7 @@ pub fn proof_obligation_key(
                     obligation.value_constraints,
                     "value-constraints",
                 ),
-                atom(
-                    "base",
-                    program.package_qualified_type_identity_text(obligation.base_type),
-                ),
+                atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 binary_operands_identity(program, &obligation.binary_operands),
                 compound(
@@ -143,10 +143,7 @@ pub fn proof_obligation_key(
                     .map(|receiver| atom("receiver", receiver.as_str()))
                     .unwrap_or_else(|| "receiver:none".to_owned()),
                 atom("target", symbol_identity(program, obligation.target_symbol)),
-                atom(
-                    "parameter",
-                    symbol_identity(program, obligation.parameter_symbol),
-                ),
+                atom!("parameter" => symbol_identity(program, obligation.parameter_symbol)),
                 compound(
                     "argument",
                     [expression_identity(program, obligation.argument)],
@@ -156,10 +153,7 @@ pub fn proof_obligation_key(
                     obligation.argument_constraints,
                     "argument-constraints",
                 ),
-                atom(
-                    "base",
-                    program.package_qualified_type_identity_text(obligation.base_type),
-                ),
+                atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 compound(
                     "sibling",
@@ -177,10 +171,7 @@ pub fn proof_obligation_key(
                     obligation.value_constraints,
                     "value-constraints",
                 ),
-                atom(
-                    "base",
-                    program.package_qualified_type_identity_text(obligation.base_type),
-                ),
+                atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
             ],
         ),
@@ -194,10 +185,7 @@ pub fn proof_obligation_key(
                     obligation.value_constraints,
                     "value-constraints",
                 ),
-                atom(
-                    "base",
-                    program.package_qualified_type_identity_text(obligation.base_type),
-                ),
+                atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 binary_operands_identity(program, &obligation.binary_operands),
             ],
@@ -206,10 +194,7 @@ pub fn proof_obligation_key(
             "bounded-value",
             [
                 owner_identity(program, &obligation.owner),
-                atom(
-                    "base",
-                    program.package_qualified_type_identity_text(obligation.base_type),
-                ),
+                atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
             ],
         ),
@@ -217,10 +202,7 @@ pub fn proof_obligation_key(
             "bounded-transition-argument",
             [
                 machine_state_identity(program, obligation.machine_symbol, obligation.state_symbol),
-                atom(
-                    "parameter",
-                    symbol_identity(program, obligation.parameter_symbol),
-                ),
+                atom!("parameter" => symbol_identity(program, obligation.parameter_symbol)),
                 compound(
                     "argument",
                     [expression_identity(program, obligation.argument)],
@@ -230,10 +212,7 @@ pub fn proof_obligation_key(
                     obligation.argument_constraints,
                     "argument-constraints",
                 ),
-                atom(
-                    "base",
-                    program.package_qualified_type_identity_text(obligation.base_type),
-                ),
+                atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 guard_identity(program, &obligation.guard),
                 compound(
@@ -289,10 +268,7 @@ fn owner_identity(program: &IdentityContext<'_>, owner: &ProofObligationOwner) -
         } => compound(
             "owner",
             [
-                atom(
-                    "machine-data-machine",
-                    symbol_identity(program, *machine_symbol),
-                ),
+                atom!("machine-data-machine" => symbol_identity(program, *machine_symbol)),
                 atom("machine-data", symbol_identity(program, *data_symbol)),
             ],
         ),
@@ -304,10 +280,7 @@ fn owner_identity(program: &IdentityContext<'_>, owner: &ProofObligationOwner) -
         } => compound(
             "owner",
             [
-                atom(
-                    "state-param-machine",
-                    symbol_identity(program, *machine_symbol),
-                ),
+                atom!("state-param-machine" => symbol_identity(program, *machine_symbol)),
                 atom("state-param-state", symbol_identity(program, *state_symbol)),
                 atom("state-param", symbol_identity(program, *parameter_symbol)),
             ],
@@ -319,14 +292,8 @@ fn owner_identity(program: &IdentityContext<'_>, owner: &ProofObligationOwner) -
         } => compound(
             "owner",
             [
-                atom(
-                    "state-return-machine",
-                    symbol_identity(program, *machine_symbol),
-                ),
-                atom(
-                    "state-return-state",
-                    symbol_identity(program, *state_symbol),
-                ),
+                atom!("state-return-machine" => symbol_identity(program, *machine_symbol)),
+                atom!("state-return-state" => symbol_identity(program, *state_symbol)),
             ],
         ),
         ProofObligationOwner::StateLocal {
@@ -338,10 +305,7 @@ fn owner_identity(program: &IdentityContext<'_>, owner: &ProofObligationOwner) -
         } => compound(
             "owner",
             [
-                atom(
-                    "state-local-machine",
-                    symbol_identity(program, *machine_symbol),
-                ),
+                atom!("state-local-machine" => symbol_identity(program, *machine_symbol)),
                 atom("state-local-state", symbol_identity(program, *state_symbol)),
                 atom("state-local", symbol_identity(program, *local_symbol)),
                 atom("state-local-statement", statement_index.to_string()),
@@ -360,10 +324,7 @@ fn owner_identity(program: &IdentityContext<'_>, owner: &ProofObligationOwner) -
                 atom("array-machine", symbol_identity(program, *machine_symbol)),
                 atom("array-state", symbol_identity(program, *state_symbol)),
                 atom("array-statement", statement_index.to_string()),
-                atom(
-                    "array-construction",
-                    expression_identity(program, *construction),
-                ),
+                atom!("array-construction" => expression_identity(program, *construction)),
                 atom(
                     "array-occurrence",
                     expression_occurrence_identity(
@@ -386,10 +347,7 @@ fn owner_identity(program: &IdentityContext<'_>, owner: &ProofObligationOwner) -
         } => compound(
             "owner",
             [
-                atom(
-                    "constructor-machine",
-                    symbol_identity(program, *machine_symbol),
-                ),
+                atom!("constructor-machine" => symbol_identity(program, *machine_symbol)),
                 atom("constructor-state", symbol_identity(program, *state_symbol)),
                 atom("constructor-field", symbol_identity(program, *field_symbol)),
                 atom("constructor-statement", statement_index.to_string()),
@@ -720,15 +678,9 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
             "cast",
             [
                 expression_identity(program, node.value),
-                atom(
-                    "target",
-                    program.package_qualified_type_identity_text(node.target_type),
-                ),
+                atom!("target" => program.package_qualified_type_identity_text(node.target_type)),
                 atom("domain", node.domain.name()),
-                atom(
-                    "domain-symbol",
-                    symbol_identity(program, node.semantic_domain_symbol),
-                ),
+                atom!("domain-symbol" => symbol_identity(program, node.semantic_domain_symbol)),
                 compound(
                     "domain-arguments",
                     program
@@ -840,10 +792,7 @@ fn call_identity(program: &IdentityContext<'_>, call: &TableCallExpression) -> S
         [
             expression_identity(program, call.receiver),
             atom("target", symbol_identity(program, call.target_symbol)),
-            atom(
-                "static-parameter",
-                symbol_identity(program, call.static_machine_parameter),
-            ),
+            atom!("static-parameter" => symbol_identity(program, call.static_machine_parameter)),
             requirement_dispatch_identity(program, call.static_requirement_dispatch.as_ref()),
             compound(
                 "machine-arguments",
@@ -893,18 +842,9 @@ fn requirement_dispatch_identity(
                     dispatch.application_report_fingerprint
                 ),
                 atom("trait", symbol_identity(program, dispatch.declaring_trait)),
-                atom(
-                    "requirement",
-                    symbol_identity(program, dispatch.requirement),
-                ),
-                atom(
-                    "machine",
-                    symbol_identity(program, dispatch.realization_machine),
-                ),
-                atom(
-                    "state",
-                    symbol_identity(program, dispatch.realization_state),
-                ),
+                atom!("requirement" => symbol_identity(program, dispatch.requirement)),
+                atom!("machine" => symbol_identity(program, dispatch.realization_machine)),
+                atom!("state" => symbol_identity(program, dispatch.realization_state)),
             ],
         ),
     }

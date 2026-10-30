@@ -422,11 +422,7 @@ pub(super) fn check_suspension_carry(
     facts.carry.suspension_loans = suspension_loans;
     facts.carry.suspension_value_loans = suspension_value_loans;
 
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 fn derive_claim_carry_policies(

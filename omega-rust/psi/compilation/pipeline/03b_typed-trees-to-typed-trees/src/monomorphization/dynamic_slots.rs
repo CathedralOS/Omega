@@ -163,10 +163,10 @@ fn instantiate_slot(
             program,
             parameter.type_reference,
             &parameter_map,
-        );
+        )?;
     }
     let return_type =
-        super::body_cloning::copy_type_reference(None, program, return_type, &parameter_map);
+        super::body_cloning::copy_type_reference(None, program, return_type, &parameter_map)?;
     Ok(DynamicSlotSignature {
         symbol,
         interface_identity,

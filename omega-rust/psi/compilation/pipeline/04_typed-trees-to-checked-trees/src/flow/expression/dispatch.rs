@@ -208,7 +208,7 @@ impl Execution<'_, '_, '_> {
             } else {
                 shared_qualifications = Some(qualifications);
             }
-            let members = self.constructed_values(&[], destination, &completed);
+            let members = self.captured_owned_value_observations(&[], destination, &completed);
             if let Some(shared) = &mut shared_members {
                 shared.retain(|member| members.contains(member));
             } else {
@@ -294,7 +294,7 @@ impl Execution<'_, '_, '_> {
                 self.publish_live_memberships(qualifications, contexts, constraints);
             }
             if let Some(members) = shared_members {
-                self.publish_constructed_values(expression, members, contexts, constraints);
+                self.publish_owned_value_observations(expression, members, contexts, constraints);
             }
             if let Some(shared) = shared_predicates {
                 self.publish_joined_values(
@@ -396,7 +396,7 @@ impl Execution<'_, '_, '_> {
                 let Some(domain) = self.program.domain_definition(domain_symbol) else {
                     continue;
                 };
-                if !domain.predicate_body.is_present() || domain.alias.is_some() {
+                if !domain.predicate_presence.is_present() || domain.alias.is_some() {
                     continue;
                 }
                 CarriedPredicate::Domain {
@@ -473,15 +473,7 @@ impl Execution<'_, '_, '_> {
             self.semantic.append_ref(&mut refs, fact);
         }
         let context = self.semantic.append_context(point, refs);
-        crate::flow::reference_spans::append_flow_reference(
-            &mut self.context.contexts.semantic_context_refs,
-            contexts,
-            FlowSemanticContextRef { context },
-        );
-        crate::flow::append_constraint_ref(
-            &mut self.context.contexts.constraint_refs,
-            constraints,
-            checked_trees::FlowConstraintKind::SemanticContext { context },
-        );
+        self.context
+            .append_semantic_context(contexts, constraints, context);
     }
 }

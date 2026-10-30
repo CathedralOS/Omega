@@ -311,6 +311,23 @@ pub(crate) fn decode_words(
         .collect()
 }
 
+/// Bits every integer conversion fixes; the rest carry the two register fields
+/// the conversion moves between.
+const CONVERSION_MASK: u32 = 0xffff_fc00;
+
+/// The six integer conversions differ only in their fixed bits and the form
+/// their source and destination registers construct. One row per form; rustfmt
+/// would otherwise fan every closure out to five lines.
+#[rustfmt::skip]
+const CONVERSIONS: [(u32, fn(u8, u8) -> DecodedWord); 6] = [
+    (0xd340_1c00, |source, destination| DecodedWord::ZeroExtendU8 { source, destination }),
+    (0xd340_3c00, |source, destination| DecodedWord::ZeroExtendU16 { source, destination }),
+    (0x9340_1c00, |source, destination| DecodedWord::SignExtendI8 { source, destination }),
+    (0x9340_3c00, |source, destination| DecodedWord::SignExtendI16 { source, destination }),
+    (0x9340_7c00, |source, destination| DecodedWord::SignExtendI32 { source, destination }),
+    (0xd340_7c00, |source, destination| DecodedWord::ZeroExtendU32 { source, destination }),
+];
+
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
     macro_rules! source_destination {
         ($name:ident) => {
@@ -518,23 +535,10 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         }
     }
 
-    if word & 0xffff_fc00 == 0xd340_1c00 {
-        return source_destination!(ZeroExtendU8);
-    }
-    if word & 0xffff_fc00 == 0xd340_3c00 {
-        return source_destination!(ZeroExtendU16);
-    }
-    if word & 0xffff_fc00 == 0x9340_1c00 {
-        return source_destination!(SignExtendI8);
-    }
-    if word & 0xffff_fc00 == 0x9340_3c00 {
-        return source_destination!(SignExtendI16);
-    }
-    if word & 0xffff_fc00 == 0x9340_7c00 {
-        return source_destination!(SignExtendI32);
-    }
-    if word & 0xffff_fc00 == 0xd340_7c00 {
-        return source_destination!(ZeroExtendU32);
+    for &(value, build) in &CONVERSIONS {
+        if word & CONVERSION_MASK == value {
+            return Ok(build(((word >> 5) & 31) as u8, (word & 31) as u8));
+        }
     }
     let register = (word & 0x1f) as u8;
     let shift = ((word >> 21) & 0x3) as u8;

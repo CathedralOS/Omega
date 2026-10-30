@@ -401,7 +401,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .zip(&admitted.live)
         .filter_map(|(state, live)| live.then_some(state))
         .flat_map(successors)
-        .any(|successor| successor.target_state == plan.states[0].state);
+        .any(|successor| plan.successor_position(successor) == Some(0));
     // Invocation parameters are immutable. Reentering the authored entry
     // therefore uses an ordinary parameterized block behind a one-shot jump.
     let invocation_entry = if entry_reentered {
@@ -706,14 +706,11 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &owners,
         &catalogs.structural_types,
     )?;
-    let dynamic_dispatch = catalogs
-        .dynamic_dispatch
-        .clone()
-        .unwrap_or_else(|| {
-            std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
-                checked,
-            ))
-        });
+    let dynamic_dispatch = catalogs.dynamic_dispatch.clone().unwrap_or_else(|| {
+        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+            checked,
+        ))
+    });
     let mut emission = StateGraphEmission {
         checked,
         plan,
@@ -903,20 +900,17 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         // seal (the receiver entry points at the original invocation
         // storage).
         let view_roster = &state_contract_rosters[position];
-        let element_views = crate::expression_preparation::bindings::element_views(
-            view_roster,
-            &catalogs.structural_types,
-        );
         let Some(predicate) = crate::scalar_lowering::contracts::clauses(
             identities,
             &projected_requires,
             &state_values[position],
             &state_erased[position],
             &crate::scalar_lowering::contracts::ContractViewNamespace {
+                scalar_applications: catalogs.scalar_applications,
+                constant_values: &checked.typed.constant_recipe_closure.values,
                 result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
                 parameters: view_roster,
                 structural_types: &catalogs.structural_types,
-                element_views: &element_views,
             },
         )?
         else {

@@ -91,14 +91,11 @@ pub(super) fn collect_state_argument_facts_for_call(
                     if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
                         return None;
                     }
-                    if !place.segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::Case { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    }) {
+                    if !place
+                        .segments
+                        .iter()
+                        .all(|segment| crate::flow::fixed_selection_segment(segment))
+                    {
                         return None;
                     }
                     place = crate::flow::rebase_exact_local_place(

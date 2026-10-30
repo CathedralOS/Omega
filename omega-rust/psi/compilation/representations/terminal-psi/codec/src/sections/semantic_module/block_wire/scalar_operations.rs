@@ -32,6 +32,32 @@ macro_rules! decode_scalar_ids {
     };
 }
 
+macro_rules! encode_pair {
+    ($name:ident => $tag:ident) => {
+        encode_scalar_ids!($name => $tag, left: ValueId, right: ValueId);
+    };
+}
+macro_rules! encode_compared {
+    ($name:ident => $tag:ident) => {
+        encode_scalar_ids!(
+            $name => $tag,
+            left: ValueId,
+            right: ValueId,
+            obligation: ObligationId,
+        );
+    };
+}
+macro_rules! encode_operand {
+    ($name:ident => $tag:ident) => {
+        encode_scalar_ids!($name => $tag, operand: ValueId);
+    };
+}
+macro_rules! encode_shift {
+    ($name:ident => $tag:ident) => {
+        encode_scalar_ids!($name => $tag, value: ValueId, count: ValueId);
+    };
+}
+
 pub(super) fn encode_ieee_float_compare(
     writer: &mut Writer,
     comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
@@ -115,52 +141,31 @@ encode_scalar_ids!(
 
 decode_scalar_ids!(decode_nearest_ieee_float_fused_multiply_add => NearestIeeeFloatFusedMultiplyAdd, left: "ValueId", right: "ValueId", addend: "ValueId");
 
-encode_scalar_ids!(
-    encode_boolean_not => BOOLEAN_NOT,
-    operand: ValueId,
-);
+encode_operand!(encode_boolean_not => BOOLEAN_NOT);
 
 decode_scalar_ids!(decode_boolean_not => BooleanNot, operand: "ValueId");
 
-encode_scalar_ids!(
-    encode_boolean_equal => BOOLEAN_EQUAL,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_boolean_equal => BOOLEAN_EQUAL);
 
 decode_scalar_ids!(decode_boolean_equal => BooleanEqual, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_integer_equal => INTEGER_EQUAL,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_integer_equal => INTEGER_EQUAL);
 
 decode_scalar_ids!(decode_integer_equal => IntegerEqual, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_integer_less_than => INTEGER_LESS_THAN,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_integer_less_than => INTEGER_LESS_THAN);
 
 decode_scalar_ids!(decode_integer_less_than => IntegerLessThan, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_integer_less_or_equal => INTEGER_LESS_OR_EQUAL,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_integer_less_or_equal => INTEGER_LESS_OR_EQUAL);
 
 decode_scalar_ids!(decode_integer_less_or_equal => IntegerLessOrEqual, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_integer_bitwise_not => INTEGER_BITWISE_NOT,
-    operand: ValueId,
-);
+encode_operand!(encode_integer_bitwise_not => INTEGER_BITWISE_NOT);
 
 decode_scalar_ids!(decode_integer_bitwise_not => IntegerBitwiseNot, operand: "ValueId");
 
-encode_scalar_ids!(
-    encode_integer_widen => INTEGER_WIDEN,
-    operand: ValueId,
-);
+encode_operand!(encode_integer_widen => INTEGER_WIDEN);
 
 decode_scalar_ids!(decode_integer_widen => IntegerWiden, operand: "ValueId");
 
@@ -171,38 +176,23 @@ encode_scalar_ids!(
 
 decode_scalar_ids!(decode_integer_exact_cast => IntegerExactCast, operand: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_integer_bitwise_and => INTEGER_BITWISE_AND,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_integer_bitwise_and => INTEGER_BITWISE_AND);
 
 decode_scalar_ids!(decode_integer_bitwise_and => IntegerBitwiseAnd, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_integer_bitwise_or => INTEGER_BITWISE_OR,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_integer_bitwise_or => INTEGER_BITWISE_OR);
 
 decode_scalar_ids!(decode_integer_bitwise_or => IntegerBitwiseOr, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_integer_bitwise_xor => INTEGER_BITWISE_XOR,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_integer_bitwise_xor => INTEGER_BITWISE_XOR);
 
 decode_scalar_ids!(decode_integer_bitwise_xor => IntegerBitwiseXor, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_wrapping_integer_shift_left => WRAPPING_INTEGER_SHIFT_LEFT,
-    value: ValueId, count: ValueId,
-);
+encode_shift!(encode_wrapping_integer_shift_left => WRAPPING_INTEGER_SHIFT_LEFT);
 
 decode_scalar_ids!(decode_wrapping_integer_shift_left => WrappingIntegerShiftLeft, value: "ValueId", count: "ValueId");
 
-encode_scalar_ids!(
-    encode_wrapping_integer_shift_right => WRAPPING_INTEGER_SHIFT_RIGHT,
-    value: ValueId, count: ValueId,
-);
+encode_shift!(encode_wrapping_integer_shift_right => WRAPPING_INTEGER_SHIFT_RIGHT);
 
 decode_scalar_ids!(decode_wrapping_integer_shift_right => WrappingIntegerShiftRight, value: "ValueId", count: "ValueId");
 
@@ -220,108 +210,63 @@ encode_scalar_ids!(
 
 decode_scalar_ids!(decode_exact_integer_shift_right => ExactIntegerShiftRight, value: "ValueId", count: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_exact_integer_add => EXACT_INTEGER_ADD,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_exact_integer_add => EXACT_INTEGER_ADD);
 
 decode_scalar_ids!(decode_exact_integer_add => ExactIntegerAdd, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_exact_integer_subtract => EXACT_INTEGER_SUBTRACT,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_exact_integer_subtract => EXACT_INTEGER_SUBTRACT);
 
 decode_scalar_ids!(decode_exact_integer_subtract => ExactIntegerSubtract, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_exact_integer_multiply => EXACT_INTEGER_MULTIPLY,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_exact_integer_multiply => EXACT_INTEGER_MULTIPLY);
 
 decode_scalar_ids!(decode_exact_integer_multiply => ExactIntegerMultiply, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_exact_integer_divide => EXACT_INTEGER_DIVIDE,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_exact_integer_divide => EXACT_INTEGER_DIVIDE);
 
 decode_scalar_ids!(decode_exact_integer_divide => ExactIntegerDivide, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_exact_integer_remainder => EXACT_INTEGER_REMAINDER,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_exact_integer_remainder => EXACT_INTEGER_REMAINDER);
 
 decode_scalar_ids!(decode_exact_integer_remainder => ExactIntegerRemainder, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_wrapping_integer_divide => WRAPPING_INTEGER_DIVIDE,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_wrapping_integer_divide => WRAPPING_INTEGER_DIVIDE);
 
 decode_scalar_ids!(decode_wrapping_integer_divide => WrappingIntegerDivide, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_wrapping_integer_remainder => WRAPPING_INTEGER_REMAINDER,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_wrapping_integer_remainder => WRAPPING_INTEGER_REMAINDER);
 
 decode_scalar_ids!(decode_wrapping_integer_remainder => WrappingIntegerRemainder, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_saturating_integer_divide => SATURATING_INTEGER_DIVIDE,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_saturating_integer_divide => SATURATING_INTEGER_DIVIDE);
 
 decode_scalar_ids!(decode_saturating_integer_divide => SaturatingIntegerDivide, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_saturating_integer_remainder => SATURATING_INTEGER_REMAINDER,
-    left: ValueId, right: ValueId, obligation: ObligationId,
-);
+encode_compared!(encode_saturating_integer_remainder => SATURATING_INTEGER_REMAINDER);
 
 decode_scalar_ids!(decode_saturating_integer_remainder => SaturatingIntegerRemainder, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
-encode_scalar_ids!(
-    encode_wrapping_integer_add => WRAPPING_INTEGER_ADD,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_wrapping_integer_add => WRAPPING_INTEGER_ADD);
 
 decode_scalar_ids!(decode_wrapping_integer_add => WrappingIntegerAdd, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_saturating_integer_add => SATURATING_INTEGER_ADD,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_saturating_integer_add => SATURATING_INTEGER_ADD);
 
 decode_scalar_ids!(decode_saturating_integer_add => SaturatingIntegerAdd, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_wrapping_integer_subtract => WRAPPING_INTEGER_SUBTRACT,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_wrapping_integer_subtract => WRAPPING_INTEGER_SUBTRACT);
 
 decode_scalar_ids!(decode_wrapping_integer_subtract => WrappingIntegerSubtract, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_saturating_integer_subtract => SATURATING_INTEGER_SUBTRACT,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_saturating_integer_subtract => SATURATING_INTEGER_SUBTRACT);
 
 decode_scalar_ids!(decode_saturating_integer_subtract => SaturatingIntegerSubtract, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_wrapping_integer_multiply => WRAPPING_INTEGER_MULTIPLY,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_wrapping_integer_multiply => WRAPPING_INTEGER_MULTIPLY);
 
 decode_scalar_ids!(decode_wrapping_integer_multiply => WrappingIntegerMultiply, left: "ValueId", right: "ValueId");
 
-encode_scalar_ids!(
-    encode_saturating_integer_multiply => SATURATING_INTEGER_MULTIPLY,
-    left: ValueId, right: ValueId,
-);
+encode_pair!(encode_saturating_integer_multiply => SATURATING_INTEGER_MULTIPLY);
 
 decode_scalar_ids!(decode_saturating_integer_multiply => SaturatingIntegerMultiply, left: "ValueId", right: "ValueId");
 

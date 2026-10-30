@@ -1,0 +1,9 @@
+# Cache diagnostic sources, 2026-10-29
+
+Existing evidence and rejected implementation are in ../edge_rebinding/README.md. This pass changes only diagnostic observation, with a same-binary cache bypass preserving the original transformation path. No new optimization is under test.
+
+Question: measure retained-memory overhead without confusing resident working set with committed storage. Query: `site:learn.microsoft.com PROCESS_MEMORY_COUNTERS PeakPagefileUsage peak commit charge`. Read the official PROCESS_MEMORY_COUNTERS definition and member documentation at https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters. PeakPagefileUsage records peak process commit charge; PeakWorkingSetSize records peak working set. The existing ctypes structure already contained both fields, so the harness now records both. Neither metric counts just the cache's deep allocations; cache output capacities are a separate inline-storage lower bound.
+
+Counting separates cold entries from genuine reuse. The candidate's constructor computes before its first requirements call; therefore true hits = same-allocation checks - cold entries, and transformations = cold entries + changed-allocation misses. Changed-allocation content equality is diagnostic only and runs exclusively in count mode. Stopwatch runs omit that extra traversal, and primary A/B runs disable all inner counters and clocks.
+
+Per-query metrics are correlated by thread inside source-transfer windows. Cache cleanup is observed inside those windows and explicit history-drop windows. This excludes unrelated compiler uses of the same kernel. All timers are disjoint within one query except the separately reported entire query wall interval; cleanup destruction excludes capacity counting and log formatting.

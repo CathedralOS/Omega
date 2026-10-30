@@ -222,6 +222,7 @@ pub(crate) fn lower_statement_node(
                     operational_acknowledgement: call.operational_acknowledgement,
                     discards_result: call.discards_result,
                     authored_call_selection: None,
+                    authored_static_argument_selections: Box::default(),
                 },
             };
             // This spelling has designated static operands only if checking

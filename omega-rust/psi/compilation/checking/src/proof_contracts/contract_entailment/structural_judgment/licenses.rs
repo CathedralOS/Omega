@@ -928,20 +928,31 @@ pub(super) fn fold_scalar_binary(
     left: &StructuralTerm,
     right: &StructuralTerm,
 ) -> Option<StructuralTerm> {
+    let left_observation = left;
+    let right_observation = right;
     let left = left.semantic_value();
     let right = right.semantic_value();
     if meaning
         .iter()
         .all(|(primitive, _)| *primitive == typed_trees::types::PrimitiveType::Bool)
     {
-        let truth = |term: &StructuralTerm| {
-            let StructuralTerm::Constructor { data, case, fields } = term else {
-                return None;
-            };
-            (data == "bool" && fields.is_empty())
-                .then(|| language_semantics::const_value::boolean_literal_spelling(case))
-                .flatten()
-        };
+        let truth = |term: &StructuralTerm| term.boolean_constructor();
+        // Operands here are already formed Boolean observations. Preserve
+        // the evaluated operand when an identity removes only a fixed value;
+        // a fixed left operand also determines ordinary short-circuiting.
+        // A fixed right absorbing value cannot erase evaluation of the left.
+        match (operator, truth(left), truth(right)) {
+            (BinaryOperator::And, Some(true), _) | (BinaryOperator::Or, Some(false), _) => {
+                return Some(right_observation.clone());
+            }
+            (BinaryOperator::And, _, Some(true)) | (BinaryOperator::Or, _, Some(false)) => {
+                return Some(left_observation.clone());
+            }
+            (BinaryOperator::And, Some(false), _) | (BinaryOperator::Or, Some(true), _) => {
+                return Some(left_observation.clone());
+            }
+            _ => {}
+        }
         let left = truth(left)?;
         let right = truth(right)?;
         let value = match operator {

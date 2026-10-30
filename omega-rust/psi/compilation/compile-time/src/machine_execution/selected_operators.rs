@@ -9,6 +9,12 @@ use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
 };
 
+macro_rules! miss {
+    ($message:literal) => {
+        return Err($message.into())
+    };
+}
+
 /// One selected boundary-requirement use whose meaning is the selected provider's
 /// ordinary checked machine body. Omega supplies the exact provider from its
 /// settled ProviderPlan; Psi prepares the execution row and independently
@@ -70,9 +76,7 @@ impl SelectedBuildTimeProviderBody {
                 .expression_handles(call.arguments)
                 .to_vec(),
             _ => {
-                return Err(
-                    "selected build-time provider expression has no callable operands".into(),
-                );
+                return miss!("selected build-time provider expression has no callable operands");
             }
         };
         let Some(entry) = program.machine_states(provider).first() else {
@@ -134,14 +138,10 @@ pub(crate) fn prepare_selected_execution(
     }) {
         return Err("selected build-time expression has competing executable supplies".into());
     }
-    if selected.is_empty()
-        && operators.iter().all(|row| {
-            matches!(
-                program.expression_table.expression(row.expression),
-                ExpressionNode::Binary(_)
-            )
-        })
-    {
+    // Even an already-binary operation owes its authored selection below.
+    // Skipping that publication loses the source occurrence when preparation
+    // later copies this body into a concrete static application.
+    if selected.is_empty() && operators.is_empty() {
         return Ok(None);
     }
     let mut program = program.clone();
@@ -159,16 +159,20 @@ pub(crate) fn prepare_selected_execution(
                 .map(|row| (row.expression, row.requirement)),
         )
     {
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
+        if let Some(occurrence) = direct_operator_occurrence(&program, expression, requirement)? {
             use language_semantics::declaration_selection::{
                 AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
             };
             let selection = selections.get(occurrence).ok_or_else(|| {
                 "selected build-time expression lost its authored selection".to_owned()
             })?;
+            if let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target()
+                && !selects_requirement(&program, target.selected_symbol(), requirement)
+            {
+                return Err(
+                    "selected build-time operation has competing occurrence targets".into(),
+                );
+            }
             if let AuthoredDeclarationSelectionTarget::LateBound(
                 binding @ (AuthoredDeclarationSelectionLateBinding::CheckedOperator
                 | AuthoredDeclarationSelectionLateBinding::CheckedCall),
@@ -182,6 +186,11 @@ pub(crate) fn prepare_selected_execution(
                         if binding == AuthoredDeclarationSelectionLateBinding::CheckedCall
                             && call.target_symbol.is_valid() =>
                     {
+                        if !selects_requirement(&program, call.target_symbol, requirement) {
+                            return Err(
+                                "selected build-time call changed its requirement target".into()
+                            );
+                        }
                         call.target_symbol
                     }
                     _ => requirement,
@@ -315,9 +324,7 @@ pub fn validate_selected_provider_bodies(
             })
             .count();
         if spelled_occurrences + named_occurrences + requirement_occurrences != 1 {
-            return Err(
-                "selected build-time expression is shared by distinct current origins".into(),
-            );
+            return miss!("selected build-time expression is shared by distinct current origins");
         }
         let resolved_spelled: Vec<_> = facts
             .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
@@ -348,15 +355,11 @@ pub fn validate_selected_provider_bodies(
                 ([fact], []) => (fact.selected_operator_symbol, Some(fact.spelling)),
                 ([], [requirement]) => (*requirement, None),
                 _ => {
-                    return Err(
-                        "selected build-time provider body has no unique current use".into(),
-                    );
+                    return miss!("selected build-time provider body has no unique current use");
                 }
             };
         if selected_symbol != row.requirement {
-            return Err(
-                "selected build-time provider body differs from current requirement".into(),
-            );
+            return miss!("selected build-time provider body differs from current requirement");
         }
         let operands = match program.expression_table.expression(row.expression) {
             ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
@@ -450,9 +453,7 @@ pub fn validate_selected_provider_bodies(
             if !program.trait_type_parameters(owner).is_empty()
                 || !requirement.type_parameters.is_empty()
             {
-                return Err(
-                    "selected build-time requirement needs its closed trait application".into(),
-                );
+                return miss!("selected build-time requirement needs its closed trait application");
             }
             if program
                 .signature_contracts
@@ -515,9 +516,7 @@ pub fn validate_selected_provider_bodies(
                 }).count()
             };
             if bound != 1 {
-                return Err(
-                    "selected build-time provider has no unique exact trait realization".into(),
-                );
+                return miss!("selected build-time provider has no unique exact trait realization");
             }
             continue;
         }
@@ -531,8 +530,8 @@ pub fn validate_selected_provider_bodies(
                 return Err("selected build-time requirement is not unique".into());
             }
             if spelled_spelling.is_some_and(|spelling| requirement.spelling != Some(spelling)) {
-                return Err(
-                    "selected build-time provider requirement lost its boundary spelling".into(),
+                return miss!(
+                    "selected build-time provider requirement lost its boundary spelling"
                 );
             }
             if !program.machine_type_parameters(requirement).is_empty() {
@@ -620,9 +619,7 @@ pub fn validate_selected_provider_bodies(
         if !operator.is_boundary
             || spelled_spelling.is_some_and(|spelling| operator.spelling != Some(spelling))
         {
-            return Err(
-                "selected build-time provider requirement lost its boundary spelling".into(),
-            );
+            return miss!("selected build-time provider requirement lost its boundary spelling");
         }
         if !program.operator_type_parameters(operator).is_empty() {
             return Err(
@@ -667,9 +664,7 @@ pub fn validate_selected_provider_bodies(
             continue;
         }
         let [namespace, requirement] = program.operator_path_members(operator.name) else {
-            return Err(
-                "selected build-time provider requirement has no exact namespace path".into(),
-            );
+            return miss!("selected build-time provider requirement has no exact namespace path");
         };
         let conformances =
             program
@@ -709,9 +704,7 @@ pub fn validate_selected_operators(
         .iter()
         .any(|operator| operator.has_crash_contract(program))
     {
-        return Err(
-            "selected operator crash invocations have no build-time execution support".into(),
-        );
+        return miss!("selected operator crash invocations have no build-time execution support");
     }
     let Some(facts) = require_unique_operator_custody(
         program,
@@ -749,9 +742,7 @@ pub fn validate_selected_operators(
             })
             .count();
         if occurrences != 1 {
-            return Err(
-                "selected build-time expression is shared by distinct current origins".into(),
-            );
+            return miss!("selected build-time expression is shared by distinct current origins");
         }
         let mut first_selection = None;
         let mut multiple_selections = false;
@@ -787,9 +778,7 @@ pub fn validate_selected_operators(
             _ => return Err("selected build-time binary expression disappeared".into()),
         };
         if operands != row.operands {
-            return Err(
-                "selected build-time operation differs from current authored selection".into(),
-            );
+            return miss!("selected build-time operation differs from current authored selection");
         }
         let matching: Vec<_> = program
             .operators()
@@ -812,17 +801,13 @@ pub fn validate_selected_operators(
                 || requirement.type_parameters != operator.type_parameters
                 || requirement.contracts != operator.contracts
             {
-                return Err(
-                    "selected build-time token view differs from its actual requirement".into(),
-                );
+                return miss!("selected build-time token view differs from its actual requirement");
             }
         }
         if typed_trees::operator::primitive_float_binary_semantics(program, operator)
             != Some((row.operation, row.format))
         {
-            return Err(
-                "selected build-time operation has no matching sealed Float meaning".into(),
-            );
+            return miss!("selected build-time operation has no matching sealed Float meaning");
         }
         let [left, right] = program.operator_parameters(operator) else {
             return Err("selected build-time binary requirement has wrong arity".into());
@@ -842,4 +827,202 @@ pub fn validate_selected_operators(
         }
     }
     Ok(())
+}
+
+/// Extend already supplied execution to actual compiler-produced body copies.
+/// Authored occurrence and specialization identities establish correspondence;
+/// current operator facts establish meaning. Neither can choose a provider.
+pub(crate) fn retain_specialized_operators(
+    program: &TypedTrees,
+    selected: &[SelectedBuildTimeBinaryOperator],
+) -> Result<Vec<SelectedBuildTimeBinaryOperator>, String> {
+    validate_selected_operators(program, selected)?;
+    if selected.is_empty() {
+        return Ok(Vec::new());
+    }
+    let facts = validation::derive_pre_flow_operator_selections(program);
+    let mut retained = selected.to_vec();
+    for (expression, origin, requirement, policy) in facts.resolved_expression_selections() {
+        let Some(owner) = origin.machine_symbol() else {
+            continue;
+        };
+        if selected
+            .iter()
+            .any(|row| row.expression == expression && row.origin == origin)
+        {
+            continue;
+        }
+        for source in selected {
+            if source.requirement != requirement || source.policy != policy {
+                continue;
+            }
+            let Some(source_owner) = source.origin.machine_symbol() else {
+                continue;
+            };
+            if !specialization_copies_template(program, source_owner, owner)? {
+                continue;
+            }
+            let Some(occurrence) =
+                direct_operator_occurrence(program, source.expression, requirement)?
+            else {
+                continue;
+            };
+            if direct_operator_occurrence(program, expression, requirement)? != Some(occurrence) {
+                continue;
+            }
+            // The copy's checked operation owns its actual substituted operands.
+            // Keep the exact original provider, carrier, and arithmetic policy.
+            let row = SelectedBuildTimeBinaryOperator::prepare(
+                program,
+                expression,
+                origin,
+                requirement,
+                policy,
+                source.provider,
+            )?;
+            if row.operation != source.operation || row.format != source.format {
+                return Err("specialized build-time operator changed its selected meaning".into());
+            }
+            if let Some(previous) = retained
+                .iter()
+                .find(|previous| previous.expression == expression && previous.origin == origin)
+            {
+                if previous != &row {
+                    return Err(
+                        "specialized build-time operator has competing supplied executions".into(),
+                    );
+                }
+            } else {
+                retained.push(row);
+            }
+        }
+    }
+    validate_selected_operators(program, &retained)?;
+    Ok(retained)
+}
+
+fn direct_operator_occurrence(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    requirement: symbols::SymbolHandle,
+) -> Result<Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId>, String> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as LateBinding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let mut descendants = Vec::new();
+    validation::expression_traversal::collect_expression_tree(
+        program,
+        expression,
+        &mut descendants,
+    );
+    let authored_call = match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => call.authored_call_selection,
+        _ => None,
+    };
+    let mut selected = None;
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        if authored_call.is_some_and(|own| own != occurrence) {
+            continue;
+        }
+        // Publication and copy transport share the same ownership boundary.
+        // An ancestor's retained history cannot resolve a descendant's call.
+        if descendants.iter().any(|child| {
+            *child != expression
+                && program
+                    .expression_table
+                    .authored_selection_occurrences(*child)
+                    .any(|inherited| inherited == occurrence)
+        }) {
+            continue;
+        }
+        let selection = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .ok_or("selected build-time operation lost its own selection")?;
+        if !matches!(selection.kind(), Kind::Operator | Kind::Call) {
+            continue;
+        }
+        if authored_call.is_some() && selection.kind() != Kind::Call {
+            return Err("selected build-time call lost its own call occurrence".into());
+        }
+        match (selection.kind(), selection.target()) {
+            (Kind::Operator, Target::LateBound(LateBinding::CheckedOperator))
+            | (Kind::Call, Target::LateBound(LateBinding::CheckedCall)) => {}
+            (_, Target::Resolved(target))
+                if selects_requirement(program, target.selected_symbol(), requirement) => {}
+            _ => return Err("selected build-time operation has conflicting own selection".into()),
+        }
+        if selected.is_some_and(|previous| previous != occurrence) {
+            return Err("selected build-time operation has ambiguous own selection".into());
+        }
+        selected = Some(occurrence);
+    }
+    if authored_call.is_some() && selected != authored_call {
+        return Err("selected build-time call lost its attached own occurrence".into());
+    }
+    Ok(selected)
+}
+
+fn selects_requirement(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+) -> bool {
+    target == requirement
+        || program
+            .machine_holding_state(target)
+            .is_some_and(|machine| machine.symbol == requirement)
+}
+
+fn specialization_copies_template(
+    program: &TypedTrees,
+    source: symbols::SymbolHandle,
+    instance: symbols::SymbolHandle,
+) -> Result<bool, String> {
+    if source == instance || program.machine_specialization(source).is_some() {
+        // A selected use in a closed instance is not a template receipt for
+        // another tuple. Its exact existing use remains in the supplied roster.
+        return Ok(false);
+    }
+    let mut instances = program
+        .machine_specializations
+        .iter()
+        .filter(|row| row.instance == instance);
+    let Some(application) = instances.next() else {
+        return Ok(false);
+    };
+    if instances.next().is_some() {
+        return Err("selected operator copy has ambiguous specialization provenance".into());
+    }
+    if application.template != source {
+        return Ok(false);
+    }
+    let (Some(template), Some(copy)) = (program.machine(source), program.machine(instance)) else {
+        return Ok(false);
+    };
+    let binding = program
+        .expression_table
+        .static_machine_applications()
+        .find(|(handle, _)| *handle == application.binding_application)
+        .map(|(_, binding)| binding)
+        .ok_or("selected operator copy lost its producer-owned static application")?;
+    if application.template_parameters != template.type_parameters
+        || binding.binding_declaration != source
+        || binding.registration_operation != source
+        || !binding.lexical_owner.is_valid()
+    {
+        return Err(
+            "selected operator copy does not retain its original template application".into(),
+        );
+    }
+    // This is the producer's body-copy edge, not equality of two invocation
+    // tuples. The copied operation keeps the same provider/requirement meaning;
+    // ordinary checking and invocation admission still judge its actual tuple,
+    // lexical lifetime arguments, requires, and executable body independently.
+    Ok(program.source_target_context(template) == program.source_target_context(copy))
 }

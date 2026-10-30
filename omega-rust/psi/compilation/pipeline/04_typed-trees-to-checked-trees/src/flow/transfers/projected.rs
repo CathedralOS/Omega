@@ -158,7 +158,7 @@ fn append_value_predicates(
                     .is_some_and(|definition| {
                         definition.establishment_routes.is_empty()
                             && definition.alias.is_none()
-                            && definition.predicate_body.is_present()
+                            && definition.predicate_presence.is_present()
                     })
                 {
                     continue;

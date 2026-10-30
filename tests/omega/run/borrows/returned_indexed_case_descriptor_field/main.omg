@@ -1,0 +1,26 @@
+// Expected exit: 0.
+data Node { case Number(value: u64); case Empty; }
+data Nodes { items: [Node; 2]; }
+data Selection<'storage> { node: &'storage Node; }
+machine select<'storage>(nodes: &'storage Nodes, position: u64) -> Selection<'storage>
+requires position < 2;
+{ Selection { node: &nodes.items[position] } }
+machine evaluate(nodes: &Nodes, position: u64) -> u64
+requires position < 2;
+{
+    let selection: Selection = select(nodes, position);
+    transition selection.node {
+        Node::Number { value } -> number(value)
+        Node::Empty -> empty()
+    }
+    machine number(value: u64) -> u64 { value }
+    machine empty() -> u64 { 0u64 }
+}
+machine main() crashes Trap {
+    let nodes: Nodes = Nodes { items: [Node::Number { value: 73u64 }, Node::Empty] };
+    let first: u64 = evaluate(&nodes, 0u64);
+    let second: u64 = evaluate(&nodes, 1u64);
+    transition first == 73u64 && second == 0u64 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

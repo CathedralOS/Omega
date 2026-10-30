@@ -1,0 +1,98 @@
+{
+  "schema": "omega-golden-integration-v1",
+  "qualified_source": "febc01cd55000e3a34d7df732fc16868283b7ee7",
+  "base": "2e9f231f798bffee7a2bd46857d02adb79de70b6",
+  "archive": "integration-evidence.tar.gz",
+  "files": {
+    "build/golden-integration/base.txt": {
+      "bytes": 5407136,
+      "sha256": "7b7f77d154771050dc85f7441c46ce8075e6808fdad2ed7a096577cc5a912066"
+    },
+    "build/golden-integration/compiler-check.log": {
+      "bytes": 28586,
+      "sha256": "ec571f339bb9c911ece1adbc276f67294f9c39687fee4a0349c845cbdd082529"
+    },
+    "build/golden-integration/controls.json": {
+      "bytes": 21005,
+      "sha256": "23a639842eeaf54f2afa01e632cfc1118b0213b269ddc9547483ea22e2597808"
+    },
+    "build/golden-integration/controls.log": {
+      "bytes": 1074,
+      "sha256": "64421be8db768d718bd026613ee9a59384aaa2e6deec59a93a1133bc7eeb807c"
+    },
+    "build/golden-integration/golden-resolution.json": {
+      "bytes": 1470691,
+      "sha256": "e2004a41c6a940d18297a2ef13f9b5fcda3da18c4fddf192409ce6f8fecf6e11"
+    },
+    "build/golden-integration/integration-review.json": {
+      "bytes": 1558839,
+      "sha256": "718eac6015ef44668065b6e00c7fda13988528499649185302acb7ddb2477261"
+    },
+    "build/golden-integration/integration-source.json": {
+      "bytes": 412,
+      "sha256": "b5ac95a73c6bb54c27c46641d0c53144e9bbdcb44fbd94f01c424c8b1715c6d0"
+    },
+    "build/golden-integration/main.txt": {
+      "bytes": 5508294,
+      "sha256": "a9b4b37c6242dd384e31ab8215e9e8cace0e51c18d20563a80e1860f57dec61b"
+    },
+    "build/golden-integration/native-unit.log": {
+      "bytes": 9728,
+      "sha256": "905f9bae81ca23667c11f941103ad98936cec1cbd302e11e3e630456b037f1a2"
+    },
+    "build/golden-integration/package.py": {
+      "bytes": 3640,
+      "sha256": "f13e92097ed77a3badfb61d66cc4c6fab487cb20d8436560a5e74ef4612c4a14"
+    },
+    "build/golden-integration/positive.json": {
+      "bytes": 50465,
+      "sha256": "dd28d200a1c7414f1f9d384ce268fa9a487aa1d20935ec9031640cc4dfe173dd"
+    },
+    "build/golden-integration/positive.log": {
+      "bytes": 4051,
+      "sha256": "c1923fd6e786b790ca888f323bccaf83b78d5ffe1efcce830e07735c9f29b313"
+    },
+    "build/golden-integration/producer.json": {
+      "bytes": 246,
+      "sha256": "ad670feb846ea37c1df15a945c67ac787f8317241524229767b85dd4263bf372"
+    },
+    "build/golden-integration/qualification-progress.json": {
+      "bytes": 3580,
+      "sha256": "db5133ad05a29009e9b93ad35272970dc7cde9a44e38b65a7818b603416de041"
+    },
+    "build/golden-integration/qualification.log": {
+      "bytes": 250,
+      "sha256": "2f61cacdd01408b7f1ff88c5a8e4533c94b4135fb8548f9bd82ff80176be69b0"
+    },
+    "build/golden-integration/qualify.py": {
+      "bytes": 2856,
+      "sha256": "b82603f6811f7f4f1b39450fc12dca3338631e65af5bf8d561d2db48aba17756"
+    },
+    "build/golden-integration/recorded.txt": {
+      "bytes": 6187015,
+      "sha256": "fe98dd8a0b44e6aee6ed3456339544901a588bfbe65d244fcdf5bd8cbc59926f"
+    },
+    "build/golden-integration/recording-runner.compiler-profile.json": {
+      "bytes": 9380,
+      "sha256": "2b8c743d45e4aaf8f5d52f48bfc6457ef7cc135c0949dcf8a0170864780a4745"
+    },
+    "build/golden-integration/strict.json": {
+      "bytes": 6762,
+      "sha256": "19f3d715417546742704a3335f0c76cc85362de1b6ae0f272ffa08cfd3d8fb70"
+    },
+    "build/golden-integration/strict.log": {
+      "bytes": 588,
+      "sha256": "a148882757a1d47d3880480d81030c8232c0b756b644f15da9e2239fe78cd5db"
+    },
+    "build/golden-integration/validation-unit.log": {
+      "bytes": 12536,
+      "sha256": "0a46c79936afc6eb1067d1d99cf16eeb15b7d31c02ccdf66cb0ab7115089ba49"
+    }
+  },
+  "source_bundle": {
+    "file": "integration-source-febc01cd5500.bundle",
+    "sha256": "fab48756f3c150b10bf09defeff35206126da0da925382eccb6a81b5aa005ec8",
+    "source_commit": "febc01cd55000e3a34d7df732fc16868283b7ee7"
+  },
+  "archive_sha256": "b2d4ef5730dc1c3e4c002b27527e4b635aadc61077d6166e07ce63090f294e8d"
+}

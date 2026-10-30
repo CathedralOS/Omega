@@ -17,12 +17,15 @@ use super::{
 };
 use crate::values::operator_is_builtin;
 use checked_trees::{
-    CheckedStructuralDispatchArm, CheckedStructuralValue, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind,
+    CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
+    CheckedStructuralValueHandle, CheckedStructuralValueKind,
 };
 use typed_trees::expression::MatchPattern;
 use typed_trees::types::TypeReferenceHandle;
 use value_predicates::argument_needs_establishment;
+
+/// One authored selector and the scalar computation that evaluates it.
+pub(super) type ProjectionSelector = (ExpressionHandle, CheckedScalarComputationHandle);
 
 mod family_values;
 mod place_types;
@@ -37,26 +40,69 @@ impl Builder<'_, '_> {
         &mut self,
         owner: ExpressionHandle,
         source: ExpressionHandle,
-    ) -> Option<
-        Vec<(
-            ExpressionHandle,
-            checked_trees::CheckedScalarComputationHandle,
-        )>,
-    > {
+    ) -> Option<Vec<ProjectionSelector>> {
         let selectors = crate::values::authored_projection_selectors(self.program, source)?;
         self.retain_projection_selector_evaluations(owner, selectors)
+    }
+
+    /// The exact declared type of `expression` at this statement.
+    pub(super) fn expression_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        validation::expression_type_reference_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+    }
+
+    /// The canonical place `expression` names at this statement.
+    pub(super) fn canonical_place(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<validation::CanonicalPlace> {
+        validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+    }
+
+    /// Project a canonical place through its authored selector evaluations.
+    /// The retained evaluation supplies each runtime index at this point, so
+    /// the projection never re-reads the selector's original storage.
+    pub(super) fn projected_place_path(
+        &self,
+        place: &validation::CanonicalPlace,
+        selectors: &[ProjectionSelector],
+    ) -> Option<(
+        TypeReferenceHandle,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )> {
+        crate::execution::terminal_unit::calls::projected_argument_path(
+            self.program,
+            self.state,
+            self.statement_index,
+            place,
+            Some(self.machine),
+            Some(&|expression| {
+                selectors.iter().find_map(|(selector, value)| {
+                    (*selector == expression).then_some(
+                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
+                    )
+                })
+            }),
+        )
     }
 
     pub(super) fn retain_projection_selector_evaluations(
         &mut self,
         owner: ExpressionHandle,
         selectors: Vec<ExpressionHandle>,
-    ) -> Option<
-        Vec<(
-            ExpressionHandle,
-            checked_trees::CheckedScalarComputationHandle,
-        )>,
-    > {
+    ) -> Option<Vec<ProjectionSelector>> {
         if selectors.is_empty() {
             return Some(Vec::new());
         }
@@ -372,12 +418,7 @@ impl Builder<'_, '_> {
                     expression,
                     expected,
                 )?;
-                let place = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    expression,
-                )?;
+                let place = self.canonical_place(expression)?;
                 if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
                     return None;
                 }
@@ -533,6 +574,7 @@ impl Builder<'_, '_> {
         {
             return self.quotient_call_value(expression, expected);
         }
+        let reference_capture = self.reference_capture_source(expression, expected);
         let kind = if let ExpressionNode::Call(call) =
             self.program.expression_table.expression(expression)
             && let Some(query) = &call.native_code_layout
@@ -670,21 +712,7 @@ impl Builder<'_, '_> {
             // capture lends sized storage, including fixed byte arrays; it
             // cannot replace a slice's authored range with a whole-root loan.
             && validation::slice_view_shell(self.program, expected, &[]).is_none()
-            && match self.program.expression_table.expression(expression) {
-                // Borrowed formals denote ingress referents; unlike retained
-                // locals, they do not own stored descriptor values to move.
-                ExpressionNode::Name(name) => {
-                    self.structural_parameter(name.symbol)
-                        .is_some_and(|(_, declared)| {
-                            validation::reference_result_custody::stored_loan_parts(
-                                self.program,
-                                declared,
-                            )
-                            .is_some()
-                        })
-                }
-                _ => validation::reference_formation_source(self.program, expression).is_some(),
-            }
+            && reference_capture.is_some()
         {
             let state = self
                 .program
@@ -692,15 +720,8 @@ impl Builder<'_, '_> {
                 .and_then(|machine| self.program.state_in_machine(machine, self.state))?;
             let mut selectors = Vec::new();
             let mut source_value = CheckedStructuralValueHandle::invalid();
-            if let Some(formation) =
-                validation::reference_formation_source(self.program, expression)
-            {
-                let place = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    formation.source,
-                )?;
+            if let Some(formation) = reference_capture.as_ref() {
+                let place = self.canonical_place(formation.source)?;
                 // Retain the complete anonymous producer before its selectors.
                 // The reference lends its selected path, not a detached copy
                 // of that child; the normal value schedule owns its cleanup.
@@ -757,33 +778,17 @@ impl Builder<'_, '_> {
                     )
                 })
             };
+            let capture = crate::values::reference_sources::capture_source(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                state,
+                self.statement_index,
+                reference_capture?,
+                expected,
+                &selector,
+            )?;
             let (mut source, storage, backing_type) =
-                if validation::reference_formation_source(self.program, expression).is_some() {
-                    let capture = crate::values::reference_sources::capture(
-                        self.program,
-                        self.program.machine_by_symbol(self.machine)?,
-                        state,
-                        self.statement_index,
-                        expression,
-                        expected,
-                        &selector,
-                    )?;
-                    (capture.source, capture.storage, capture.backing_type)
-                } else {
-                    (
-                        crate::values::reference_sources::plan(
-                            self.program,
-                            self.program.machine_by_symbol(self.machine)?,
-                            state,
-                            self.statement_index,
-                            expression,
-                            expected,
-                            &selector,
-                        )?,
-                        checked_trees::CheckedReferenceStorage::Declared,
-                        validation::reference_shell(self.program, expected)?.referee,
-                    )
-                };
+                (capture.source, capture.storage, capture.backing_type);
             let projection_evaluations = if selectors.is_empty() {
                 Default::default()
             } else {

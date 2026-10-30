@@ -92,6 +92,7 @@ impl TerminalFuelSchedule {
             | OperationKind::PortWrite { .. }
             | OperationKind::RegisterAccess { .. }
             | OperationKind::IntegerConstant { .. }
+            | OperationKind::ReadScalarApplication { .. }
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
             | OperationKind::IeeeFloatCompare { .. }
@@ -254,6 +255,12 @@ impl TerminalFuelMeter {
 
     pub const fn schedule(&self) -> TerminalFuelSchedule {
         self.schedule
+    }
+
+    /// Execution must use this same account for storage as well as fuel.
+    /// Borrowing it does not increase the sponsor's allowance.
+    pub fn invocation_account(&self) -> Option<&EvaluationInvocationAccount> {
+        self.invocation.as_ref()
     }
 
     pub const fn remaining_allowance(&self) -> Option<u64> {

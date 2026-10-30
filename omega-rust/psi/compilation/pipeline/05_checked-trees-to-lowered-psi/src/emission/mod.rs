@@ -13,9 +13,9 @@ use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralAccess, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, ValueDeclaration,
+    OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, ValueDeclaration,
 };
 
 use crate::emission::expression_validation::{

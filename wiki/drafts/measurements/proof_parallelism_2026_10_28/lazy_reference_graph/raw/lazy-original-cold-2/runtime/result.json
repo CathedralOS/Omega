@@ -1,0 +1,10 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\lazy-original-cold-2\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.21804279999923892,
+  "exit_code": 0,
+  "cpu_seconds": 0.078125,
+  "peak_working_set_bytes": 5910528,
+  "peak_commit_bytes": 1265664
+}

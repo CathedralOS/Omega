@@ -33,6 +33,7 @@ use super::simultaneous::{Hold, simultaneous_hold_conflict};
 /// One reference leaf of a formed value, borrowed from its loan record.
 struct FormedLeaf<'a> {
     incoming_reference: arena::Handle<checked_trees::IncomingReferenceIdentity>,
+    incoming_owner_path: &'a [facts::PlaceSegment],
     owner_symbol: SymbolHandle,
     formation: ExpressionHandle,
     position: &'a [BorrowLoanOwnerSegment],
@@ -51,6 +52,7 @@ impl FormedLeaf<'_> {
     fn place(&self) -> CapturedPlace {
         CapturedPlace {
             incoming_reference: self.incoming_reference,
+            incoming_owner_path: self.incoming_owner_path.to_vec(),
             root: self.root,
             segments: self.segments.to_vec(),
         }
@@ -86,6 +88,10 @@ pub(super) fn check_formed_aggregates<'p>(
             .iter()
             .map(|loan| FormedLeaf {
                 incoming_reference: loan.incoming_reference,
+                incoming_owner_path: facts
+                    .borrow
+                    .access_segments
+                    .span_or_empty(loan.incoming_owner_path),
                 owner_symbol: loan.owner_symbol,
                 formation: loan.formation_expression,
                 position: facts.borrow.loan_owner_path(loan),
@@ -131,6 +137,10 @@ pub(super) fn check_formed_aggregates<'p>(
             .iter()
             .map(|loan| FormedLeaf {
                 incoming_reference: loan.incoming_reference,
+                incoming_owner_path: facts
+                    .borrow
+                    .access_segments
+                    .span_or_empty(loan.incoming_owner_path),
                 owner_symbol: state.symbol,
                 formation: loan.formation_expression,
                 position: facts.borrow.owner_segments.span_or_empty(loan.owner_path),

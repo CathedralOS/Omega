@@ -4,7 +4,7 @@
 
 use super::{Diagnostic, SymbolHandle, TypedTrees};
 use typed_trees::data::TypeParameterKind;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     loop {

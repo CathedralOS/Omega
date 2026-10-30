@@ -1,0 +1,7 @@
+package candidate checking failed: checked compilation failed for package `quality` with 3 diagnostic(s)
+  error: cannot form specification operator `==` in trait `InheritedArithmetic` state `restricted` requires contract: no exact selected meaning
+    in package `quality`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-e4a2f3f6f6d0122bf7469a132ec9df6ced48082e6f6fa9b9cd06b76eee51be5e\source\main.omg:8:27
+  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+    in package `quality`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-e4a2f3f6f6d0122bf7469a132ec9df6ced48082e6f6fa9b9cd06b76eee51be5e\source\main.omg:14:9
+  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+    in package `quality`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-e4a2f3f6f6d0122bf7469a132ec9df6ced48082e6f6fa9b9cd06b76eee51be5e\source\main.omg:14:9

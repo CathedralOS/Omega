@@ -166,7 +166,8 @@ pub(crate) fn current_predicates(
                 expression,
             )?;
             let arguments = validation::call_site_argument_expressions(program, &invocation.site);
-            for binding in &mut predicate.bindings {
+            let mut captures = Vec::new();
+            for (binding_position, binding) in predicate.bindings.iter_mut().enumerate() {
                 // The normal result is already in the caller's completed-value
                 // namespace. Only this exact invocation root bypasses substitution;
                 // a parameter or another call must still establish its own capture.
@@ -179,6 +180,7 @@ pub(crate) fn current_predicates(
                 let position = parameters.iter().position(|parameter| {
                     binding.place.root == PlaceRoot::Symbol(parameter.symbol)
                 })?;
+                let projection = binding.place.segments.clone();
                 let actual = *arguments.get(position)?;
                 let place = crate::semantic::facts::projected_argument_place(
                     program,
@@ -186,7 +188,7 @@ pub(crate) fn current_predicates(
                     invocation.statement,
                     actual,
                     parameters[position].type_reference,
-                    &binding.place.segments,
+                    &projection,
                 )?;
                 binding.place = crate::flow::rebase_exact_local_place(
                     program,
@@ -195,9 +197,52 @@ pub(crate) fn current_predicates(
                     place,
                     Some(frames),
                 )?;
+                // A detached actual owns its captured predicates. Rebind them
+                // at that exact read epoch, independently of current referents.
+                // Retain every alternative; the transport owner decides coverage.
+                if crate::flow::operand_binds_stable_copy(
+                    program,
+                    parameters[position].type_reference,
+                ) && let Some(call) = invocation_fact(facts, caller, invocation)
+                    && let Some(actual) = super::super::call_values::actual_at(
+                        program, caller, call, position, projection,
+                    )
+                    && let Some(capture) = super::super::call_values::captured_operand(
+                        program, facts, caller, call, &actual,
+                    )
+                    && let Some(values) = super::super::call_values::captured_values(
+                        program, facts, caller, call, &actual,
+                    )
+                {
+                    for value in &values {
+                        super::super::captured_predicates::retain_bindings(
+                            program,
+                            facts,
+                            value,
+                            capture.row(),
+                            std::slice::from_ref(binding),
+                            binding_position,
+                            &mut captures,
+                        );
+                    }
+                }
             }
-            Some(predicate)
+            // Binding a guarantee cannot recursively enumerate guarantees. Its
+            // owned inputs transport only facts already recorded at capture.
+            let transported = super::super::captured_predicates::transport(
+                program,
+                facts,
+                caller,
+                &mut predicate,
+                &captures,
+                &[],
+                None,
+            );
+            let mut predicates = transported.predicates;
+            predicates.push(predicate);
+            Some(predicates)
         })
+        .flatten()
         .collect()
 }
 
@@ -1083,6 +1128,13 @@ fn predicates_match(
         return false;
     }
     pending.push((left, right));
+    macro_rules! match_child {
+        ($left:expr, $right:expr $(,)?) => {
+            predicates_match(
+                program, semantic, contexts, required, $left, supplied, $right, pending,
+            )
+        };
+    }
     let matched = match (
         program.expression_table.expression(left),
         program.expression_table.expression(right),
@@ -1103,26 +1155,8 @@ fn predicates_match(
                     &supplied.callable,
                     right_binary.right,
                 )
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_binary.left,
-                    supplied,
-                    right_binary.left,
-                    pending,
-                )
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_binary.right,
-                    supplied,
-                    right_binary.right,
-                    pending,
-                )
+                && match_child!(left_binary.left, right_binary.left)
+                && match_child!(left_binary.right, right_binary.right)
         }
         (ExpressionNode::Unary(left_unary), ExpressionNode::Unary(right_unary)) => {
             left_unary.operator == right_unary.operator
@@ -1133,29 +1167,11 @@ fn predicates_match(
                     &supplied.callable,
                     right_unary.operand,
                 )
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_unary.operand,
-                    supplied,
-                    right_unary.operand,
-                    pending,
-                )
+                && match_child!(left_unary.operand, right_unary.operand)
         }
         (ExpressionNode::Cast(left_cast), ExpressionNode::Cast(right_cast)) => {
             same_scalar_type(program, &required.callable, left, &supplied.callable, right)
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_cast.value,
-                    supplied,
-                    right_cast.value,
-                    pending,
-                )
+                && match_child!(left_cast.value, right_cast.value)
         }
         _ => match ((required.literal)(left), (supplied.literal)(right)) {
             (Some(left), Some(right)) => left == right,
@@ -1176,25 +1192,7 @@ fn predicates_match(
             .binary_node(right)
             .filter(|binary| binary.operator == typed_trees::expression::BinaryOperator::And)
             .is_some_and(|binary| {
-                predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left,
-                    supplied,
-                    binary.left,
-                    pending,
-                ) || predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left,
-                    supplied,
-                    binary.right,
-                    pending,
-                )
+                match_child!(left, binary.left) || match_child!(left, binary.right)
             });
     pending.pop();
     matched

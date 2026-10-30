@@ -50,7 +50,7 @@ ensures result <= 37
 machine pure_observer() -> u64 reaches
 ensures result <= 37
 { ordinary<quiet>(37) }
-data Carrier { value: u64[0..=37]; }
+data Carrier requires value >= 0 && value <= 37 { value: u64; }
 machine evaluate() -> u64 reaches Console {
     let carrier: Carrier = Carrier { value: TraversalCode::traverse<quiet>(37) };
     37 - carrier.value

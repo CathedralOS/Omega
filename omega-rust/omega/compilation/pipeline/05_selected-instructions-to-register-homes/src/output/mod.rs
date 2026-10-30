@@ -160,4 +160,4 @@ pub enum AllocationAdmissionError {
     SelectionMismatch,
 }
 
-error_report!(AllocationAdmissionError, "allocation admission failed");
+stage_error_display!(AllocationAdmissionError, "allocation admission failed");

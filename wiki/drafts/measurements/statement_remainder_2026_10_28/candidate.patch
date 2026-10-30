@@ -1,0 +1,71 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
+index d5d54aee1eb..7e157a5177e 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
+@@ -452,0 +453,5 @@ impl<'terms> Equalities<'terms> {
++        // Resolve symbolic endpoints once; the immutable graph owns these indices.
++        let graph_indices = endpoints
++            .iter()
++            .map(|&endpoint| differences.operand_index(terms[endpoint].operand))
++            .collect::<Option<Vec<_>>>()?;
+@@ -455,2 +460,2 @@ impl<'terms> Equalities<'terms> {
+-        for &source in &endpoints {
+-            for &destination in &endpoints {
++        for (&source, &graph_source) in endpoints.iter().zip(&graph_indices) {
++            for (&destination, &graph_destination) in endpoints.iter().zip(&graph_indices) {
+@@ -463,3 +468 @@ impl<'terms> Equalities<'terms> {
+-                if differences
+-                    .mutual_nonnegative_gap(terms[source].operand, terms[destination].operand)
+-                {
++                if differences.mutual_nonnegative_gap_indexed(graph_source, graph_destination) {
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph.rs
+index 3f0ca15035d..d1a0e6bf803 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph.rs
+@@ -149,0 +150,4 @@ impl<'relations> DifferenceGraph<'relations> {
++    pub(super) fn operand_index(&self, operand: &Operand) -> Option<usize> {
++        self.operands.iter().position(|known| *known == operand)
++    }
++
+@@ -154 +158 @@ impl<'relations> DifferenceGraph<'relations> {
+-        let Some(source) = self.operands.iter().position(|operand| *operand == left) else {
++        let Some(source) = self.operand_index(left) else {
+@@ -160 +164 @@ impl<'relations> DifferenceGraph<'relations> {
+-        let Some(destination) = self.operands.iter().position(|operand| *operand == right) else {
++        let Some(destination) = self.operand_index(right) else {
+@@ -163 +167,14 @@ impl<'relations> DifferenceGraph<'relations> {
+-        if !self.has_outgoing[destination]
++        self.mutual_nonnegative_gap_indexed(source, destination)
++    }
++
++    pub(super) fn mutual_nonnegative_gap_indexed(
++        &mut self,
++        source: usize,
++        destination: usize,
++    ) -> bool {
++        if source == destination {
++            return true;
++        }
++        if !self.has_outgoing[source]
++            || !self.has_incoming[source]
++            || !self.has_outgoing[destination]
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph/tests.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph/tests.rs
+index 8e77ec1ffc6..5a6c91db9fb 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph/tests.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph/tests.rs
+@@ -107,0 +108,15 @@ fn compact_difference_rows_match_symbolic_walk_with_cycles_and_overflow() {
++                let mutual = expected
++                    .iter()
++                    .any(|(operand, gap)| *operand == to && *gap >= 0)
++                    && reference_gaps(&relations, to)
++                        .iter()
++                        .any(|(operand, gap)| *operand == from && *gap >= 0);
++                assert_eq!(graph.mutual_nonnegative_gap(from, to), mutual);
++                if let (Some(source), Some(destination)) =
++                    (graph.operand_index(from), graph.operand_index(to))
++                {
++                    assert_eq!(
++                        graph.mutual_nonnegative_gap_indexed(source, destination),
++                        mutual
++                    );
++                }

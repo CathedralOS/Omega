@@ -5,12 +5,16 @@ license.workspace = true
 version.workspace = true
 default-run = "omega"
 
+[features]
+allocation-observation = ["dep:allocation-observation"]
+
 [[bin]]
 name = "omega"
 path = "src/main.rs"
 test = true
 
 [dependencies]
+allocation-observation = { path = "../../../../tools/benchmark/allocation-observation", optional = true }
 omega-build = { path = "../build" }
 terminal-runtime = { path = "../terminal-runtime" }
 mimalloc = { version = "0.1", default-features = false }

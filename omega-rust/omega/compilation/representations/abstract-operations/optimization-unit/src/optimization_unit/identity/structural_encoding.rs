@@ -14,7 +14,7 @@ use super::{
 };
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_access, encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity,
-    encode_optional, encode_scalar_type, encode_structural_parameter,
+    encode_optional, encode_optional_access, encode_scalar_type, encode_structural_parameter,
     encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::proposition_encoding::{
@@ -505,10 +505,7 @@ pub(super) fn encode_structural_type(
         StructuralTypeShape::ElementView { element, access } => {
             bytes.u8(8);
             bytes.id(*element);
-            match access {
-                Some(access) => encode_access(bytes, *access),
-                None => bytes.u8(0),
-            }
+            encode_optional_access(bytes, *access);
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {
@@ -548,7 +545,16 @@ pub(super) fn encode_structural_type(
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.u8(3);
             bytes.id(*element);
-            bytes.u64(*length);
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.u8(0);
+                    bytes.u64(*length);
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.u8(1);
+                    bytes.id(*application);
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.u8(4);
@@ -679,17 +685,11 @@ pub(super) fn encode_byte_carrier(bytes: &mut CanonicalBytes, carrier: ByteSeque
         // carries; a field's access encodes as its own nonzero value.
         ByteSequenceCarrier::BorrowedView { access } => {
             bytes.u8(1);
-            match access {
-                Some(access) => super::carrier_encoding::encode_access(bytes, access),
-                None => bytes.u8(0),
-            }
+            encode_optional_access(bytes, access);
         }
         ByteSequenceCarrier::BoundedView { access, capacity } => {
             bytes.u8(3);
-            match access {
-                Some(access) => super::carrier_encoding::encode_access(bytes, access),
-                None => bytes.u8(0),
-            }
+            encode_optional_access(bytes, access);
             bytes.u64(capacity);
         }
         ByteSequenceCarrier::BoundedOwned { capacity } => {

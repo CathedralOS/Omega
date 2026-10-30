@@ -440,6 +440,26 @@ impl<'plans> FlowBuildContext<'plans> {
         &self.shared_tables.symbol_index
     }
 
+    /// Publish one already-appended semantic context to both evidence lists a
+    /// flow site extends together: the context ref and its constraint ref.
+    pub(super) fn append_semantic_context(
+        &mut self,
+        contexts: &mut arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+        constraints: &mut arena::HandleSpan<checked_trees::FlowConstraintRef>,
+        context: facts::FactContextHandle,
+    ) {
+        super::reference_spans::append_flow_reference(
+            &mut self.contexts.semantic_context_refs,
+            contexts,
+            checked_trees::FlowSemanticContextRef { context },
+        );
+        super::reference_spans::append_constraint_ref(
+            &mut self.contexts.constraint_refs,
+            constraints,
+            checked_trees::FlowConstraintKind::SemanticContext { context },
+        );
+    }
+
     /// Position of `machine_symbol` in `program.machines()`.
     pub(super) fn machine_index(
         &self,

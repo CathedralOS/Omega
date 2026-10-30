@@ -1,0 +1,82 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Payload where count <= 7 { count: u64; guard: u64; }
+data Remaining<'payload> { canary: u64; child: &'payload mut Payload; spare: &'payload mut Payload; audit: u64; }
+machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
+terminates;
+terminates by remaining.child.count;
+requires remaining.child.count <= 7;
+{
+    transition remaining.child.count > 0 {
+        true -> forward(remaining, counter)
+        false -> finish(remaining.canary)
+    }
+    machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
+    requires pending.child.count > 0 && pending.child.count <= 7;
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        let before: u64 = pending.child.count;
+        pending.child.count = before - step(pending);
+        transition { _ -> count(counter, pending) }
+    }
+    machine finish(canary: u64) crashes Trap {
+        transition canary == 641 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine invoke(counter: &mut u64, payload: &mut Payload) crashes Trap
+requires payload.count <= 7;
+{
+    let start: u64 = payload.count;
+    let mut spare: Payload = Payload { count: 7, guard: 829 };
+    let mut remaining: Remaining = Remaining { canary: 641, child: payload, spare: &mut spare, audit: 0 };
+    count(counter, &mut remaining);
+    transition remaining.canary == 641 && remaining.child.count == 0 && remaining.child.guard == 827
+        && remaining.spare.count == 7 && remaining.spare.guard == 829 && remaining.audit == start {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+boundary trait HostedBorrowed {
+    machine perform(counter: &mut u64, select: bool) reaches crashes Trap;
+}
+HostedBorrowedBody satisfies HostedBorrowed {
+    machine perform(counter: &mut u64, select: bool) crashes Trap {
+        let mut remaining: Payload = match select {
+            true -> Payload { guard: 827, count: 7 }
+            false -> Payload { guard: 827, count: 0 }
+        };
+        invoke(counter, &mut remaining);
+        transition remaining.count == 0 && remaining.guard == 827 {
+            true -> done() false -> bad()
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+machine main() crashes Trap {
+    let mut counted: u64 = 3;
+    HostedBorrowed::perform(&mut counted, true);
+    let matched: bool = counted == 10;
+    HostedBorrowed::perform(&mut counted, false);
+    transition matched && counted == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+machine step<'payload>(pending: &mut Remaining<'payload>) -> u64
+ensures result == 1;
+{
+    let saved: &mut Payload = pending.child;
+    pending.child = pending.spare;
+    pending.spare = saved;
+    let swapped: &mut Payload = pending.child;
+    pending.child = pending.spare;
+    pending.spare = swapped;
+    pending.audit = ((pending.audit as u64 in Wrapping) + 1) as u64;
+    1
+}

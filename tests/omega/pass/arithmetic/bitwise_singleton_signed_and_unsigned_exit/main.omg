@@ -1,0 +1,41 @@
+// Expected exit: 0
+machine consume_signed(and_result: i32, or_result: i32, xor_result: i32) -> i32
+    requires and_result == 7i32 && or_result == -1i32 && xor_result == -8i32
+{
+    transition and_result == 7i32 && or_result == -1i32 && xor_result == -8i32 {
+        true -> 0i32
+        false -> 1i32
+    }
+}
+machine signed_bits(value: i32) -> i32
+    requires value >= -9i32 && value <= -9i32
+{
+    let and_result: i32 = value & 15i32;
+    let or_result: i32 = value | 15i32;
+    let xor_result: i32 = value ^ 15i32;
+    consume_signed(and_result, or_result, xor_result)
+}
+machine consume_high(value: u64) -> i32
+    requires value == 18446744073709551600u64
+{
+    transition value == 18446744073709551600u64 {
+        true -> 0i32
+        false -> 1i32
+    }
+}
+machine unsigned_bits(value: u64) -> i32
+    requires value >= 18446744073709551615u64 && value <= 18446744073709551615u64
+{
+    let xor_result: u64 = value ^ 15u64;
+    consume_high(xor_result)
+}
+machine main() crashes Trap {
+    let signed: i32 = signed_bits(-9i32);
+    let unsigned: i32 = unsigned_bits(18446744073709551615u64);
+    transition signed == 0i32 && unsigned == 0i32 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

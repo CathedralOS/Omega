@@ -193,6 +193,7 @@ fn rewrite_expression(
         }
         ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
             receiver: rewrite_expression(syntax_trees, member.receiver, subject, fields, captures),
+            access_source_span: member.access_source_span,
             member: member.member,
             case_variant: member.case_variant,
         }),
@@ -208,6 +209,7 @@ fn rewrite_expression(
             {
                 ExpressionNode::Member(TableMemberExpression {
                     receiver: subject,
+                    access_source_span: Default::default(),
                     member: field,
                     case_variant,
                 })

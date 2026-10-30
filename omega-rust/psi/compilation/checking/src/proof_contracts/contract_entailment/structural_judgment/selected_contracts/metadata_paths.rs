@@ -1,7 +1,7 @@
 //! A selected scalar extent guarantee can name descriptor cells behind shared
 //! aggregate references without publishing the contents behind that descriptor.
 
-use super::{StructuralTerm, bound_term};
+use super::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;
 use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
@@ -10,32 +10,44 @@ use typed_trees::{
 };
 
 pub(super) fn bound_descriptor(
-    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge<'_>,
     expression: ExpressionHandle,
     scope: SymbolHandle,
     parameters: &[StateParameter],
     callable: SymbolHandle,
     bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     result: Option<&StructuralTerm>,
     depth: usize,
 ) -> Option<StructuralTerm> {
+    let program = judge.program;
     let (reference, value) = descriptor_path(
-        program, expression, scope, parameters, callable, bindings, result, depth,
+        judge,
+        expression,
+        scope,
+        parameters,
+        callable,
+        bindings,
+        type_bindings,
+        result,
+        depth,
     )?;
     crate::slice_view_shell(program, reference, &[])?;
     Some(value.into_collection_descriptor())
 }
 
 fn descriptor_path(
-    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge<'_>,
     expression: ExpressionHandle,
     scope: SymbolHandle,
     parameters: &[StateParameter],
     callable: SymbolHandle,
     bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     result: Option<&StructuralTerm>,
     depth: usize,
 ) -> Option<(TypeReferenceHandle, StructuralTerm)> {
+    let program = judge.program;
     if depth >= 64 {
         return None;
     }
@@ -45,13 +57,13 @@ fn descriptor_path(
     let selected = reference(expression)?;
     let value = match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => {
-            let value = bound_term(
-                program,
+            let value = judge.bound_contract_term(
                 expression,
                 scope,
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -74,12 +86,13 @@ fn descriptor_path(
         }
         ExpressionNode::Member(member) if member.case_variant.is_none() => {
             let (receiver, value) = descriptor_path(
-                program,
+                judge,
                 member.receiver,
                 scope,
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -96,12 +109,13 @@ fn descriptor_path(
         }
         ExpressionNode::Indexed(indexed) if !program.expression_table.indexed_on_range(indexed) => {
             let (collection_type, collection) = descriptor_path(
-                program,
+                judge,
                 indexed.collection,
                 scope,
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -115,13 +129,13 @@ fn descriptor_path(
             ) {
                 return None;
             }
-            let index = bound_term(
-                program,
+            let index = judge.bound_contract_term(
                 indexed.index,
                 scope,
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;

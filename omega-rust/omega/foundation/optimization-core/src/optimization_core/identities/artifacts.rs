@@ -1,7 +1,4 @@
-canonical_identity!(
-    FunctionFragmentEmissionIdentity,
-    b"omega.terminal-function-fragment-emission-identity.v1\0"
-);
+s!(FunctionFragmentEmissionIdentity => b"omega.terminal-function-fragment-emission-identity.v1\0");
 canonical_identity!(
     FunctionFragmentEmissionManifestIdentity,
     b"omega.function-fragment-emission-manifest-identity.v1\0"
@@ -14,10 +11,7 @@ canonical_identity!(
     FunctionFragmentTextSectionManifestIdentity,
     b"omega.function-fragment-text-section-manifest-identity.v1\0"
 );
-canonical_identity!(
-    RelocationFreeObjectPlanIdentity,
-    b"omega.terminal-relocation-free-object-plan-identity.v1\0"
-);
+s!(RelocationFreeObjectPlanIdentity => b"omega.terminal-relocation-free-object-plan-identity.v1\0");
 canonical_identity!(
     RelocationFreeObjectContainerIdentity,
     b"omega.terminal-relocation-free-object-container-identity.v1\0"
@@ -26,10 +20,7 @@ canonical_identity!(
     FunctionFragmentObjectContainerManifestIdentity,
     b"omega.function-fragment-object-container-manifest-identity.v1\0"
 );
-canonical_identity!(
-    OptimizedObjectArtifactIdentity,
-    b"omega.optimized-terminal-object-artifact-identity.v1\0"
-);
+s!(OptimizedObjectArtifactIdentity => b"omega.optimized-terminal-object-artifact-identity.v1\0");
 canonical_identity!(
     OptimizedObjectArtifactManifestIdentity,
     b"omega.optimized-terminal-object-artifact-manifest-identity.v1\0"

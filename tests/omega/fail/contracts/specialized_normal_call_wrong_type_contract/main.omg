@@ -1,0 +1,15 @@
+// Expected exit: 0
+machine choose<T>(value: bool) -> bool
+requires T == u32 || T == u64
+{ transition T == u32 { true -> (value) _ -> (false) } }
+machine copied(value: bool) -> bool
+ensures result == choose<u64>(value)
+{ let returned: bool = choose<u32>(value); returned }
+machine main() crashes Trap {
+    transition copied(true) == true && copied(false) == false && choose<u64>(true) == false {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

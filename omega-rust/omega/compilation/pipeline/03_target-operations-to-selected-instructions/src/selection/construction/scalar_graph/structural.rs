@@ -130,29 +130,7 @@ pub(super) fn transport_register(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| invalid())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::AbiTransport {
-            instruction,
-            place,
-            byte_offset,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    Ok(id)
+    super::structural_case::register(builder, place, byte_offset, 64, false)
 }
 
 /// The byte offset of element `index` inside `place`'s view home:
@@ -169,7 +147,7 @@ pub(super) fn scaled_element_index(
     length: ValueId,
     obligation: ObligationId,
     accepted_fact: AcceptedObligationFactIdentity,
-    operation: OperationId,
+    row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let view = builder.transport.element_view(place).copied();
     let stride_register = transport_register(builder, place, 0)?;
@@ -177,13 +155,13 @@ pub(super) fn scaled_element_index(
     builder.emit_materialize_i64(
         IntegerValue::Unsigned(u128::from(stride)),
         stride_register,
-        obligated_provenance(operation, vec![index, length], vec![obligation]),
+        obligation_provenance(row, &[index, length], &[obligation]),
     )?;
     builder.emit(
         SelectedInstructionKind::WrappingMultiplyI64,
         builder.constraints.keys.multiply_i64,
         &[index_register, stride_register, scaled_index],
-        obligated_provenance(operation, vec![index, length], vec![obligation]),
+        obligation_provenance(row, &[index, length], &[obligation]),
     )?;
     let physical_index = if let Some(view) = view {
         let offset = transport_register(builder, place, 0)?;
@@ -194,11 +172,7 @@ pub(super) fn scaled_element_index(
             },
             builder.constraints.keys.add_i64,
             &[view.byte_offset, scaled_index, offset],
-            obligated_provenance(
-                operation,
-                vec![index, length, view.root_length],
-                vec![obligation],
-            ),
+            obligation_provenance(row, &[index, length, view.root_length], &[obligation]),
         )?;
         offset
     } else {
@@ -538,17 +512,19 @@ pub(super) fn operation_provenance(
     }
 }
 
-/// Provenance for one operation that carries the values and obligations an
-/// emission site names, and leaves fuel and edges empty.
-pub(super) fn obligated_provenance(
-    operation: OperationId,
-    values: Vec<ValueId>,
-    obligations: Vec<ObligationId>,
+/// Provenance for an instruction that discharges obligations the row already
+/// names. Fuel stays off: only the row's one fuel-settling instruction states
+/// the settlement, so every other emission records just its values and the
+/// obligations it carries.
+pub(super) fn obligation_provenance(
+    row: &LegalizedScalarInstruction,
+    values: &[ValueId],
+    obligations: &[ObligationId],
 ) -> SelectedInstructionProvenance {
     SelectedInstructionProvenance {
-        operations: vec![operation],
-        values,
-        obligations,
+        operations: vec![row.operation],
+        values: values.to_vec(),
+        obligations: obligations.to_vec(),
         ..Default::default()
     }
 }

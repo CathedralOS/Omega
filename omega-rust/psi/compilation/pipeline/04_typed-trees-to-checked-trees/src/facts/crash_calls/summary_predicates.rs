@@ -614,9 +614,10 @@ pub(super) fn executable_entry_predicate(
             | Scalar::IntegerExactCast { operand, .. }
             | Scalar::RepresentationView { operand, .. } => scalar(operand),
             Scalar::Boolean(value) => executable_entry_predicate(value),
-            Scalar::ErasedParameter { .. } | Scalar::Local { .. } | Scalar::StorageRead { .. } => {
-                false
-            }
+            Scalar::ConstantApplication { .. }
+            | Scalar::ErasedParameter { .. }
+            | Scalar::Local { .. }
+            | Scalar::StorageRead { .. } => false,
         }
     }
     match expression {

@@ -38,7 +38,6 @@ use facts::{
     QualificationEvidence,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use validation::field_domains::{
@@ -96,6 +95,22 @@ fn append_zero_initialized_field_domain_facts(
     visited: &[&str],
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
+    macro_rules! append_field {
+        ($origin:expr, $nested:expr, $prefix:expr, $visited:expr $(,)?) => {
+            append_zero_initialized_field_domain_facts(
+                program,
+                facts,
+                root_symbol,
+                point,
+                $origin,
+                evidence,
+                $nested,
+                $prefix,
+                $visited,
+                refs,
+            )
+        };
+    }
     for member in program.data_members(data) {
         let Some(field) = member.as_field() else {
             continue;
@@ -150,18 +165,7 @@ fn append_zero_initialized_field_domain_facts(
         {
             let mut next_visited = visited.to_vec();
             next_visited.push(nested.name.as_str());
-            append_zero_initialized_field_domain_facts(
-                program,
-                facts,
-                root_symbol,
-                point,
-                origin,
-                evidence,
-                nested,
-                &field_path,
-                &next_visited,
-                refs,
-            );
+            append_field!(origin, nested, &field_path, &next_visited);
         }
 
         // A slice-typed field's elements carry their declared fields through
@@ -174,18 +178,7 @@ fn append_zero_initialized_field_domain_facts(
             next_visited.push(nested.name.as_str());
             let mut element_path = field_path.clone();
             element_path.push(WHOLE_ELEMENT_EXTENT);
-            append_zero_initialized_field_domain_facts(
-                program,
-                facts,
-                root_symbol,
-                point,
-                origin,
-                evidence,
-                nested,
-                &element_path,
-                &next_visited,
-                refs,
-            );
+            append_field!(origin, nested, &element_path, &next_visited);
         }
 
         // A fixed array of nominal elements carries each element's declared
@@ -211,32 +204,15 @@ fn append_zero_initialized_field_domain_facts(
         for index in 0..length {
             let mut element_path = field_path.clone();
             element_path.push(PlaceSegment::FixedIndex { index });
-            append_zero_initialized_field_domain_facts(
-                program,
-                facts,
-                root_symbol,
-                point,
-                origin,
-                evidence,
-                nested,
-                &element_path,
-                &next_visited,
-                refs,
-            );
+            append_field!(origin, nested, &element_path, &next_visited);
         }
         let mut element_path = field_path.clone();
         element_path.push(WHOLE_ELEMENT_EXTENT);
-        append_zero_initialized_field_domain_facts(
-            program,
-            facts,
-            root_symbol,
-            point,
+        append_field!(
             FactOrigin::StatementTransfer,
-            evidence,
             nested,
             &element_path,
             &next_visited,
-            refs,
         );
     }
 }
@@ -451,7 +427,7 @@ fn state_parameter_domain_is_resource_claim(
         && program
             .domain_definition(domain_symbol)
             .is_some_and(|domain| {
-                domain.predicate_body == language_semantics::DomainPredicateBody::Bodyless
+                domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
             })
 }
 

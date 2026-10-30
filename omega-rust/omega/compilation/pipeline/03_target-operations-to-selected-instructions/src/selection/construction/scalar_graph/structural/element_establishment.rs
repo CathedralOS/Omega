@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::obligation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
@@ -182,10 +183,22 @@ pub(super) fn establish(
     let base = if completed.is_some() {
         None
     } else {
+        let mut pointer_slots = geometry.pointer_slots.as_slice();
         let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
             && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
         {
             constant(builder, row, 0, 0)?
+        } else if !geometry.pointer_slots.is_empty() {
+            let (base, slots) = super::runtime_address::projection_origin(
+                function,
+                builder,
+                row,
+                source.place,
+                field_offset,
+                pointer_slots,
+            )?;
+            pointer_slots = slots;
+            base.ok_or_else(invalid)?
         } else if parameter.is_some() || descriptor_root.is_some() {
             // An empty path selects the collection carrier itself. Its geometry
             // below resolves borrowed backing once; projection_base would already
@@ -236,7 +249,22 @@ pub(super) fn establish(
         {
             base
         } else {
-            super::runtime_address::scale(builder, row, source.place, field_offset, base, indices)?
+            let (base, leaf_index) = super::runtime_address::cross_references(
+                builder,
+                row,
+                source.place,
+                base,
+                indices,
+                pointer_slots,
+            )?;
+            super::runtime_address::scale(
+                builder,
+                row,
+                source.place,
+                field_offset,
+                base,
+                &indices[leaf_index..],
+            )?
         };
         Some(base)
     };
@@ -352,8 +380,7 @@ pub(super) fn establish(
             if start_type != word || end_type != word || geometry.stride == 0 {
                 return Err(invalid());
             }
-            let region_provenance =
-                super::obligated_provenance(row.operation, vec![*start, *end], vec![*obligation]);
+            let region_provenance = obligation_provenance(row, &[*start, *end], &[*obligation]);
             let selected_backing = transport_register(builder, *destination, 0)?;
             builder.emit_byte_view_address(
                 backing,

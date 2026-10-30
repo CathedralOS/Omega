@@ -488,6 +488,9 @@ profiles bound to the actual binary digests. See
   `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
   Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
   commands to leverage mbx caching automatically.
+- Keep each worktree's Cargo target directory separate, including baseline
+  comparisons. Share objects through `mbx`, never by pointing two worktrees at
+  one `CARGO_TARGET_DIR`; a baseline can replace dependencies later reused as fresh.
 - Wrap a lane's local build/test chain in one `tools/build_slot.py`
   hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).
@@ -567,6 +570,16 @@ The rules that touch every edit:
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Inline cases follow all common fields as a consecutive tail. Destructure data
+  by named fields plus `case as binding`, or positionally by authored common-field
+  order then one case-only view. Case patterns bind payload fields only; common
+  fields in case patterns are retired. Preserve normal nested-match, subject,
+  borrow, ownership and cleanup rules; source order is not physical layout.
+  Irrefutable `let` bindings use the same named/positional patterns and evaluate
+  their initializer once; they add no hidden branch, trap, copying permission or
+  special match-as header. Keep the ordinary match forms valid.
+  Follow [data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition);
+  `DATA-DECOMPOSITION` owns compiler/source/tooling migration.
 - Source `where` is retired. Use `requires` for data/default-domain and generic
   predicates and static callable requirements; assembly carries `requires`,
   `ensures` and `clobbers` directly after `asm`. Keep nested callable contracts
@@ -753,6 +766,11 @@ detached HEAD mode directly from the fetched `origin/main` commit:
 That directory is gitignored local state. An existing checkout stays where it is.
 To publish a PR, push HEAD directly to origin:
 `git push origin HEAD:refs/heads/work/<short-name>`.
+On that first push, open the pull request as a draft and return its URL in the
+same turn. Later pushes update that same draft. A request to "push" includes
+this step; no separate confirmation is needed. Mark the draft ready only when
+it is mergeable and `compiler-check` is green, then enqueue it. A draft cannot
+enter the queue, and it is not a place to leave the work.
 
 **Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
 Reusing an existing worktree preserves its pre-compiled `target/` directory and
@@ -774,10 +792,13 @@ Existing outcomes retain their worktrees, unpublished work, and recorded fixed b
 including after resumption or compaction.
 
 **Never chase main with gates or rebuilds.** Main or queue SHA movement alone never
-triggers pull, rebase, build, requalification, gate re-runs, or review. Once a PR is
-submitted, GitHub's native merge queue and Actions CI perform the integration build
-and admission check against current `main`. Authors only perform focused validation on
-their own change on their recorded worktree base. Only a demonstrated actual merge conflict,
+triggers pull, rebase, build, requalification, gate re-runs, or review. A draft
+pull request is already submitted for `compiler-check`. Mark it ready and enqueue
+it in the same session; do not leave it draft across unrelated landings, and do
+not rebase it merely because `main` moved. Once it is ready, GitHub's native
+merge queue and Actions CI perform the integration build and admission check
+against current `main`. Authors only perform focused validation on their own
+change on their recorded worktree base. Only a demonstrated actual merge conflict,
 a concrete prerequisite or changed affected source justifies targeted local integration
 and affected checks. Postlanding verification reads the merged PR, published commit and
 CI results; it does not rebuild or rerun acceptance. Offline plans and dry runs are previews,
@@ -916,9 +937,23 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   replays or rebuilds output the same compile just produced. Verifiers stay
   exercised by the corpus runner and tests, off the default compile path. See
   [verification placement](omega-rust/pipeline.md#verification-placement).
+- **Every delivery push must have a draft until it can merge.** A user request
+  to "push" means push the committed work and open or update its pull request
+  in the same turn. The first push opens a draft (`gh pr create --draft`).
+  Later pushes update that same draft. Mark it ready (`gh pr ready`) only when
+  it is mergeable and `compiler-check` is green, then enqueue it
+  ([tools/landing.md](tools/landing.md)). A draft cannot enter the queue. Reuse
+  the existing pull request, verify its head matches the pushed commit, and
+  return the PR URL. A draft is not a place to leave the work: the session
+  still lands it and does not leave the draft across unrelated landings. Do
+  not open a second pull request for the same branch. A pushed branch or
+  retained worktree alone is not delivery. If PR creation fails, report the
+  concrete blocker and leave publication unfinished; never report a branch-only
+  push as completion.
 - **Never push to `main` directly and never chase `main` with gates.** Push candidate commits
   directly from HEAD to a remote work branch ref (`git push origin HEAD:refs/heads/work/<name>`)
-  and open a PR using GitHub's native merge queue ([tools/landing.md](tools/landing.md)). The queue
+  and open that pull request as a draft until it is mergeable and `compiler-check`
+  is green, then mark it ready and enqueue it ([tools/landing.md](tools/landing.md)). The queue
   integrates the candidate with latest `main`, and GitHub Actions CI performs the build and checks.
   Do focused validation only on the author's own changes against the recorded worktree base;
   never chase main by rebasing, rebuilding, or re-running gates merely because main or the integration

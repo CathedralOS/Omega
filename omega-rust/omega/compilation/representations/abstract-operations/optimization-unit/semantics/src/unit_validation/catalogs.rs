@@ -523,7 +523,8 @@ fn validate_structural_field_range_authority(
                         types.values().copied(),
                         root.structural_type,
                         root.multiplicity,
-                        root.backing_access(types.values().copied()),
+                        root.backing_access(types.values().copied())
+                            .ok_or_else(|| invalid.clone())?,
                         &destination.path,
                         terminal_psi::StructuralAccess::MutableBorrow,
                     )

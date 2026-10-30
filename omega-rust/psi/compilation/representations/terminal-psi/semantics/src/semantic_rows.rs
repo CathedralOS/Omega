@@ -163,6 +163,7 @@ use ScalarLeafOperandShape as Operands;
 use ScalarLeafResultShape as ResultShape;
 
 operation_semantic_rows! {
+    ReadScalarApplication => ("schema:operation:read-scalar-application", LeafDenotation, None),
     EstablishActivationClaim => ("schema:operation:establish-activation-claim", LeafDenotation, None),
     ReleaseActivationClaim => ("schema:operation:release-activation-claim", LeafDenotation, None),
     SplitActivationClaim => ("schema:operation:split-activation-claim", LeafDenotation, None),

@@ -65,6 +65,10 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
             continue;
         }
         draft.resource.backing_incoming_reference = draft.backing.incoming_reference;
+        draft.resource.backing_incoming_owner_path = facts
+            .borrow
+            .call_loan_backing_paths
+            .insert_many(draft.backing.incoming_owner_path);
         draft.resource.backing_path = facts
             .borrow
             .call_loan_backing_paths
@@ -274,11 +278,17 @@ fn collect(
                         root: row.root,
                     },
                     backing_incoming_reference: Handle::invalid(),
+                    backing_incoming_owner_path: HandleSpan::empty(),
                     backing_path: HandleSpan::empty(),
                 },
                 path: owner_path,
                 backing: CapturedPlace {
                     incoming_reference: row.incoming_reference,
+                    incoming_owner_path: facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(row.incoming_owner_path)
+                        .to_vec(),
                     root: row.root,
                     segments: facts.borrow.loan_segments(row).to_vec(),
                 },
@@ -370,6 +380,10 @@ pub(in crate::checks::borrows) fn retained_places(
                     loan.storage_owner,
                     facts.borrow.loan_owner_path(loan),
                     loan.incoming_reference,
+                    facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path),
                     loan.root,
                     facts.borrow.loan_segments(loan),
                 )),
@@ -421,6 +435,7 @@ pub(in crate::checks::borrows) fn retained_places(
                             .owner_segments
                             .span_or_empty(incoming.owner_path),
                         incoming_reference,
+                        &[][..],
                         root,
                         &[][..],
                     )),
@@ -765,6 +780,7 @@ fn projected_operand_places(
             operand.constraints,
             CapturedPlace {
                 incoming_reference: Handle::invalid(),
+                incoming_owner_path: Default::default(),
                 root: source.root,
                 segments: source.segments,
             },
@@ -774,6 +790,7 @@ fn projected_operand_places(
         vec![crate::checks::borrows::aliases::ResolvedAlias {
             place: CapturedPlace {
                 incoming_reference: Handle::invalid(),
+                incoming_owner_path: Default::default(),
                 root: source.root,
                 segments: source.segments,
             },

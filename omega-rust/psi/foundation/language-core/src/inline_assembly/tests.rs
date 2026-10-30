@@ -779,12 +779,13 @@ fn fence_contracts_pin_ordering_without_invented_clobbers() {
 
 #[test]
 fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
+    macro_rules! row {
+        ($name:literal => $kind:path => $target:ident) => {
+            ($name, $kind, AsmTargetApplicability::$target)
+        };
+    }
     for (mnemonic, kind, target) in [
-        (
-            "serialize",
-            AsmInstructionSerializationKind::Serialize,
-            AsmTargetApplicability::X86_64,
-        ),
+        row!("serialize" => AsmInstructionSerializationKind::Serialize => X86_64),
         (
             "isb",
             AsmInstructionSerializationKind::InstructionSynchronizationBarrier,
@@ -808,41 +809,13 @@ fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
     }
 
     for (mnemonic, kind, target) in [
-        (
-            "pause",
-            AsmSchedulingHintKind::SpinPause,
-            AsmTargetApplicability::X86_64,
-        ),
-        (
-            "yield",
-            AsmSchedulingHintKind::Yield,
-            AsmTargetApplicability::Aarch64,
-        ),
-        (
-            "nop",
-            AsmSchedulingHintKind::Nop,
-            AsmTargetApplicability::Any,
-        ),
-        (
-            "wfe",
-            AsmSchedulingHintKind::WaitForEvent,
-            AsmTargetApplicability::Aarch64,
-        ),
-        (
-            "wfi",
-            AsmSchedulingHintKind::WaitForInterrupt,
-            AsmTargetApplicability::Aarch64,
-        ),
-        (
-            "sev",
-            AsmSchedulingHintKind::SendEvent,
-            AsmTargetApplicability::Aarch64,
-        ),
-        (
-            "sevl",
-            AsmSchedulingHintKind::SendEventLocal,
-            AsmTargetApplicability::Aarch64,
-        ),
+        row!("pause" => AsmSchedulingHintKind::SpinPause => X86_64),
+        row!("yield" => AsmSchedulingHintKind::Yield => Aarch64),
+        row!("nop" => AsmSchedulingHintKind::Nop => Any),
+        row!("wfe" => AsmSchedulingHintKind::WaitForEvent => Aarch64),
+        row!("wfi" => AsmSchedulingHintKind::WaitForInterrupt => Aarch64),
+        row!("sev" => AsmSchedulingHintKind::SendEvent => Aarch64),
+        row!("sevl" => AsmSchedulingHintKind::SendEventLocal => Aarch64),
     ] {
         let AsmCatalogEntry::Contract(contract) =
             asm_catalog_entry(mnemonic).expect("scheduling-hint contract")

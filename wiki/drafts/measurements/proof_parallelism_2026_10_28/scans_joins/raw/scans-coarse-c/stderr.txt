@@ -1,0 +1,64 @@
+RECONCILE	places	7	21500
+RECONCILE	residences	7	20400
+RECONCILE	memberships	7	0
+SCAN_BATCH	coarse	7	roots=0	replays=0	wall_ns=0
+RECONCILE	places	2	1800
+RECONCILE	residences	2	3900
+RECONCILE	memberships	2	100
+SCAN_BATCH	coarse	2	roots=0	replays=0	wall_ns=0
+RECONCILE	places	202	144700
+RECONCILE	residences	202	51900
+RECONCILE	memberships	202	2987131500	analysis_drop_ns=2498500	discovery_ns=58200	graph_drop_ns=2535400	graph_preparation_ns=199489300	history_creation_ns=30300	history_drop_ns=19439800	leaf_query_formation_ns=44300	leaf_root_lookup_ns=222700	merge_ns=1735100	operand_queries_ns=42021000	payload_contract_queries_ns=8212100	payload_target_queries_ns=5021100	reachability_drop_ns=100	reference_context_drop_ns=7236600	reference_queries_ns=686918600	source_contract_queries_ns=2003680400	types_drop_ns=15200	view_queries_ns=7239300
+SCAN_BATCH	coarse	202	roots=418	replays=173	wall_ns=2003595500
+SCAN	coarse	202	source	calls=418	inclusive_ns=2003595500	exclusive_ns=1608000	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	replay	calls=173	inclusive_ns=2001987500	exclusive_ns=1986500	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	setup	calls=173	inclusive_ns=35351200	exclusive_ns=35351200	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	position	calls=15219	inclusive_ns=1957393400	exclusive_ns=7946000	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	before_clone	calls=15219	inclusive_ns=55856700	exclusive_ns=55856700	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	before_retire	calls=15219	inclusive_ns=233027600	exclusive_ns=2466700	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	operation	calls=15219	inclusive_ns=28658900	exclusive_ns=28658900	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	normalize_after	calls=15219	inclusive_ns=45316900	exclusive_ns=45316900	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	close_after	calls=15219	inclusive_ns=15954500	exclusive_ns=15954500	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	successors	calls=15219	inclusive_ns=1289800	exclusive_ns=1289800	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge	calls=17444	inclusive_ns=1563632200	exclusive_ns=20083100	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_clone	calls=17444	inclusive_ns=5542900	exclusive_ns=5542900	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_predicate	calls=17444	inclusive_ns=54682300	exclusive_ns=54682300	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_capture	calls=17444	inclusive_ns=34830300	exclusive_ns=26117200	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	predicate_retention	calls=17444	inclusive_ns=117231500	exclusive_ns=117231500	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_values	calls=17444	inclusive_ns=1106000	exclusive_ns=1106000	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_retire	calls=7683	inclusive_ns=150400500	exclusive_ns=827300	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_transform	calls=7683	inclusive_ns=289033500	exclusive_ns=289033500	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_append	calls=7683	inclusive_ns=145498800	exclusive_ns=145498800	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_normalize	calls=25127	inclusive_ns=149790400	exclusive_ns=149790400	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	edge_finish	calls=17444	inclusive_ns=170114700	exclusive_ns=19083000	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	join	calls=17444	inclusive_ns=425318200	exclusive_ns=11029800	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	result	calls=173	inclusive_ns=7256400	exclusive_ns=6450100	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	publish	calls=32663	inclusive_ns=156742500	exclusive_ns=156742500	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	contract	calls=1263	inclusive_ns=9519400	exclusive_ns=9519400	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	meet	calls=14270	inclusive_ns=414288400	exclusive_ns=414288400	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN	coarse	202	retire	calls=16090	inclusive_ns=380134100	exclusive_ns=380134100	rows_a=0	rows_b=0	rows_c=0	visited=0	compared=0	advanced=0	cloned=0	removed=0	detached=0	changed=0	rosters=0	shrinks=0	same=0	alias=0
+SCAN_QUERY	coarse	202	machine=140	block=140	operation=1	wall_ns=583771100	steps=728	edges=822	meets=571
+SCAN_QUERY	coarse	202	machine=140	block=140	operation=1	wall_ns=583442100	steps=728	edges=822	meets=571
+SCAN_QUERY	coarse	202	machine=53	block=27	operation=1	wall_ns=393368800	steps=6561	edges=7654	meets=6564
+SCAN_QUERY	coarse	202	machine=53	block=27	operation=1	wall_ns=392162500	steps=6561	edges=7654	meets=6564
+SCAN_QUERY	coarse	202	machine=53	block=30	operation=0	wall_ns=1675100	steps=0	edges=0	meets=0
+SCAN_QUERY	coarse	202	machine=53	block=30	operation=0	wall_ns=1472000	steps=0	edges=0	meets=0
+SCAN_QUERY	coarse	202	machine=81	block=0	operation=1	wall_ns=1337100	steps=2	edges=1	meets=0
+SCAN_QUERY	coarse	202	machine=140	block=140	operation=2	wall_ns=1326700	steps=2	edges=1	meets=0
+    43.456 ms  prepare: project -> prepared sources
+ 21518.209 ms  compile: sources -> requested product
+    72.713 ms  publish: retained product -> published product
+    19.675 ms  Source ingress: SourceFiles -> SyntaxTrees
+     4.103 ms  Step: assemble: PreparedSources -> AssembledSyntax
+   224.280 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+   382.613 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+  1111.291 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  8403.034 ms  Stage 05: TypedTrees -> CheckedTrees
+   400.833 ms  Step: settle: CheckedTrees -> SelectedExecution
+  5216.787 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+  5159.758 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.004 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+    12.762 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     5.411 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+    38.423 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+ 22388.861 ms  total elapsed

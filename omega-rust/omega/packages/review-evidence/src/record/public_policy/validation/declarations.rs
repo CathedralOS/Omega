@@ -122,7 +122,7 @@ pub(super) fn domain(value: &PackagePolicyDomainShape) -> Result {
     for fact in &value.predicate_facts {
         contracts::fact(fact, &scope, 0)?;
     }
-    if value.predicate_body == language_semantics::DomainPredicateBody::Bodyless
+    if value.predicate_presence == language_semantics::DomainPredicatePresence::Absent
         && !value.predicate_facts.is_empty()
     {
         return Err("bodyless public domain retains predicate facts");

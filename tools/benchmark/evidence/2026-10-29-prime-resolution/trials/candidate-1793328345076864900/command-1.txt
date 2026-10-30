@@ -1,0 +1,12 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 2 source packages.
+Audit recommended: omega_language_std [cfc3d5e17ce2].
+Audit recommended: prime_counter [b7318a923de2].
+New package source: omega_language_std [cfc3d5e17ce2]: no prior revision to compare.
+Source output unavailable: omega_language_std [cfc3d5e17ce2]: source rendering resource limit exceeded; obtain the exact sources for standalone audit.
+New package source: prime_counter [b7318a923de2]: no prior revision to compare.
+Standalone candidate source: prime_counter [b7318a923de2]: 3 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\samples\cli\arithmetic\prime_counter\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 2 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\samples\cli\arithmetic\prime_counter\build\package-manager\review-windows_x86_64.txt

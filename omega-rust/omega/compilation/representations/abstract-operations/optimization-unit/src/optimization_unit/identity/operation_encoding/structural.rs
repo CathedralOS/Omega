@@ -1,13 +1,14 @@
 //! Structural establishment and write-only storage tags.
 
 use crate::optimization_unit::identity::carrier_encoding::{
-    encode_abstract_result, encode_ids, encode_structural_argument, encode_structural_parameter,
-    encode_structural_path_segment, encode_window_root,
+    encode_abstract_result, encode_ids, encode_optional_id, encode_structural_argument,
+    encode_structural_parameter, encode_structural_path_segment, encode_window_root,
 };
 use crate::optimization_unit::identity::structural_encoding::{
     encode_place_declaration, encode_structural_operation_result, encode_structural_type,
 };
 
+use super::scalar::encode_byte_sequence_operand;
 use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
@@ -114,23 +115,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             tag!(bytes, 92, psi_operation);
             encode_structural_operation_result(bytes, result);
             for operand in [left, right] {
-                match operand {
-                    terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
-                        bytes.u8(0);
-                        encode_structural_argument(bytes, source);
-                        bytes.id(*length);
-                    }
-                    terminal_psi::control_flow::ByteSequenceOperand::Field {
-                        source,
-                        field,
-                        length,
-                    } => {
-                        bytes.u8(1);
-                        encode_structural_argument(bytes, source);
-                        bytes.id(*field);
-                        bytes.id(*length);
-                    }
-                }
+                encode_byte_sequence_operand(bytes, operand);
             }
             bytes.id(*capacity_obligation);
         }
@@ -161,13 +146,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             tag!(bytes, 65, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_abstract_result(bytes, *value);
-            match range_obligation {
-                Some(obligation) => {
-                    bytes.u8(1);
-                    bytes.id(*obligation);
-                }
-                None => bytes.u8(0),
-            }
+            encode_optional_id(bytes, range_obligation.as_ref());
         }
         O::PrimitiveLocalStore {
             psi_operation,
@@ -576,13 +555,7 @@ fn encode_record_initializer(
         } => {
             bytes.u8(0);
             bytes.id(*value);
-            match range_obligation {
-                Some(obligation) => {
-                    bytes.u8(1);
-                    bytes.id(*obligation);
-                }
-                None => bytes.u8(0),
-            }
+            encode_optional_id(bytes, range_obligation.as_ref());
         }
         terminal_psi::RecordFieldValue::Structural(argument) => {
             bytes.u8(1);

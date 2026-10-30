@@ -1,1 +1,1 @@
-cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0
+cannot prove requires contract for call consume from perform_shift: diff >= 0 && diff <= 0

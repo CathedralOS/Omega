@@ -2,11 +2,11 @@
 
 use super::{
     Architecture, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
-    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    NativeTarget, ObjectFormat, ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, NativeTarget, ObjectFormat,
+    ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
+    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, X86_64MachineEffectCatalogValidationError,
     validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
     x86_64_system_v_register_call_keys,
@@ -18,8 +18,8 @@ use crate::{
 use register_model::validate_physical_register_model;
 use selected_instructions::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatToIntegerDomain,
-    MachineAlternativeFamily, SaturatingCarrier, SaturatingOperation, TrappingForm,
-    TrappingOperation,
+    MachineAlternativeFamily, MachineEffectCatalogValidationError, SaturatingCarrier,
+    SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
 fn constraints() -> ValidatedRegisterConstraintCatalog {
@@ -29,6 +29,12 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
         &physical,
     )
     .unwrap_or_else(|error: X86_64RegisterConstraintCatalogValidationError| panic!("{error}"))
+}
+
+macro_rules! eq {
+    ($left:expr => $right:expr) => {
+        assert_eq!($left, $right);
+    };
 }
 
 #[test]
@@ -164,10 +170,7 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                     MachineSizeKnowledge::ExactBytes(size),
                     "{semantic:?}"
                 );
-                assert_eq!(
-                    alternative.applicability,
-                    MachineAlternativeApplicability::Always
-                );
+                eq!(alternative.applicability => MachineAlternativeApplicability::Always);
                 assert_eq!(
                     alternative.encoded.external_operand_reads, reads,
                     "{semantic:?}"
@@ -305,15 +308,9 @@ fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
             assert_eq!(declaration.call, MachineCallEffect::NoneV1);
             assert_eq!(declaration.alternatives.len(), 1);
             let alternative = &declaration.alternatives[0];
-            assert_eq!(
-                alternative.key.family,
-                MachineAlternativeFamily::TrappingInteger(form)
-            );
+            eq!(alternative.key.family => MachineAlternativeFamily::TrappingInteger(form));
             assert_eq!(alternative.key.variant, 0);
-            assert_eq!(
-                alternative.applicability,
-                MachineAlternativeApplicability::Always
-            );
+            eq!(alternative.applicability => MachineAlternativeApplicability::Always);
             assert_eq!(
                 alternative.size,
                 MachineSizeKnowledge::ExactBytes(size),
@@ -378,10 +375,7 @@ fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
         let declaration = catalog
             .declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
             .unwrap();
-        assert_eq!(
-            declaration.constraint,
-            crate::register_model::X86_64_REMAINDER_I64
-        );
+        eq!(declaration.constraint => crate::register_model::X86_64_REMAINDER_I64);
         let alternative = &declaration.alternatives[0];
         assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(17));
         assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
@@ -436,10 +430,7 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
                     }
                 )
             );
-            assert_eq!(
-                alternative.encoded,
-                MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
-            );
+            eq!(alternative.encoded => MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]));
             for corruption in 0..3 {
                 let mut changed = catalog.clone();
                 let row = changed.declaration_by_semantic_mut(semantic).unwrap();
@@ -475,31 +466,19 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             .unwrap();
         assert_eq!(less_than_branch.constraint, X86_64_CONDITIONAL_BRANCH);
         assert_eq!(less_than_branch.alternatives.len(), 1);
-        assert_eq!(
-            less_than_branch.alternatives[0].size,
-            MachineSizeKnowledge::ExactBytes(6)
-        );
+        eq!(less_than_branch.alternatives[0].size => MachineSizeKnowledge::ExactBytes(6));
         assert_eq!(
             less_than_branch.alternatives[0].encoded.control,
             MachineEncodedControlEffect::ConditionalRelativeBranchV1
         );
-        assert_eq!(
-            signed_less_than_branch.constraint,
-            X86_64_CONDITIONAL_BRANCH
-        );
+        eq!(signed_less_than_branch.constraint => X86_64_CONDITIONAL_BRANCH);
         assert_eq!(signed_less_than_branch.alternatives.len(), 1);
         assert_eq!(
             signed_less_than_branch.alternatives[0].key.family,
             selected_instructions::MachineAlternativeFamily::ConditionalBranchI64LessThan
         );
-        assert_eq!(
-            signed_less_than_branch.alternatives[0].size,
-            MachineSizeKnowledge::ExactBytes(6)
-        );
-        assert_eq!(
-            add.alternatives[0].applicability,
-            MachineAlternativeApplicability::Always
-        );
+        eq!(signed_less_than_branch.alternatives[0].size => MachineSizeKnowledge::ExactBytes(6));
+        eq!(add.alternatives[0].applicability => MachineAlternativeApplicability::Always);
         assert_eq!(subtract.constraint, X86_64_SUBTRACT_I64);
         let register_effects = constraints
             .catalog()
@@ -625,10 +604,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                     pre_call_stack_alignment: 16,
                 }
             );
-            assert_eq!(
-                scalar_call.alternatives[0].size,
-                MachineSizeKnowledge::ExactBytes(5)
-            );
+            eq!(scalar_call.alternatives[0].size => MachineSizeKnowledge::ExactBytes(5));
             assert!(matches!(
                 scalar_call.alternatives[0].encoded.memory,
                 MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {

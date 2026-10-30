@@ -1,0 +1,11 @@
+{
+  "source_revision": "a7c028d3275f8a147efb0f5ca07c095c42770fc6",
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+    "sha256": "b411c1098a093d34ec3ce19bc32cf2d058a44c3993d3e12a33ed60b344a2ac12",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  }
+}

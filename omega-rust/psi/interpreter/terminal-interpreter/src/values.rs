@@ -1,23 +1,10 @@
 //! The runtime values an execution starts from and produces: scalars,
 //! structural values, case values and their runtime places.
 
-use semantic_vocabulary::{
-    IeeeFloatValue, IntegerType, IntegerValue, ScalarType, StructuralCaseId, StructuralFieldId,
-    StructuralTypeId,
-};
+use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, StructuralTypeId};
 use terminal_psi::StructuralPathSegment;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum TerminalScalarValue {
-    Boolean(bool),
-    Integer {
-        scalar_type: IntegerType,
-        value: IntegerValue,
-    },
-    IeeeFloat(IeeeFloatValue),
-}
-
-pub use terminal_installation::TerminalStructuralValue;
+pub use terminal_installation::{TerminalScalarValue, TerminalStructuralValue};
 
 /// Exact target-neutral finite scalar record/array tree or selected scalar sum-case contents.
 ///
@@ -155,29 +142,6 @@ impl From<&TerminalStructuralValue> for StructuralRuntimePlace {
     }
 }
 
-impl TerminalScalarValue {
-    /// Supplied runtime contents must satisfy the declared predicate as well as
-    /// the storage carrier. A declaration alone never authenticates host data.
-    pub(crate) fn satisfies_field(self, field: &terminal_psi::StructuralFieldType) -> bool {
-        let literal = match self {
-            Self::Boolean(value) => semantic_vocabulary::ScalarTerm::Boolean(value),
-            Self::Integer { scalar_type, value } => {
-                semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
-            }
-            Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
-        };
-        terminal_semantics::scalar_field_accepts_literal(field, &literal)
-    }
-
-    pub const fn scalar_type(self) -> ScalarType {
-        match self {
-            Self::Boolean(_) => ScalarType::Boolean,
-            Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
-            Self::IeeeFloat(value) => ScalarType::IeeeFloat(value.format()),
-        }
-    }
-}
-
 /// The semantic view-value form of a runtime scalar.
 pub(crate) fn scalar_view_value(
     value: &TerminalScalarValue,
@@ -196,6 +160,7 @@ pub(crate) fn scalar_view_value(
 #[cfg(test)]
 mod scalar_aggregate_tests {
     use super::*;
+    use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
     use terminal_psi::{
         BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
         StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,

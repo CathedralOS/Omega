@@ -1,0 +1,19 @@
+{
+  "schema": "omega-performance-plan/1",
+  "name": "length local compiler comparison",
+  "working_directory": "../../..",
+  "inputs": ["samples/cli/facts/length/local", "source/library"],
+  "baseline": {"program": "build/performance/baseline/omega.exe"},
+  "candidate": {"program": "build/performance/candidate/omega.exe"},
+  "warmups": 1,
+  "pairs": 12,
+  "timeout_ms": 60000,
+  "measurement": {
+    "kind": "compiler",
+    "source": "samples/cli/facts/length/local/main.omg",
+    "library_root": "source/library",
+    "target": "windows_x86_64",
+    "expected": {"exit_code": 0, "stdout": "", "stderr": ""},
+    "require_identical_artifacts": true
+  }
+}

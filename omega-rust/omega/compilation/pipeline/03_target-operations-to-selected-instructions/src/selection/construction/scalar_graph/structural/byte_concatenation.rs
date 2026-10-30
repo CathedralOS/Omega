@@ -5,7 +5,10 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
     VirtualRegisterId, memory,
 };
-use super::{byte_field_store, byte_views, invalid, local_storage, provenance, transport_register};
+use super::{
+    byte_field_store, byte_views, invalid, local_storage, obligation_provenance, provenance,
+    transport_register,
+};
 use crate::SelectedInstructionError;
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ScalarType, ValueId};
 use terminal_psi::control_flow::ByteSequenceOperand;
@@ -78,10 +81,10 @@ pub(super) fn establish(
     // The accepted mathematical sum is at most the reconstructed capacity,
     // itself representable as u32, so this u64 addition cannot overflow.
     let length = transport_register(builder, result.place, 0)?;
-    let evidence = super::obligated_provenance(
-        row.operation,
-        vec![left.length(), right.length()],
-        vec![*capacity_obligation],
+    let evidence = obligation_provenance(
+        row,
+        &[left.length(), right.length()],
+        &[*capacity_obligation],
     );
     builder.emit(
         SelectedInstructionKind::ExactAddI64 {
@@ -247,10 +250,6 @@ fn copy(
         SelectedInstructionKind::CopyBytes,
         builder.constraints.keys.copy_bytes.ok_or(invalid())?,
         &[source_pointer, destination_pointer, count, cursor, byte],
-        super::obligated_provenance(
-            row.operation,
-            vec![operand.length()],
-            vec![*capacity_obligation],
-        ),
+        obligation_provenance(row, &[operand.length()], &[*capacity_obligation]),
     )
 }

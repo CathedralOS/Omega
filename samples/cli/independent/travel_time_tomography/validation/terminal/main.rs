@@ -1,14 +1,13 @@
 //! Validate the actual produced Terminal program, retaining admitted provisions.
-//! Compilation follows the same public package preparation/native operation as
-//! the CLI. Each fixture gets a fresh isolated runtime and finite input; captured
+//! Compilation follows the same public package Build and native operation as the
+//! CLI. Each fixture gets a fresh isolated runtime and finite input; captured
 //! output is checked by the separate frozen rational oracle. No source replay,
 //! synthetic receiver, expected-result callback, or package acceptance occurs.
-use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -35,33 +34,39 @@ fn main() {
 
 fn validate(sample: &Path, output: &Path) -> Result<(), String> {
     std::fs::create_dir_all(output).map_err(|error| error.to_string())?;
-    let target = target::TargetProfile::from_omega_target_name(Some("linux_x86_64"))
+    let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64"))
         .map_err(|diagnostic| format!("{diagnostic:?}"))?;
-    let prepared = prepare_local_project(
-        &sample.join("main.omg"),
-        LocalProjectPreparationOptions {
-            target,
-            offline: true,
-        },
-    )
-    .map_err(|error| error.to_string())?
-    .ok_or("sample is not a package project")?;
     let native_directory = output.join("native");
-    let report = compile_prepared_local_project_for_native(PreparedLocalProjectNativeRequest::new(
-        prepared,
-        &native_directory,
-        target,
-    ))
+    let outcomes = omega_build::build(BuildRequest {
+        root_path: sample.join("main.omg"),
+        build_directory: Some(native_directory.clone()),
+        targets: BuildTargets::Single(profile),
+        product: ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+        timings: false,
+        offline: true,
+        verify: false,
+        // The managed sample package is the only project this driver admits.
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
     .map_err(|error| error.to_string())?;
+    let [outcome] = outcomes
+        .try_into()
+        .map_err(|_| "one named target produces exactly one Build outcome")?;
+    let report = outcome
+        .result
+        .map_err(|error| error.to_string())?
+        .into_report()
+        .map_err(|error| error.to_string())?
+        .report;
     let artifact = report
-        .retained_native_artifact()
-        .map(|artifact| artifact.psi_artifact())
-        .or_else(|| {
-            report
-                .retained_dynamic_elf_artifact()
-                .map(|artifact| artifact.psi_artifact())
-        })
-        .ok_or("native product omitted its retained Terminal artifact")?;
+        .retained_native_program()
+        .map(|program| program.psi_artifact())
+        .ok_or("native product omitted its retained Terminal program")?;
     let mut fixtures: Vec<PathBuf> = std::fs::read_dir(sample.join("data"))
         .map_err(|error| error.to_string())?
         .map(|entry| {
@@ -83,8 +88,14 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
             .ok_or("non-UTF8 fixture name")?;
         let input = std::fs::read(&fixture).map_err(|error| error.to_string())?;
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            entry: None,
             native_provider: None,
-            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
+                .expect("host flags capture"),
+            memory_ordering:
+                terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
+                    "linux_x86_64",
+                ),
             // Match the CLI: use the native report's retained installation.
             provider_proposal: None,
             artifact,

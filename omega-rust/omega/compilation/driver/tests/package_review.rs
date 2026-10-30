@@ -15,7 +15,7 @@ fn execute_build(
         .begin_package_build(request)
         .expect("admit package Build");
     let returned = invocation.execution().map(|execution| {
-        let mut host = execution.host().expect("Build host");
+        let host = execution.host().expect("Build host");
         let mut activation = host.start().expect("Build activation");
         while !activation.advance(1024).expect("Build step").returned {}
         activation.complete().expect("normal Build return")
@@ -414,6 +414,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         .expect("Windows native emission");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         entry: None,
+        filesystem: Default::default(),
         native_provider: None,
         x86_flags: None,
         memory_ordering: None,

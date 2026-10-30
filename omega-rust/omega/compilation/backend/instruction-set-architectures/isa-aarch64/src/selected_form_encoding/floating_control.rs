@@ -3,15 +3,12 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use crate::machine_effects::form_alternative;
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey,
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+    LocalStorageSlotId, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SelectedInstructionKind,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 
 /// `x9` carries the FPCR; a save past the direct `sp` reach also forms its
@@ -82,27 +79,23 @@ pub(crate) fn declaration(
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
     let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
-    MachineEffectDeclaration {
+    MachineEffectDeclaration::single(
         semantic,
         constraint,
-        memory: if restore {
+        if restore {
             MachineMemoryEffect::ReadFrameStorageV1
         } else {
             MachineMemoryEffect::WriteFrameStorageV1
         },
-        trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            semantic.into(),
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 8,
-                maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
-            },
-            effects(restore)
-        ),
-    }
+        MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::ExternalEffect,
+        semantic.into(),
+        MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 8,
+            maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
+        },
+        effects(restore),
+    )
 }
 
 fn request(

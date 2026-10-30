@@ -23,6 +23,8 @@ mod build;
 mod build_directory;
 mod build_execution;
 mod build_session;
+mod native_completion;
+pub use native_completion::complete_product;
 mod package_commands;
 mod package_compilation;
 mod package_inspection;

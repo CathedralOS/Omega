@@ -287,7 +287,7 @@ pub struct DomainDefinition {
     /// Closed compiler-owned semantics selected by `satisfies` immediately
     /// after the domain head. This is independent from ordinary conformances.
     pub classification: Option<language_core::DomainClassification>,
-    pub predicate_body: language_core::DomainPredicateBody,
+    pub predicate_presence: language_core::DomainPredicatePresence,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
     pub semantic_clause_token_count: usize,
@@ -319,7 +319,7 @@ impl Default for DomainDefinition {
             cleanup_selection: None,
             authored_routes: Vec::new(),
             classification: None,
-            predicate_body: language_core::DomainPredicateBody::Bodyless,
+            predicate_presence: language_core::DomainPredicatePresence::Absent,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             semantic_clause_token_count: 0,

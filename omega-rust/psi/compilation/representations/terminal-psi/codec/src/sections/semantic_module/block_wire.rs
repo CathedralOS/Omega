@@ -100,6 +100,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         }
     }
     match operation.kind.clone() {
+        OperationKind::ReadScalarApplication { application } => {
+            writer.u8(operation_tags::READ_SCALAR_APPLICATION);
+            writer.id(application);
+        }
         OperationKind::StorageAddress { source } => {
             writer.u8(operation_tags::STORAGE_ADDRESS);
             writer.id(source.place);
@@ -548,8 +552,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => call_operations::encode_call_unit(
+        } => call_operations::encode_tagged_module_invocation(
             writer,
+            operation_tags::CALL_UNIT,
             callee,
             arguments,
             erased_arguments,
@@ -568,8 +573,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => call_operations::encode_call_structural_scalar(
+        } => call_operations::encode_tagged_module_invocation(
             writer,
+            operation_tags::CALL_STRUCTURAL_SCALAR,
             callee,
             arguments,
             erased_arguments,
@@ -859,6 +865,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
     };
     let kind = match reader.u8()? {
+        operation_tags::READ_SCALAR_APPLICATION => OperationKind::ReadScalarApplication {
+            application: reader.id("ScalarApplicationId")?,
+        },
         operation_tags::ESTABLISH_NATIVE_CODE_LAYOUT => OperationKind::EstablishNativeCodeLayout {
             machine: reader.id("native code layout machine")?,
         },

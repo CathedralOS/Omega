@@ -51,6 +51,7 @@ mod effects;
 mod memory_ordering;
 pub use memory_ordering::TerminalMemoryOrderingEnvironment;
 mod element_views;
+mod entry_results;
 mod errors;
 mod execution;
 mod instance;
@@ -61,6 +62,7 @@ mod record;
 mod reference;
 mod result_custody;
 mod results;
+pub use entry_results::TerminalEntryResultRequest;
 mod runtime_indexes;
 mod runtime_rows;
 mod scalar_array;
@@ -91,14 +93,16 @@ pub use effects::original_storage::{
 pub use effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::storage_inputs::{
-    TerminalBoundaryReferenceSelection, TerminalBoundaryStorageBuffer,
-    TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer, TerminalStorageContents,
+    TerminalBoundaryByteViewBuffer, TerminalBoundaryReferenceSelection,
+    TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer,
+    TerminalStorageContents,
 };
 pub use effects::{
     AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection, TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest,
-    TerminalX86FlagsEnvironment, admit_target_layouts, admit_target_machine_selections,
+    AssumedBindingSelection, ProviderInstallationSelection, TerminalCallStorageRequirements,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
+    TerminalRuntimeSupplyRequest, TerminalX86FlagsEnvironment, admit_target_layouts,
+    admit_target_machine_selections,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
@@ -110,7 +114,9 @@ pub use instance::{
     TerminalEntryStorageValue, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
     TerminalProcessExitAdmission,
 };
-pub use program::{TerminalInstantiation, TerminalProgram, TerminalProgramEntry};
+pub use program::{
+    TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
+};
 pub use provider_storage::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };

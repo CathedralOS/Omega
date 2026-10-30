@@ -31,14 +31,14 @@ machine Main::main(main: &mut Main) reaches Console {
     main.count = 0;
 
     transition {
-        _ -> outer(main)
+        _ -> block outer(main)
     }
 
     // Outer: walk candidate numbers n = 2..20.
     machine outer(main: &mut Main) {
         transition main.n < 21 {
-            true -> check_init(main)
-            _ -> done(main)
+            true -> block check_init(main)
+            _ -> block done(main)
         }
     }
 
@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.is_prime = true;
         main.d = 2;
         transition {
-            _ -> inner(main)
+            _ -> block inner(main)
         }
     }
 
@@ -55,22 +55,22 @@ machine Main::main(main: &mut Main) reaches Console {
     // hands the edge into test_divisor the nonzero-divisor fact for `n % d`.
     machine inner(main: &mut Main) {
         transition main.d >= 1 && main.d < main.n {
-            true -> test_divisor(main)
-            _ -> tally(main)
+            true -> block test_divisor(main)
+            _ -> block tally(main)
         }
     }
 
     machine test_divisor(main: &mut Main) {
         transition main.n % main.d == 0 {
-            true -> mark_composite(main)
-            _ -> next_divisor(main)
+            true -> block mark_composite(main)
+            _ -> block next_divisor(main)
         }
     }
 
     machine mark_composite(main: &mut Main) {
         main.is_prime = false;
         transition {
-            _ -> next_divisor(main)
+            _ -> block next_divisor(main)
         }
     }
 
@@ -78,22 +78,22 @@ machine Main::main(main: &mut Main) reaches Console {
     // [0..=21] -- d < n <= 20 here, so the guard is always true.
     machine next_divisor(main: &mut Main) {
         transition main.d >= 0 && main.d < 21 {
-            true -> bump_divisor(main)
-            _ -> tally(main)
+            true -> block bump_divisor(main)
+            _ -> block tally(main)
         }
     }
 
     machine bump_divisor(main: &mut Main) {
         main.d = main.d + 1;
         transition {
-            _ -> inner(main)
+            _ -> block inner(main)
         }
     }
 
     machine tally(main: &mut Main) {
         transition main.is_prime {
-            true -> increment(main)
-            _ -> outer_next(main)
+            true -> block increment(main)
+            _ -> block outer_next(main)
         }
     }
 
@@ -102,7 +102,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine increment(main: &mut Main) {
         main.count = (main.count + 1) % 22;
         transition {
-            _ -> outer_next(main)
+            _ -> block outer_next(main)
         }
     }
 
@@ -110,15 +110,15 @@ machine Main::main(main: &mut Main) reaches Console {
     // [0..=21] -- the outer loop only re-enters with n < 21, so always true.
     machine outer_next(main: &mut Main) {
         transition main.n >= 0 && main.n < 21 {
-            true -> bump_candidate(main)
-            _ -> done(main)
+            true -> block bump_candidate(main)
+            _ -> block done(main)
         }
     }
 
     machine bump_candidate(main: &mut Main) {
         main.n = main.n + 1;
         transition {
-            _ -> outer(main)
+            _ -> block outer(main)
         }
     }
 

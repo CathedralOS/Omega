@@ -706,33 +706,6 @@ fn external_backing(
     })
 }
 
-fn place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
-    machine
-        .signature_structural_parameter(place)
-        .map(|parameter| parameter.structural_type)
-        .or_else(|| {
-            machine
-                .block_structural_parameters()
-                .find(|parameter| parameter.place == place)
-                .map(|parameter| parameter.structural_type)
-        })
-        .or_else(|| {
-            machine.structural_places.iter().find_map(|row| {
-                if row.id != place {
-                    return None;
-                }
-                match row.kind {
-                    StructuralPlaceKind::Result => machine
-                        .result
-                        .structural()
-                        .filter(|result| result.place == place)
-                        .map(|result| result.structural_type),
-                    _ => row.kind.produced_structural_type(),
-                }
-            })
-        })
-}
-
 /// Return custody applies to nested descriptor slots of an owned aggregate,
 /// regardless of which operation constructed it. Direct references and views
 /// retain their separate return contracts. Missing or ambiguous types fail closed.
@@ -762,6 +735,71 @@ pub fn aggregate_descriptor_slots(
 
 pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
     terminal_graph_for(module, DescriptorSlotKind::Views, &[]).unwrap_or_default()
+}
+
+/// Adapt only the complete invocation closure needed by these query roots.
+/// Catalogs and signatures stay whole; omitted callers cannot establish a
+/// callee's facts. Missing or ambiguous reached bodies leave no usable graph.
+pub fn terminal_graph_from(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = MachineId>,
+) -> Vec<DescriptorMachine> {
+    terminal_graph_closure(module, roots).unwrap_or_default()
+}
+
+fn terminal_graph_closure(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = MachineId>,
+) -> Option<Vec<DescriptorMachine>> {
+    let mut pending: Vec<_> = roots.into_iter().collect();
+    let mut reached = BTreeMap::new();
+    while let Some(identity) = pending.pop() {
+        if reached.contains_key(&identity) {
+            continue;
+        }
+        let mut bodies = module.machines.iter().filter(|body| body.id == identity);
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let graph = terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], None)?;
+        for call in graph.calls.values() {
+            match &call.target {
+                DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
+                DescriptorInvocationTarget::Public {
+                    effects_machine,
+                    realizations,
+                    ..
+                } => {
+                    pending.extend(effects_machine);
+                    pending.extend(realizations);
+                }
+                DescriptorInvocationTarget::Provider { .. } => {}
+            }
+        }
+        reached.insert(identity, graph);
+    }
+    let bodies: Vec<_> = module
+        .machines
+        .iter()
+        .filter(|body| reached.contains_key(&body.id))
+        .collect();
+    let initial: Vec<_> = bodies
+        .iter()
+        .filter_map(|body| reached.remove(&body.id))
+        .collect();
+    if !bodies.iter().any(|body| {
+        body.operations()
+            .any(|operation| matches!(operation.kind, OperationKind::CallDynamic { .. }))
+    }) {
+        return Some(initial);
+    }
+    bodies
+        .into_iter()
+        .map(|body| {
+            terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], Some(&initial))
+        })
+        .collect()
 }
 
 /// Current Terminal reference-slot graph; pair with `with_reference_slots`.

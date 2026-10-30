@@ -1,0 +1,42 @@
+{
+  "schema": "omega-performance-plan/1",
+  "name": "square matched compiler before/after",
+  "working_directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega",
+  "inputs": [
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-a\\main.omg",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-a\\build.omg",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-a\\omega.lock",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-b\\main.omg",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-b\\build.omg",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-b\\omega.lock",
+    "source/library"
+  ],
+  "baseline": {
+    "program": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-before.exe",
+    "environment": {
+      "LOCALAPPDATA": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\cache-square-a"
+    }
+  },
+  "candidate": {
+    "program": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+    "environment": {
+      "LOCALAPPDATA": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\cache-square-b"
+    }
+  },
+  "warmups": 2,
+  "pairs": 20,
+  "timeout_ms": 60000,
+  "measurement": {
+    "kind": "compiler",
+    "source": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-a\\main.omg",
+    "candidate_source": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-b\\main.omg",
+    "library_root": "source/library",
+    "target": "windows_x86_64",
+    "expected": {
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "require_identical_artifacts": true
+  }
+}

@@ -101,6 +101,25 @@ pub struct AssignmentStorageOrigins {
     pub references: Option<Vec<LocalWriteOrigin>>,
 }
 
+/// Current standalone slot rows supersede the older alias-entry inventory.
+/// An unknown current row still shadows its old initializer; omitting it would
+/// silently restore the retired pointer. Nested slots keep their own selectors.
+pub(super) fn current_reference_aliases(
+    program: &dyn crate::CheckingInput,
+    current: &[LocalWriteOrigin],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> Vec<(String, FramePlaceOrigin)> {
+    aliases
+        .iter()
+        .filter(|(name, _)| {
+            !current.iter().any(|row| {
+                row.local_segments.is_empty() && program.symbols.name(row.local_symbol) == name
+            })
+        })
+        .cloned()
+        .collect()
+}
+
 /// Storage captured by one exact invocation. Each operand keeps all possible
 /// origins; `None` is unknown and `Some([])` means no caller storage. These
 /// coordinates do not grant permission to access the referents.
@@ -263,9 +282,6 @@ pub enum AssignmentWriteTarget {
 
 struct AssignmentEvidence {
     target: AssignmentWriteTarget,
-    aliases: Vec<(String, FramePlaceOrigin)>,
-    divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
-    stored: Vec<StoredLocalOrigins>,
 }
 
 /// A state's recorded assignment results, as `walk_state_assignments`
@@ -451,22 +467,13 @@ pub(super) fn assignment_storage_origins(
         true,
         &evidence.stored,
     )?;
-    // A stable place can name a stored reference descriptor. Performed writes
-    // target its captured referents, not the private carrier slot. Resolve
-    // every selected reference leaf; unresolved candidates invalidate the
-    // judgment rather than silently dropping a possible destination.
+    // The initializer owner completed every selected load against this entry
+    // inventory. These are captured addresses, not slots to read a second time.
     let mut destinations = Vec::new();
     for origin in origins {
-        for destination in super::stored_origins::canonical_reference_origins(
-            program,
-            &Some(origin),
-            &[],
-            &evidence.stored,
-        ) {
-            let destination = LocalWriteSource::from(destination?);
-            if !destinations.contains(&destination) {
-                destinations.push(destination);
-            }
+        let destination = LocalWriteSource::from(origin);
+        if !destinations.contains(&destination) {
+            destinations.push(destination);
         }
     }
     Some(AssignmentStorageOrigins {
@@ -540,9 +547,6 @@ fn assignment_evidence(
     {
         return Some(AssignmentEvidence {
             target: AssignmentWriteTarget::Storage { paths: vec![path] },
-            aliases: Vec::new(),
-            divergent: Vec::new(),
-            stored: Vec::new(),
         });
     }
     let state = match site {
@@ -570,9 +574,6 @@ fn assignment_evidence(
         .find(|(recorded, _)| *recorded == index)?;
     Some(AssignmentEvidence {
         target: prefix.target.clone(),
-        aliases: prefix.aliases.clone(),
-        divergent: prefix.divergent.clone(),
-        stored: prefix.stored.clone(),
     })
 }
 

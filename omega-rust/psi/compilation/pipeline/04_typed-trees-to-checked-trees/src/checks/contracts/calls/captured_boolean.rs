@@ -782,14 +782,10 @@ fn exact_returned_loan(
         .root
         .as_symbol()
         .is_some_and(|symbol| symbol.is_valid())
-        && place.segments.iter().all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-            )
-        })
+        && place
+            .segments
+            .iter()
+            .all(|segment| crate::flow::fixed_selection_segment(segment))
         && loan_call_does_not_write(program, state_symbol, expression)
 }
 

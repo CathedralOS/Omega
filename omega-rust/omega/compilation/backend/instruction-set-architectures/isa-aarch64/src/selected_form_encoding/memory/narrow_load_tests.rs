@@ -1,257 +1,61 @@
 //! Exact narrow pointer reads reject opcode, operand and displacement substitutions.
-use crate::test_support::reject_every_bit_flip;
 
-use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind, check_memory,
-    encode_aarch64_selected_memory_form,
-};
-#[test]
-fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
-    let physical =
-        register_model::validate_physical_register_model(crate::aarch64_physical_register_model())
-            .unwrap();
-    for width in [1_u16, 2] {
-        let family = if width == 1 {
-            MachineAlternativeFamily::Load8
-        } else {
-            MachineAlternativeFamily::Load16
-        };
-        let alternative = MachineAlternativeKey { family, variant: 0 };
-        for byte_offset in [0, u32::from(width), 4095 * u32::from(width)] {
-            let kind = if width == 1 {
-                SelectedInstructionKind::Load8 { byte_offset }
-            } else {
-                SelectedInstructionKind::Load16 { byte_offset }
-            };
-            let displacement = i64::from(byte_offset);
-            for base_name in ["x0", "x1", "x15", "x28"] {
-                let base = physical.model().view_named(base_name).unwrap().id;
-                let destination = physical.model().view_named("x2").unwrap().id;
-                let operands = [base, destination];
-                let encoded = encode_aarch64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    displacement,
-                )
-                .unwrap();
-                assert_eq!(encoded.footprint().register_reads, [base]);
-                assert_eq!(encoded.footprint().register_writes, [destination]);
-                assert_eq!(
-                    encoded.footprint().encoded.memory,
-                    MachineEncodedMemoryEffect::ReadPointerV1 {
-                        pointer_operand: 0,
-                        byte_count: width
-                    }
-                );
-                assert_eq!(
-                    encoded.footprint().encoded.stack,
-                    MachineEncodedStackEffect::UnchangedV1
-                );
-                assert_eq!(
-                    encoded.footprint().encoded.trap,
-                    MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-                );
-                assert!(!encoded.footprint().writes_nzcv);
-                assert_eq!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .unwrap(),
-                    encoded
-                );
-                reject_every_bit_flip(
-                    encoded.bytes(),
-                    &format!("{kind:?}, {base_name}"),
-                    |changed| {
-                        check_memory(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &changed,
-                        )
-                        .is_err()
-                    },
-                );
-                for changed_operands in [
-                    [destination, base],
-                    [destination, destination],
-                    [base, base],
-                ] {
-                    assert!(
-                        check_memory(
-                            &physical,
-                            kind,
-                            alternative,
-                            &changed_operands,
-                            displacement,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                }
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement + i64::from(width),
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                let changed_kind = if width == 1 {
-                    SelectedInstructionKind::Load16 { byte_offset }
-                } else {
-                    SelectedInstructionKind::Load8 { byte_offset }
-                };
-                assert!(
-                    check_memory(
-                        &physical,
-                        changed_kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        MachineAlternativeKey { family, variant: 1 },
-                        &operands,
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands[..1],
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                for end in 0..encoded.bytes().len() {
-                    assert!(
-                        check_memory(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &encoded.bytes()[..end]
-                        )
-                        .is_err()
-                    );
-                }
-                let mut trailing = encoded.bytes().to_vec();
-                trailing.push(0);
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        &trailing
-                    )
-                    .is_err()
-                );
-                // The complete address is read before the result is defined.
-                assert!(
-                    encode_aarch64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[base, base],
-                        displacement
-                    )
-                    .is_ok()
-                );
-            }
-        }
+use super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
+use crate::selected_form_encoding::ValidatedAarch64SelectedFormEncoding;
+use isa_conformance::narrow_load::{self, Exact, Footprint, Roster};
+
+/// Report one validated narrow load as the shared conformance footprint.
+fn observed(encoded: &ValidatedAarch64SelectedFormEncoding) -> Footprint {
+    Footprint {
+        bytes: encoded.bytes().to_vec(),
+        register_reads: encoded.footprint().register_reads.clone(),
+        register_writes: encoded.footprint().register_writes.clone(),
+        memory: encoded.footprint().encoded.memory,
+        stack: encoded.footprint().encoded.stack,
+        trap: encoded.footprint().encoded.trap,
+        flags_untouched: !encoded.footprint().writes_nzcv,
     }
 }
 
 #[test]
-fn narrow_loads_have_zero_extending_opcodes_and_reject_invalid_addresses() {
+fn narrow_loads_bind_widths_footprints_opcodes_and_refuse_substituted_requests() {
     let physical =
         register_model::validate_physical_register_model(crate::aarch64_physical_register_model())
             .unwrap();
-    let operands = ["x1", "x2"].map(|name| physical.model().view_named(name).unwrap().id);
-    for (kind, family, expected) in [
-        (
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
-            MachineAlternativeFamily::Load8,
-            vec![0x22, 0, 0x40, 0x39],
-        ),
-        (
-            SelectedInstructionKind::Load16 { byte_offset: 0 },
-            MachineAlternativeFamily::Load16,
-            vec![0x22, 0, 0x40, 0x79],
-        ),
-    ] {
-        let alternative = MachineAlternativeKey { family, variant: 0 };
-        let encoded =
-            encode_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 0)
-                .unwrap();
-        assert_eq!(encoded.bytes(), expected);
-        let mut signed = expected.clone();
-        signed[2] = 0x80;
-        assert!(check_memory(&physical, kind, alternative, &operands, 0, &signed).is_err());
-        for name in ["sp", "w1", "d0"] {
-            let invalid = physical.model().view_named(name).unwrap().id;
-            for changed in [[invalid, operands[1]], [operands[0], invalid]] {
-                assert!(
-                    encode_aarch64_selected_memory_form(&physical, kind, alternative, &changed, 0)
-                        .is_err()
-                );
-            }
-        }
-    }
-    for byte_offset in [1, 8192] {
-        assert!(
+    narrow_load::conformance(
+        &physical,
+        &Roster {
+            bases: &["x0", "x1", "x15", "x28"],
+            destination: "x2",
+            offsets: |width| vec![0, u32::from(width), 4095 * u32::from(width)],
+        },
+        &Exact {
+            operands: ["x1", "x2"],
+            expected: [(1, &[0x22, 0, 0x40, 0x39]), (2, &[0x22, 0, 0x40, 0x79])],
+            signed_opcode: (2, [0x80, 0x80]),
+            invalid_views: &["sp", "w1", "d0"],
+            invalid_offsets: &[(2, 1), (2, 8192), (1, 4096)],
+        },
+        |kind, alternative, operands, displacement| {
             encode_aarch64_selected_memory_form(
                 &physical,
-                SelectedInstructionKind::Load16 { byte_offset },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::Load16,
-                    variant: 0
-                },
-                &operands,
-                i64::from(byte_offset)
+                kind,
+                alternative,
+                operands,
+                displacement,
             )
-            .is_err()
-        );
-    }
-    assert!(
-        encode_aarch64_selected_memory_form(
-            &physical,
-            SelectedInstructionKind::Load8 { byte_offset: 4096 },
-            MachineAlternativeKey {
-                family: MachineAlternativeFamily::Load8,
-                variant: 0
-            },
-            &operands,
-            4096
-        )
-        .is_err()
+            .map(|encoded| observed(&encoded))
+        },
+        |kind, alternative, operands, displacement, bytes| {
+            validate_aarch64_selected_memory_form(
+                &physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+                bytes,
+            )
+            .map(|encoded| observed(&encoded))
+        },
     );
 }

@@ -9,13 +9,15 @@ use optimization_unit::{
     LinearEmptyBlockRewrite, NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
+use optimization_unit_semantics::{
+    reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
+};
 use semantic_vocabulary::BlockId;
 
-use crate::rules::control_flow_cleanup::descriptor_telescope_free;
-use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
-    compose_linear_thread_bindings, linear_thread_ownership_is_identity,
+use crate::rules::control_flow_cleanup::scalar_cleanup_functions;
+use crate::rules::control_flow_cleanup::{
+    provenance_realized_at, thread_accounting_tail, threadable_empty_blocks,
 };
-use crate::rules::control_flow_cleanup::{provenance_realized_at, record_block_effect_drift};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -34,28 +36,12 @@ psi_rule_contract!(
 psi_rule_impl!(LinearEmptyBlockThreadRule, |unit, analyses| {
     required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
     required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
-    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
+    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(_));
 
     let mut candidates = Vec::new();
-    for function in &unit.functions {
-        // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-        if !descriptor_telescope_free(function) {
-            continue;
-        }
-        for empty in &function.blocks {
-            if empty.id == function.entry || empty.nodes.len() != 1 {
-                continue;
-            }
-            let O::Jump {
-                structural_bindings: _,
-                psi_edge: outgoing_edge,
-                target,
-                bindings: outgoing_bindings,
-                cleanup_actions: outgoing_cleanup_actions,
-            } = &empty.nodes[0].operation
-            else {
-                continue;
-            };
+    for function in scalar_cleanup_functions(&unit.functions) {
+        for empty in threadable_empty_blocks(function, use_definitions) {
+            let empty_id = empty.block.id;
             let incoming = function
                 .blocks
                 .iter()
@@ -68,7 +54,7 @@ psi_rule_impl!(LinearEmptyBlockThreadRule, |unit, analyses| {
                             candidate
                                 .successors
                                 .iter()
-                                .any(|edge| edge.target == empty.id)
+                                .any(|edge| edge.target == empty_id)
                                 .then_some((block, node, candidate))
                         })
                 })
@@ -89,47 +75,32 @@ psi_rule_impl!(LinearEmptyBlockThreadRule, |unit, analyses| {
                 continue;
             };
             if !incoming_cleanup_actions.is_empty()
-                || !outgoing_cleanup_actions.is_empty()
-                || *predecessor_target != empty.id
-                || empty.parameters.iter().any(|parameter| {
-                    use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine
-                            && use_site.value == parameter.value
-                            && (use_site.block != empty.id || use_site.node != 0)
-                    })
-                })
-                || !linear_thread_ownership_is_identity(
+                || *predecessor_target != empty.block.id
+                || !reconstruct_linear_thread_ownership_is_identity(
                     unit,
                     function,
-                    frontiers,
                     *incoming_edge,
-                    empty.id,
-                    *outgoing_edge,
-                    *target,
+                    empty.block.id,
+                    empty.edge,
+                    empty.target,
                 )
+                || reconstruct_linear_thread_bindings(
+                    &empty.block.parameters,
+                    incoming_bindings,
+                    empty.bindings,
+                )
+                .is_none()
             {
                 continue;
             }
-            let Some(_) = compose_linear_thread_bindings(
-                &empty.parameters,
-                incoming_bindings,
-                outgoing_bindings,
-            ) else {
-                continue;
-            };
             let predecessor = NodeLocation {
                 machine: function.machine,
                 block: predecessor_block.id,
                 node: u32::try_from(*predecessor_node_index)
                     .expect("optimization node indices are u32"),
             };
-            let empty_location = NodeLocation {
-                machine: function.machine,
-                block: empty.id,
-                node: 0,
-            };
             let Some((affected_blocks, provenance)) =
-                linear_thread_accounting(function, predecessor, empty_location)
+                linear_thread_accounting(function, predecessor, empty.location)
             else {
                 continue;
             };
@@ -143,9 +114,9 @@ psi_rule_impl!(LinearEmptyBlockThreadRule, |unit, analyses| {
                     LinearEmptyBlockRewrite {
                         predecessor,
                         incoming_edge: *incoming_edge,
-                        empty: empty_location,
-                        outgoing_edge: *outgoing_edge,
-                        target: *target,
+                        empty: empty.location,
+                        outgoing_edge: empty.edge,
+                        target: empty.target,
                     },
                 )
                 .map_err(RuleProposalError::InvalidCandidate)?,
@@ -174,16 +145,14 @@ pub(super) fn linear_thread_accounting(
         machine: function.machine,
         edge: predecessor_edge.psi_edge,
     };
-    let predecessor_site = output_site;
     let empty_site = PsiRealizationSite::Edge {
         machine: function.machine,
         edge: empty_edge.psi_edge,
     };
-
-    let mut affected = BTreeSet::from([predecessor.block, empty.block]);
-    let mut realized = vec![
+    let affected = BTreeSet::from([predecessor.block, empty.block]);
+    let realized = vec![
         provenance_realized_at(
-            predecessor_site,
+            output_site,
             output_site,
             &predecessor_edge.provenance,
             &predecessor_edge.fuel,
@@ -195,20 +164,5 @@ pub(super) fn linear_thread_accounting(
             &empty_edge.fuel,
         ),
     ];
-    let mut expected_effect = 0u64;
-    for block in &function.blocks {
-        if block.id == empty.block {
-            continue;
-        }
-        record_block_effect_drift(
-            function,
-            block,
-            &mut expected_effect,
-            Some(predecessor),
-            &mut affected,
-            &mut realized,
-        )?;
-    }
-    realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
-    Some((affected.into_iter().collect(), realized))
+    thread_accounting_tail(function, empty.block, Some(predecessor), affected, realized)
 }

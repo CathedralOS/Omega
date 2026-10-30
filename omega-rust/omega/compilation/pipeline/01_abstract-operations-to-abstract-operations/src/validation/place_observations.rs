@@ -961,22 +961,20 @@ pub(crate) fn invariant_subslice_admission(
     .then_some((root, substitution))
 }
 
-/// The node that defines `value`, and the block that holds it, when that
-/// definition is a body node.
-fn defined_operation<'function>(
-    function: &'function PsiOptimizationFunction,
+/// The block and node `value`'s definition site names, when that site is a
+/// block node: the producer a descriptor or length operand is read from.
+/// `None` for a parameter, or a node index the block does not hold.
+fn defining_node(
+    function: &PsiOptimizationFunction,
     value: ValueId,
-) -> Option<(&'function OptimizationNode, BlockId)> {
+) -> Option<(BlockId, &OptimizationNode)> {
     let sites = value_definition_sites(function);
-    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&value) else {
+    let ValueDefinitionSite::Node { block, node } = sites.get(&value)? else {
         return None;
     };
-    let producing = function.block(*block).and_then(|entry| {
-        usize::try_from(*node)
-            .ok()
-            .and_then(|index| entry.nodes.get(index))
-    })?;
-    Some((producing, *block))
+    let block = function.block(*block)?;
+    let defining = block.nodes.get(usize::try_from(*node).ok()?)?;
+    Some((block.id, defining))
 }
 
 /// A subrange retains the exact descriptor selected by its count, including
@@ -995,7 +993,7 @@ fn descriptor_length_operand_matches(
         O::ElementViewSubslice { source, .. } => (source, true),
         _ => return false,
     };
-    let Some((producing, block)) = defined_operation(function, length) else {
+    let Some((block, producing)) = defining_node(function, length) else {
         return false;
     };
     let measured = match &producing.operation {
@@ -1033,7 +1031,7 @@ fn byte_length_operand_measures_root(
     relocating_roots: &BTreeSet<PlaceId>,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let Some((producing, block)) = defined_operation(function, rebound_length) else {
+    let Some((block, producing)) = defining_node(function, rebound_length) else {
         return false;
     };
     match &producing.operation {
@@ -1069,7 +1067,7 @@ fn field_byte_length_operand_measures_root(
     field: semantic_vocabulary::StructuralFieldId,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let Some((producing, block)) = defined_operation(function, length) else {
+    let Some((block, producing)) = defining_node(function, length) else {
         return false;
     };
     match &producing.operation {

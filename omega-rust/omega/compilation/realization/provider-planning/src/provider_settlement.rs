@@ -32,7 +32,6 @@ pub use composition_modes::verify_selected_compositions_are_realized;
 use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
-use crate::derive_satisfies_plans;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
@@ -189,6 +188,7 @@ fn mint_toolchain_settled_plan(
         ),
         provider_type: provider.to_owned(),
         provider_type_package_identity: None,
+        provider_application: Default::default(),
         target: target_name.to_owned(),
         schema,
         rows,
@@ -233,6 +233,9 @@ pub struct CheckedProviderSelection {
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
+    /// Original authored candidates and their defaults, before native Build
+    /// supplies and compiler-minted plans enter the execution inventory.
+    pub(crate) authored_providers: std::sync::Arc<crate::target_machines::AuthoredTargetProviders>,
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -278,6 +281,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<ProviderSettlement, Vec<Diagnostic>> {
         let Self {
+            authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
             component_calling_applications,
@@ -297,6 +301,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             );
         }
         Ok(ProviderSettlement {
+            authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
             component_calling_applications,
@@ -436,6 +441,7 @@ fn demanded_provider_plans(
                         selection.subject.selects_schema(
                             candidate.provenance.schema.symbol(),
                             candidate.plan.identity_text(row.requirement_identity),
+                            candidate.plan.schema.root_application_identity(),
                         )
                     })
                 })
@@ -467,7 +473,6 @@ pub fn settle_checked_providers(
     let provider_selection_target = planning_target
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    let target_provider_defaults = settled_target_machines.provider_defaults;
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
@@ -478,14 +483,16 @@ pub fn settle_checked_providers(
         planning_target,
         package_inputs,
     )?;
-    let mut derived_provider_plans =
-        derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
+    let authored_providers =
+        std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             context,
             &boundary_calling_plan_realizations,
-            target_name,
             &evaluated_via_bindings,
-            &settled_target_machines.origins,
-        ))?;
+            planning_target,
+            settled_target_machines,
+        )?);
+    let target_provider_defaults = authored_providers.defaults();
+    let mut derived_provider_plans = authored_providers.candidates().to_vec();
     let mut identities = evaluated_via_bindings.identities().clone().into_builder();
     let native_build_plans = crate::native_bindings::derive(
         context,
@@ -500,11 +507,11 @@ pub fn settle_checked_providers(
         &demanded_provider_plans(
             checked,
             &derived_provider_plans,
-            &target_provider_defaults,
+            target_provider_defaults,
             build_provider_selections,
         ),
         planning_target.unwrap_or_else(target::TargetProfile::host),
-        &target_provider_defaults,
+        target_provider_defaults,
         build_provider_selections,
     )?;
     let direct_context = crate::provider_planning::external_binding_rows::ExternalBindingContext {
@@ -617,6 +624,7 @@ pub fn settle_checked_providers(
                 provider: crate::ProviderPlanProvenance {
                     schema: crate::ProviderSchemaDeclaration::BoundaryTrait(minted.trait_symbol),
                     provider_type: None,
+                    named_application: None,
                     row_requirements: minted.requirement_symbols,
                     row_realizations: vec![
                         crate::ProviderRowRealization::Toolchain;
@@ -823,6 +831,7 @@ pub fn settle_checked_providers(
         )?;
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
+            authored_providers,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             component_calling_applications,

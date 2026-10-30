@@ -2,7 +2,7 @@
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, ValueId, VirtualRegisterId, memory,
+    SelectedMemoryAccessRole, ValueId, VirtualRegisterId, memory, obligation_provenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -55,7 +55,7 @@ pub(super) fn write(
         pointer,
         physical_index,
         address,
-        super::obligated_provenance(row.operation, vec![index, length], vec![obligation]),
+        obligation_provenance(row, &[index, length], &[obligation]),
     )?;
     // A block-parameter view destination reaches the roots every incoming
     // edge binds; an un-sliced view place is its own root and keeps the
@@ -302,11 +302,7 @@ fn backing_index(
         },
         builder.constraints.keys.add_i64,
         &[view.byte_offset, index_register, offset],
-        super::obligated_provenance(
-            row.operation,
-            vec![index, length, view.root_length],
-            vec![obligation],
-        ),
+        obligation_provenance(row, &[index, length, view.root_length], &[obligation]),
     )?;
     Ok(offset)
 }

@@ -5,11 +5,9 @@ data Msg {
     #0 v: u32;
     #1 delta: i32;
 }
-domain u32::WireValue requires self <= 100;
-domain i32::WireDelta requires 0 - 10 <= self && self <= 10;
-data Val {
-    v: u32 in WireValue;
-    delta: i32 in WireDelta;
+data Val requires v <= 100 && 0 - 10 <= delta && delta <= 10 {
+    v: u32;
+    delta: i32;
 }
 data WireVerdict {
     case Invalid;

@@ -33,9 +33,16 @@ pub(crate) fn plan(planner: &mut StatementPlanner<'_, '_>, statement: &Statement
             expression,
             expected,
         )
+        && elements.all_authored()
     {
-        for (element_index, (element, primitive_type)) in elements.elements.into_iter().enumerate()
-        {
+        for (element_index, element) in elements.elements.into_iter().enumerate() {
+            let validation::ScalarArrayElement::Authored {
+                expression: element,
+                primitive_type,
+            } = element
+            else {
+                continue;
+            };
             let Ok(element_ordinal) = u32::try_from(element_index) else {
                 break;
             };

@@ -10,11 +10,11 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
+use register_model::{
+    RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
+};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -68,11 +68,7 @@ pub fn validate_aarch64_selected_system_call_form(
         || number < 0
         || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(kind, SelectedInstructionKind::NormalizedForeignCall { .. })
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::NormalizedForeignCall,
-                variant: 0,
-            })
+        || alternative != kind.call_alternative_key()
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -99,39 +95,10 @@ pub fn validate_aarch64_selected_system_call_form(
     let catalog = crate::aarch64_register_constraint_catalog(physical);
     let keys = crate::aarch64_linux_system_call_keys();
     let row = catalog
-        .constraints
-        .iter()
-        .find(|row| {
-            keys.contains(&row.key)
-                && row.operands.len() == operand_views.len()
-                && row.operands.len() == operand_accesses.len()
-                && row
-                    .operands
-                    .iter()
-                    .zip(operand_views.iter().zip(operand_accesses))
-                    .all(|(operand, (view, access))| {
-                        operand.fixed_view == Some(*view) && operand.access == *access
-                    })
-        })
+        .row_matching(&keys, operand_views, operand_accesses)
         .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-    let effects = MachineEncodedEffects {
-        external_operand_reads: row.operand_reads(),
-        external_operand_writes: row.operand_writes(),
-        implicit_unit_uses: row.implicit_uses.clone(),
-        implicit_unit_defs: row.implicit_defs.clone(),
-        implicit_unit_clobbers: row.clobbers.clone(),
-        memory: MachineEncodedMemoryEffect::NoneV1,
-        stack: MachineEncodedStackEffect::UnchangedV1,
-        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        control: MachineEncodedControlEffect::SupervisorCallV1,
-    };
-    let views_for = |access| {
-        operand_views
-            .iter()
-            .zip(operand_accesses)
-            .filter_map(|(view, actual)| (*actual == access).then_some(*view))
-            .collect()
-    };
+    let effects = MachineEncodedEffects::supervisor_call_v1(row);
+    let views_for = |access| views_with_access(operand_views, operand_accesses, access);
     Ok(ValidatedAarch64SelectedFormEncoding {
         bytes: bytes.to_vec(),
         footprint: Aarch64SelectedFormFootprint {
@@ -146,6 +113,7 @@ pub fn validate_aarch64_selected_system_call_form(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use selected_instructions::{MachineEncodedControlEffect, MachineEncodedStackEffect};
     use semantic_vocabulary::BoundaryMachineId;
 
     #[test]
@@ -158,7 +126,7 @@ mod tests {
             ordinal: 0,
         };
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::NormalizedForeignCall,
+            family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
             variant: 0,
         };
         for key in crate::aarch64_linux_system_call_keys() {

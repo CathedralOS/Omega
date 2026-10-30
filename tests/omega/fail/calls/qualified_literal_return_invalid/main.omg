@@ -1,0 +1,17 @@
+// Expected exit: 0
+public domain [u8]::Ascii requires ascii_only(self);
+data Choice [copy] { case Gate; case Branch; }
+machine label(choice: Choice) -> &[u8] in Ascii
+ensures result.len <= 11
+{
+    transition { choice == Choice::Gate -> "Gate" _ -> "é" }
+}
+machine main() crashes Trap {
+    let gate: &[u8] in Ascii = label(Choice::Gate);
+    let branch: &[u8] in Ascii = label(Choice::Branch);
+    transition gate == "Gate" && branch == "Branch Room" {
+        true -> {}
+        false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

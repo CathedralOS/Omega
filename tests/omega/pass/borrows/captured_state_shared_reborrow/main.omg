@@ -1,0 +1,48 @@
+// Expected exit: 0
+// Mutable and shared arrivals retain distinct descriptor access through a
+// common reader. Both routes observe the same local array and untouched sibling.
+data Context { route: u64; remaining: u64; total: u64; }
+machine read(words: &[u64; 8]) -> u64 {
+    transition words[1] == 99u64 { true -> (words[0]) _ -> (2u64) }
+}
+machine write(context: &mut Context, words: &mut [u64; 8]) -> u64 {
+    words[0] = 41u64;
+    transition { _ -> next(context, words) }
+}
+machine next(context: &mut Context, words: &[u64; 8]) -> u64 {
+    let value: u64 = read(words);
+    context.total = ((context.total as u64 in Wrapping) + (value as u64 in Wrapping)) as u64;
+    transition context.remaining > 0u64 { true -> again(context) _ -> (value) }
+    machine again(context: &mut Context) -> u64 {
+        context.remaining = ((context.remaining as u64 in Wrapping) - 1u64) as u64;
+        transition { _ -> poll(context) }
+    }
+}
+machine poll(context: &mut Context) -> u64 {
+    let mut words: [u64; 8];
+    words[0] = 17u64;
+    words[1] = 99u64;
+    transition {
+        context.route == 0u64 -> write(context, &mut words)
+        context.route == 2u64 -> next(context, &mut words)
+        _ -> next(context, &words)
+    }
+}
+machine main() crashes Trap {
+    let mut context: Context;
+    context.remaining = 2u64;
+    let changed: u64 = poll(&mut context);
+    let changed_total: u64 = context.total;
+    context.route = 1u64; context.remaining = 2u64; context.total = 0u64;
+    let original: u64 = poll(&mut context);
+    let original_total: u64 = context.total;
+    context.route = 2u64; context.remaining = 2u64; context.total = 0u64;
+    let explicit: u64 = poll(&mut context);
+    transition changed == 41u64 && original == 17u64 && explicit == 17u64
+        && changed_total == 123u64 && original_total == 51u64 && context.total == 51u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

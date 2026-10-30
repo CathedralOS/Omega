@@ -17,6 +17,15 @@ use super::substitution::{instantiate_levels, shift, substitute};
 use super::term::{Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal};
 use super::typing::{Context, CoreError, box_body_type, infer_sort, infer_type, w_step_type};
 
+macro_rules! row {
+    (Apply => $function:expr => $argument:expr) => {
+        Term::Apply {
+            function: $function,
+            argument: $argument,
+        }
+    };
+}
+
 /// The default number of β steps a conversion attempt may take.
 pub const DEFAULT_CONVERSION_STEPS: u32 = 65_536;
 
@@ -123,10 +132,7 @@ pub fn weak_head_normalize_retaining(
                         if head == function {
                             return Ok(current);
                         }
-                        return Ok(arena.insert(Term::Apply {
-                            function: head,
-                            argument,
-                        }));
+                        return Ok(arena.insert(row!(Apply => head => argument)));
                     }
                 }
             }
@@ -246,18 +252,12 @@ pub fn weak_head_normalize_retaining(
                         ..
                     } => {
                         budget.consume()?;
-                        let bound_domain = arena.insert(Term::Apply {
-                            function: children,
-                            argument: label,
-                        });
+                        let bound_domain = arena.insert(row!(Apply => children => label));
                         let shifted_motive = shift(arena, motive, 0, 1);
                         let shifted_step = shift(arena, step, 0, 1);
                         let shifted_function = shift(arena, function, 0, 1);
                         let bound = arena.insert(Term::Variable(0));
-                        let child = arena.insert(Term::Apply {
-                            function: shifted_function,
-                            argument: bound,
-                        });
+                        let child = arena.insert(row!(Apply => shifted_function => bound));
                         let body = arena.insert(Term::IndW {
                             motive: shifted_motive,
                             step: shifted_step,
@@ -267,18 +267,9 @@ pub fn weak_head_normalize_retaining(
                             domain: bound_domain,
                             body,
                         });
-                        let applied = arena.insert(Term::Apply {
-                            function: step,
-                            argument: label,
-                        });
-                        let applied = arena.insert(Term::Apply {
-                            function: applied,
-                            argument: function,
-                        });
-                        current = arena.insert(Term::Apply {
-                            function: applied,
-                            argument: hypothesis,
-                        });
+                        let applied = arena.insert(row!(Apply => step => label));
+                        let applied = arena.insert(row!(Apply => applied => function));
+                        current = arena.insert(row!(Apply => applied => hypothesis));
                     }
                     _ => {
                         if head == tree {
@@ -320,10 +311,7 @@ pub fn weak_head_normalize_retaining(
                 match arena.get(head) {
                     Term::SquashIntro { value, .. } => {
                         budget.consume()?;
-                        current = arena.insert(Term::Apply {
-                            function,
-                            argument: value,
-                        });
+                        current = arena.insert(row!(Apply => function => value));
                     }
                     _ => {
                         if head == scrutinee {
@@ -350,10 +338,7 @@ pub fn weak_head_normalize_retaining(
                 match arena.get(head) {
                     Term::BoxIntro { value, .. } => {
                         budget.consume()?;
-                        current = arena.insert(Term::Apply {
-                            function: body,
-                            argument: value,
-                        });
+                        current = arena.insert(row!(Apply => body => value));
                     }
                     _ => {
                         if head == scrutinee {
@@ -477,6 +462,11 @@ pub fn convertible_retaining(
     budget: &mut Budget,
     retained: &impl Fn(u32) -> bool,
 ) -> Result<bool, CoreError> {
+    macro_rules! head {
+        ($term:expr) => {
+            weak_head_normalize_retaining(arena, context.signature(), $term, budget, retained)
+        };
+    }
     let shared_sort = infer_sort(arena, context, shared_type, budget)?;
     if shared_sort.is_strict() {
         return Ok(true);
@@ -651,13 +641,7 @@ pub fn convertible_retaining(
             // Neutral spines: the heads must convert and the arguments must
             // convert at the function's inferred Π domain.
             let function_type = infer_type(arena, context, left_function, budget)?;
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                function_type,
-                budget,
-                retained,
-            )?;
+            let type_head = head!(function_type)?;
             match arena.get(type_head) {
                 Term::Pi { domain, .. } => {
                     if !convertible_retaining(
@@ -689,13 +673,7 @@ pub fn convertible_retaining(
             // Neutral projections: the projected pairs must convert at
             // their inferred `Sigma`.
             let pair_type = infer_type(arena, context, left_pair, budget)?;
-            let pair_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                pair_type,
-                budget,
-                retained,
-            )?;
+            let pair_head = head!(pair_type)?;
             match arena.get(pair_head) {
                 Term::Sigma { .. } => convertible_retaining(
                     arena, context, left_pair, right_pair, pair_head, budget, retained,
@@ -739,10 +717,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let zero = arena.insert(Term::TwoZero);
-            let zero_branch_type = arena.insert(Term::Apply {
-                function: left_motive,
-                argument: zero,
-            });
+            let zero_branch_type = arena.insert(row!(Apply => left_motive => zero));
             if !convertible_retaining(
                 arena,
                 context,
@@ -755,10 +730,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let one = arena.insert(Term::TwoOne);
-            let one_branch_type = arena.insert(Term::Apply {
-                function: left_motive,
-                argument: one,
-            });
+            let one_branch_type = arena.insert(row!(Apply => left_motive => one));
             convertible_retaining(
                 arena,
                 context,
@@ -857,13 +829,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let proof_type = infer_type(arena, context, left_proof, budget)?;
-            let proof_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                proof_type,
-                budget,
-                retained,
-            )?;
+            let proof_head = head!(proof_type)?;
             let (ty, fixed) = match arena.get(proof_head) {
                 Term::Id { ty, left, .. } => (ty, left),
                 _ => return Ok(false),
@@ -891,14 +857,8 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let refl = arena.insert(Term::Refl { ty, value: fixed });
-            let at_fixed = arena.insert(Term::Apply {
-                function: left_motive,
-                argument: fixed,
-            });
-            let base_type = arena.insert(Term::Apply {
-                function: at_fixed,
-                argument: refl,
-            });
+            let at_fixed = arena.insert(row!(Apply => left_motive => fixed));
+            let base_type = arena.insert(row!(Apply => at_fixed => refl));
             convertible_retaining(
                 arena, context, left_base, right_base, base_type, budget, retained,
             )
@@ -992,10 +952,7 @@ pub fn convertible_retaining(
                     )? {
                         return Ok(false);
                     }
-                    let domain = arena.insert(Term::Apply {
-                        function: children,
-                        argument: left_label,
-                    });
+                    let domain = arena.insert(row!(Apply => children => left_label));
                     let codomain = shift(arena, type_head, 0, 1);
                     let function_type = arena.insert(Term::Pi { domain, codomain });
                     convertible_retaining(
@@ -1034,13 +991,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let tree_type = infer_type(arena, context, left_tree, budget)?;
-            let tree_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                tree_type,
-                budget,
-                retained,
-            )?;
+            let tree_head = head!(tree_type)?;
             let (carrier, children) = match arena.get(tree_head) {
                 Term::W { carrier, children } => (carrier, children),
                 _ => return Ok(false),
@@ -1191,13 +1142,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
-            let scrutinee_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                scrutinee_type,
-                budget,
-                retained,
-            )?;
+            let scrutinee_head = head!(scrutinee_type)?;
             let carrier = match arena.get(scrutinee_head) {
                 Term::Squash { ty } => ty,
                 _ => return Ok(false),
@@ -1250,13 +1195,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
-            let scrutinee_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                scrutinee_type,
-                budget,
-                retained,
-            )?;
+            let scrutinee_head = head!(scrutinee_type)?;
             let payload = match arena.get(scrutinee_head) {
                 Term::Box { ty } => ty,
                 _ => return Ok(false),
@@ -1356,10 +1295,7 @@ pub fn convertible_retaining(
                     let extended = context.extend(domain);
                     let lifted = shift(arena, other, 0, 1);
                     let fresh = arena.insert(Term::Variable(0));
-                    let applied = arena.insert(Term::Apply {
-                        function: lifted,
-                        argument: fresh,
-                    });
+                    let applied = arena.insert(row!(Apply => lifted => fresh));
                     convertible_retaining(
                         arena,
                         &extended,

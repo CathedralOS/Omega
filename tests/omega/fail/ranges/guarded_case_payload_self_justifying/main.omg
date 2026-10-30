@@ -1,0 +1,9 @@
+// A projection cannot form the guard which would purportedly authorize itself.
+data Text
+    requires ((self.length <= 4u64) && (self in Text::Short))
+        || ((self in Text::Long) && self.length <= 8u64)
+{
+    case Short(length: u64);
+    case Long(length: u64);
+}
+machine main() {}

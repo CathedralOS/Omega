@@ -157,16 +157,17 @@ pub(super) fn collect_machine_edges(
     index: &MachineIndex,
 ) -> HashMap<SymbolHandle, Vec<SymbolHandle>> {
     let mut edges: HashMap<SymbolHandle, Vec<SymbolHandle>> = HashMap::new();
+    macro_rules! edge {
+        ($from:expr, $to:expr) => {
+            push_edge(&mut edges, $from, index.machine_of($to))
+        };
+    }
 
     // Authoritative checked call facts: every call the semantic traversal
     // captured, keyed by the owning machine.
     for (_, state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            push_edge(
-                &mut edges,
-                state.machine_symbol,
-                index.machine_of(call.target_symbol),
-            );
+            edge!(state.machine_symbol, call.target_symbol);
         }
     }
 
@@ -183,26 +184,14 @@ pub(super) fn collect_machine_edges(
     // machines it may invoke through its static telescope.
     for specialization in &program.machine_specializations {
         for argument in &specialization.machine_arguments {
-            push_edge(
-                &mut edges,
-                specialization.instance,
-                index.machine_of(*argument),
-            );
+            edge!(specialization.instance, *argument);
         }
         for application in &specialization.conformance_applications {
             for argument in application.machine_arguments.iter() {
-                push_edge(
-                    &mut edges,
-                    specialization.instance,
-                    index.machine_of(*argument),
-                );
+                edge!(specialization.instance, *argument);
             }
             for row in &application.rows {
-                push_edge(
-                    &mut edges,
-                    specialization.instance,
-                    index.machine_of(row.realization_machine),
-                );
+                edge!(specialization.instance, row.realization_machine);
             }
         }
     }
@@ -211,11 +200,7 @@ pub(super) fn collect_machine_edges(
     // exact evidence target.
     for call in &facts.proof.contract_expression_evidence_calls {
         if let Some(machine_symbol) = contract_caller(&facts.proof, call.owner) {
-            push_edge(
-                &mut edges,
-                machine_symbol,
-                index.machine_of(call.target_machine_symbol),
-            );
+            edge!(machine_symbol, call.target_machine_symbol);
         }
     }
     for application in &facts
@@ -224,14 +209,10 @@ pub(super) fn collect_machine_edges(
     {
         if let Some(machine_symbol) = contract_caller(&facts.proof, application.owner) {
             for argument in application.application.machine_arguments.iter() {
-                push_edge(&mut edges, machine_symbol, index.machine_of(*argument));
+                edge!(machine_symbol, *argument);
             }
             for row in &application.application.rows {
-                push_edge(
-                    &mut edges,
-                    machine_symbol,
-                    index.machine_of(row.realization_machine),
-                );
+                edge!(machine_symbol, row.realization_machine);
             }
         }
     }
@@ -240,29 +221,21 @@ pub(super) fn collect_machine_edges(
     // edges even where the ordinary call traversal does not observe them.
     for component in &facts.termination.proof_recursive_components {
         for edge in &component.edges {
-            push_edge(&mut edges, edge.caller, index.machine_of(edge.callee));
+            edge!(edge.caller, edge.callee);
         }
     }
 
     // Suspension-crossing rows retain the exact call target they may suspend
     // across.
     for crossing in &facts.carry.suspension_crossings {
-        push_edge(
-            &mut edges,
-            crossing.machine,
-            index.machine_of(crossing.target),
-        );
+        edge!(crossing.machine, crossing.target);
     }
 
     // Checked semantic dependencies include `AutomaticCleanupMachine` rows
     // (consumer -> cleanup machine it implicitly invokes) and any
     // machine-valued nominal/layout dependency.
     for row in facts.flow.semantic_dependencies.iter() {
-        push_edge(
-            &mut edges,
-            row.consumer_machine,
-            index.machine_of(row.dependency),
-        );
+        edge!(row.consumer_machine, row.dependency);
     }
 
     // Traversal writes directly into each owner's final dependency storage.

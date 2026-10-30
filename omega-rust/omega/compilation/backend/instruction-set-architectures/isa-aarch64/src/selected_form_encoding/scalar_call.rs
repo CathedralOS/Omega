@@ -147,20 +147,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
     let callee = kind
         .machine_callee()
         .ok_or(Aarch64ScalarCallTemplateError::InstructionKindMismatch)?;
-    let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
-    let expected_alternative = MachineAlternativeKey {
-        family: if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
-            MachineAlternativeFamily::InvokeNoNormal
-        } else if unit {
-            MachineAlternativeFamily::CallUnit
-        } else if matches!(kind, SelectedInstructionKind::CallAggregate { .. }) {
-            MachineAlternativeFamily::CallAggregate
-        } else {
-            MachineAlternativeFamily::CallScalar
-        },
-        variant: 0,
-    };
-    if alternative != expected_alternative {
+    if alternative != kind.call_alternative_key() {
         return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
     }
     let (expected_operand_views, expected) =

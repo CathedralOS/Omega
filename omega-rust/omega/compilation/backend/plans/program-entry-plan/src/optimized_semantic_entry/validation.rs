@@ -247,7 +247,7 @@ fn validate_claim(
     if claim.parameter_index != parameter_index
         || schema.identities.text(claim.carrier_identity).is_empty()
         || claim.domain.is_empty()
-        || !claim.predicate_body.is_present()
+        || !claim.predicate_presence.is_present()
         || claim.effective_carry != CarryPolicy::STRICT
         || claim.authority_flow != ServiceEntryAuthorityFlow::Accepts
     {
@@ -255,7 +255,7 @@ fn validate_claim(
             "selected semantic ProgramStorage parameter {parameter_index} is not exact Extent in Granted: carrier={}, domain={}, predicate={:?}, carry={:?}, flow={:?}",
             schema.identities.text(claim.carrier_identity),
             claim.domain,
-            claim.predicate_body,
+            claim.predicate_presence,
             claim.effective_carry,
             claim.authority_flow
         )));

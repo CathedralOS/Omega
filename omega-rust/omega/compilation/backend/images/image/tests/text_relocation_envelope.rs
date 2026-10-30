@@ -49,6 +49,12 @@ fn text_relocation(
     }
 }
 
+macro_rules! text {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr) => {
+        text_relocation($a, $b, $c, $d, $e)
+    };
+}
+
 fn object_symbol(
     object: &mut ObjectPlan,
     name: &str,
@@ -128,20 +134,8 @@ fn applied_x86_64_relocations_replay_through_the_text_envelope() {
     ]
     .into();
     let mut relocations = RelocationPlan::with_target(target);
-    relocations.push_record(text_relocation(
-        1,
-        4,
-        callee,
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
-    relocations.push_record(text_relocation(
-        12,
-        8,
-        callee,
-        7,
-        RelocationKind::Absolute64,
-    ));
+    relocations.push_record(text!(1 => 4 => callee => 0 => RelocationKind::X86_64Relative32));
+    relocations.push_record(text!(12 => 8 => callee => 7 => RelocationKind::Absolute64));
 
     let mut image = build_final_image(FinalImageInput {
         target,
@@ -192,13 +186,7 @@ fn applied_x86_64_relocations_replay_through_the_text_envelope() {
 
     // A foreign relocation kind cannot launder through the x86-64 patcher.
     let mut foreign = RelocationPlan::with_target(target);
-    foreign.push_record(text_relocation(
-        0,
-        4,
-        callee,
-        0,
-        RelocationKind::Aarch64Branch26,
-    ));
+    foreign.push_record(text!(0 => 4 => callee => 0 => RelocationKind::Aarch64Branch26));
     let mut foreign_image = build_final_image(FinalImageInput {
         target,
         object: &object,
@@ -260,27 +248,9 @@ fn applied_aarch64_relocations_replay_through_the_text_envelope() {
     ]
     .into();
     let mut relocations = RelocationPlan::with_target(target);
-    relocations.push_record(text_relocation(
-        0,
-        4,
-        data_cell,
-        0,
-        RelocationKind::Aarch64Page21,
-    ));
-    relocations.push_record(text_relocation(
-        4,
-        4,
-        data_cell,
-        0,
-        RelocationKind::Aarch64PageOffset12,
-    ));
-    relocations.push_record(text_relocation(
-        8,
-        4,
-        callee,
-        0,
-        RelocationKind::Aarch64Branch26,
-    ));
+    relocations.push_record(text!(0 => 4 => data_cell => 0 => RelocationKind::Aarch64Page21));
+    relocations.push_record(text!(4 => 4 => data_cell => 0 => RelocationKind::Aarch64PageOffset12));
+    relocations.push_record(text!(8 => 4 => callee => 0 => RelocationKind::Aarch64Branch26));
 
     let mut image = build_final_image(FinalImageInput {
         target,
@@ -466,13 +436,7 @@ fn envelope_digest_binds_the_exact_plan_not_its_presentation_order() {
     for drifted_record in [
         invalid_relocation(0, 8, RelocationKind::Absolute64),
         invalid_relocation(4, 4, RelocationKind::X86_64Relative32),
-        text_relocation(
-            0,
-            4,
-            ObjectSymbolHandle::invalid(),
-            8,
-            RelocationKind::X86_64Relative32,
-        ),
+        text!(0 => 4 => ObjectSymbolHandle::invalid() => 8 => RelocationKind::X86_64Relative32),
     ] {
         let mut drifted_plan = RelocationPlan::with_target(NativeTarget::linux_x64());
         drifted_plan.push_record(drifted_record);

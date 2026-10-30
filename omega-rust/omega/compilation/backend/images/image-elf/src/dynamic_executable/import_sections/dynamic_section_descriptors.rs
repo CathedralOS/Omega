@@ -73,6 +73,7 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
         self.contents.descriptors.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn section_name_seed_byte_count(&self) -> usize {
         self.contents.section_name_table_seed.len()
     }
@@ -177,25 +178,12 @@ pub(crate) fn plan_elf_dynamic_section_descriptors(
     payloads: ValidatedElfDynamicSectionPayloads,
 ) -> Result<ValidatedElfDynamicSectionDescriptorPlan, Box<ElfDynamicSectionDescriptorPlanningError>>
 {
-    checked::plan_candidate(
-        payloads,
-        derive_contents,
-        |payloads, contents| {
-            non_authoritative_descriptor_compatibility_fingerprint(&payloads, &contents)
-        },
-        |payloads, contents, fingerprint| Candidate {
-            payloads: payloads,
-            contents: contents,
-            non_authoritative_descriptor_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.payloads,
-        |payloads, diagnostic| {
-            Box::new(ElfDynamicSectionDescriptorPlanningError {
-                payloads: payloads,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: payloads,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+        error: ElfDynamicSectionDescriptorPlanningError,
     )
 }
 

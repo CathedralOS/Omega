@@ -12,25 +12,14 @@ pub(super) fn validate(
         NativeCallOrigin::ProgramEntry {
             entry,
             source_signature,
-            completion_claim_sources,
-            completion_receipts,
+            completion_claim_sources: claim_sources,
+            completion_receipts: receipts,
             ..
         } => {
             if call.target.machine() != Some(*entry) || *source_signature == [0; 32] {
                 return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
             }
-            let structural_count = call
-                .arguments
-                .iter()
-                .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
-                .count();
-            validate_completion(
-                call,
-                ownership,
-                completion_claim_sources,
-                completion_receipts,
-                structural_count,
-            )
+            validate_completion(call, ownership, claim_sources, receipts)
         }
         NativeCallOrigin::Authored => {
             let claims = call
@@ -47,8 +36,8 @@ pub(super) fn validate(
             boundary,
             provider,
             assumption,
-            completion_claim_sources,
-            completion_receipts,
+            completion_claim_sources: claim_sources,
+            completion_receipts: receipts,
         } => {
             if assumption
                 .as_ref()
@@ -90,36 +79,19 @@ pub(super) fn validate(
             {
                 return Err(LegalizedCallSourceError::ArgumentSignatureMismatch);
             }
-            validate_completion(
-                call,
-                ownership,
-                completion_claim_sources,
-                completion_receipts,
-                structural_arguments.len(),
-            )
+            validate_completion(call, ownership, claim_sources, receipts)
         }
         NativeCallOrigin::TargetFamily {
             member,
             target,
-            completion_claim_sources,
-            completion_receipts,
+            completion_claim_sources: claim_sources,
+            completion_receipts: receipts,
             ..
         } => {
             if call.target.machine() != Some(*member) || target.is_empty() {
                 return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
             }
-            let structural_count = call
-                .arguments
-                .iter()
-                .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
-                .count();
-            validate_completion(
-                call,
-                ownership,
-                completion_claim_sources,
-                completion_receipts,
-                structural_count,
-            )
+            validate_completion(call, ownership, claim_sources, receipts)
         }
     }
 }
@@ -127,11 +99,15 @@ pub(super) fn validate(
 fn validate_completion(
     call: &LegalizedScalarCall,
     ownership: &[OwnershipEvent],
-    completion_claim_sources: &[abstract_operations::CompletionClaimSource],
-    completion_receipts: &[terminal_psi::CompletionReceipt],
-    structural_count: usize,
+    claim_sources: &[abstract_operations::CompletionClaimSource],
+    receipts: &[terminal_psi::CompletionReceipt],
 ) -> Result<(), LegalizedCallSourceError> {
-    let transfers = completion_receipts
+    let structural_count = call
+        .arguments
+        .iter()
+        .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
+        .count();
+    let transfers = receipts
         .iter()
         .map(|receipt| ClaimTransfer {
             claim: receipt.claim,
@@ -139,7 +115,7 @@ fn validate_completion(
             path: receipt.path.clone(),
         })
         .collect::<Vec<_>>();
-    let unique_source_claims = completion_claim_sources
+    let unique_source_claims = claim_sources
         .iter()
         .map(|source| source.claim)
         .collect::<std::collections::BTreeSet<_>>();
@@ -148,18 +124,16 @@ fn validate_completion(
     // custody: a fresh local or transferred result need not have an entry row.
     // Preserve the installed transfers and ownership event instead of
     // reconstructing a second, narrower entry-only custody judgement.
-    if unique_source_claims.len() != completion_claim_sources.len()
+    if unique_source_claims.len() != claim_sources.len()
         || transfers != call.claim_transfers
-        || completion_receipts
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        || completion_receipts
+        || receipts.windows(2).any(|pair| pair[0] >= pair[1])
+        || receipts
             .iter()
             .any(|receipt| receipt.argument_index as usize >= structural_count)
     {
         return Err(LegalizedCallSourceError::CompletionEvidenceMismatch);
     }
-    let completed = completion_receipts.to_vec();
+    let completed = receipts.to_vec();
     ((completed.is_empty() && ownership.is_empty())
         || ownership == [OwnershipEvent::ClaimCompletion(completed)])
     .then_some(())

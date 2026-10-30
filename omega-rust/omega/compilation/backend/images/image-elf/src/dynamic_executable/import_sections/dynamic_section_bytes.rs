@@ -55,22 +55,27 @@ impl ValidatedElfDynamicSectionPayloads {
         self.payloads.dynstr.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn dynamic_symbol_byte_count(&self) -> usize {
         self.payloads.dynsym.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn system_v_hash_byte_count(&self) -> usize {
         self.payloads.sysv_hash.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn gnu_hash_byte_count(&self) -> usize {
         self.payloads.gnu_hash.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn symbol_version_byte_count(&self) -> usize {
         self.payloads.versym.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn version_requirement_byte_count(&self) -> usize {
         self.payloads.verneed.len()
     }
@@ -137,23 +142,12 @@ struct Candidate {
 pub(crate) fn serialize_elf_dynamic_sections(
     plan: ValidatedElfDynamicSectionPlan,
 ) -> Result<ValidatedElfDynamicSectionPayloads, Box<ElfDynamicSectionSerializationError>> {
-    checked::plan_candidate(
-        plan,
-        |plan| encode_payloads(plan.contents()),
-        |plan, contents| non_authoritative_payload_compatibility_fingerprint(&plan, &contents),
-        |plan, contents, fingerprint| Candidate {
-            plan: plan,
-            payloads: contents,
-            non_authoritative_payload_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.plan,
-        |plan, diagnostic| {
-            Box::new(ElfDynamicSectionSerializationError {
-                plan: plan,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: plan,
+        derive: |plan| encode_payloads(plan.contents()),
+        contents: payloads,
+        fingerprint: non_authoritative_payload_compatibility_fingerprint,
+        error: ElfDynamicSectionSerializationError,
     )
 }
 

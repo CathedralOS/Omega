@@ -104,6 +104,11 @@ struct RemappedGeneration {
     payload: Box<dyn Any>,
 }
 
+struct GenerationRemappingDomain {
+    value_type: TypeId,
+    generations: HashMap<u32, RemappedGeneration>,
+}
+
 pub struct RecordReader<'bytes, Context = ()> {
     bytes: &'bytes [u8],
     position: usize,
@@ -112,7 +117,10 @@ pub struct RecordReader<'bytes, Context = ()> {
     remaining_depth: usize,
     pub context: Context,
     shared_values: Vec<Option<Box<dyn Any>>>,
-    generation_remappings: HashMap<TypeId, HashMap<u32, RemappedGeneration>>,
+    // Domains are registered by decoder types, not by record bytes. Most
+    // handles retain their generations; avoid hashing every handle's TypeId
+    // just to discover that it is not one of these few remapped domains.
+    generation_remappings: Vec<GenerationRemappingDomain>,
 }
 
 impl<'bytes, Context> RecordReader<'bytes, Context> {
@@ -135,7 +143,7 @@ impl<'bytes, Context> RecordReader<'bytes, Context> {
             remaining_depth: limits.depth,
             context,
             shared_values: Vec::new(),
-            generation_remappings: HashMap::new(),
+            generation_remappings: Vec::new(),
         })
     }
 
@@ -298,9 +306,17 @@ impl<Context> RecordReader<'_, Context> {
     /// semantic handles. Their owner registers a domain before reading uses,
     /// then defines each old-to-fresh correspondence from its retained payload.
     pub fn remap_generations<T: 'static>(&mut self) {
-        self.generation_remappings
-            .entry(TypeId::of::<T>())
-            .or_default();
+        let value_type = TypeId::of::<T>();
+        if !self
+            .generation_remappings
+            .iter()
+            .any(|domain| domain.value_type == value_type)
+        {
+            self.generation_remappings.push(GenerationRemappingDomain {
+                value_type,
+                generations: HashMap::new(),
+            });
+        }
     }
     pub fn define_generation<T: 'static, Payload: Clone + PartialEq + 'static>(
         &mut self,
@@ -308,12 +324,16 @@ impl<Context> RecordReader<'_, Context> {
         payload: &Payload,
         allocate: impl FnOnce() -> Result<u32, &'static str>,
     ) -> Result<u32, RecordError> {
-        let domain = TypeId::of::<T>();
-        if let Some(restored) = self
+        let value_type = TypeId::of::<T>();
+        let domain_index = self
             .generation_remappings
-            .get(&domain)
-            .and_then(|map| map.get(&original))
-        {
+            .iter()
+            .position(|domain| domain.value_type == value_type);
+        if let Some(restored) = domain_index.and_then(|domain_index| {
+            self.generation_remappings[domain_index]
+                .generations
+                .get(&original)
+        }) {
             if restored.payload.downcast_ref::<Payload>() != Some(payload) {
                 return Err(self.error("storage generation names conflicting retained payloads"));
             }
@@ -327,22 +347,35 @@ impl<Context> RecordReader<'_, Context> {
             .checked_sub(1)
             .ok_or_else(|| self.error("generation correspondence limit exceeded"))?;
         let restored = allocate().map_err(|reason| self.error(reason))?;
-        self.generation_remappings
-            .entry(domain)
-            .or_default()
-            .insert(
-                original,
-                RemappedGeneration {
-                    restored,
-                    payload: Box::new(payload.clone()),
-                },
-            );
+        let domain_index = match domain_index {
+            Some(domain_index) => domain_index,
+            None => {
+                let domain_index = self.generation_remappings.len();
+                self.generation_remappings.push(GenerationRemappingDomain {
+                    value_type,
+                    generations: HashMap::new(),
+                });
+                domain_index
+            }
+        };
+        self.generation_remappings[domain_index].generations.insert(
+            original,
+            RemappedGeneration {
+                restored,
+                payload: Box::new(payload.clone()),
+            },
+        );
         Ok(restored)
     }
     pub fn generation<T: 'static>(&self, original: u32) -> Result<u32, RecordError> {
-        match self.generation_remappings.get(&TypeId::of::<T>()) {
+        match self
+            .generation_remappings
+            .iter()
+            .find(|domain| domain.value_type == TypeId::of::<T>())
+        {
             None => Ok(original),
-            Some(map) => map
+            Some(domain) => domain
+                .generations
                 .get(&original)
                 .map(|entry| entry.restored)
                 .ok_or_else(|| {

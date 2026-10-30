@@ -96,6 +96,18 @@ fn plan_decision<'a>(
     next_value: &mut u64,
     outcome_reads_payloads: bool,
 ) -> Result<LoweredBooleanDecision, LoweringError> {
+    macro_rules! descend {
+        ($decision:expr) => {
+            plan_decision(
+                $decision,
+                declared_cases,
+                qualifications,
+                namespace,
+                next_value,
+                outcome_reads_payloads,
+            )
+        };
+    }
     match decision {
         LoweredBooleanDecision::Value(expression) => Ok(LoweredBooleanDecision::Value(expression)),
         LoweredBooleanDecision::Test {
@@ -108,22 +120,8 @@ fn plan_decision<'a>(
             else {
                 return Ok(LoweredBooleanDecision::Test {
                     condition,
-                    when_true: Box::new(plan_decision(
-                        *when_true,
-                        declared_cases,
-                        qualifications,
-                        namespace,
-                        next_value,
-                        outcome_reads_payloads,
-                    )?),
-                    when_false: Box::new(plan_decision(
-                        *when_false,
-                        declared_cases,
-                        qualifications,
-                        namespace,
-                        next_value,
-                        outcome_reads_payloads,
-                    )?),
+                    when_true: Box::new(descend!(*when_true)?),
+                    when_false: Box::new(descend!(*when_false)?),
                 });
             };
             // Only a whole root has a dispatch terminator, and only a test
@@ -139,22 +137,8 @@ fn plan_decision<'a>(
             };
             let Some(declared) = declared else {
                 return Ok(LoweredBooleanDecision::Test {
-                    when_true: Box::new(plan_decision(
-                        *when_true,
-                        declared_cases,
-                        qualifications,
-                        namespace,
-                        next_value,
-                        outcome_reads_payloads,
-                    )?),
-                    when_false: Box::new(plan_decision(
-                        *when_false,
-                        declared_cases,
-                        qualifications,
-                        namespace,
-                        next_value,
-                        outcome_reads_payloads,
-                    )?),
+                    when_true: Box::new(descend!(*when_true)?),
+                    when_false: Box::new(descend!(*when_false)?),
                     condition,
                 });
             };
@@ -212,22 +196,8 @@ fn plan_decision<'a>(
                     cases: declared.iter().map(|declared| declared.id).collect(),
                     payloads,
                 },
-                when_true: Box::new(plan_decision(
-                    when_true,
-                    declared_cases,
-                    qualifications,
-                    namespace,
-                    next_value,
-                    outcome_reads_payloads,
-                )?),
-                when_false: Box::new(plan_decision(
-                    *when_false,
-                    declared_cases,
-                    qualifications,
-                    namespace,
-                    next_value,
-                    outcome_reads_payloads,
-                )?),
+                when_true: Box::new(descend!(when_true)?),
+                when_false: Box::new(descend!(*when_false)?),
             })
         }
         LoweredBooleanDecision::CaseDispatch { .. } => {
@@ -632,6 +602,7 @@ pub(crate) fn substitute_direct(
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
         | Direct::IntegerLiteral { .. }
+        | Direct::ScalarApplication { .. }
         | Direct::IeeeFloatLiteral { .. }
         | Direct::ImplementationSelection { .. }) => expression,
     }
@@ -776,7 +747,8 @@ fn collect_direct_case_reads(
         | Direct::Local { .. }
         | Direct::IntegerLiteral { .. }
         | Direct::IeeeFloatLiteral { .. }
-        | Direct::ImplementationSelection { .. } => {}
+        | Direct::ImplementationSelection { .. }
+        | Direct::ScalarApplication { .. } => {}
     }
 }
 

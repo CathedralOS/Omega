@@ -32,7 +32,7 @@ pub enum AllocatedCalleeSavedRequirementError {
     },
 }
 
-error_report!(
+stage_error_display!(
     AllocatedCalleeSavedRequirementError,
     "allocated callee-saved requirement derivation failed"
 );

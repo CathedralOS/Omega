@@ -117,7 +117,7 @@ fn scalar_type_refinements(
                             program, primitive, domain,
                         ) {
                             bounds
-                        } else if domain.predicate_body.is_present() {
+                        } else if domain.predicate_presence.is_present() {
                             predicates.push(crate::scalar_domain_predicate(
                                 program,
                                 domain,

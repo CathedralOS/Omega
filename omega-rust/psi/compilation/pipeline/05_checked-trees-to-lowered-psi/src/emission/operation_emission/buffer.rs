@@ -9,7 +9,6 @@ use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{mint, operation_id};
 use lowered_psi::{
     LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
-    LoweredSourceScalarBinding,
 };
 use semantic_vocabulary::{
     ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, ValueId,
@@ -439,10 +438,13 @@ impl OperationBuffer {
         }
         if let Some(result) = operation.result.structural() {
             self.structural_establishments.push(result.place);
-        } else if let OperationKind::EstablishTrivialAffineLocal { destination } = &operation.kind {
-            // This owner has no operation result, but its actual establishment
-            // still belongs to the same cleanup chronology. Checked completion
-            // supplies its disposal authority independently.
+        } else if let OperationKind::EstablishTrivialAffineLocal { destination }
+        | OperationKind::EstablishByteSequenceLiteral { destination, .. } =
+            &operation.kind
+        {
+            // Unit-result producers still establish physical storage. Keep
+            // that chronology independent of their result encoding; checked
+            // completion supplies membership and disposal authority separately.
             self.retain_structural_establishment(*destination);
         }
         self.operations.push(operation);
@@ -698,34 +700,6 @@ impl OperationBuffer {
             LoweredSourceCallSite::Operation(operation),
             target,
             frontier_before_call,
-        )
-    }
-
-    pub(crate) fn record_source_call_with_values(
-        &mut self,
-        coordinate: SourceCallCoordinate,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
-        operation: OperationId,
-        target: symbols::SymbolHandle,
-        source_values_before_call: &[ValueDeclaration],
-    ) -> Result<(), LoweringError> {
-        let bindings = source_values_before_call
-            .iter()
-            .enumerate()
-            .map(|(source_position, value)| LoweredSourceScalarBinding {
-                source_position,
-                value: *value,
-            })
-            .collect::<Vec<_>>();
-        self.record_source_call(
-            coordinate,
-            source_site,
-            operation,
-            target,
-            &LoweredSourceFrontierBindings {
-                scalars: bindings,
-                ..Default::default()
-            },
         )
     }
 

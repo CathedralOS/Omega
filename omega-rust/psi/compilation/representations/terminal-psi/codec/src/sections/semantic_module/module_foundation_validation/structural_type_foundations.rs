@@ -10,6 +10,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule, structural_children};
 use terminal_psi::{StructuralRecordStorage, StructuralTypeDeclaration};
 
+macro_rules! extent {
+    ($module:expr => $field:expr => $storage:expr => $size:expr) => {
+        validate_authored_field_extent($module, $field, $storage, $size)
+    };
+}
+
 pub(super) struct StructuralCatalog<'a> {
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
     pub(super) structural_referents: &'a [terminal_psi::StructuralReferentIdentity],
@@ -132,12 +138,7 @@ pub(super) fn validate_catalog_type_shape(
                                 "authored field storage has invalid offset, stride or relevance",
                             );
                         }
-                        let extent = validate_authored_field_extent(
-                            module,
-                            field,
-                            field_storage,
-                            record.byte_size,
-                        )?;
+                        let extent = extent!(module => field => field_storage => record.byte_size)?;
                         if let semantic_vocabulary::AuthoredFieldStorage::Fragmented(recipe) =
                             field_storage
                         {
@@ -408,6 +409,11 @@ fn validate_authored_field_extent(
                     return malformed("repeated field stride overlaps or misaligns its elements");
                 }
             }
+            let length = length
+                .literal()
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "authored repeated storage requires a closed array extent",
+                ))?;
             let extent = length.checked_mul(*element_stride).ok_or(
                 CodecError::MalformedStructuralFoundation("repeated field extent overflows"),
             )?;
@@ -705,35 +711,20 @@ mod authored_storage_envelope_tests {
             AuthoredFieldStorage::Direct { byte_offset: 0 },
         ] {
             assert!(
-                validate_authored_field_extent(
-                    &super::StructuralCatalog::from(&module),
-                    &field,
-                    &storage,
-                    1
-                )
-                .is_err()
+                extent!(&super::StructuralCatalog::from(&module) => &field => &storage => 1)
+                    .is_err()
             );
             assert!(
-                validate_authored_field_extent(
-                    &super::StructuralCatalog::from(&module),
-                    &field,
-                    &storage,
-                    8
-                )
-                .is_ok()
+                extent!(&super::StructuralCatalog::from(&module) => &field => &storage => 8)
+                    .is_ok()
             );
         }
         let offset = AuthoredFieldStorage::Direct {
             byte_offset: u64::MAX - 3,
         };
         assert!(
-            validate_authored_field_extent(
-                &super::StructuralCatalog::from(&module),
-                &field,
-                &offset,
-                u64::MAX
-            )
-            .is_err()
+            extent!(&super::StructuralCatalog::from(&module) => &field => &offset => u64::MAX)
+                .is_err()
         );
     }
 
@@ -774,7 +765,10 @@ mod authored_storage_envelope_tests {
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(941),
-                shape: StructuralTypeShape::FixedArray { element, length: 2 },
+                shape: StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(2),
+                },
             });
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field"),
@@ -788,22 +782,10 @@ mod authored_storage_envelope_tests {
             element_stride: 8,
         };
         assert!(
-            validate_authored_field_extent(
-                &super::StructuralCatalog::from(&module),
-                &field,
-                &storage,
-                16
-            )
-            .is_ok()
+            extent!(&super::StructuralCatalog::from(&module) => &field => &storage => 16).is_ok()
         );
         assert!(
-            validate_authored_field_extent(
-                &super::StructuralCatalog::from(&module),
-                &field,
-                &storage,
-                15
-            )
-            .is_err()
+            extent!(&super::StructuralCatalog::from(&module) => &field => &storage => 15).is_err()
         );
         for storage in [
             AuthoredFieldStorage::Repeated {
@@ -816,27 +798,17 @@ mod authored_storage_envelope_tests {
             },
         ] {
             assert!(
-                validate_authored_field_extent(
-                    &super::StructuralCatalog::from(&module),
-                    &field,
-                    &storage,
-                    24
-                )
-                .is_err()
+                extent!(&super::StructuralCatalog::from(&module) => &field => &storage => 24)
+                    .is_err()
             );
         }
         module.structural_types[1].shape = StructuralTypeShape::FixedArray {
             element,
-            length: u64::MAX,
+            length: terminal_psi::ArrayExtent::Literal(u64::MAX),
         };
         assert!(
-            validate_authored_field_extent(
-                &super::StructuralCatalog::from(&module),
-                &field,
-                &storage,
-                u64::MAX
-            )
-            .is_err()
+            extent!(&super::StructuralCatalog::from(&module) => &field => &storage => u64::MAX)
+                .is_err()
         );
     }
 }

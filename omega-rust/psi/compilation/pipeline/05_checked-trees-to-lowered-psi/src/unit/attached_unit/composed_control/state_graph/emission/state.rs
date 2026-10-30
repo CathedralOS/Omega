@@ -112,6 +112,7 @@ impl StateGraphEmission<'_, '_> {
         let requirements = crate::unit::attached_unit::entry_requirements::lower(
             identities,
             self.checked,
+            self.catalogs.scalar_applications,
             owner.symbol,
             actual_values,
             &self.state_erased[entry_position],
@@ -156,6 +157,7 @@ impl StateGraphEmission<'_, '_> {
             std::sync::Arc::clone(&self.dynamic_dispatch),
         );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
+            scalar_applications: std::sync::Arc::clone(self.catalogs.scalar_applications),
             completed_operand_scope: Vec::new(),
             current_claims: Default::default(),
             shared_qualifications: self
@@ -1031,6 +1033,14 @@ impl StateGraphEmission<'_, '_> {
                 else {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
+                if state
+                    .selected_exit
+                    .is_some_and(|selected| cleanup.exit != selected)
+                {
+                    return unsupported(
+                        "ordinary return cleanup differs from its selected source exit",
+                    );
+                }
                 scalar_return_exits.push(cleanup.exit);
                 let mut regions = super::super::cleanup::for_exit_regions(
                     identities,
@@ -1085,6 +1095,31 @@ impl StateGraphEmission<'_, '_> {
         // returning arm's case edge, and through a successor arm's checked exit
         // cleanup on its staged jump, after operands transfer payload subtrees.
         let mut edge_blocks = Vec::new();
+        macro_rules! short_circuit {
+            ($planned:expr, $values:expr, $edges:expr) => {
+                emit_short_circuit_decision(
+                    identities,
+                    self.checked,
+                    $planned,
+                    $values,
+                    $edges,
+                    ShortCircuitFrame {
+                        erased_scalar_formals: &self.state_erased[position],
+                        erased_proof_formals: &self.state_erased_proof[position],
+                        current_rank,
+                        inherited_lengths: &inherited_lengths,
+                    },
+                    &mut self.block_ranks,
+                    &mut self.rank_edges,
+                    &mut edge_blocks,
+                    &mut evaluation.blocks,
+                    &mut next_block,
+                    &mut next_value,
+                    &mut next_edge,
+                    &mut operations,
+                )?
+            };
+        }
         let frame = super::successor_edge::SuccessorFrame {
             position,
             state_parameters,
@@ -1279,27 +1314,7 @@ impl StateGraphEmission<'_, '_> {
                     _ => unreachable!(),
                 };
                 if let Some((planned, guard_values)) = &planned_guard {
-                    emit_short_circuit_decision(
-                        identities,
-                        self.checked,
-                        planned,
-                        guard_values,
-                        [when_true, when_false],
-                        ShortCircuitFrame {
-                            erased_scalar_formals: &self.state_erased[position],
-                            erased_proof_formals: &self.state_erased_proof[position],
-                            current_rank,
-                            inherited_lengths: &inherited_lengths,
-                        },
-                        &mut self.block_ranks,
-                        &mut self.rank_edges,
-                        &mut edge_blocks,
-                        &mut evaluation.blocks,
-                        &mut next_block,
-                        &mut next_value,
-                        &mut next_edge,
-                        &mut operations,
-                    )?
+                    short_circuit!(planned, guard_values, [when_true, when_false])
                 } else {
                     Terminator::Conditional {
                         condition: condition.ok_or(LoweringError::Unsupported(
@@ -1392,27 +1407,9 @@ impl StateGraphEmission<'_, '_> {
                             when_true,
                             when_false,
                         },
-                        ChainGuard::Decision((planned, namespace)) => emit_short_circuit_decision(
-                            identities,
-                            checked,
-                            &planned,
-                            &namespace,
-                            [when_true, when_false],
-                            ShortCircuitFrame {
-                                erased_scalar_formals: &self.state_erased[position],
-                                erased_proof_formals: &self.state_erased_proof[position],
-                                current_rank,
-                                inherited_lengths: &inherited_lengths,
-                            },
-                            &mut self.block_ranks,
-                            &mut self.rank_edges,
-                            &mut edge_blocks,
-                            &mut evaluation.blocks,
-                            &mut next_block,
-                            &mut next_value,
-                            &mut next_edge,
-                            &mut operations,
-                        )?,
+                        ChainGuard::Decision((planned, namespace)) => {
+                            short_circuit!(&planned, &namespace, [when_true, when_false])
+                        }
                     };
                     if let Some(rank) = current_rank {
                         self.block_ranks.insert(id, rank);
@@ -1440,27 +1437,9 @@ impl StateGraphEmission<'_, '_> {
                     &mut next_edge,
                 )?;
                 match &planned_guard {
-                    Some((planned, namespace)) => emit_short_circuit_decision(
-                        identities,
-                        self.checked,
-                        planned,
-                        namespace,
-                        [first, first_false],
-                        ShortCircuitFrame {
-                            erased_scalar_formals: &self.state_erased[position],
-                            erased_proof_formals: &self.state_erased_proof[position],
-                            current_rank,
-                            inherited_lengths: &inherited_lengths,
-                        },
-                        &mut self.block_ranks,
-                        &mut self.rank_edges,
-                        &mut edge_blocks,
-                        &mut evaluation.blocks,
-                        &mut next_block,
-                        &mut next_value,
-                        &mut next_edge,
-                        &mut operations,
-                    )?,
+                    Some((planned, namespace)) => {
+                        short_circuit!(planned, namespace, [first, first_false])
+                    }
                     None => Terminator::Conditional {
                         condition: condition.ok_or(LoweringError::Unsupported(
                             "guarded jump chain lost its first guard",

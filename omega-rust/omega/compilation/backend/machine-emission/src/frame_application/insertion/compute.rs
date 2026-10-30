@@ -323,22 +323,21 @@ pub(super) fn shift_row_fixups(
     Ok(())
 }
 
+/// Move one function-relative coordinate by `shift`, refusing overflow.
+fn shift_offset(offset: &mut u64, shift: u64) -> Result<(), FrameApplicationError> {
+    *offset = offset
+        .checked_add(shift)
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    Ok(())
+}
+
 pub(super) fn shift_fixup(
     fixup: &mut FunctionFragmentInternalMachineFixup,
     shift: u64,
 ) -> Result<(), FrameApplicationError> {
-    fixup.opcode_function_offset = fixup
-        .opcode_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    fixup.patch_function_offset = fixup
-        .patch_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    fixup.reference_function_offset = fixup
-        .reference_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    shift_offset(&mut fixup.opcode_function_offset, shift)?;
+    shift_offset(&mut fixup.patch_function_offset, shift)?;
+    shift_offset(&mut fixup.reference_function_offset, shift)?;
     Ok(())
 }
 
@@ -346,41 +345,21 @@ pub(super) fn shift_foreign_fixup(
     fixup: &mut machine_code::FunctionFragmentNormalizedForeignCallFixup,
     shift: u64,
 ) -> Result<(), FrameApplicationError> {
-    fixup.opcode_function_offset = fixup
-        .opcode_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    fixup.patch_function_offset = fixup
-        .patch_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    fixup.reference_function_offset = fixup
-        .reference_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    shift_offset(&mut fixup.opcode_function_offset, shift)?;
+    shift_offset(&mut fixup.patch_function_offset, shift)?;
+    shift_offset(&mut fixup.reference_function_offset, shift)?;
     for callback in &mut fixup.callbacks {
-        callback.code_function_offset = callback
-            .code_function_offset
-            .checked_add(shift)
-            .ok_or(FrameApplicationError::OffsetOverflow)?;
+        shift_offset(&mut callback.code_function_offset, shift)?;
         match &mut callback.encoding {
             machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
                 patch_function_offset,
-            } => {
-                *patch_function_offset = patch_function_offset
-                    .checked_add(shift)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
-            }
+            } => shift_offset(patch_function_offset, shift)?,
             machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
                 page_patch_function_offset,
                 page_offset_patch_function_offset,
             } => {
-                *page_patch_function_offset = page_patch_function_offset
-                    .checked_add(shift)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
-                *page_offset_patch_function_offset = page_offset_patch_function_offset
-                    .checked_add(shift)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+                shift_offset(page_patch_function_offset, shift)?;
+                shift_offset(page_offset_patch_function_offset, shift)?;
             }
         }
     }

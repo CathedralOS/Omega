@@ -71,11 +71,7 @@ pub(crate) fn check_crash_exit_edge_isolation(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 /// Reconstruct the exact selected occurrence roster before relying on source
@@ -619,11 +615,7 @@ pub(crate) fn check_published_ceiling_coverage(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 /// Compare one surviving route with a permitted alternative. Invocation callers

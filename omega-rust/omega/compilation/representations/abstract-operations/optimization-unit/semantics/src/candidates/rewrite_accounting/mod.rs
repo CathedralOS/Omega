@@ -4,9 +4,13 @@
 //! this entrance. Exact transformation accounting descends into named family
 //! leaves.
 use crate::candidates::copy_propagation::rewrite_block_parameter_operation;
+use crate::candidates::provenance_realized_at;
 use crate::unit_validation::derived_metadata::expected_edges;
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::{OptimizationEdge, RedundantBlockParameterRewrite, ScalarSubstitution};
+use optimization_unit::{
+    NodeLocation, OptimizationBlock, OptimizationEdge, PsiOptimizationFunction, PsiRealizationSite,
+    RedundantBlockParameterRewrite, ScalarSubstitution,
+};
 use semantic_vocabulary::{BlockId, MachineId};
 
 pub(super) mod adjacent_merge;
@@ -16,7 +20,39 @@ pub(super) mod non_adjacent_merge;
 pub(super) mod scalar_identity;
 pub(crate) mod substitutions;
 pub(super) mod terminal_fusion;
-pub(super) mod threading;
+pub(crate) mod threading;
+
+/// Realize the provenance of each target node absorbed by the merged
+/// predecessor, at that node's shifted output coordinate. Both merge families
+/// land their target nodes the same way; only the predecessor relationship and
+/// effect accounting differ.
+pub(crate) fn realize_merged_target_provenance(
+    function: &PsiOptimizationFunction,
+    predecessor: NodeLocation,
+    target: &OptimizationBlock,
+    realized: &mut Vec<optimization_unit::ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in target.nodes.iter().enumerate() {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let node_index = u32::try_from(node_index).ok()?;
+        let site = |block, node| {
+            PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block,
+                node,
+            })
+        };
+        realized.push(provenance_realized_at(
+            site(target.id, node_index),
+            site(predecessor.block, predecessor.node.checked_add(node_index)?),
+            &node.provenance,
+            &node.fuel,
+        ));
+    }
+    Some(())
+}
 
 pub(crate) fn preserve_edge_custody(
     node: &optimization_unit::OptimizationNode,

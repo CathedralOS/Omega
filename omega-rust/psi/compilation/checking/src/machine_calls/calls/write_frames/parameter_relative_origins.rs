@@ -3,7 +3,7 @@
 //! storage coordinates. A direct returned view needs the same origin evidence
 //! as one first captured in a local; address preservation alone cannot erase it.
 
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
 use crate::machine_calls::calls::write_frames::call_trees::parameter_relative_expression_preserves_transparent_result;
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
@@ -114,18 +114,23 @@ fn parameter_relative_place_origins_in(
     inference: &mut FrameInference,
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
-    let origins = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => {
-            let mut origins = parameter_relative_place_origins_in(
+    macro_rules! place_child {
+        ($expression:expr $(,)?) => {
+            parameter_relative_place_origins_in(
                 program,
                 current_machine,
-                inner.target,
+                $expression,
                 parameters,
                 aliases,
                 symbols,
                 inference,
                 admit_carrier_roots,
-            )?;
+            )
+        };
+    }
+    let origins = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => {
+            let mut origins = place_child!(inner.target)?;
             for origin in &mut origins {
                 if let Some(recast) = origin.place.source.recasts.last_mut()
                     && recast.formation.expression() == inner.target
@@ -156,38 +161,20 @@ fn parameter_relative_place_origins_in(
                     return None;
                 }
             }
-            parameter_relative_place_origins_in(
-                program,
-                current_machine,
-                indexed.collection,
-                parameters,
-                aliases,
-                symbols,
-                inference,
-                admit_carrier_roots,
-            )?
-            .into_iter()
-            .map(|mut origin| {
-                origin.place.source =
+            place_child!(indexed.collection)?
+                .into_iter()
+                .map(|mut origin| {
+                    origin.place.source =
+                        origin
+                            .place
+                            .source
+                            .projected(program, expression, indexed.collection);
+                    origin.place.precision = FramePathPrecision::CollectionCoarse;
                     origin
-                        .place
-                        .source
-                        .projected(program, expression, indexed.collection);
-                origin.place.precision = FramePathPrecision::CollectionCoarse;
-                origin
-            })
-            .collect()
+                })
+                .collect()
         }
-        ExpressionNode::Member(member) => match parameter_relative_place_origins_in(
-            program,
-            current_machine,
-            member.receiver,
-            parameters,
-            aliases,
-            symbols,
-            inference,
-            admit_carrier_roots,
-        ) {
+        ExpressionNode::Member(member) => match place_child!(member.receiver) {
             Some(origins) => origins
                 .into_iter()
                 .map(|mut origin| {
@@ -255,16 +242,7 @@ fn parameter_relative_place_origins_in(
             // expression opaque rather than selecting the provable side.
             let mut selected = Vec::new();
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                for origin in parameter_relative_place_origins_in(
-                    program,
-                    current_machine,
-                    arm.value,
-                    parameters,
-                    aliases,
-                    symbols,
-                    inference,
-                    admit_carrier_roots,
-                )? {
+                for origin in place_child!(arm.value)? {
                     push_unique_parameter_relative(&mut selected, origin);
                 }
             }
@@ -274,16 +252,7 @@ fn parameter_relative_place_origins_in(
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            let mut origins = parameter_relative_place_origins_in(
-                program,
-                current_machine,
-                cast.value,
-                parameters,
-                aliases,
-                symbols,
-                inference,
-                admit_carrier_roots,
-            )?;
+            let mut origins = place_child!(cast.value)?;
             let formation = crate::reference_formation_source(program, expression)?;
             for origin in &mut origins {
                 origin.place.source.recast(formation.view_type, expression);
@@ -426,9 +395,29 @@ fn parameter_relative_call_result_origins(
         return None;
     }
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
-    if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
+    // A receiver is owed only when the attachment names a data definition:
+    // boundary-attached operations such as `Slice::range` bind the collection
+    // as an ordinary positional operand and record no call receiver.
+    if call.receiver.is_valid() != program.attached_data_definition(callee_machine).is_some() {
         return None;
     }
+    // A requirement target has no body of its own. Its single checked
+    // satisfier supplies the result relation the operand substitution below
+    // instantiates; the call's own receiver topology is already judged above.
+    let (callee_machine, callee_state) = if !callee_machine.body_is_present {
+        let satisfiers = crate::requirement_satisfiers(
+            program,
+            program.symbols.authored_origin(callee_machine.symbol),
+        );
+        let [satisfier] = satisfiers.as_slice() else {
+            return None;
+        };
+        let satisfier_machine = program.machine_by_symbol(*satisfier)?;
+        let satisfier_state = program.machine_states(satisfier_machine).first()?;
+        (satisfier_machine, satisfier_state)
+    } else {
+        (callee_machine, callee_state)
+    };
     let callee_origins = transparent_callee_result_origins(
         program,
         callee_machine,

@@ -1,0 +1,2 @@
+violates required fact `float::to_bits(value) == 0xff800123`
+structurally false (`4286578980 == 4286578979`)

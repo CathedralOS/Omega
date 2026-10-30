@@ -8,15 +8,12 @@
 use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
 use crate::order::strictly_increasing;
 
-use machine_code::{ScalarDivisionBranchEvidence, ScalarStackEvidence, ScalarStackMutation};
+use machine_code::{ScalarDivisionBranchEvidence, ScalarStackEvidence};
 use semantic_vocabulary::MachineId;
 use target::Architecture;
 
-use super::call_stack::validate_scalar_call_stack;
 use super::invalid_conditional_evidence as rejected;
-use super::stack_mutation::{
-    claimed_mutations_and_call_sites, replay_scalar_mutation, validate_x86_scalar_mutation,
-};
+use super::stack_mutation::{ScalarReplay, replay_scalar_mutation, validate_x86_scalar_mutation};
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
 pub(crate) fn validate_linear_scalar_division_stack(
@@ -33,9 +30,7 @@ pub(crate) fn validate_linear_scalar_division_stack(
     if !strictly_increasing(&evidence.mutations, |row| row.offset) {
         return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
     }
-    let (mut claimed, mut call_sites) =
-        claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
-    let mut validated_calls = Vec::with_capacity(calls.len());
+    let mut walk = ScalarReplay::new(architecture, machine, bytes, evidence, calls)?;
     let (depth, peak) = replay_x86_scalar_division_branches(
         machine,
         bytes,
@@ -43,20 +38,10 @@ pub(crate) fn validate_linear_scalar_division_stack(
         bytes.len(),
         true,
         branches,
-        &mut claimed,
-        &mut call_sites,
-        evidence,
-        &mut validated_calls,
+        &mut walk,
     )?;
-    super::stack_mutation::scalar_stack_result(
-        &claimed,
-        &call_sites,
-        machine,
-        peak,
-        evidence.stack_alignment,
-        validated_calls,
-        (depth != 0).then_some(ObjectError::MissingBalancedScalarReturn(machine)),
-    )
+    let late_error = (depth != 0).then_some(ObjectError::MissingBalancedScalarReturn(machine));
+    walk.finish(peak, late_error)
 }
 
 pub(crate) fn decode_exact_x86_instruction(
@@ -117,10 +102,7 @@ fn replay_x86_scalar_linear_region(
     start: usize,
     end: usize,
     require_return: bool,
-    claimed: &mut std::collections::BTreeMap<usize, ScalarStackMutation>,
-    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
-    evidence: &ScalarStackEvidence,
-    validated_calls: &mut Vec<ObjectScalarCallStack>,
+    walk: &mut ScalarReplay<'_>,
     depth: &mut u32,
     peak: &mut u32,
 ) -> Result<(), ObjectError> {
@@ -149,27 +131,7 @@ fn replay_x86_scalar_linear_region(
             continue;
         }
         if instruction.mnemonic() == iced_x86::Mnemonic::Call {
-            let call = call_sites
-                .remove(&offset)
-                .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-            let call_evidence =
-                call.scalar_stack
-                    .ok_or(ObjectError::MissingScalarCallStackEvidence {
-                        caller: machine,
-                        owner: call.owner,
-                    })?;
-            let validated = validate_scalar_call_stack(
-                Architecture::X86_64,
-                machine,
-                bytes,
-                call,
-                call_evidence,
-                evidence,
-                *depth,
-                None,
-            )?;
-            *peak = (*peak).max(validated.caller_live_bytes);
-            validated_calls.push(validated);
+            walk.call(offset, true, None, *depth, peak)?;
             continue;
         }
         if instruction.flow_control() != iced_x86::FlowControl::Next {
@@ -185,9 +147,7 @@ fn replay_x86_scalar_linear_region(
             || instruction.mnemonic() == iced_x86::Mnemonic::Lea
                 && instruction.op0_register() == iced_x86::Register::RSP;
         if stack_mutation {
-            let mutation = claimed
-                .remove(&offset)
-                .ok_or(ObjectError::UnclaimedScalarStackMutation { machine, offset })?;
+            let mutation = walk.claim(offset)?;
             validate_x86_scalar_mutation(machine, bytes, &instruction, mutation)?;
             replay_scalar_mutation(machine, offset, mutation.kind, depth, peak)?;
             continue;
@@ -214,10 +174,7 @@ fn replay_x86_scalar_division_branches(
     end: usize,
     require_return: bool,
     branches: &[ScalarDivisionBranchEvidence],
-    claimed: &mut std::collections::BTreeMap<usize, ScalarStackMutation>,
-    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
-    evidence: &ScalarStackEvidence,
-    validated_calls: &mut Vec<ObjectScalarCallStack>,
+    walk: &mut ScalarReplay<'_>,
 ) -> Result<(u32, u32), ObjectError> {
     let mut cursor = start;
     let mut depth = 0_u32;
@@ -248,10 +205,7 @@ fn replay_x86_scalar_division_branches(
             cursor,
             branch.branch_offset,
             false,
-            claimed,
-            call_sites,
-            evidence,
-            validated_calls,
+            walk,
             &mut depth,
             &mut peak,
         )?;
@@ -263,10 +217,7 @@ fn replay_x86_scalar_division_branches(
             branch_end,
             branch.join_offset,
             false,
-            claimed,
-            call_sites,
-            evidence,
-            validated_calls,
+            walk,
             &mut special_depth,
             &mut special_peak,
         )?;
@@ -278,10 +229,7 @@ fn replay_x86_scalar_division_branches(
             branch.ordinary_arm_offset,
             branch.merge_offset,
             false,
-            claimed,
-            call_sites,
-            evidence,
-            validated_calls,
+            walk,
             &mut ordinary_depth,
             &mut ordinary_peak,
         )?;
@@ -298,10 +246,7 @@ fn replay_x86_scalar_division_branches(
         cursor,
         end,
         require_return,
-        claimed,
-        call_sites,
-        evidence,
-        validated_calls,
+        walk,
         &mut depth,
         &mut peak,
     )?;
@@ -316,10 +261,7 @@ pub(crate) fn replay_x86_scalar_division_region(
     end: usize,
     require_return: bool,
     branches: &[ScalarDivisionBranchEvidence],
-    claimed: &mut std::collections::BTreeMap<usize, ScalarStackMutation>,
-    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
-    evidence: &ScalarStackEvidence,
-    validated_calls: &mut Vec<ObjectScalarCallStack>,
+    walk: &mut ScalarReplay<'_>,
 ) -> Result<u32, ObjectError> {
     if branches.is_empty() || start > end || end > bytes.len() {
         return Err(rejected(machine, start));
@@ -331,10 +273,7 @@ pub(crate) fn replay_x86_scalar_division_region(
         end,
         require_return,
         branches,
-        claimed,
-        call_sites,
-        evidence,
-        validated_calls,
+        walk,
     )?;
     if depth != 0 {
         return Err(ObjectError::MissingBalancedScalarReturn(machine));
