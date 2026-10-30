@@ -110,7 +110,7 @@ fn capture(
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
-        if semantic_schema == &plan.schema {
+        if *semantic_schema == &plan.schema {
             0u8.write(&mut output)?;
         } else {
             1u8.write(&mut output)?;
