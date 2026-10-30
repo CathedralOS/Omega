@@ -1660,6 +1660,12 @@ fail/borrows/returned_case_reference_live_source_write rejected 564ms expected @
 fail/borrows/returned_computed_record_parent_stays_borrowed rejected 8512ms expected @a92f16431042
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/returned_indexed_case_other_backing rejected 1273ms expected @efcd7fe73ad0
+	machine `evaluate` state `entry` statement 1: cannot prove selected case for payload access `nodes.items[1].value`: captured source `nodes.items[1]::Number.value` has no live case evidence
+fail/borrows/returned_indexed_case_other_descriptor rejected 1258ms expected @efcd7fe73ad0
+	machine `evaluate` state `entry` statement 2: cannot prove selected case for payload access `other.value`: captured source `nodes.items[0]::Number.value` has no live case evidence
+fail/borrows/returned_indexed_case_out_of_bounds rejected 603ms expected @efcd7fe73ad0
+	machine `entry` state `entry` value call to `evaluate` violates required fact `position < 2`: the instantiated fact is structurally false (`2 < 2`)
 fail/borrows/returned_operand_parent_cannot_bypass_child rejected 4226ms expected @a92f16431042
 	statement 3 mutates `whole.second.value` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/returned_reference_exposed_integer_local rejected 511ms expected @5c5c178f82c7
@@ -34656,6 +34662,8 @@ run/borrows/recast_mut_borrow checked 5752ms check-target:macos_arm64 @a92f16431
 run/borrows/reference_local_binding_routes checked 5429ms check-target:macos_arm64 @a92f16431042
 run/borrows/reference_result_call_binding checked 5404ms check-target:macos_arm64 @a92f16431042
 run/borrows/returned_element_from_offset_view checked 1711ms check-target:macos_arm64 @a92f16431042
+run/borrows/returned_indexed_case checked 2094ms check-target:macos_arm64 @efcd7fe73ad0
+run/borrows/returned_indexed_case_descriptor_field checked 2097ms check-target:macos_arm64 @efcd7fe73ad0
 run/borrows/runtime_index_bounded_borrow checked 5284ms check-target:macos_arm64 @a92f16431042
 run/borrows/runtime_index_scalar_write_descriptor_result checked 2331ms check-target:macos_arm64 @a92f16431042
 run/borrows/shared_field_borrow checked 5378ms check-target:macos_arm64 @a92f16431042
