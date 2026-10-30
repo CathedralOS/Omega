@@ -441,9 +441,7 @@ pub(crate) fn immutable_owned_place_root(
     place: &validation::CanonicalPlace,
 ) -> Option<symbols::SymbolHandle> {
     let symbol = place.root.as_symbol()?;
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(statement)
         .filter_map(|statement| statement.as_local_data())

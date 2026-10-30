@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot form specification index",
+    "independent collection bounds are not established by preceding formed facts"
+  ]
+}

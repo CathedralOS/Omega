@@ -376,6 +376,19 @@ impl Scope<'_> {
         }
     }
 
+    /// A call whose arguments all write no completed path is inert: every
+    /// substitution stays at its current home instead of a projected one.
+    fn arguments_inert(&self, arguments: &[ExpressionHandle]) -> bool {
+        arguments.iter().all(|argument| {
+            self.frames.is_some_and(|frames| {
+                frames
+                    .expression_write_frame(self.machine, *argument)
+                    .complete_paths()
+                    .is_some_and(|paths| paths.is_empty())
+            })
+        })
+    }
+
     fn argument_substitutions(
         &self,
         parameters: &[typed_trees::signature::StateParameter],
@@ -384,14 +397,7 @@ impl Scope<'_> {
         Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
         Vec<(SymbolHandle, Option<ExpressionHandle>)>,
     ) {
-        let inert = arguments.iter().all(|argument| {
-            self.frames.is_some_and(|frames| {
-                frames
-                    .expression_write_frame(self.machine, *argument)
-                    .complete_paths()
-                    .is_some_and(|paths| paths.is_empty())
-            })
-        });
+        let inert = self.arguments_inert(arguments);
         let values = self.values(self.statement);
         parameters
             .iter()
@@ -427,14 +433,7 @@ impl Scope<'_> {
     ) {
         let (mut substitutions, captured_arguments) =
             self.argument_substitutions(parameters, arguments);
-        let inert = arguments.iter().all(|argument| {
-            self.frames.is_some_and(|frames| {
-                frames
-                    .expression_write_frame(self.machine, *argument)
-                    .complete_paths()
-                    .is_some_and(|paths| paths.is_empty())
-            })
-        });
+        let inert = self.arguments_inert(arguments);
         let target = site.target_symbol(self.program);
         let static_arguments = match site {
             validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
@@ -1831,9 +1830,7 @@ pub(super) fn check(
         let Some(state) = program.state_by_symbol(flow.state_symbol) else {
             continue;
         };
-        for (statement, node) in program
-            .statement_table
-            .statements(state.statement_nodes)
+        for (statement, node) in crate::flow::state_statements(program, state.statement_nodes)
             .iter()
             .enumerate()
         {

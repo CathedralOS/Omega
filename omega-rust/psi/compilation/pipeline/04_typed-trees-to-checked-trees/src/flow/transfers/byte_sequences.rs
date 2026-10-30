@@ -382,12 +382,7 @@ fn replacement_byte(
         let facts::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
             program,
             semantic,
-            contexts
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(active)
-                .iter()
-                .map(|reference| semantic.contexts.get(reference.context)),
+            contexts.semantic_context_views(semantic, active),
             &subject,
         )?
         else {

@@ -7,10 +7,7 @@
 use super::{EvaluatedOperand, Execution};
 use arena::HandleSpan;
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, PlaceSegment, ProgramPoint, QualificationEvidence,
-    ScalarValue,
-};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, PlaceSegment, ProgramPoint, ScalarValue};
 use typed_trees::expression::ExpressionHandle;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -489,10 +486,7 @@ impl Execution<'_, '_, '_> {
             place: FactPlace::Place(place),
             point,
             origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::from_origin(
-                language_semantics::QualificationEvidenceOrigin::Propagated,
-                self.state.symbol,
-            ),
+            evidence: crate::facts::propagated_evidence(self.state.symbol),
             payload,
         });
         self.semantic.append_ref(&mut references, fact);

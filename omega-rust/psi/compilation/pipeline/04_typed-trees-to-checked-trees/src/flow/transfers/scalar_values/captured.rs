@@ -27,11 +27,7 @@ impl LiveValues<'_, '_> {
     /// Each active semantic context, resolved against the plan's arena.
     fn active_contexts(&self) -> impl Iterator<Item = &facts::FactContext> + '_ {
         self.context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(self.active)
-            .iter()
-            .map(|reference| self.semantic.contexts.get(reference.context))
+            .semantic_context_views(self.semantic, self.active)
     }
 }
 
@@ -218,7 +214,7 @@ impl CapturedValue for IntegerRange {
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
-        let contexts = crate::flow::active_context_handles(live.context, live.active);
+        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
         validation::selected_scalar_interval(
             expression,
             &mut crate::values::LivePlaceIntervals {
@@ -289,7 +285,7 @@ impl CapturedValue for IntegerRange {
                 statement_index,
                 expression,
             )?)?;
-        let contexts = crate::flow::active_context_handles(live.context, live.active);
+        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
         crate::values::LivePlaceIntervals {
             program,
             semantic: live.semantic,

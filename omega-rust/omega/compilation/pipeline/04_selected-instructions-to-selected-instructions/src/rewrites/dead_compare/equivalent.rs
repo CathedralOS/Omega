@@ -86,35 +86,18 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::remove_equivalent_compare;
 pub(crate) use validation::measured_steps;
 
-/// An accepted equivalent-compare removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedEquivalentCompare {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: EquivalentCompareReceipt,
-}
+validated_transformed_receipt!(
+    /// An accepted equivalent-compare removal with its replay receipt.
+    ValidatedEquivalentCompare,
+    EquivalentCompareReceipt
+);
 
-validated_transformed_receipt!(ValidatedEquivalentCompare, EquivalentCompareReceipt);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EquivalentCompareReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    compare: SelectedInstructionId,
-}
-
-impl EquivalentCompareReceipt {
-    receipt_accessor_rows!(ref EquivalentCompareReceipt {
+rewrite_receipt!(EquivalentCompareReceipt {
     /// The transformed function index that carried the removed compare.
-        function_index: usize,
+    function_index: usize,
     /// The removed equivalent compare instruction.
-        compare: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(EquivalentCompareReceipt);
+    compare: SelectedInstructionId,
+});
 
 // Canonical identity of one validated equivalent-compare removal: every
 // receipt field — the coordinate, both plan identities, and the proof

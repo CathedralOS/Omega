@@ -517,7 +517,7 @@ pub(super) fn capture(
     if argument_roots.is_empty() {
         return Vec::new();
     }
-    let contexts = crate::flow::active_context_handles(build, contexts);
+    let contexts = crate::flow::active_context_handles(&build.contexts, contexts);
     capture_storage_fields(program, semantic, &argument_roots, &contexts)
 }
 

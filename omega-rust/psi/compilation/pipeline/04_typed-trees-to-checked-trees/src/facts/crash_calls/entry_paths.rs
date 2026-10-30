@@ -3,6 +3,7 @@
 //! the selecting caller. Unknown observations widen a route, never erase it.
 
 use super::summary_predicates::{SummaryCrashPredicate, SummaryCrashRouteGuard};
+use crate::flow::active_context_handles;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CheckedStructuralPredicatePathSegment as Path, CrashPredicateExpression as Expression,
@@ -97,15 +98,7 @@ impl MachineEntryConditions<'_> {
         if self.scalars.is_none() {
             return SummaryCrashRouteGuard::Truth;
         }
-        let contexts = self
-            .query
-            .flow
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(contexts)
-            .iter()
-            .map(|reference| reference.context)
-            .collect::<Vec<_>>();
+        let contexts = active_context_handles(&self.query.flow.contexts, contexts);
         let Some(condition) = crate::facts::boolean_predicates::entry_path_necessary_condition(
             self.query.semantic,
             &contexts,

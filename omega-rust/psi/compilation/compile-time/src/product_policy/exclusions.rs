@@ -3,6 +3,7 @@
 //! ledger selects restrictions. No source walk substitutes for execution.
 
 use crate::is_exact_toolchain_build_prelude_data;
+use crate::unique::push_unique;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
@@ -43,9 +44,7 @@ pub fn resolve(
             source_span: typed.symbols.rejoin_product_occurrence(source_span),
             selecting_machine,
         };
-        if !exclusions.contains(&row) {
-            exclusions.push(row);
-        }
+        push_unique(&mut exclusions, row);
         Ok(())
     };
     for event in executed

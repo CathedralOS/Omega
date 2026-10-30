@@ -3,6 +3,7 @@
 //! the hook may transition between its own states: those exact selections
 //! select control-flow destinations, not another invocation of the hook.
 
+use crate::value_custody::type_references::substituted_identity;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use language_semantics::{
@@ -440,10 +441,7 @@ pub fn nominal_cleanup_machine_for_type<'program>(
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return None,
     };
-    let identity = program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(reference)
-    });
+    let identity = substituted_identity(program, reference, substitutions);
     let mut selected = None;
     let Some(candidates) = nominal_cleanup_candidates(program).get(&owner).cloned() else {
         return None;

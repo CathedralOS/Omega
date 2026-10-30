@@ -1,6 +1,6 @@
 //! Final-placement native metadata, with relocations owned by ordinary image
 //! construction. The query never recursively compiles Psi or predicts sizes.
-use super::{Error, host};
+use super::{Error, host, refuse_symbol_collision};
 use crate::ObjectFunction;
 use machine_code::{ImageAddressFields, PlacedImageAddress};
 use machine_emission::code_layout::{NativeCodeLayout, describe_native_code_layout};
@@ -81,14 +81,7 @@ pub(super) fn place(
             data[offset + 8..offset + 16].copy_from_slice(&region.length.to_le_bytes());
         }
         let name = format!("omega_native_code_layout_{}", machine.get());
-        if object
-            .layout
-            .symbols
-            .iter()
-            .any(|(_, symbol)| symbol.name == name)
-        {
-            return Err(Error::Mismatch("native metadata symbol collision"));
-        }
+        refuse_symbol_collision(object, &name, "native metadata symbol collision")?;
         let symbol = object.layout.symbols.insert(SymbolPlan {
             name,
             section: SymbolSection::Section(SectionKind::Data),

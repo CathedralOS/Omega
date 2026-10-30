@@ -5,6 +5,19 @@
 use super::*;
 
 impl SymbolTable {
+    /// Generated declarations follow authored provenance. Missing provenance
+    /// retains the existing unscoped declaration behavior.
+    #[inline]
+    pub fn symbol_is_in_dependency_scope(
+        &self,
+        symbol: crate::SymbolHandle,
+        scope: source::DependencyScope,
+    ) -> bool {
+        self.symbol_provenance_source_span(symbol)
+            .and_then(|span| self.source_file(span))
+            .is_none_or(|file| file.dependency_scope == scope)
+    }
+
     pub fn source_text(&self, source_span: SourceSpan) -> &str {
         self.sources
             .as_deref()

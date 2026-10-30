@@ -30,6 +30,7 @@
 //! to the nominal input and field write checks, and domain queries used by
 //! flow facts, fact construction, content checks and proof.
 
+use crate::flow::active_context_handles;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
@@ -159,14 +160,8 @@ pub(super) fn check_exit_ensures(
     )) {
         return;
     }
-    let entry_contexts: Vec<_> = facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(exit_flow.entry_semantic_contexts)
-        .iter()
-        .map(|context_ref| context_ref.context)
-        .collect();
+    let entry_contexts =
+        active_context_handles(&facts.flow.contexts, exit_flow.entry_semantic_contexts);
     let mut cached_exit_values = None;
     for ensures_context in facts
         .flow

@@ -76,13 +76,12 @@ fn call_value_index_carriers_match(
     if depth >= 128 {
         return false;
     }
-    if program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(actual)
-    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(required)
-    }) {
+    if substituted_identity(program, actual, substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        })
+    {
         return true;
     }
     let Some(actual) = reference_values::substituted_reference(program, actual, substitutions)
@@ -147,15 +146,13 @@ fn call_value_index_carriers_match(
                     depth + 1,
                 ),
                 _ => {
-                    program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(*left)
-                    }) == program.type_identity_with_simultaneous_substitutions(
-                        TypeIdentityRequest {
-                            substitutions: required_substitutions,
-                            ..TypeIdentityRequest::ordinary(*right)
-                        },
-                    )
+                    substituted_identity(program, *left, substitutions)
+                        == program.type_identity_with_simultaneous_substitutions(
+                            TypeIdentityRequest {
+                                substitutions: required_substitutions,
+                                ..TypeIdentityRequest::ordinary(*right)
+                            },
+                        )
                 }
             })
 }

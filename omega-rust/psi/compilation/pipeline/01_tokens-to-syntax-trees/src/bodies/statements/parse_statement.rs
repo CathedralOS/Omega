@@ -238,10 +238,25 @@ fn parse_statement_handle<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::RightBrace)
         || crate::declarations::parse_declaration::starts_machine_declaration(input)
     {
+        // A final value completes the invocation, just like an unconditional
+        // value arm. Retain that control-flow fact at its source rather than
+        // asking call, custody and lowering consumers to rediscover it.
+        let target = syntax_trees
+            .statements
+            .insert_transition_target(TransitionTargetNode::Value(expression));
+        let source_span = syntax_trees.expressions.source_span(expression);
         return Ok((
             syntax_trees
                 .statements
-                .insert(StatementNode::Expression(expression)),
+                .insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation: TransitionTargetHandle::invalid(),
+                    guard: TransitionGuardNode::Always,
+                    proof_selectors: HandleSpan::empty(),
+                    exit: TransitionExit::Ordinary,
+                    ends_dispatch: true,
+                    source_span,
+                })),
             input,
         ));
     }

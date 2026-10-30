@@ -310,10 +310,9 @@ fn descriptor_lookup(
     };
     segments.extend_from_slice(&place.segments);
     Some(CapturedPlace {
-        incoming_reference: Handle::invalid(),
-        incoming_owner_path: Default::default(),
         root: incoming.place_root(),
         segments,
+        ..Default::default()
     })
 }
 

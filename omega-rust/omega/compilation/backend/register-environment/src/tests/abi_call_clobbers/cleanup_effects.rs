@@ -11,9 +11,9 @@
 //! stack pointer is and how wide a return address runs.
 
 use super::{
-    Architecture, EffectRejection, RegisterConstraintKey, baseline_target_register_environment,
-    declaration_mut, named_view, produced_effects, scalar_abi_cases, validate_effects,
-    validated_effects,
+    Architecture, EffectRejection, RegisterConstraintKey, assert_faulting_trap,
+    baseline_target_register_environment, encoded_mut, named_view, produced_effects,
+    scalar_abi_cases, stack_pointer_view, validate_effects, validated_effects,
 };
 use selected_instructions::{
     MachineCleanupEffect, MachineEffectCatalogValidationError, MachineEncodedControlEffect,
@@ -66,13 +66,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = validated_effects(case, environment.constraints());
-        let stack_pointer = named_view(
-            model,
-            case.target,
-            "rsp",
-            "sp",
-            "the ABI matrix names a stack-pointer view",
-        );
+        let stack_pointer = stack_pointer_view(model, case);
 
         for declaration in &catalog.catalog().declarations {
             let key = declaration.constraint;
@@ -107,11 +101,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             },
                             "{key:?}"
                         );
-                        assert_eq!(
-                            encoded.trap,
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                            "{key:?}"
-                        );
+                        assert_faulting_trap(encoded, key);
                         assert_eq!(
                             encoded.control,
                             MachineEncodedControlEffect::DirectRelativeCallV1,
@@ -137,11 +127,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             },
                             "{key:?}"
                         );
-                        assert_eq!(
-                            encoded.trap,
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                            "{key:?}"
-                        );
+                        assert_faulting_trap(encoded, key);
                         assert_eq!(
                             encoded.control,
                             MachineEncodedControlEffect::ReturnFromActivationStackV1,
@@ -166,11 +152,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             },
                             "{key:?}"
                         );
-                        assert_eq!(
-                            encoded.trap,
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                            "{key:?}"
-                        );
+                        assert_faulting_trap(encoded, key);
                         let row = environment.constraint(key).unwrap();
                         assert!(
                             stack_pointer
@@ -246,8 +228,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let stack_pointer = stack_pointer_view(model, case);
         let foreign_pointer =
             named_view(model, case.target, "rax", "x0", "target names no such view");
         let rules = catalog
@@ -323,9 +304,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
             // enough.
             for (label, stack) in forgeries {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .stack = stack;
+                encoded_mut(&mut corrupted, key, semantic, 0).stack = stack;
                 assert_eq!(
                     selected_instructions::validate_machine_effect_catalog(
                         environment.constraints(),
@@ -342,9 +321,8 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
             // surface leaves a (memory, stack, trap) triple no semantic owns.
             if lifecycle_owner(case.target.architecture, semantic, key).is_some() {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .trap = MachineEncodedTrapBehavior::NeverV1;
+                encoded_mut(&mut corrupted, key, semantic, 0).trap =
+                    MachineEncodedTrapBehavior::NeverV1;
                 assert_eq!(
                     selected_instructions::validate_machine_effect_catalog(
                         environment.constraints(),
@@ -372,8 +350,7 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let stack_pointer = stack_pointer_view(model, case);
         let foreign_pointer =
             named_view(model, case.target, "rax", "x0", "target names no such view");
         let rules = catalog
@@ -392,8 +369,7 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             // admission cannot tell a register view from the stack pointer,
             // so canonical replay must reject it.
             let mut corrupted = catalog.clone();
-            let encoded =
-                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
+            let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             encoded.memory = match owner {
                 LifecycleOwner::Call => {
                     MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
@@ -426,8 +402,7 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             // admission sees a coherent lifecycle, so canonical replay must
             // reject the half-width return address.
             let mut corrupted = catalog.clone();
-            let encoded =
-                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
+            let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             encoded.memory = match owner {
                 LifecycleOwner::Call => {
                     MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {

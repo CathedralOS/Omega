@@ -584,10 +584,7 @@ impl ExitScalars<'_, '_> {
         // Dense positions describe the declaration roster at this occurrence,
         // not a caller-chosen substitution. Check it without reading values.
         let parameters = primitive_parameters(self.program, state);
-        let locals = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes)
+        let locals = crate::flow::state_statements(self.program, state.statement_nodes)
             .get(..statement_ordinal as usize)?
             .iter()
             .filter_map(|statement| {

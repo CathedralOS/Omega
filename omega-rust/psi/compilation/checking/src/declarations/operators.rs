@@ -39,7 +39,9 @@ pub use applications::{
 };
 
 use crate::declarations::symbols::TopLevelSymbols;
-use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
+use crate::value_custody::type_references::{
+    TypeParameterScope, TypeReferenceOwner, validate_type_reference_handle,
+};
 use diagnostics::Diagnostic;
 use signatures::{operator_name, operator_operand_key, operator_signature_key};
 
@@ -133,12 +135,11 @@ fn validate_operator_types(
                 parameter: parameter.name.as_str(),
                 generic_depth: 0,
             },
-            crate::value_custody::type_references::TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: operator.symbol,
+            TypeParameterScope::authored(
+                operator.symbol,
                 type_parameters,
-                lifetime_parameters: &operator.lifetime_parameters,
-            },
+                &operator.lifetime_parameters,
+            ),
             formation_obligations,
         );
     }
@@ -152,12 +153,11 @@ fn validate_operator_types(
                 operator: &name,
                 generic_depth: 0,
             },
-            crate::value_custody::type_references::TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: operator.symbol,
+            TypeParameterScope::authored(
+                operator.symbol,
                 type_parameters,
-                lifetime_parameters: &operator.lifetime_parameters,
-            },
+                &operator.lifetime_parameters,
+            ),
             formation_obligations,
         );
     }

@@ -226,19 +226,12 @@ fn evidence_inner(
                 || event_state != state_symbol
                 || !(order.precedes(statement_index, statement)
                     || (statement
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len()
+                        == crate::flow::state_statements(program, state.statement_nodes).len()
                         && order.position(statement_index).is_some()))
             {
                 continue;
             }
-            let Some(call) = facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(flow.calls)
+            let Some(call) = crate::flow::call_flows(&facts.flow.control, flow.calls)
                 .iter()
                 .find(|call| {
                     call.statement_index == statement_index && call.call_ordinal == call_ordinal

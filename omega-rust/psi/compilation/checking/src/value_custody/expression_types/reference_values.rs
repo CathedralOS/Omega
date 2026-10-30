@@ -10,6 +10,7 @@ use super::{
     named_value_type_reference,
 };
 use crate::value_custody::places::declared_reference_access;
+use crate::value_custody::type_references::substituted_identity;
 use language_semantics::ReferenceAccess;
 use numerics::bignum::BigInt;
 use typed_trees::data::TypeParameterKind;
@@ -44,12 +45,7 @@ pub(super) fn reference_type_matches(
     else {
         return false;
     };
-    let actual_identity = |reference| {
-        program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(reference)
-        })
-    };
+    let actual_identity = |reference| substituted_identity(program, reference, substitutions);
     if actual_identity(actual)
         == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
             substitutions: required_substitutions,
@@ -192,38 +188,37 @@ fn shared_referee_matches(
 ) -> bool {
     let (required, required_substitutions) =
         substituted_required_reference(program, required, required_substitutions);
-    if program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(actual)
-    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(required)
-    }) {
+    if substituted_identity(program, actual, substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        })
+    {
         return true;
     }
     let actual = program
         .type_reference_table
         .unconstrained_type_reference(actual);
     let required = declared_domain_base_reference(program, required);
-    program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(actual)
-    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(required)
-    }) || owned_array_projects_to_slice(
-        program,
-        actual,
-        required,
-        substitutions,
-        required_substitutions,
-    ) || fixed_array_binds_open_length(
-        program,
-        actual,
-        required,
-        substitutions,
-        required_substitutions,
-    )
+    substituted_identity(program, actual, substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        })
+        || owned_array_projects_to_slice(
+            program,
+            actual,
+            required,
+            substitutions,
+            required_substitutions,
+        )
+        || fixed_array_binds_open_length(
+            program,
+            actual,
+            required,
+            substitutions,
+            required_substitutions,
+        )
 }
 
 /// Remove the outer declared-domain requirements a call contract proves.
@@ -301,13 +296,12 @@ pub(super) fn fixed_array_binds_open_length(
     else {
         return false;
     };
-    if program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(*actual_element)
-    }) != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(*required_element)
-    }) {
+    if substituted_identity(program, *actual_element, substitutions)
+        != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(*required_element)
+        })
+    {
         return false;
     }
     let Some(required_declared) = const_length_declared_type(program, *required_symbol) else {
@@ -549,31 +543,32 @@ fn owned_referee_carrier_matches(
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(actual)
-    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(required_referee)
-    }) || owned_array_projects_to_slice(
-        program,
-        actual,
-        required_referee,
-        substitutions,
-        required_substitutions,
-    ) || owned_array_satisfies_constrained_referee(
-        program,
-        actual,
-        required_referee,
-        substitutions,
-        required_substitutions,
-    ) || fixed_array_binds_open_length(
-        program,
-        actual,
-        required_referee,
-        substitutions,
-        required_substitutions,
-    )
+    substituted_identity(program, actual, substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required_referee)
+        })
+        || owned_array_projects_to_slice(
+            program,
+            actual,
+            required_referee,
+            substitutions,
+            required_substitutions,
+        )
+        || owned_array_satisfies_constrained_referee(
+            program,
+            actual,
+            required_referee,
+            substitutions,
+            required_substitutions,
+        )
+        || fixed_array_binds_open_length(
+            program,
+            actual,
+            required_referee,
+            substitutions,
+            required_substitutions,
+        )
 }
 
 /// Shape correspondence for a shared view, not a loan or a domain proof.
@@ -610,13 +605,11 @@ fn owned_array_projects_to_slice(
         && program
             .type_reference_table
             .contains_type_reference(*required_element)
-        && program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(*actual_element)
-        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-            substitutions: required_substitutions,
-            ..TypeIdentityRequest::ordinary(*required_element)
-        })
+        && substituted_identity(program, *actual_element, substitutions)
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(*required_element)
+            })
 }
 
 /// Constrained-referee correspondence: an owned `[u8; N] in D` carrier
@@ -694,13 +687,11 @@ fn owned_array_satisfies_constrained_referee(
         || !program
             .type_reference_table
             .contains_type_reference(*required_element)
-        || program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(*actual_element)
-        }) != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-            substitutions: required_substitutions,
-            ..TypeIdentityRequest::ordinary(*required_element)
-        })
+        || substituted_identity(program, *actual_element, substitutions)
+            != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(*required_element)
+            })
     {
         return false;
     }
@@ -734,13 +725,11 @@ fn constrained_referee_forgets_qualification(
         .unconstrained_type_reference(actual);
     let constrained = peeled != actual;
     constrained
-        && program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(peeled)
-        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-            substitutions: required_substitutions,
-            ..TypeIdentityRequest::ordinary(required)
-        })
+        && substituted_identity(program, peeled, substitutions)
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(required)
+            })
 }
 
 pub(super) fn substituted_reference(
@@ -1163,13 +1152,9 @@ fn selected_value_type(
                     // Re-entering this telescope with different arguments needs
                     // scoped type views. This flat comparison cannot safely
                     // rebind earlier argument payloads, so retain rejection.
-                    if program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(*existing)
-                    }) != program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(*argument)
-                    }) {
+                    if substituted_identity(program, *existing, substitutions)
+                        != substituted_identity(program, *argument, substitutions)
+                    {
                         return None;
                     }
                 } else {
@@ -1236,10 +1221,7 @@ fn selected_value_type(
             if !substitutions.is_empty()
                 && !is_builtin_indexed_shape(program, collection)
                 && program.normalized_type_identity(collection)
-                    != program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(collection)
-                    })
+                    != substituted_identity(program, collection, substitutions)
             {
                 return None;
             }

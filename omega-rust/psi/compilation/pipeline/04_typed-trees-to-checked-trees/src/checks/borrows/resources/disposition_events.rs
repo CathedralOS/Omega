@@ -308,10 +308,7 @@ fn exact_shared_cohort_observation(
     let Some(observation_statement_index) = mutation_statement_index.checked_sub(1) else {
         return false;
     };
-    let observation_calls = flow
-        .control
-        .calls
-        .span_or_empty(flow_state.calls)
+    let observation_calls = crate::flow::call_flows(&flow.control, flow_state.calls)
         .iter()
         .filter(|call| {
             call.statement_index == observation_statement_index && call.call_ordinal == 0
@@ -330,10 +327,7 @@ fn exact_shared_cohort_observation(
         return false;
     };
     if target_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !program
-            .statement_table
-            .statements(target_state.statement_nodes)
-            .is_empty()
+        || !crate::flow::state_statements(program, target_state.statement_nodes).is_empty()
         || program.state_parameters(target_state).len() != cohort.len()
         || program
             .state_parameters(target_state)
@@ -478,10 +472,7 @@ pub(crate) fn bind_restored_call_uses(
         else {
             continue;
         };
-        let calls = flow
-            .control
-            .calls
-            .span_or_empty(flow_state.calls)
+        let calls = crate::flow::call_flows(&flow.control, flow_state.calls)
             .iter()
             .enumerate()
             .filter(|(_, call)| call.statement_index == statement_index)

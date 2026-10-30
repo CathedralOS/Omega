@@ -71,7 +71,7 @@ pub(super) fn propagate_statement_transfers(
     let source_place = write.source_place;
 
     let mut refs = HandleSpan::empty();
-    let context_handles = crate::flow::active_context_handles(build, *active_contexts);
+    let context_handles = crate::flow::active_context_handles(&build.contexts, *active_contexts);
     let target_place = write.target_place;
     let point = ProgramPoint::Statement {
         machine_symbol,
@@ -769,10 +769,7 @@ fn correspondence_root_type_reference(
         symbols::SymbolKind::Local
             if program.symbols.get(root).parent == state_symbol
                 && formation_statement_index
-                    < program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .len() =>
+                    < crate::flow::state_statements(program, state.statement_nodes).len() =>
         {
             program
                 .state_local_declaration(state, root)

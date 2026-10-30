@@ -2,7 +2,9 @@ use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::expression_types::{
     argument_matches_type_reference_handle, expression_type_name_handle,
 };
-use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
+use crate::value_custody::type_references::{
+    TypeParameterScope, TypeReferenceOwner, validate_type_reference_handle,
+};
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::expression::ExpressionHandle;
@@ -27,12 +29,11 @@ pub(crate) fn validate_owned_data(
                 data: owned_data.name.as_str(),
                 generic_depth: 0,
             },
-            crate::value_custody::type_references::TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: machine.symbol,
-                type_parameters: program.machine_type_parameters(machine),
-                lifetime_parameters: &machine.lifetime_parameters,
-            },
+            TypeParameterScope::authored(
+                machine.symbol,
+                program.machine_type_parameters(machine),
+                &machine.lifetime_parameters,
+            ),
             formation_obligations,
         );
 

@@ -26,6 +26,7 @@ use semantic_vocabulary::MachineId;
 use target::{Architecture, NativeTarget};
 use target_operations::{MixedStructuralScalarFunctionAbi, TerminalPsiProvenance};
 
+use super::super::instruction_bytes;
 use super::super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_memory_load, expected_aarch64_stack_load,
     expected_x86_memory_load, expected_x86_stack_load, x86_terminal_register,
@@ -725,12 +726,7 @@ pub(crate) fn expected_projected_copy_bytes(
                         stack_byte_offset,
                     )?);
                 }
-                Some(
-                    instructions
-                        .into_iter()
-                        .flat_map(u32::to_le_bytes)
-                        .collect(),
-                )
+                Some(instruction_bytes(instructions))
             }
         };
     }
@@ -793,12 +789,7 @@ pub(crate) fn expected_projected_copy_bytes(
                     8,
                 )?);
             }
-            Some(
-                instructions
-                    .into_iter()
-                    .flat_map(u32::to_le_bytes)
-                    .collect(),
-            )
+            Some(instruction_bytes(instructions))
         }
     }
 }

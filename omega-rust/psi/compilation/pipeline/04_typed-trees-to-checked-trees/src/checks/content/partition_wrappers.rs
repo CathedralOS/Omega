@@ -140,10 +140,7 @@ pub(crate) fn returned_partition_invocations(
                 order.position(call.statement_index),
                 order.position(outgoing.statement_index).or_else(|| {
                     (outgoing.statement_index
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len())
+                        == crate::flow::state_statements(program, state.statement_nodes).len())
                     .then_some(order.indices().len())
                 }),
             ) else {
@@ -176,16 +173,13 @@ pub(crate) fn returned_partition_invocations(
                 validation::CallSite::Expression { expression, .. } => {
                     // A syntax handle alone is not an invocation identity.
                     // Retain the uniquely bound flow occurrence and its lane.
-                    let mut producers = facts
-                        .flow
-                        .control
-                        .calls
-                        .span_or_empty(state_flow.calls)
-                        .iter()
-                        .filter(|producer| {
-                            producer.statement_index == call.statement_index
-                                && producer.authored_expression == expression
-                        });
+                    let mut producers =
+                        crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+                            .iter()
+                            .filter(|producer| {
+                                producer.statement_index == call.statement_index
+                                    && producer.authored_expression == expression
+                            });
                     if !producers
                         .next()
                         .is_some_and(|producer| std::ptr::eq(producer, call))
@@ -567,11 +561,7 @@ fn partition_entry_binding(
         .iter()
         .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
-    let call = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
+    let call = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .find(|call| {
             call.statement_index == invocation.statement_index

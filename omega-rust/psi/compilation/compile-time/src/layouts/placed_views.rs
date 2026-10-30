@@ -22,6 +22,7 @@
 //! route; the synthesized placed record contains opaque accessor fields and is
 //! linear.
 
+use crate::unique::push_unique;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -369,9 +370,7 @@ fn prepare_placement_probe(
                     .with_source_span(source),
             ]);
         };
-        if !declarations.contains(&declaration.symbol) {
-            declarations.push(declaration.symbol);
-        }
+        push_unique(&mut declarations, declaration.symbol);
     }
     crate::syntax_probes::prepare_evaluation(frontier, &machines, &[], &declarations, predecessor)
 }
@@ -821,9 +820,7 @@ fn discover_applications(
             .iter_mut()
             .find(|application: &&mut Application| application.key == key)
         {
-            if !application.invocation_sources.contains(&policy_source) {
-                application.invocation_sources.push(policy_source);
-            }
+            push_unique(&mut application.invocation_sources, policy_source);
         } else {
             applications.push(Application {
                 key,

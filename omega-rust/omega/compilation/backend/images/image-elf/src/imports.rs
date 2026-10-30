@@ -206,22 +206,11 @@ mod tests {
     use super::{
         ElfImportLocator, FinalImage, FinalImageSection, SymbolKind, canonical_referenced_imports,
     };
-    use arena::Handle;
-    use image::{FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSymbol};
+    use image::{FinalImageImport, FinalImageImportPlan, FinalImageSymbol};
     use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
     fn imported_image() -> FinalImage {
-        let mut image = FinalImage::with_capacity(
-            FinalImage::default().target,
-            FinalImageMemory {
-                text: vec![0; 16],
-                ..FinalImageMemory::default()
-            },
-            Handle::invalid(),
-            1,
-            1,
-            2,
-        );
+        let mut image = crate::test_support::relocation_image(FinalImage::default().target, 16);
         crate::test_support::import_with_text_relocations(
             &mut image,
             "omega_probe",
@@ -298,17 +287,7 @@ mod tests {
             target_profile,
         )
         .expect("valid versioned ELF locator");
-        let mut image = FinalImage::with_capacity(
-            image_target,
-            FinalImageMemory {
-                text: vec![0; 20],
-                ..FinalImageMemory::default()
-            },
-            Handle::invalid(),
-            1,
-            1,
-            2,
-        );
+        let mut image = crate::test_support::relocation_image(image_target, 20);
         crate::test_support::import_with_text_relocations(
             &mut image,
             &format!(

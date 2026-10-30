@@ -17,8 +17,8 @@ use super::{
     AnalysisRoot, AnalysisRootError, CountdownInvariantConstantAnalysisError,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, CountedLoopAnalysisError,
     UnsignedCountdownLoopSummary, ValidatedCountdownInvariantConstantAnalysis,
-    ValidatedCountedLoopAnalysis, expected_constant, invariant_constant_row, sole_provenance_node,
-    validate_analysis_root, validate_moved_constant_locations,
+    ValidatedCountedLoopAnalysis, by_key, expected_constant, invariant_constant_row,
+    sole_provenance_node, validate_analysis_root, validate_moved_constant_locations,
 };
 
 mod compute;

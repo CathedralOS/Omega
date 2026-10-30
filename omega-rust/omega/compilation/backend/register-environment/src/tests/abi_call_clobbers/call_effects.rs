@@ -1,13 +1,13 @@
 use super::{
-    Architecture, BTreeSet, RegisterConstraintKey, baseline_target_register_environment,
-    convention_for, declaration_mut, named_view, produced_effects, scalar_abi_cases,
-    validated_effects,
+    Architecture, BTreeSet, RegisterConstraintKey, assert_faulting_trap, assert_storage_free,
+    baseline_target_register_environment, convention_for, encoded_mut, produced_effects,
+    scalar_abi_cases, stack_pointer_view, validated_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
 };
 
 /// Every selected register-call rule key with the semantic family the effect
@@ -72,13 +72,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             case.convention
         );
 
-        let stack_pointer = named_view(
-            model,
-            case.target,
-            "rsp",
-            "sp",
-            "call matrix names a stack-pointer view",
-        );
+        let stack_pointer = stack_pointer_view(model, case);
 
         for (key, semantic) in &call_rules {
             let supervisor = key.family == register_model::RegisterConstraintFamily::SystemCall;
@@ -219,11 +213,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
                 assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
                 assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
-                assert_eq!(
-                    encoded.trap,
-                    MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                    "{key:?}"
-                );
+                assert_faulting_trap(encoded, *key);
                 assert_eq!(
                     encoded.control,
                     if supervisor {
@@ -253,16 +243,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                         );
                     }
                     (Architecture::Aarch64, _) | (Architecture::X86_64, true) => {
-                        assert_eq!(
-                            encoded.memory,
-                            MachineEncodedMemoryEffect::NoneV1,
-                            "{key:?}"
-                        );
-                        assert_eq!(
-                            encoded.stack,
-                            MachineEncodedStackEffect::UnchangedV1,
-                            "{key:?}"
-                        );
+                        assert_storage_free(encoded, *key);
                     }
                 }
             }
@@ -280,8 +261,7 @@ fn every_selected_call_rule_rejects_encoded_clobber_loss_on_every_target() {
         let catalog = produced_effects(case, environment.constraints());
         for (key, semantic) in selected_call_rules(&environment) {
             let mut corrupted = catalog.clone();
-            let encoded =
-                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
+            let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             assert!(
                 !encoded.implicit_unit_clobbers.is_empty(),
                 "{key:?} declares no caller-saved clobbers"

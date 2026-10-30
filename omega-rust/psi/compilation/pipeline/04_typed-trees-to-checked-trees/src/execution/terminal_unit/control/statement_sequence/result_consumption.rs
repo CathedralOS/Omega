@@ -667,10 +667,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         {
             continue;
         }
-        let Some(StatementNode::LocalData(local)) = program
-            .statement_table
-            .statements(authored_state.statement_nodes)
-            .get(result.statement_index as usize)
+        let Some(StatementNode::LocalData(local)) =
+            crate::flow::state_statements(program, authored_state.statement_nodes)
+                .get(result.statement_index as usize)
         else {
             continue;
         };
@@ -1030,10 +1029,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 trace.phase("statement sequence: returned carrier loan boundary");
                 trace.statement(Some(result.statement_index));
                 let authored = program.state_by_symbol(state)?;
-                let statement_count = program
-                    .statement_table
-                    .statements(authored.statement_nodes)
-                    .len();
+                let statement_count =
+                    crate::flow::state_statements(program, authored.statement_nodes).len();
                 if !facts.borrow.loan_group(loans)?.all(|(loan, _)| {
                     super::super::super::reference_results::release_boundary(
                         program, facts, machine, state, loan,

@@ -16,44 +16,6 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
 
-/// The operand rows of `assignment` when it is an atomic carrier, or `None`
-/// when it is an ordinary assignment. A carrier whose operand does not lower
-/// at the place's carrier retains the rows it could lower; planning refuses
-/// the event when one is missing.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn lower(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    assignment: &typed_trees::statement::TableAssignment,
-    scalar_parameters: &[StateParameter],
-    parameters: &[StateParameter],
-    parameter_types: &[PrimitiveType],
-    locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<
-    Vec<(
-        ExpressionHandle,
-        CheckedScalarExpressionRole,
-        CheckedScalarExpression,
-    )>,
-> {
-    let carrier = validation::atomic_assignment_carrier(program, assignment)?;
-    lower_carrier(
-        program,
-        operators,
-        machine,
-        state,
-        carrier,
-        scalar_parameters,
-        parameters,
-        parameter_types,
-        locals,
-        exact_integer_casts,
-    )
-}
-
 /// Both writing statements and structural-result locals share operand rows.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_carrier(

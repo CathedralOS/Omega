@@ -23,9 +23,7 @@ pub(super) fn state_has_proven_self_loop(
         return false;
     };
 
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| patterns::guarded_self_loop(program, state, statement))
         .any(|self_loop| {

@@ -145,6 +145,19 @@ fn legalized_scalar_family_attribution_requires_unique_authored_ordinals() {
     let obligation = semantic_vocabulary::ObligationId::new(1).unwrap();
     let signed64 = IntegerType::new(IntegerSign::Signed, 64).unwrap();
     let unsigned64 = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    // Each integer-arithmetic case below differs only in its scalar type,
+    // promotion policy, operator and obligation; the authored ids stay the
+    // fixture's own.
+    let integer_arithmetic =
+        |scalar_type, policy, operator, obligation| AbstractOperation::IntegerArithmetic {
+            psi_operation: operation,
+            result,
+            scalar_type,
+            arithmetic: IntegerArithmetic::new(policy, operator, obligation)
+                .expect("admitted integer arithmetic"),
+            left,
+            right,
+        };
     for (name, candidate) in [
         (
             "bitwise or",
@@ -167,99 +180,57 @@ fn legalized_scalar_family_attribution_requires_unique_authored_ordinals() {
         ),
         (
             "wrapping subtract",
-            AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result,
-                scalar_type: signed64,
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Wrapping,
-                    IntegerArithmeticOperator::Subtract,
-                    None,
-                )
-                .expect("admitted integer arithmetic"),
-                left,
-                right,
-            },
+            integer_arithmetic(
+                signed64,
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Subtract,
+                None,
+            ),
         ),
         (
             "wrapping multiply",
-            AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result,
-                scalar_type: unsigned64,
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Wrapping,
-                    IntegerArithmeticOperator::Multiply,
-                    None,
-                )
-                .expect("admitted integer arithmetic"),
-                left,
-                right,
-            },
+            integer_arithmetic(
+                unsigned64,
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Multiply,
+                None,
+            ),
         ),
         (
             "wrapping divide",
-            AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result,
-                scalar_type: signed64,
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Wrapping,
-                    IntegerArithmeticOperator::Divide,
-                    Some(obligation),
-                )
-                .expect("admitted integer arithmetic"),
-                left,
-                right,
-            },
+            integer_arithmetic(
+                signed64,
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Divide,
+                Some(obligation),
+            ),
         ),
         (
             "saturating remainder",
-            AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result,
-                scalar_type: signed64,
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Saturating,
-                    IntegerArithmeticOperator::Remainder,
-                    Some(obligation),
-                )
-                .expect("admitted integer arithmetic"),
-                left,
-                right,
-            },
+            integer_arithmetic(
+                signed64,
+                IntegerOverflowPolicy::Saturating,
+                IntegerArithmeticOperator::Remainder,
+                Some(obligation),
+            ),
         ),
         (
             "exact multiply",
-            AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result,
-                scalar_type: unsigned64,
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Exact,
-                    IntegerArithmeticOperator::Multiply,
-                    Some(obligation),
-                )
-                .expect("admitted integer arithmetic"),
-                left,
-                right,
-            },
+            integer_arithmetic(
+                unsigned64,
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Multiply,
+                Some(obligation),
+            ),
         ),
         (
             "exact remainder",
-            AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result,
-                scalar_type: unsigned64,
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Exact,
-                    IntegerArithmeticOperator::Remainder,
-                    Some(obligation),
-                )
-                .expect("admitted integer arithmetic"),
-                left,
-                right,
-            },
+            integer_arithmetic(
+                unsigned64,
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Remainder,
+                Some(obligation),
+            ),
         ),
     ] {
         let (_, mut source) = fixture();

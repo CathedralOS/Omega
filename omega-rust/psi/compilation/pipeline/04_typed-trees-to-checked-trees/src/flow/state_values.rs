@@ -355,7 +355,7 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
-    let path_contexts = crate::flow::active_context_handles(build, contexts);
+    let path_contexts = crate::flow::active_context_handles(&build.contexts, contexts);
     let entry_paths = crate::facts::boolean_predicates::EntryPaths::retained(
         semantic,
         &path_contexts,
@@ -584,7 +584,7 @@ fn completed_argument_facts(
         }
     }
     let contexts = if live_view {
-        crate::flow::active_context_handles(build, invocation_contexts)
+        crate::flow::active_context_handles(&build.contexts, invocation_contexts)
     } else {
         build
             .contexts

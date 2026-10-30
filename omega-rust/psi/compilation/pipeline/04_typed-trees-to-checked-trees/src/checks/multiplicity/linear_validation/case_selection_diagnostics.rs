@@ -17,10 +17,9 @@ pub(super) fn exit_detail(
     coordinate: FlowClaimJoinExit,
     place: &LinearPlace,
 ) -> String {
-    let Some(StatementNode::Transition(transition)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(coordinate.statement_index)
+    let Some(StatementNode::Transition(transition)) =
+        crate::flow::state_statements(program, state.statement_nodes)
+            .get(coordinate.statement_index)
     else {
         return String::new();
     };

@@ -17,6 +17,9 @@ use super::{
     TopLevelSymbols, TypeReferenceHandle, machine_state_by_symbol,
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
+use crate::machine_calls::calls::write_frames::parameter_relative_origins::{
+    ParameterRelativeQuery, parameter_relative_place_or_carrier_origins,
+};
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, walk_state_write_prefix_collected,
 };
@@ -630,9 +633,8 @@ pub(super) fn reference_result_relation(
             }],
         ));
     }
-    let origins = super::parameter_relative_origins::parameter_relative_place_or_carrier_origins(
-        program, machine, result, parameters, &aliases, symbols, inference,
-    )?;
+    let query = ParameterRelativeQuery::of(program, machine, parameters, &aliases, symbols);
+    let origins = parameter_relative_place_or_carrier_origins(query, result, inference)?;
     let access = crate::reference_shell(program, reference)?.access;
     Some(AggregateOrigins {
         references: origins

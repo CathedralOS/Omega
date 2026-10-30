@@ -1,0 +1,9 @@
+data Locator {
+    case Absolute(address: u64);
+    case Module(name: [u8; 2]);
+}
+machine name(locator: &Locator) -> &[u8] { &locator.name[0..2] }
+machine main() {
+    let absolute: Locator = Locator::Absolute { address: 19 };
+    let bytes: &[u8] = name(&absolute);
+}

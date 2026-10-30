@@ -254,10 +254,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         }
         if matches!(statement, StatementNode::Expression(_))
             && statement_index.checked_add(1)?
-                == program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len()
+                == crate::flow::state_statements(program, state.statement_nodes).len()
             && let Some(root) = facts.values.scalar_computations.root_at(
                 state.symbol,
                 u32::try_from(statement_index).ok()?,

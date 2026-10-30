@@ -2,6 +2,7 @@
 //! parameter or local declares their computed result type. All scalar/Unit
 //! catalog entrances use these same roots; reservation still grants no custody.
 use super::{CheckedTrees, LoweringError};
+use crate::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedScalarComputationKind as Computation,
     CheckedScalarComputationStructuralArgument as Argument,
@@ -65,12 +66,7 @@ pub(crate) fn type_requirements(
                             let owner = crate::expression_preparation::computation_graph::produced_value_root(
                                 checked, *source_call, subject,
                             )?;
-                            types.push(validation::stored_structural_type_identity(
-                                &checked.typed,
-                                owner.type_reference,
-                                &[],
-                                &[],
-                            ));
+                            types.push(stored_structural_identity(checked, owner.type_reference));
                         }
                         // An owned literal copies immutable image bytes into
                         // its reserved bounded home. Keep that input carrier

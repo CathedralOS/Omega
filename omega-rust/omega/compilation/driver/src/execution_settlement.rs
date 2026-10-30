@@ -350,7 +350,10 @@ fn select_checked_providers(
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
     }
     provider_planning::target_machines::reject_reached_inert_sibling_calls(
-        typed,
+        source
+            .provider_inventory
+            .direct_calls_for(&source.program)
+            .map_err(|error| vec![error])?,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         selected_program_entry
             .as_ref()
@@ -364,6 +367,7 @@ fn select_checked_providers(
         Arc::clone(&source.program),
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
+            provider_inventory: &source.provider_inventory,
             external_declarations: source.external_declarations.as_ref(),
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
@@ -414,12 +418,23 @@ fn prepare_target_provider_selection(
         )?;
     }
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        source
+            .provider_inventory
+            .origins_for(&source.program)
+            .map_err(|error| vec![error])?,
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
     provider_planning::settle_checked_providers(
         &source.program,
+        source
+            .provider_inventory
+            .uses_for(&source.program)
+            .map_err(|error| vec![error])?,
+        source
+            .provider_inventory
+            .direct_calls_for(&source.program)
+            .map_err(|error| vec![error])?,
         settled_target_machines,
         selected_target_profile,
         package_inputs,

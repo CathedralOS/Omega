@@ -7,6 +7,7 @@ use crate::facts::crash_calls::summary_predicates::{
     scalar_guard_is_integer_comparison, scalar_guard_proves_false, summary_boolean_value,
     summary_closed_float_relation,
 };
+use crate::flow::active_context_handles;
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -71,13 +72,7 @@ pub(crate) fn call_argument_substitution<'program>(
     // containing statement may still overwrite through a sibling operand
     // stays unproven: the entry snapshot postdates those effects and would
     // describe newer storage than the argument carried.
-    let entry_contexts: Vec<facts::FactContextHandle> = flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(call_flow.entry_semantic_contexts)
-        .iter()
-        .map(|reference| reference.context)
-        .collect();
+    let entry_contexts = active_context_handles(&flow.contexts, call_flow.entry_semantic_contexts);
     let containing_statement = owner.and_then(|(_, state)| {
         program
             .statement_table
@@ -98,9 +93,7 @@ pub(crate) fn call_argument_substitution<'program>(
                 })
                 .map(|parameter| parameter.symbol)
                 .chain(
-                    program
-                        .statement_table
-                        .statements(state.statement_nodes)
+                    crate::flow::state_statements(program, state.statement_nodes)
                         .get(..before_statement)
                         .unwrap_or(&[])
                         .iter()

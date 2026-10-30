@@ -173,9 +173,7 @@ impl ReadWalk<'_, '_, '_> {
                     .expression_table
                     .name_path_members(path.members)
                     .first()?;
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
+                crate::flow::state_statements(program, state.statement_nodes)
                     .iter()
                     .take(statement_index)
                     .rev()

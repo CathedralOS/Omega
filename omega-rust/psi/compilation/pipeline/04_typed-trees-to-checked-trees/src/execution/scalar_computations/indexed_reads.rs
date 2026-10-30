@@ -77,9 +77,7 @@ impl Builder<'_, '_> {
                 };
                 let machine = &program.machines()[position.0 as usize];
                 let state = &program.machine_states(machine)[position.1 as usize];
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
+                crate::flow::state_statements(program, state.statement_nodes)
                     .get(position.2 as usize)?
                     .as_local_data()?
                     .type_reference

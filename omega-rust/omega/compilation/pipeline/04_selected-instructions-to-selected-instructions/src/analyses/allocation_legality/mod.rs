@@ -86,25 +86,12 @@ copy_receipt! {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAllocationLegality {
-    pub(crate) plan: std::sync::Arc<AllocationLegalityPlan>,
-    pub(crate) receipt: AllocationLegalityValidationReceipt,
-    /// Each function's share of the receipt identity, kept so a successor
-    /// plan that carries a function over unchanged need not hash it again.
-    pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
-    /// Report-only counts, bound to the same admitted function as its digest.
-    pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,
-}
-
-impl ValidatedAllocationLegality {
-    pub fn plan(&self) -> &AllocationLegalityPlan {
-        &self.plan
+shared_plan_carrier!(
+    ValidatedAllocationLegality: AllocationLegalityPlan, AllocationLegalityValidationReceipt {
+        /// Report-only counts, bound to the same admitted function as its digest.
+        pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,
     }
-    receipt_accessor_rows!(ref ValidatedAllocationLegality {
-        receipt: AllocationLegalityValidationReceipt,
-    });
-}
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationLegalityError {

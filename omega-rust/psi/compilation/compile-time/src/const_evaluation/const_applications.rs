@@ -23,6 +23,7 @@
 //! member types with the folded literals, and rewriting the site to `Named`.
 
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::unique::extend_unique;
 use std::collections::{HashMap, HashSet};
 
 use arena::HandleSpan;
@@ -946,11 +947,7 @@ fn evaluate_const_application(
             carrier,
             &invocation,
         )?;
-    for warning in additions {
-        if !warnings.contains(&warning) {
-            warnings.push(warning);
-        }
-    }
+    extend_unique(warnings, additions);
     let spelling = match value.decode_encoding() {
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
             value,

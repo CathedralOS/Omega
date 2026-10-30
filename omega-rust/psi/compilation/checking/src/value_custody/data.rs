@@ -1,7 +1,7 @@
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::value_custody::type_references::{
-    TypeReferenceOwner, type_reference_label, type_references_match,
+    TypeParameterScope, TypeReferenceOwner, type_reference_label, type_references_match,
     validate_generic_instance_argument_bounds, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
@@ -43,12 +43,11 @@ pub(crate) fn validate_data_field_types(
             symbols,
             &format!("data `{}`", data_definition.name),
             type_parameters,
-            crate::value_custody::type_references::TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: data_definition.symbol,
+            TypeParameterScope::authored(
+                data_definition.symbol,
                 type_parameters,
-                lifetime_parameters: &data_definition.lifetime_parameters,
-            },
+                &data_definition.lifetime_parameters,
+            ),
             diagnostics,
             formation_obligations,
         );
@@ -76,12 +75,11 @@ pub(crate) fn validate_data_field_types(
                         field: field.name.as_str(),
                         generic_depth: 0,
                     },
-                    crate::value_custody::type_references::TypeParameterScope {
-                        operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                        lexical_owner: data_definition.symbol,
+                    TypeParameterScope::authored(
+                        data_definition.symbol,
                         type_parameters,
-                        lifetime_parameters: &data_definition.lifetime_parameters,
-                    },
+                        &data_definition.lifetime_parameters,
+                    ),
                     formation_obligations,
                 );
                 validate_stored_field_has_a_representation(

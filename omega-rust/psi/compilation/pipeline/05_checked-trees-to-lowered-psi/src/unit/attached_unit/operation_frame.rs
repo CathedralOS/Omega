@@ -76,9 +76,9 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::unit::{
-    BoundaryMachineId, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation,
-    OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId, StructuralAccess,
-    StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
+    BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
+    LoweringError, Operation, OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId,
+    StructuralAccess, StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
     ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported,
 };
@@ -242,12 +242,7 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             evaluation: self.evaluation,
@@ -299,6 +294,88 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
             },
         )
     }
+
+    /// Evaluate one checked scalar operand on this frame's own lanes. The
+    /// split hands the evaluation the environment it recurses through while
+    /// the emission names this frame's value namespace and identity counters.
+    pub(super) fn source_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        statement: u32,
+        role: CheckedScalarExpressionRole,
+        value: &checked_trees::CheckedCallScalarArgument,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let (mut environment, emission) = self.reborrow().split();
+        emission.evaluation.source_value(
+            identities,
+            environment.checked,
+            environment.machine,
+            environment.state,
+            statement,
+            role,
+            value,
+            emission.source_value_count,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
+            &mut environment,
+        )
+    }
+
+    /// Read the checked scalar guard one statement conditions on, on this
+    /// frame's own lanes: the guard is the frame's state, not the caller's.
+    pub(super) fn guard_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        statement: u32,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let (mut environment, emission) = self.reborrow().split();
+        emission.evaluation.guard_value(
+            identities,
+            environment.checked,
+            environment.machine,
+            environment.state,
+            statement,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
+            &mut environment,
+        )
+    }
+
+    /// Evaluate every runtime element of one store path on this frame's own
+    /// lanes, in the authored selector order the destination names.
+    pub(super) fn store_selectors(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        steps: &[crate::emission::runtime_elements::ProjectionStep],
+        statement: u32,
+    ) -> Result<Vec<crate::emission::runtime_elements::EvaluatedSelector>, LoweringError> {
+        let (mut environment, emission) = self.reborrow().split();
+        crate::emission::runtime_elements::evaluate_selectors(
+            identities,
+            steps,
+            environment.checked,
+            environment.machine,
+            environment.state,
+            statement,
+            emission.evaluation,
+            emission.source_value_count,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
+            &mut environment,
+        )
+    }
 }
 
 impl OperationEnvironment<'_> {
@@ -314,12 +391,7 @@ impl OperationEnvironment<'_> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             next_place: self.next_place,
@@ -361,12 +433,7 @@ impl OperationEnvironment<'_> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             evaluation,
@@ -416,12 +483,7 @@ impl OperationEnvironment<'_> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             evaluation,

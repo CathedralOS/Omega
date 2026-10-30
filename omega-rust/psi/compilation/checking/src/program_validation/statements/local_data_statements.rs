@@ -2,8 +2,8 @@
 //! value environment it introduces.
 
 use super::{StatementOutputs, StatementScope};
-use crate::value_custody::type_references::TypeReferenceOwner;
 use crate::value_custody::type_references::validate_type_reference_handle;
+use crate::value_custody::type_references::{TypeParameterScope, TypeReferenceOwner};
 use crate::{
     machine_calls::calls, proof_contracts::arithmetic_domains, proof_contracts::domain_weakening,
     value_custody::expression_types, value_custody::struct_literals,
@@ -47,12 +47,7 @@ pub(in crate::program_validation) fn validate_type_reference(
             value_environment,
             generic_depth: 0,
         },
-        crate::value_custody::type_references::TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: machine.symbol,
-            type_parameters: &type_parameters,
-            lifetime_parameters: &lifetime_parameters,
-        },
+        TypeParameterScope::authored(machine.symbol, &type_parameters, &lifetime_parameters),
         formation_obligations,
     );
 }

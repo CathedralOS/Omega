@@ -278,10 +278,7 @@ pub(super) fn returned_value_loans(
     let transition = match statement {
         StatementNode::Expression(expression)
             if statement_index + 1
-                == program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len() =>
+                == crate::flow::state_statements(program, state.statement_nodes).len() =>
         {
             return Ok(expression_loans(*expression)?
                 .into_iter()

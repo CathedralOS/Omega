@@ -33,11 +33,7 @@ pub(super) fn check<'program>(
         return;
     };
     let mut leaves = Vec::new();
-    for call in facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
+    for call in crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
         .filter(|call| {
             call.statement_index == statement

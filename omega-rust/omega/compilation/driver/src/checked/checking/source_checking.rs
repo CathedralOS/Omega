@@ -126,9 +126,13 @@ pub(crate) fn check_product_source(
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);
+    let provider_inventory = Arc::new(psi_compiler::PreparedProviderInventory::new(Arc::clone(
+        &program,
+    )));
     Ok(CheckedProductSource {
         source_completion_accounting,
         program,
+        provider_inventory,
         external_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,

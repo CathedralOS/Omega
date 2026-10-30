@@ -19,9 +19,7 @@ pub(in crate::execution::terminal_unit) fn structural_result_owner(
     let result = operation.structural_result_binding()?;
     if result.local.is_named() {
         let state = program.state_by_symbol(state)?;
-        let local = program
-            .statement_table
-            .statements(state.statement_nodes)
+        let local = crate::flow::state_statements(program, state.statement_nodes)
             .get(usize::try_from(result.statement_index).ok()?)?
             .as_local_data()?;
         return (local.symbol == result.local.symbol)

@@ -74,10 +74,9 @@ pub(in crate::checks::borrows) fn resolve_all(
         expression,
     )?;
     let place = CapturedPlace {
-        incoming_reference: Default::default(),
-        incoming_owner_path: Default::default(),
         root: source.root,
         segments: source.segments,
+        ..Default::default()
     };
     resolve_captured_all(
         program,
@@ -283,11 +282,7 @@ fn completed_call_established_loan(
             .completed_reference_loans
             .handles()
             .any(|candidate| candidate == handle)
-        && facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state.calls)
+        && crate::flow::call_flows(&facts.flow.control, state.calls)
             .iter()
             .any(|actual| {
                 actual.statement_index == loan.statement_index

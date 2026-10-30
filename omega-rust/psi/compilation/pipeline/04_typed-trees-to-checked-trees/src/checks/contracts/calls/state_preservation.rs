@@ -37,9 +37,7 @@ pub(super) fn caller_state_preserves_label_names(
     if names.is_empty() {
         return true;
     }
-    let rebound_before_call = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let rebound_before_call = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(call_flow.statement_index)
         .any(|statement| match statement {

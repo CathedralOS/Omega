@@ -801,3 +801,73 @@ natively but Terminal refuses `VerifiedOperationMalformed`; the fixed-base
 producer `1545e114cb00` reproduces the same failure at machine 15, block 28,
 operation 127. That fixture is not counted as engine agreement. Other hosts and
 the remaining migration acceptance remain open.
+
+## Audited search and dungeon customers
+
+This cohort accounts for 13 historical positions in five files: one binary-search
+position and twelve DungeonCLI positions. Four declarations needed restoration:
+
+| Customer | Canonical contract |
+| --- | --- |
+| `binary_search_viz` `Main.x: i32 [0..=31]` | Data `requires self.x >= 0 && self.x <= 31`. The initialization/render loops retain the valid terminal counter 31; a store of 32 rejects. Original midpoint and narrowing clamps remain. Exactly 31 calls acknowledge the existing blocking input path. |
+| DungeonCLI `Level.room_count: u64 [0..=16]` | Data `requires self.room_count <= 16`; the unsigned carrier supplies the lower bound. A store of 17 rejects. Array capacity alone did not establish this formation restriction. |
+| Both private room-lookup `room_count: u64 [0..=16]` inputs | Each machine requires `room_count <= 16`; separate false-argument controls reject 17 at the intended call. |
+
+The other nine positions retain their meaning: five command-count requirements,
+the maze index initializer and result guarantee, and two eliminated private
+`last_index` formals. Every original caller supplied `(count, count - 1)` with no
+intervening effects. The current immutable count arrives under the same lower
+and upper bounds; its local subtraction establishes 0..255 or 0..254 before the
+read and shorter-count transfer. This is correspondence for that closed private
+call graph, not raw-signature equivalence for arbitrary count/index pairs.
+
+The restored programs check on the fixed base. Dungeon execution exposed an
+interpreter prerequisite: forming a shared byte view rejected the original
+array field's Ascii/Utf8 memberships. The byte bridge now authenticates that
+source before installing the operation's separately allocated result descriptor.
+Memberships stay on their original carrier, backing and window remain unchanged,
+and mutable qualification/restoration checks remain independent. There is no
+buffer-name, encoding-name or array-length recognizer.
+
+The optimized repaired producer `13f4ec7b35db` executes three exact-output routes
+on macOS ARM64 in both the working and separately prepared authored projects:
+binary search probes 15, 23, 19, 21, 20 (183 stdout bytes); dungeon EOF (463 bytes);
+and dungeon help/exit (536 bytes). All six cases exit zero in native and Terminal
+execution. Four over-bound controls reject, and the focused two-sample gate
+passes the complete authored oracles. The same repair makes the existing
+`runtime_qualified_byte_argument_snapshot_exit` run native/Terminal 70/70;
+the earlier malformed-operation observations above remain historical evidence.
+The currently unused mutable room lookup's source admission is checked, without
+claiming executed mutable-loan coverage. Other hosts, other gameplay paths and
+the rest of the parent migration remain open.
+
+## Audited partition and sort customers
+
+The sort visualizer and Dutch flag retain all nine original field intervals
+from `7a9a7b8287e6` on their containing data declarations:
+
+| Fields | Canonical storage restriction |
+| --- | --- |
+| Sort `Main.i`, `Main.j` | Each remains between zero and seven, inclusive. |
+| Sort `Main.jp`, `Main.ry`, `Main.cx` | Each remains between zero and eight, inclusive; eight is a valid stored sentinel. |
+| Dutch flag `Partition.r`, `Partition.w`, `Partition.b` | Each remains at most three; `u64` supplies the zero floor. |
+| Dutch flag `Partition.bp` | Remains at most two, with the unsigned zero floor. |
+
+The predicates restrict formation and typed mutable handback independently of
+the access guards. Declared `j <= 7` establishes `jp <= 8` before its store;
+declared `b <= 3` and the direct `b > 0` guard establish `bp <= 2` before its
+store. The algorithms, guards, arithmetic and original endpoints remain.
+Exactly 34 sort and 28 Dutch flag terminal calls acknowledge the existing
+blocking-input path. The Clock call and its published operational contract
+remain unchanged. This is source migration, not a compiler repair.
+
+Optimized producer `3339fc20030b` executes both programs on macOS ARM64 in the
+working and separately prepared fresh projects. All four cases agree between
+native and Terminal execution: sort exits zero with its exact 754-byte,
+eight-frame transcript; Dutch flag exits 70 with its exact 141-byte transcript.
+The independently derived output and newline input were frozen before execution.
+Five representative endpoint pairs over the exact copied customer declarations
+check signed zero floors, signed ceilings seven/eight, and unsigned ceilings
+three/two. Valid neighbours check; invalid stores reject the owning data
+predicate. The focused two-sample gate passes their complete authored oracles.
+Other hosted targets and the remainder of the parent migration remain open.

@@ -488,9 +488,7 @@ fn state_root_place(
         .iter()
         .find_map(|parameter| (parameter.name.as_str() == path).then_some(parameter.symbol))
         .or_else(|| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
+            crate::flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .find_map(|statement| {
                     let local = statement.as_local_data()?;

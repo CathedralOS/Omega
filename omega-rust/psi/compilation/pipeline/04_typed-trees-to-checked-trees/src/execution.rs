@@ -17,6 +17,8 @@
 //! and `terminal_scalar` consume, so one plan builder produces scalar and
 //! Unit computations.
 
+use checked_trees::{CheckFacts, FlowPermissionEventFact};
+
 pub(crate) mod citation_erasure;
 pub(crate) mod content_consumption;
 pub(crate) mod finalize_execution;
@@ -28,3 +30,18 @@ pub(crate) mod terminal_cleanup;
 pub(crate) mod terminal_debug;
 pub(crate) mod terminal_scalar;
 pub(crate) mod terminal_unit;
+
+/// Every recorded ownership permission event, in arena order.
+///
+/// The arena is the one home those events have; each consumer filters by
+/// machine, state, source and kind at its own site.
+pub(crate) fn permission_events(
+    facts: &CheckFacts,
+) -> impl Iterator<
+    Item = (
+        arena::Handle<FlowPermissionEventFact>,
+        &FlowPermissionEventFact,
+    ),
+> {
+    facts.flow.ownership.permissions.iter()
+}

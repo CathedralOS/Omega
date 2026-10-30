@@ -26,6 +26,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 /// producer does not branch on the caller's installation history.
 pub(crate) struct TerminalProductionView<'a> {
     program: &'a Arc<checked_trees::CheckedTrees>,
+    provider_inventory: &'a checked_trees::PreparedProviderInventory,
     external_declarations: &'a psi_compiler::PreparedExternalProviderDeclarations,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
@@ -51,6 +52,7 @@ impl<'a> TerminalProductionView<'a> {
     ) -> Self {
         Self {
             program: selection.execution.provider_source.program(),
+            provider_inventory: selection.execution.provider_source.inventory(),
             external_declarations: &selection.execution.external_providers,
             sources: &selection.sources,
             build: &selection.build,
@@ -73,6 +75,7 @@ impl<'a> TerminalProductionView<'a> {
     ) -> Self {
         Self {
             program: checked.execution().provider_source.program(),
+            provider_inventory: checked.execution().provider_source.inventory(),
             external_declarations: &checked.execution().external_providers,
             sources: checked.sources(),
             build: checked.build(),
@@ -577,6 +580,8 @@ fn prepare_target_provider_publication(
     targets.sort();
     targets.dedup();
     let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
+        body_declarations: source.provider_inventory.direct_calls(),
+        origins: source.provider_inventory.origins(),
         context: provider_planning::ProviderPlanningContext::new(
             &source.program.typed,
             source::DependencyScope::Product,

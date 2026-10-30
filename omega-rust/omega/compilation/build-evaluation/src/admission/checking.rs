@@ -67,7 +67,10 @@ pub(crate) fn prepare_checked_build(
     );
     let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let declarations = provider_planning::target_machines::settle_provider_defaults(
-        context,
+        &typed_trees::provider_declarations::provider_target_declarations(
+            context.typed,
+            context.scope,
+        ),
         &defaults,
         execution_profile.unwrap_or_else(target::TargetProfile::host),
     );
@@ -76,9 +79,11 @@ pub(crate) fn prepare_checked_build(
         execution_profile,
         packages,
     )?;
+    let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
     let candidates = provider_planning::derive_satisfies_plans(
         provider_planning::ProviderPlanDerivation::evaluated(
             context,
+            &body_declarations,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
             &bindings,

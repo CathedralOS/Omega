@@ -27,16 +27,8 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                     family: MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
                     variant: 0,
                 };
-                let encoded = isa_aarch64::encode_aarch64_selected_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &registers,
-                )
-                .unwrap();
                 let instruction = SelectedInstructionId(1);
-                let (store, encoding, layout) =
-                    super::validated_aarch64_form_fixture(&encoded, instruction, alternative, kind);
+                let (store, encoding, layout) = super::form_fixture(kind, alternative, &registers);
                 let mut changed = store.clone();
                 let footprint = changed.footprint_mut(encoding.footprint).unwrap();
                 footprint.encoded.control = if domain == IeeeFloatToIntegerDomain::Trapping {

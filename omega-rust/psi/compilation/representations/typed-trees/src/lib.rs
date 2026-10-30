@@ -11,6 +11,8 @@
 //! type system with closed numerics and type identities, evidence, and
 //! inspection snapshots. Contracts, ownership, and proofs are checked later.
 
+pub mod direct_calls;
+pub mod provider_declarations;
 pub mod references;
 pub mod typed_trees;
 

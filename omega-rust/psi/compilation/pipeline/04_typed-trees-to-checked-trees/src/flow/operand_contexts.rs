@@ -682,12 +682,8 @@ fn observation_reaches_statement_in_state(
     let (Some(start), Some(end)) = (
         order.position(operand.statement_index),
         order.position(statement).or_else(|| {
-            (statement
-                == program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len())
-            .then_some(order.indices().len())
+            (statement == crate::flow::state_statements(program, state.statement_nodes).len())
+                .then_some(order.indices().len())
         }),
     ) else {
         return false;

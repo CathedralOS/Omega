@@ -434,9 +434,7 @@ fn preserved_entry_prefix<'program>(
     protected: &[validation::RankProtectedPath],
 ) -> Option<Vec<ExpressionHandle>> {
     let mut evaluated = Vec::new();
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
+    for statement in crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(statement + 1)
     {

@@ -262,10 +262,8 @@ pub(super) fn storage_holds_bound_value(
     symbol: SymbolHandle,
     read_path: &[PlaceSegment],
 ) -> bool {
-    let Some(window) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(start..end)
+    let Some(window) =
+        crate::flow::state_statements(program, state.statement_nodes).get(start..end)
     else {
         return false;
     };

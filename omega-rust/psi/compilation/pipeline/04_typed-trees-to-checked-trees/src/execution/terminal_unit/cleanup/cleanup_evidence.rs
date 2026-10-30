@@ -1,5 +1,6 @@
 //! Content evidence, empty service reach and exact affine discards.
 
+use crate::execution::permission_events;
 use crate::execution::terminal_unit::{
     CheckFacts, Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, StateParameter, SymbolHandle,
@@ -46,11 +47,7 @@ pub(crate) fn has_exact_symbol_affine_discard(
     symbol: SymbolHandle,
     provenance: language_semantics::PermissionProvenance,
 ) -> bool {
-    let matching = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
+    let matching = permission_events(facts)
         .filter(|(_, event)| {
             event.machine_symbol == machine.symbol
                 && event.state_symbol == state.symbol
@@ -106,17 +103,12 @@ pub(super) fn has_exact_root_nominal_disposition(
         return false;
     }
     let root = facts::PlaceRoot::Symbol(parameter.symbol);
-    let mut matching = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.root == root
-                && event.source == PermissionEventSource::StateExit
-        });
+    let mut matching = permission_events(facts).filter(|(_, event)| {
+        event.machine_symbol == machine.symbol
+            && event.state_symbol == state.symbol
+            && event.root == root
+            && event.source == PermissionEventSource::StateExit
+    });
     let Some((_, event)) = matching.next() else {
         return false;
     };
