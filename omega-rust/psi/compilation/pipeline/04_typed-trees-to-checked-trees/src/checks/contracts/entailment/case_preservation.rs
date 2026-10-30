@@ -4,7 +4,7 @@
 //! and branch subjects. Establish preservation for the whole reachable body,
 //! rather than checking only the caller's outward frame: writes to an owned
 //! local can disappear from that frame while still invalidating its saved tag.
-//! Complete frames exclude unknown effects; declaration-typed destinations
+//! Complete frames exclude unknown effects; checked stored-value types
 //! distinguish scalar mutation (including atomic events) from replacement of
 //! a case-bearing value or reference binding. This deliberately proves no
 //! scalar equations. Non-case requirements keep the stable-value judgment.
@@ -64,11 +64,11 @@ pub(super) fn body_preserves_case_tags(
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let Some(assignment) = statement.as_assignment() {
-                    let scalar_destination = validation::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        assignment.target,
+                    // A scalar referent store preserves tags even though its
+                    // destination is declared as a reference. Descriptor
+                    // replacement still stores a reference, not its referent.
+                    let scalar_destination = validation::assignment_stored_value_type(
+                        program, machine, state, assignment,
                     )
                     .and_then(|reference| program.primitive_type_reference(reference))
                     .is_some();
