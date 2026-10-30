@@ -1,0 +1,8 @@
+// Reject: one field store cannot establish a false field-free conjunct.
+data Guarded requires count <= 100 && false { count: u64; }
+machine consume(value: &Guarded) {}
+machine entry_start() {
+    let pending: Guarded;
+    pending.count = 1;
+    consume(&pending);
+}

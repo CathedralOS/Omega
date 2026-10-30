@@ -1,4 +1,4 @@
-use super::super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
+use super::super::{check_memory, encode_aarch64_selected_memory_form};
 use super::{MachineAlternativeKey, PackedByteWidth, SelectedInstructionKind};
 use crate::aarch64_physical_register_model;
 use crate::test_support::reject_every_bit_flip;
@@ -112,7 +112,7 @@ fn packed_forms_access_exact_bytes_and_declare_all_scratch_writes() {
                         (offset..offset + u32::from(width.byte_size())).collect::<Vec<_>>()
                     );
                     assert_eq!(
-                        validate_aarch64_selected_memory_form(
+                        check_memory(
                             &physical,
                             kind,
                             alternative,
@@ -141,15 +141,7 @@ fn packed_forms_reject_width_offset_alias_and_instruction_mutations() {
             encode_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 16)
                 .unwrap();
         reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
-            validate_aarch64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                16,
-                &changed,
-            )
-            .is_err()
+            check_memory(&physical, kind, alternative, &operands, 16, &changed).is_err()
         });
         for width in [
             PackedByteWidth::Five,
@@ -158,7 +150,7 @@ fn packed_forms_reject_width_offset_alias_and_instruction_mutations() {
         ] {
             let (other_kind, other_alternative, _) = case(load, width, 16);
             assert!(
-                validate_aarch64_selected_memory_form(
+                check_memory(
                     &physical,
                     other_kind,
                     other_alternative,
@@ -212,7 +204,7 @@ fn packed_forms_reject_width_offset_alias_and_instruction_mutations() {
                 .is_err()
         );
         assert!(
-            validate_aarch64_selected_memory_form(
+            check_memory(
                 &physical,
                 kind,
                 alternative,

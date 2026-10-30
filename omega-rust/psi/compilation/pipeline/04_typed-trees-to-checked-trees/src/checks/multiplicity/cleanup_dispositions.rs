@@ -53,6 +53,8 @@ struct ExcludedStorage {
 pub(super) struct StorageEstablishment {
     pub(super) event_ordinal: usize,
     pub(super) destination: validation::CanonicalPlace,
+    /// All incoming paths transferred this value before replacement disposal.
+    pub(super) prior_value_transferred: bool,
 }
 
 /// A source evaluation position, distinct even when it emits no claim event.
@@ -536,6 +538,7 @@ impl RemainingCustody {
                 .map(|establishment| StorageEstablishment {
                     event_ordinal: 0,
                     destination: establishment.destination.clone(),
+                    prior_value_transferred: establishment.prior_value_transferred,
                 })
                 .collect::<Vec<_>>();
             self.observe_ordinary(
@@ -581,6 +584,7 @@ impl RemainingCustody {
                         machine: event.machine_symbol,
                         state: event.state_symbol,
                         source: event.source,
+                        prior_value_transferred: establishment.prior_value_transferred,
                         destination: Place {
                             root: establishment.destination.root,
                             segments: output

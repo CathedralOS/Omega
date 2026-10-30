@@ -165,14 +165,14 @@ pub(crate) fn replay_region(
 
 #[cfg(test)]
 mod tests {
+    use super::super::stack_mutation as row;
     use super::{
         Architecture, MachineId, ObjectError, Predicate, ScalarDirectConditionalBranchEvidence,
-        ScalarStackMutation,
     };
     use crate::ObjectScalarStack;
     use machine_code::{
         ScalarControlBlockEvidence, ScalarControlFlowEvidence, ScalarControlTerminatorEvidence,
-        ScalarStackEvidence, ScalarStackMutationKind,
+        ScalarStackEvidence, ScalarStackMutationKind as Kind,
     };
 
     fn validate_stack(
@@ -286,21 +286,9 @@ mod tests {
         };
         let evidence = ScalarStackEvidence {
             mutations: vec![
-                ScalarStackMutation {
-                    offset: 0,
-                    byte_count: 4,
-                    kind: ScalarStackMutationKind::Allocate { byte_size: size },
-                },
-                ScalarStackMutation {
-                    offset: releases[0],
-                    byte_count: 4,
-                    kind: ScalarStackMutationKind::Release { byte_size: size },
-                },
-                ScalarStackMutation {
-                    offset: releases[1],
-                    byte_count: 4,
-                    kind: ScalarStackMutationKind::Release { byte_size: size },
-                },
+                row(0, 4, Kind::Allocate { byte_size: size }),
+                row(releases[0], 4, Kind::Release { byte_size: size }),
+                row(releases[1], 4, Kind::Release { byte_size: size }),
             ],
             control_flow: ScalarControlFlowEvidence::Linear,
             stack_alignment: 16,
@@ -343,10 +331,7 @@ mod tests {
                     3 => {
                         evidence.mutations.pop();
                     }
-                    4 => {
-                        evidence.mutations[0].kind =
-                            ScalarStackMutationKind::Allocate { byte_size: 32 }
-                    }
+                    4 => evidence.mutations[0].kind = Kind::Allocate { byte_size: 32 },
                     5 => match architecture {
                         Architecture::X86_64 => bytes[branch.branch_offset + 1] = 0x84,
                         Architecture::Aarch64 => bytes[branch.branch_offset] ^= 1,
@@ -460,21 +445,9 @@ mod tests {
         bytes.push(0xc3);
         let evidence = ScalarStackEvidence {
             mutations: vec![
-                ScalarStackMutation {
-                    offset: 0,
-                    byte_count: push.len(),
-                    kind: ScalarStackMutationKind::X86Push,
-                },
-                ScalarStackMutation {
-                    offset: fallthrough_offset,
-                    byte_count: fallthrough_pop.len(),
-                    kind: ScalarStackMutationKind::X86Pop,
-                },
-                ScalarStackMutation {
-                    offset: taken_offset,
-                    byte_count: taken_pop.len(),
-                    kind: ScalarStackMutationKind::X86Pop,
-                },
+                row(0, push.len(), Kind::X86Push),
+                row(fallthrough_offset, fallthrough_pop.len(), Kind::X86Pop),
+                row(taken_offset, taken_pop.len(), Kind::X86Pop),
             ],
             control_flow: ScalarControlFlowEvidence::Linear,
             stack_alignment: 16,
@@ -562,21 +535,9 @@ mod tests {
         };
         let evidence = ScalarStackEvidence {
             mutations: vec![
-                ScalarStackMutation {
-                    offset: 0,
-                    byte_count: 7,
-                    kind: ScalarStackMutationKind::Allocate { byte_size: size },
-                },
-                ScalarStackMutation {
-                    offset: 11,
-                    byte_count: 7,
-                    kind: ScalarStackMutationKind::Release { byte_size: size },
-                },
-                ScalarStackMutation {
-                    offset: 19,
-                    byte_count: 7,
-                    kind: ScalarStackMutationKind::Release { byte_size: size },
-                },
+                row(0, 7, Kind::Allocate { byte_size: size }),
+                row(11, 7, Kind::Release { byte_size: size }),
+                row(19, 7, Kind::Release { byte_size: size }),
             ],
             control_flow: ScalarControlFlowEvidence::Linear,
             stack_alignment: 16,

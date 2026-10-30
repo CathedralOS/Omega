@@ -237,10 +237,11 @@ conversation. Include:
 - Claim with `python3 tools/claims.py` before editing, and keep the note
   current: parent task, requirement removed, remaining acceptance, witness,
   current failure, next action, prerequisites
-- Publish the validated Cursor branch as a PR through the native merge queue
-  in tools/landing.md. Enqueue it, wait for MERGED, and verify its source head
-  and published commit in fetched main. An open PR is not completion. No local
-  lease or repeated author build/review merely for a queue-generated SHA
+- Publish the validated Cursor branch as a draft PR and follow tools/landing.md.
+  Mark it ready only when it can enter the merge queue, then enqueue it, wait
+  for MERGED, and verify its source head and published commit in fetched main.
+  An open or draft PR is not completion. No local lease or repeated author
+  build/review merely for a queue-generated SHA
 - Report the actual OS. State Windows, macOS, and QEMU acceptance as
   unavailable on a Linux machine
 - Jev advisories run when the worker environment already has

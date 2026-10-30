@@ -2,66 +2,27 @@
 
 use super::{AARCH64_PLT_ENTRY, AARCH64_PLT_HEADER, ELF64_RELA_SIZE, ElfProcedureLinkageFixup, ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage, ElfProcedureLinkagePlacementConstraintKind, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplatePolicy, ValidatedElfProcedureLinkageRelocationPlan, non_authoritative_template_compatibility_fingerprint, plan_elf_procedure_linkage_templates};
 use crate::{
-    plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
-    plan_elf_dynamic_sections, plan_elf_procedure_linkage_relocations,
-    serialize_elf_dynamic_sections,
+    plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
+    plan_elf_procedure_linkage_relocations, serialize_elf_dynamic_sections,
 };
-use arena::Handle;
-use image::{
-    FinalImage, FinalImageMemory,
-};
-use target::normalize_elf_interpreter_plan;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::{validate_candidate, validate_contents, validate_fixup_coverage};
 use target::TargetProfile;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, read_field, read_u32, read_u64};
 
-use crate::test_support::{IMPORTS, ImportFixture, import_fixture_interpreter_path};
+use crate::test_support::{IMPORTS, ImportFixture};
 
 fn linkage(
     target: TargetProfile,
     imports: &[ImportFixture],
 ) -> ValidatedElfProcedureLinkageRelocationPlan {
-    let relocation_count = imports
-        .iter()
-        .map(|fixture| fixture.instruction_offsets.len())
-        .sum();
-    let mut image = FinalImage::with_capacity(
-        target.native_target(),
-        FinalImageMemory {
-            text: vec![0; 64],
-            ..FinalImageMemory::default()
-        },
-        Handle::invalid(),
-        imports.len(),
-        imports.len(),
-        relocation_count,
+    let inputs = crate::test_support::dynamic_import_inputs(
+        target,
+        imports,
+        "__omega_template_import_",
+        "valid template locator",
+        "valid template interpreter",
     );
-    for (index, fixture) in imports.iter().enumerate() {
-        let symbol_handle = crate::test_support::insert_import_fixture(
-            &mut image,
-            "__omega_template_import_",
-            index,
-            fixture.object,
-            fixture.symbol,
-            fixture.version,
-            target,
-            "valid template locator",
-        );
-        crate::test_support::insert_text_call_relocations(
-            &mut image,
-            target,
-            fixture
-                .instruction_offsets
-                .iter()
-                .map(|offset| (*offset, symbol_handle)),
-        );
-    }
-    let interpreter =
-        normalize_elf_interpreter_plan(import_fixture_interpreter_path(target).to_vec(), target)
-            .expect("valid template interpreter");
-    let inputs =
-        plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link inputs");
     let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
     let payloads = serialize_elf_dynamic_sections(sections).expect("valid dynamic payloads");
     let descriptors =

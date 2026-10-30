@@ -35,6 +35,7 @@ use numerics::literals::IntegerRadix;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ConstDefinition;
@@ -700,6 +701,7 @@ fn synthesize_instance(
         })
         .collect();
     let mut impossible_variants: HashSet<String> = HashSet::new();
+    let mut copied_fact_roots: Vec<ExpressionHandle> = Vec::new();
     let mut first_fact = Handle::invalid();
     let mut fact_count = 0u32;
     for (offset, fact) in snapshot
@@ -783,6 +785,7 @@ fn synthesize_instance(
                 selection,
                 &instance.synthetic_name,
             )?;
+            copied_fact_roots.push(copied_root);
             let type_name = base_info.origin_name.as_str(syntax);
             for variant_name in &template_variant_names {
                 if matches!(
@@ -802,6 +805,21 @@ fn synthesize_instance(
             first_fact = handle;
         }
         fact_count += 1;
+    }
+    // A case every replay refuted is impossible on this carrier: it has no
+    // structural representation downstream, so `self in Type::Case` atoms
+    // naming it fold to `false` before the copied facts reach checking or
+    // lowering, and the surrounding boolean skeleton propagates the result.
+    if !impossible_variants.is_empty() {
+        let type_name = base_info.origin_name.as_str(syntax).to_owned();
+        for copied_root in copied_fact_roots {
+            super::substitution::fold_impossible_case_memberships(
+                syntax,
+                copied_root,
+                &type_name,
+                &impossible_variants,
+            );
+        }
     }
     let where_facts = HandleSpan::from_parts(first_fact, fact_count);
 

@@ -738,6 +738,7 @@ pub(crate) fn evaluate_statement_permissions(
                         event_ordinal: establishment.event_ordinal + event_start
                             - establishment_start,
                         destination: establishment.destination.clone(),
+                        prior_value_transferred: establishment.prior_value_transferred,
                     })
                     .collect::<Vec<_>>();
                 if let Some(capture) = capture {
@@ -1443,6 +1444,8 @@ fn establish_targets(
                     root: target.root,
                     segments: target.destination_path.clone(),
                 },
+                prior_value_transferred: replacement_custody
+                    .definitely_transferred(target.root, &target.destination_path),
             });
         }
         let mut establishment = FlowPermissionEventFact {

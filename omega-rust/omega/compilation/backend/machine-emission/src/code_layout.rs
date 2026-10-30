@@ -89,6 +89,13 @@ pub fn describe_native_code_layout(
     })
 }
 
+fn code_region(section_offset: u64, length: u64) -> NativeCodeRegion {
+    NativeCodeRegion {
+        section_offset,
+        length,
+    }
+}
+
 fn append_fragment_spans(
     fragment: &PlacedFunctionFragment,
     frame: &FunctionAppliedFrameProtocol,
@@ -111,10 +118,7 @@ fn append_fragment_spans(
             return Err(invalid());
         }
         if length != 0 {
-            regions.push(NativeCodeRegion {
-                section_offset,
-                length,
-            });
+            regions.push(code_region(section_offset, length));
         }
         Ok(())
     };
@@ -182,37 +186,16 @@ mod tests {
         let regions = canonical_regions(
             machine,
             vec![
-                NativeCodeRegion {
-                    section_offset: 40,
-                    length: 3,
-                },
-                NativeCodeRegion {
-                    section_offset: 10,
-                    length: 2,
-                },
-                NativeCodeRegion {
-                    section_offset: 12,
-                    length: 4,
-                },
-                NativeCodeRegion {
-                    section_offset: 11,
-                    length: 3,
-                },
+                super::code_region(40, 3),
+                super::code_region(10, 2),
+                super::code_region(12, 4),
+                super::code_region(11, 3),
             ],
         )
         .unwrap();
         assert_eq!(
             regions,
-            vec![
-                NativeCodeRegion {
-                    section_offset: 10,
-                    length: 6
-                },
-                NativeCodeRegion {
-                    section_offset: 40,
-                    length: 3
-                },
-            ]
+            vec![super::code_region(10, 6), super::code_region(40, 3),]
         );
     }
 
@@ -277,16 +260,7 @@ mod tests {
         append_fragment_spans(&fragment, &frame, 122, &mut spans).unwrap();
         assert_eq!(
             canonical_regions(machine, spans).unwrap(),
-            vec![
-                NativeCodeRegion {
-                    section_offset: 100,
-                    length: 8
-                },
-                NativeCodeRegion {
-                    section_offset: 118,
-                    length: 4
-                },
-            ]
+            vec![super::code_region(100, 8), super::code_region(118, 4),]
         );
         // A stale function/section coordinate join must reject, even if the
         // section coordinate alone happens to stay inside the envelope.
@@ -301,13 +275,7 @@ mod tests {
     fn overflowing_native_span_rejects() {
         let machine = MachineId::new(1).unwrap();
         assert_eq!(
-            canonical_regions(
-                machine,
-                vec![NativeCodeRegion {
-                    section_offset: u64::MAX,
-                    length: 1,
-                }]
-            ),
+            canonical_regions(machine, vec![super::code_region(u64::MAX, 1)]),
             Err(NativeCodeLayoutError::InvalidInstructionSpan(machine))
         );
     }

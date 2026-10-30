@@ -310,6 +310,35 @@ scans a crate's own sources as an architecture guard is the one exception. The `
 crate's only test target is `corpus_runner`; see
 `omega-rust/omega/compilation/driver/tests/README.md`.
 
+## Cache independence
+
+`cache_gate.py` compares warm and empty-cache CLI invocations on disposable
+projects, using child-process cache directories rather than the user's cache.
+Supply two optimized producers with different compiler input identities:
+
+```bash
+python tools/build_slot.py --slots 2 -- python tools/cache_gate.py \
+  --cli /path/to/current/omega --other-cli /path/to/previous/omega \
+  --output build/cache-independence
+```
+
+The output directory must be new. The gate requires observed retained-check
+hits before mutation. It changes bodies, same-size/timestamp-preserving
+contracts, declared path dependencies, transitive modules, module existence,
+and the selected build entry. Stale locked compilations must refuse; explicit
+updates must agree with fresh compilation. It also corrupts or removes retained
+records, leaves incomplete temporary records, terminates its own writer during
+record staging, and switches compiler identities. If it misses the interruption
+window, the gate fails rather than counting interruption coverage.
+
+Accepted pairs must produce byte-identical native images and matching native
+exit/stdout/stderr; invalid pairs must reject with the intended diagnostic and
+publish no image. Logs, source snapshots, artifact digests, producer profiles,
+and comparison results remain under the output directory. Test fixtures alone
+receive automatic review decisions. These checks cover the native host and
+named mutations, not every dependency kind, power-loss behavior, or malicious
+cache forgery. They are correctness checks, not compilation benchmarks.
+
 ## Corpus outcome gate
 
 `tools/corpus_gate.py` is the compiler's end-to-end test. It runs the

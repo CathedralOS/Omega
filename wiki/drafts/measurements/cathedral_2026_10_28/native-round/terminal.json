@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "fixture": "domains/moved_payload_uses_current_membership_exit",
+      "artifacts": {
+        "full": "0d6284a7fe3e9eab9eca9b67f3034658eff5dd7028355641b272c105a21d2ad6",
+        "scoped": "0d6284a7fe3e9eab9eca9b67f3034658eff5dd7028355641b272c105a21d2ad6"
+      }
+    },
+    {
+      "fixture": "traits/runtime_dyn_post_write_alternatives_exit",
+      "artifacts": {
+        "full": "8e0798b2503cdd18f3c5994e73635ef0a25da1aa6d9520dbadc3ea87747d2f04",
+        "scoped": "8e0798b2503cdd18f3c5994e73635ef0a25da1aa6d9520dbadc3ea87747d2f04"
+      }
+    }
+  ]
+}

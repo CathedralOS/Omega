@@ -272,21 +272,19 @@ pub(super) fn check_call_access_conflicts<'p>(
                 continue;
             }
             // A terminal invocation stages scalar snapshots before transferring its
-            // existing reference carriers. Reading through that same route
+            // existing reference carriers. A completed read through any alias
             // forms no second retained loan, regardless of the machine's
             // lexical qualification. Fresh borrows and returning invocations
             // still establish ordinary argument exclusivity.
-            if super::staging::copied_observation_before_terminal_transfer(
+            if super::staging::completed_observation_before_terminal_transfer(
                 program,
-                facts,
                 state_flow,
                 borrow_call,
                 boundary.as_ref(),
                 access,
                 other_access,
-            ) || super::staging::copied_observation_before_terminal_transfer(
+            ) || super::staging::completed_observation_before_terminal_transfer(
                 program,
-                facts,
                 state_flow,
                 borrow_call,
                 boundary.as_ref(),

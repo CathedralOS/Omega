@@ -11,6 +11,12 @@ use crate::{SaturatingCarrier, SaturatingOperation};
 use optimization_unit::encode_value_definition_site_identity;
 use semantic_vocabulary::{ObligationId, ValueId};
 
+macro_rules! push_bytes {
+    ($bytes:expr, $value:expr) => {
+        crate::codec_bytes::push_encoded($bytes, $value)
+    };
+}
+
 pub(super) fn encode(
     bytes: &mut Vec<u8>,
     function: &LegalizedScalarFunction,
@@ -167,14 +173,11 @@ pub(super) fn encode(
                 }
                 LegalizedScalarInstructionKind::RegisterAccess { service, event } => {
                     bytes.push(247);
-                    crate::codec_bytes::push_encoded(
+                    push_bytes!(
                         bytes,
-                        service.map_or(0, |service| service.get()).to_le_bytes(),
+                        service.map_or(0, |service| service.get()).to_le_bytes()
                     );
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        event.operation().catalog_tag().to_le_bytes(),
-                    );
+                    push_bytes!(bytes, event.operation().catalog_tag().to_le_bytes());
                     for value in event.inputs() {
                         crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
                     }
@@ -320,10 +323,7 @@ pub(super) fn encode(
                     super::structural_result::encode_operation_result(bytes, result);
                     encode_byte_operand(bytes, left);
                     encode_byte_operand(bytes, right);
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        capacity_obligation.get().to_le_bytes(),
-                    );
+                    push_bytes!(bytes, capacity_obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
                 LegalizedScalarInstructionKind::EstablishStructuralArray {
@@ -389,44 +389,23 @@ pub(super) fn encode(
                             correspondence,
                         ) => {
                             bytes.push(0);
-                            crate::codec_bytes::push_encoded(
+                            push_bytes!(bytes, correspondence.schema.get().to_le_bytes());
+                            push_bytes!(bytes, correspondence.carrier.get().to_le_bytes());
+                            push_bytes!(bytes, correspondence.source_byte_length.to_le_bytes());
+                            push_bytes!(
                                 bytes,
-                                correspondence.schema.get().to_le_bytes(),
+                                correspondence.required_base.modulus().to_le_bytes()
                             );
-                            crate::codec_bytes::push_encoded(
+                            push_bytes!(
                                 bytes,
-                                correspondence.carrier.get().to_le_bytes(),
-                            );
-                            crate::codec_bytes::push_encoded(
-                                bytes,
-                                correspondence.source_byte_length.to_le_bytes(),
-                            );
-                            crate::codec_bytes::push_encoded(
-                                bytes,
-                                correspondence.required_base.modulus().to_le_bytes(),
-                            );
-                            crate::codec_bytes::push_encoded(
-                                bytes,
-                                correspondence.required_base.residue().to_le_bytes(),
+                                correspondence.required_base.residue().to_le_bytes()
                             );
                             encode_len(bytes, correspondence.fields.len());
                             for field in &correspondence.fields {
-                                crate::codec_bytes::push_encoded(
-                                    bytes,
-                                    field.access_slot.to_le_bytes(),
-                                );
-                                crate::codec_bytes::push_encoded(
-                                    bytes,
-                                    field.source_field.get().to_le_bytes(),
-                                );
-                                crate::codec_bytes::push_encoded(
-                                    bytes,
-                                    field.byte_offset.to_le_bytes(),
-                                );
-                                crate::codec_bytes::push_encoded(
-                                    bytes,
-                                    field.transfer_width_bits.to_le_bytes(),
-                                );
+                                push_bytes!(bytes, field.access_slot.to_le_bytes());
+                                push_bytes!(bytes, field.source_field.get().to_le_bytes());
+                                push_bytes!(bytes, field.byte_offset.to_le_bytes());
+                                push_bytes!(bytes, field.transfer_width_bits.to_le_bytes());
                                 encode_scalar_type(bytes, field.logical_scalar);
                                 encode_scalar_type(bytes, field.stored_scalar);
                             }
@@ -476,10 +455,7 @@ pub(super) fn encode(
                     super::structural_types::encode_structural_argument(bytes, source);
                     if let Some(storage) = storage {
                         bytes.push(1);
-                        crate::codec_bytes::push_encoded(
-                            bytes,
-                            storage.byte_offset.get().to_le_bytes(),
-                        );
+                        push_bytes!(bytes, storage.byte_offset.get().to_le_bytes());
                         if let Some(stored_scalar) = storage.stored_scalar {
                             bytes.push(1);
                             encode_scalar_type(bytes, stored_scalar);
@@ -1502,23 +1478,14 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 encode_len(bytes, case.payloads.len());
                 for payload in &case.payloads {
                     crate::codec_bytes::push_encoded(bytes, payload.field.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        payload.field_byte_offset.to_le_bytes(),
-                    );
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        payload.parameter.value.get().to_le_bytes(),
-                    );
+                    push_bytes!(bytes, payload.field_byte_offset.to_le_bytes());
+                    push_bytes!(bytes, payload.parameter.value.get().to_le_bytes());
                     encode_scalar_type(bytes, payload.parameter.scalar_type);
                     encode_value_definition_site_identity(bytes, payload.parameter.definition_site);
                 }
                 encode_len(bytes, case.structural_bindings.len());
                 for binding in &case.structural_bindings {
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        binding.semantic.parameter.get().to_le_bytes(),
-                    );
+                    push_bytes!(bytes, binding.semantic.parameter.get().to_le_bytes());
                     super::structural_types::encode_structural_argument(
                         bytes,
                         &binding.semantic.argument,

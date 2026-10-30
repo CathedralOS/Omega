@@ -1,0 +1,9 @@
+{
+  "archive_sha256": "d6f0fe56cd614c59a0eea1d9f6d44d0941ab93d5c925778f1fc1e6abbeea0730",
+  "archive_bytes": 1307399,
+  "baseline_commit": "7d46e5a7dcdc3655cfe4d4f5fd59d72afc8a7481",
+  "semantics_test_exit": 0,
+  "semantics_tests_passed": 25,
+  "semantics_tests_filtered": 3,
+  "unmatched_cold_runs_excluded": true
+}

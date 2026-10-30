@@ -641,6 +641,8 @@ pub(crate) fn prepare_permission_events(
                                         event_ordinal: establishment.event_ordinal
                                             - produced_storage.evaluated_events,
                                         destination: establishment.destination.clone(),
+                                        prior_value_transferred: establishment
+                                            .prior_value_transferred,
                                     }
                                 })
                                 .collect::<Vec<_>>();

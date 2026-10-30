@@ -14,8 +14,8 @@ use optimization_unit::{
 use semantic_vocabulary::BlockId;
 
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
-use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
+use crate::rules::control_flow_cleanup::scalar_cleanup_functions;
 use crate::rules::control_flow_cleanup::{
     merge_candidates, provenance_realized_at, record_merged_node_positions, record_node_provenance,
 };
@@ -41,15 +41,8 @@ psi_rule_impl!(AdjacentBlockMergeRule, |unit, analyses| {
     required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
     required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
     let mut candidates = Vec::new();
-    for function in &unit.functions {
-        // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-        if !descriptor_telescope_free(function) {
-            continue;
-        }
-        let machine_dominators = dominators
-            .function(function.machine)
-            .map(|(_, rows)| rows.as_slice())
-            .unwrap_or_default();
+    for function in scalar_cleanup_functions(&unit.functions) {
+        let machine_dominators = dominators.rows(function.machine);
         for candidate in merge_candidates(function, |candidate| {
             candidate.target_position == candidate.predecessor_position + 1
                 && candidate.target.nodes.first().is_some_and(|node| {

@@ -71,10 +71,7 @@ pub(super) fn entry(
         {
             return Err(SelectedInstructionError::custody());
         }
-        let provenance = SelectedInstructionProvenance {
-            values: vec![parameter.value],
-            ..Default::default()
-        };
+        let provenance = super::value_provenance(parameter.value);
         let address = address_register(builder, parameter.value, parameter.definition_site)?;
         builder.emit_frame_address(
             FrameStorageSlotId::Incoming {

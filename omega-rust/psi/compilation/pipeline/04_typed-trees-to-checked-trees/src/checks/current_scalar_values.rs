@@ -52,6 +52,8 @@ mod conditions;
 mod entry_fields;
 pub(crate) use entry_fields::parameter_projection_paths;
 mod joins;
+mod normal_completion;
+use normal_completion::{CapturedResultFields, result_scalar_field_occurrence};
 mod scalar_fields;
 mod scalar_storage;
 use conditions::ConditionBinding;
@@ -107,6 +109,7 @@ pub(crate) struct CurrentScalarValues<'program> {
     lengths: Vec<Length>,
     initial_lengths: Vec<Length>,
     fields: Vec<ScalarField>,
+    result_fields: Option<CapturedResultFields>,
     conditions: Vec<ConditionBinding>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
     in_transition_target: bool,
@@ -257,6 +260,7 @@ impl<'program> CurrentScalarValues<'program> {
             lengths,
             initial_lengths: Vec::new(),
             fields: Vec::new(),
+            result_fields: None,
             conditions: Vec::new(),
             hypotheses: Vec::new(),
             in_transition_target: target.is_valid(),
@@ -1520,6 +1524,7 @@ struct ScopedOccurrence<'roster, 'tree> {
     state: &'tree State,
     lengths: &'roster [Length],
     hypotheses: &'roster [ScopedArithmeticHypothesis],
+    result_fields: Option<&'roster CapturedResultFields>,
 }
 
 impl<'program> CurrentScalarValues<'program> {
@@ -1530,6 +1535,7 @@ impl<'program> CurrentScalarValues<'program> {
             state: self.state,
             lengths: &self.lengths,
             hypotheses: &self.hypotheses,
+            result_fields: None,
         }
     }
 
@@ -1549,6 +1555,7 @@ impl<'program> CurrentScalarValues<'program> {
             state,
             lengths,
             hypotheses: &self.hypotheses,
+            result_fields: None,
         }
     }
 }
@@ -1651,7 +1658,8 @@ fn admitted(
                 admitted(occurrence, argument, bindings, fields, depth + 1)
             }),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            length_occurrence(program, expression, lengths).is_some()
+            result_scalar_field_occurrence(occurrence, expression).is_some()
+                || length_occurrence(program, expression, lengths).is_some()
                 || scalar_field_occurrence(occurrence, expression, bindings, fields).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
                 || literal_window_length(program, expression).is_some()
@@ -1741,8 +1749,11 @@ fn scoped(
                 pending.push((argument, depth + 1));
             }
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-                let value = length_occurrence(program, expression, lengths)
-                    .and_then(|length| length.value.clone())
+                let value = result_scalar_field_occurrence(occurrence, expression)
+                    .or_else(|| {
+                        length_occurrence(program, expression, lengths)
+                            .and_then(|length| length.value.clone())
+                    })
                     .or_else(|| scalar_field_occurrence(occurrence, expression, bindings, fields))
                     .or_else(|| field_occurrence(program, machine, state, expression))
                     .or_else(|| literal_window_length(program, expression))?;

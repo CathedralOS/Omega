@@ -1,11 +1,10 @@
-use super::{integer_signature, strict_x86_entry};
+use super::{call_signature, integer_signature, strict_x86_entry};
 use crate::plans::{
-    BoundaryPlanDiagnostic, BoundaryPlanResult, CallSignature, CallingPolicy,
-    CallingPolicyRejection, EntryStack, MachineRegime, MachineRegister, MachineState,
-    MachineStateSet, Preemption, RegisterSet, StateFootprintEvidence, StatePlan,
-    SystemVEightbyteClass, ValueShape, encode_state_plan_identity,
-    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
-    validate_boundary_plan_result,
+    BoundaryPlanDiagnostic, BoundaryPlanResult, CallingPolicy, CallingPolicyRejection, EntryStack,
+    MachineRegime, MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet,
+    StateFootprintEvidence, StatePlan, SystemVEightbyteClass, ValueShape,
+    encode_state_plan_identity, evaluate_ordinary_boundary_entry_plan,
+    validate_boundary_entry_plan, validate_boundary_plan_result,
 };
 
 #[test]
@@ -95,10 +94,7 @@ fn accepted_policy_results_canonicalize_fragment_order_before_identity() {
         SystemVEightbyteClass::Integer,
         SystemVEightbyteClass::Sse,
     );
-    let signature = CallSignature {
-        parameters: vec![shape],
-        result: None,
-    };
+    let signature = call_signature(vec![shape], None);
     let baseline = evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
         .expect("ordinary mixed-aggregate entry");
     let mut authored = baseline.plan().clone();

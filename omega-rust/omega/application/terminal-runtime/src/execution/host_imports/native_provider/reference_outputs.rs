@@ -210,6 +210,7 @@ fn argument(buffer: &TerminalBoundaryStorageBuffer) -> usize {
     match buffer {
         TerminalBoundaryStorageBuffer::Scalar(buffer) => buffer.argument_index(),
         TerminalBoundaryStorageBuffer::Structural(buffer) => buffer.argument_index(),
+        TerminalBoundaryStorageBuffer::ByteView(buffer) => buffer.argument_index(),
     }
 }
 fn covers(available: StructuralAccess, requested: StructuralAccess) -> bool {

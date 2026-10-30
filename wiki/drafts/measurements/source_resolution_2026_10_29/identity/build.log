@@ -1,0 +1,502 @@
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+warning: method `is_consistent` is never used
+  --> omega-rust\omega\foundation\optimization-core\src\optimization_core\rollback\receipt.rs:55:19
+   |
+20 | impl OptimizationRollbackReceipt {
+   | -------------------------------- method in this implementation
+...
+55 |     pub(crate) fn is_consistent(&self) -> bool {
+   |                   ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `optimization-core` (lib) generated 1 warning
+warning: `optimization-core` (lib) generated 1 warning (1 duplicate)
+   Compiling compiler v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\omega\compilation\driver)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:172:13
+    |
+172 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:183:13
+    |
+183 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `verify_macos_cache_ancestor_acl_custody`
+ --> omega-rust\omega\packages\source-acquisition\src\custody\tree.rs:8:50
+  |
+8 |     verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
+  |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `verify_macos_cache_ancestor_acl_custody` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\custody\platform.rs:358:15
+    |
+358 | pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `resolve_git_source` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\mod.rs:65:15
+   |
+65 | pub(crate) fn resolve_git_source(
+   |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_git_workspace_member` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\workspace_member.rs:29:15
+   |
+29 | pub(crate) fn resolve_git_workspace_member<Planner>(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_local_source_snapshot` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\local\operations.rs:175:15
+    |
+175 | pub(crate) fn resolve_local_source_snapshot(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `custody_identity` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\local\resolution_observations.rs:58:19
+   |
+49 | impl LocalSourceResolutionObservation {
+   | ------------------------------------- method in this implementation
+...
+58 |     pub(crate) fn custody_identity(&self) -> &str {
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: associated function `for_hardened_base` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\source_resolver.rs:54:19
+   |
+39 | impl SourceResolver {
+   | ------------------- associated function in this implementation
+...
+54 |     pub(crate) fn for_hardened_base(
+   |                   ^^^^^^^^^^^^^^^^^
+
+warning: `diagnostics` (lib) generated 2 warnings
+warning: `package-source` (lib) generated 7 warnings (run `cargo fix --lib -p package-source` to apply 1 suggestion)
+warning: method `matches_exact_uefi_x64_entry_stack_application` is never used
+  --> omega-rust\omega\compilation\backend\target\src\target_semantics\mod.rs:88:19
+   |
+60 | impl SymbolicTargetObservationApplication {
+   | ----------------------------------------- method in this implementation
+...
+88 |     pub(crate) fn matches_exact_uefi_x64_entry_stack_application(&self) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches_exact_uefi_x64_entry_stack_guarantee` is never used
+   --> omega-rust\omega\compilation\backend\target\src\target_semantics\mod.rs:147:19
+    |
+109 | impl TargetEntryStackGuarantee {
+    | ------------------------------ method in this implementation
+...
+147 |     pub(crate) fn matches_exact_uefi_x64_entry_stack_guarantee(&self) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retained_symlink_target` is never used
+   --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:220:4
+    |
+220 | fn retained_symlink_target(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `target` (lib) generated 2 warnings
+warning: `build-output` (lib) generated 1 warning
+warning: method `into_model` is never used
+  --> omega-rust\omega\compilation\backend\register-model\src\register_model.rs:98:19
+   |
+89 | impl ValidatedPhysicalRegisterModel {
+   | ----------------------------------- method in this implementation
+...
+98 |     pub(crate) fn into_model(self) -> PhysicalRegisterModel {
+   |                   ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `register-model` (lib) generated 1 warning
+warning: unused doc comment
+   --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\facts\contract_plans.rs:231:1
+    |
+231 | / /// Domain-separated commitment to one machine's complete canonical public
+232 | | /// contract, declared through `typed_trees`'s shared digest carrier.
+    | |_--------------------------------------------------------------------^
+    |   |
+    |   rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+  --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\operators.rs:30:1
+   |
+30 | / /// Collision-resistant commitment to the exact selected ProviderPlan.
+31 | | ///
+32 | | /// Psi owns this opaque byte carrier so checked operator evidence can retain
+33 | | /// Omega's plan digest without introducing an upward dependency on
+34 | | /// `effects`. The provider-planning boundary is responsible for copying
+35 | | /// the digest from the exact selected plan.
+   | |_-------------------------------------------^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: `checked-trees` (lib) generated 2 warnings
+warning: function `paths_overlap` is never used
+    --> omega-rust\psi\compilation\checking\src\machine_calls\reference_result_custody\captured_returns.rs:1196:15
+     |
+1196 | pub(super) fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {
+     |               ^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `CompletedCall` is never constructed
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:65:5
+   |
+43 | pub(crate) enum Operand {
+   |                 ------- variant in this enum
+...
+65 |     CompletedCall {
+   |     ^^^^^^^^^^^^^
+   |
+   = note: `Operand` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: `validation` (lib) generated 2 warnings
+warning: method `execution_scope` is never used
+    --> omega-rust\omega\compilation\backend\plans\provider-evidence\src\provider_evidence.rs:1316:8
+     |
+1304 | impl SelectedProviderClosureDigestEncoder {
+     | ----------------------------------------- method in this implementation
+...
+1316 |     fn execution_scope(&mut self, scope: crate::ExecutionScope) {
+     |        ^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `effects` (lib) generated 1 warning
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\compile-time\src\build_time_evaluation.rs:889:13
+    |
+889 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `build-time-evaluation` (lib) generated 1 warning
+warning: constant `CANONICAL_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:31:18
+   |
+31 | pub(crate) const CANONICAL_FILE_MODE: u32 = 0o444;
+   |                  ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `CANONICAL_EXECUTABLE_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:32:18
+   |
+32 | pub(crate) const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `package-compilation` (lib) generated 2 warnings
+warning: method `scalar_call_constraint` is never used
+   --> omega-rust\omega\compilation\backend\register-environment\src\lib.rs:171:19
+    |
+106 | impl ValidatedTargetRegisterEnvironment {
+    | --------------------------------------- method in this implementation
+...
+171 |     pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `scalar_call_constraint_key` is never used
+   --> omega-rust\omega\compilation\backend\register-environment\src\catalog.rs:207:21
+    |
+207 | pub(super) const fn scalar_call_constraint_key(
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `register-environment` (lib) generated 2 warnings
+warning: method `snapshot` is never used
+  --> omega-rust\omega\compilation\pipeline\01_abstract-operations-to-abstract-operations\src\validation\context\ranked_cycles\mod.rs:62:18
+   |
+46 | impl ValidatedOptimizerCycleComponents {
+   | -------------------------------------- method in this implementation
+...
+62 |     pub const fn snapshot(&self) -> &OptimizerCycleComponentSnapshot {
+   |                  ^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `abstract-operations-to-abstract-operations` (lib) generated 1 warning
+warning: unused import: `LiveDefinitions`
+ --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:7:13
+  |
+7 | use super::{LiveDefinitions, RowSite};
+  |             ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::lowering::structural_type_lookup::StructuralTypeLookup`
+ --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:9:5
+  |
+9 | use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `AbstractFunction`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:10:48
+   |
+10 | use abstract_operations::{AbstractAtomicEvent, AbstractFunction};
+   |                                                ^^^^^^^^^^^^^^^^
+
+warning: unused import: `TerminalPsiProvenance`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:12:46
+   |
+12 | use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+   |                                              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `semantic_vocabulary::IeeeFloatFormat`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\structural_layout.rs:27:5
+   |
+27 | use semantic_vocabulary::IeeeFloatFormat;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `pure_byte_qualifications` is never used
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\structural_type_lookup.rs:52:19
+   |
+16 | impl<'a> StructuralTypeLookup<'a> {
+   | --------------------------------- method in this implementation
+...
+52 |     pub(super) fn pure_byte_qualifications(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `abstract-operations-to-target-operations` (lib) generated 6 warnings (run `cargo fix --lib -p abstract-operations-to-target-operations` to apply 5 suggestions)
+warning: unused imports: `AllocatorAvailabilityValidationReceipt`, `RecoveryClassificationValidationReceipt`, and `SpillChoiceValidationReceipt`
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\lib.rs:265:5
+    |
+265 |     AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+266 |     FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementValidationReceipt,
+267 |     LiveRangeValidationReceipt, LivenessValidationReceipt, RecoveryClassificationValidationReceipt,
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+268 |     SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PairOperandShape`
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\lib.rs:294:24
+    |
+294 |     LiteralFoldPolicy, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
+    |                        ^^^^^^^^^^^^^^^^
+
+warning: field `target` is never read
+  --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\rewrites\pre_allocation\catalog.rs:21:5
+   |
+20 | pub(crate) struct PreAllocationRuleCatalogPayload {
+   |                   ------------------------------- field in this struct
+21 |     target: RegisterAllocationRuleTargetApplicability,
+   |     ^^^^^^
+   |
+   = note: `PreAllocationRuleCatalogPayload` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `has_loads` is never read
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\rewrites\runtime_spill\slot.rs:194:5
+    |
+186 | struct CandidateAccesses {
+    |        ----------------- field in this struct
+...
+194 |     has_loads: Vec<bool>,
+    |     ^^^^^^^^^
+
+warning: `selected-instructions-to-selected-instructions` (lib) generated 4 warnings (run `cargo fix --lib -p selected-instructions-to-selected-instructions` to apply 2 suggestions)
+warning: function `symbol_section_name` is never used
+   --> omega-rust\omega\compilation\backend\object\object-file\src\names\mod.rs:146:15
+    |
+146 | pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
+    |               ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `object-file` (lib) generated 1 warning
+warning: associated function `from_validated_fragment_publication` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\native_artifact.rs:611:19
+    |
+606 | impl NativePhysicalEvidenceScope {
+    | -------------------------------- associated function in this implementation
+...
+611 |     pub(crate) fn from_validated_fragment_publication(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `validated_optimized_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1114:4
+     |
+1114 | fn validated_optimized_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_fragment_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1131:4
+     |
+1131 | fn validated_fragment_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `identity` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:45:25
+   |
+35 | impl FragmentPublicationBinding {
+   | ------------------------------- method in this implementation
+...
+45 |     pub(super) const fn identity(&self) -> &[u8; 32] {
+   |                         ^^^^^^^^
+
+warning: function `derive_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:67:15
+   |
+67 | pub(crate) fn derive_scope(
+   |               ^^^^^^^^^^^^
+
+warning: function `validate_final_plan` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:145:4
+    |
+145 | fn validate_final_plan(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `OPTIMIZED_SCOPE_IDENTITY_DOMAIN` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:19:7
+   |
+19 | const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ValidatedProjectionCoordinates` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:23:8
+   |
+23 | struct ValidatedProjectionCoordinates {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `D29ReferenceCoordinate` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:30:8
+   |
+30 | struct D29ReferenceCoordinate {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_validated_optimization_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:35:15
+   |
+35 | pub(crate) fn derive_validated_optimization_scope(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_optimized_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:66:4
+   |
+66 | fn derive_optimized_scope(
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_projection_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:193:4
+    |
+193 | fn optimized_projection_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_scope_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:214:4
+    |
+214 | fn optimized_scope_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_operator_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:227:4
+    |
+227 | fn optimized_operator_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_boundary_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:243:4
+    |
+243 | fn optimized_boundary_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_authority_bytes` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:261:4
+    |
+261 | fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u8> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `terminal_identity_bytes` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:269:4
+    |
+269 | fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `native-artifact` (lib) generated 17 warnings
+warning: variable does not need to be mutable
+   --> omega-rust\omega\application\native-provider-runtime\src\native_provider_runtime.rs:109:13
+    |
+109 |         let mut builder = std::fs::DirBuilder::new();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `native-provider-runtime` (lib) generated 1 warning (run `cargo fix --lib -p native-provider-runtime` to apply 1 suggestion)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\omega\compilation\driver\src\checked\compilation_session.rs:441:13
+    |
+441 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+mbx[progress]: 15s elapsed; 0 hits, 0 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling package-manager v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\omega\packages\package-manager)
+warning: field `request` is never read
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\reconcile\mod.rs:116:9
+    |
+112 |     Adapter {
+    |     ------- field in this variant
+...
+116 |         request: DependencySourceRequest,
+    |         ^^^^^^^
+    |
+    = note: `PackageSourceClosureResolutionError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling omega-build v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\omega\application\build)
+   Compiling omega v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\omega\application\cli)
+warning: `package-manager` (lib) generated 1 warning
+mbx[progress]: 30s elapsed; 0 hits, 3 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 45s elapsed; 0 hits, 3 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 1m elapsed; 0 hits, 3 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 1m 15s elapsed; 0 hits, 3 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 1m 30s elapsed; 0 hits, 3 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 1m 45s elapsed; 0 hits, 3 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 2m elapsed; 0 hits, 3 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: `compiler` (lib) generated 1 warning
+    Finished `dev` profile [optimized] target(s) in 2m 24s
+mbx[cache]: 0 hits, 5 misses; 0 B downloaded, 0 B uploaded, 212.2 MiB stored locally

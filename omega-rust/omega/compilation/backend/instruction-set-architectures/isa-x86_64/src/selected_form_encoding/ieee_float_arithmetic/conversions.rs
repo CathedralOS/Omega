@@ -13,29 +13,28 @@ const LESS: u8 = 1;
 const LESS_EQUAL: u8 = 2;
 const TWO_TO_64: u64 = 0x43f0_0000_0000_0000;
 
+fn transfer(to_float: bool, wide: bool, xmm: u8, general: u8) -> Instruction {
+    Instruction::Transfer {
+        to_float,
+        wide,
+        xmm,
+        general,
+    }
+}
+
 fn bound(result: u8, bits: u64) -> [Instruction; 2] {
     [
         Instruction::MoveImmediate64 {
             general: result,
             value: bits,
         },
-        Instruction::Transfer {
-            to_float: true,
-            wide: true,
-            xmm: RIGHT_SCRATCH,
-            general: result,
-        },
+        transfer(true, true, RIGHT_SCRATCH, result),
     ]
 }
 
 fn observe_mask(result: u8) -> [Instruction; 2] {
     [
-        Instruction::Transfer {
-            to_float: false,
-            wide: true,
-            xmm: RIGHT_SCRATCH,
-            general: result,
-        },
+        transfer(false, true, RIGHT_SCRATCH, result),
         Instruction::Test64 { general: result },
     ]
 }
@@ -92,12 +91,7 @@ fn choose(
 pub(super) fn from_unsigned64(double: bool, source: u8, result: u8) -> Vec<Instruction> {
     let (left, right) = (LEFT_SCRATCH, RIGHT_SCRATCH);
     let mut program = vec![
-        Instruction::Transfer {
-            to_float: true,
-            wide: true,
-            xmm: left,
-            general: source,
-        },
+        transfer(true, true, left, source),
         Instruction::Test64 { general: source },
     ];
     let low = vec![Instruction::IntegerToFloat {
@@ -132,12 +126,7 @@ pub(super) fn from_unsigned64(double: bool, source: u8, result: u8) -> Vec<Instr
             destination: left,
             source: right,
         },
-        Instruction::Transfer {
-            to_float: false,
-            wide: true,
-            xmm: left,
-            general: result,
-        },
+        transfer(false, true, left, result),
         Instruction::IntegerToFloat {
             double,
             wide: true,
@@ -152,12 +141,7 @@ pub(super) fn from_unsigned64(double: bool, source: u8, result: u8) -> Vec<Instr
         },
     ];
     choose(&mut program, NOT_SIGNED, low, high);
-    program.push(Instruction::Transfer {
-        to_float: false,
-        wide: double,
-        xmm: left,
-        general: result,
-    });
+    program.push(transfer(false, double, left, result));
     program
 }
 
@@ -210,12 +194,7 @@ pub(super) fn to_unsigned64(result: u8) -> Vec<Instruction> {
             general: result,
             xmm: left,
         },
-        Instruction::Transfer {
-            to_float: true,
-            wide: true,
-            xmm: left,
-            general: result,
-        },
+        transfer(true, true, left, result),
         Instruction::AllOnes { xmm: right },
         Instruction::ShiftLeft {
             quad: true,
@@ -226,12 +205,7 @@ pub(super) fn to_unsigned64(result: u8) -> Vec<Instruction> {
             destination: left,
             source: right,
         },
-        Instruction::Transfer {
-            to_float: false,
-            wide: true,
-            xmm: left,
-            general: result,
-        },
+        transfer(false, true, left, result),
     ]);
     choose(&mut in_range, NOT_ZERO, high, low);
     choose(
@@ -269,12 +243,7 @@ pub(super) fn trapping(
     source: u8,
     result: u8,
 ) -> Vec<Instruction> {
-    let mut program = vec![Instruction::Transfer {
-        to_float: true,
-        wide: double,
-        xmm: LEFT_SCRATCH,
-        general: source,
-    }];
+    let mut program = vec![transfer(true, double, LEFT_SCRATCH, source)];
     if !double {
         program.push(Instruction::Scalar {
             double: false,

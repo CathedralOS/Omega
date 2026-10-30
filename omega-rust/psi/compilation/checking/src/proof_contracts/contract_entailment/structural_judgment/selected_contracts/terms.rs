@@ -52,6 +52,17 @@ impl StructuralJudge<'_> {
                 {
                     return Some(value.clone());
                 }
+                // An applied contract may already name the supplying static
+                // binder rather than its receiving formal. That exact value
+                // remains authenticated in the selected substitution. Other
+                // unbound parameters still supply no contract term.
+                if path.symbol.is_valid()
+                    && let Some(value) = bindings.iter().map(|(_, value)| value).find(|value| {
+                        matches!(value, StructuralTerm::BoundValue(symbol) if *symbol == path.symbol)
+                    })
+                {
+                    return Some(value.clone());
+                }
                 if crate::reserved_result_owner(program, expression)
                     .is_some_and(|owner| owner.0 == callable)
                 {

@@ -143,6 +143,18 @@ pub(super) struct OperandBound<'a> {
     pub(super) evidence: TermHandle,
 }
 
+fn operand_bound<'a>(
+    operand: &'a ScalarTerm,
+    bound: &'a Proposition,
+    evidence: TermHandle,
+) -> OperandBound<'a> {
+    OperandBound {
+        operand,
+        bound,
+        evidence,
+    }
+}
+
 /// Everything the shared binary-bound chain computes for its caller: the
 /// two endpoint shapes (for numeral extraction), the denoted endpoint,
 /// operand and bound-operation terms.
@@ -401,16 +413,8 @@ impl Denotation {
         let right_evidence = self.arena.insert(Term::Snd { pair: evidence });
         let Some(chain) = binary_bound_chain(
             self,
-            OperandBound {
-                operand: left,
-                bound: left_bound,
-                evidence: left_evidence,
-            },
-            OperandBound {
-                operand: right,
-                bound: right_bound,
-                evidence: right_evidence,
-            },
+            operand_bound(left, left_bound, left_evidence),
+            operand_bound(right, right_bound, right_evidence),
             lower,
             operation.right_antitone,
             scalar_type,
@@ -510,16 +514,8 @@ impl Denotation {
         };
         let Some(chain) = binary_bound_chain(
             self,
-            OperandBound {
-                operand: left,
-                bound: left_bound,
-                evidence: left_evidence,
-            },
-            OperandBound {
-                operand: right,
-                bound: right_bound,
-                evidence: right_evidence,
-            },
+            operand_bound(left, left_bound, left_evidence),
+            operand_bound(right, right_bound, right_evidence),
             lower,
             operation.right_antitone,
             scalar_type,

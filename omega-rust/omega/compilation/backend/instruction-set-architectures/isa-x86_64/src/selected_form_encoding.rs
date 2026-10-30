@@ -180,13 +180,10 @@ pub enum X86_64SelectedFormEncodingError {
     BranchDisplacementOutsideI8,
 }
 
-impl std::fmt::Display for X86_64SelectedFormEncodingError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid x86-64 selected-form encoding: {self:?}")
-    }
-}
-
-impl std::error::Error for X86_64SelectedFormEncodingError {}
+optimization_core::invalid_error_display!(
+    X86_64SelectedFormEncodingError,
+    "x86-64 selected-form encoding"
+);
 
 pub fn encode_x86_64_selected_form(
     physical: &ValidatedPhysicalRegisterModel,

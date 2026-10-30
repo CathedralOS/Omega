@@ -13,6 +13,12 @@ use crate::mathematical_core::{
     weak_head_normalize,
 };
 
+macro_rules! conv {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        convertible($a, $b, $c, $d, $e, $f)
+    };
+}
+
 #[test]
 fn empty_elimination_rejects_non_type_targets_and_foreign_scrutinees() {
     let mut arena = TermArena::new();
@@ -216,26 +222,11 @@ fn squashed_proofs_are_irrelevant_but_never_extract_to_relevant_data() {
     let neutral_left = variable(&mut arena, 4);
     let neutral_right = variable(&mut arena, 3);
     assert!(
-        convertible(
-            &mut arena,
-            &context,
-            neutral_left,
-            neutral_right,
-            shared,
-            &mut budget,
-        )
-        .unwrap()
+        conv!(&mut arena => &context => neutral_left => neutral_right => shared => &mut budget)
+            .unwrap()
     );
     assert!(
-        convertible(
-            &mut arena,
-            &context,
-            neutral_left,
-            right,
-            shared,
-            &mut budget,
-        )
-        .unwrap()
+        conv!(&mut arena => &context => neutral_left => right => shared => &mut budget).unwrap()
     );
 
     // The collapse is gated on the *shared type's* sort: at the
@@ -666,15 +657,7 @@ fn stuck_unbox_eliminations_compare_componentwise() {
     let scrutinee = variable(&mut arena, 0);
     let other_scrutinee = box_elim(&mut arena, motive, body, scrutinee);
     assert!(
-        !convertible(
-            &mut arena,
-            &context,
-            left,
-            other_scrutinee,
-            shared,
-            &mut budget,
-        )
-        .unwrap()
+        !conv!(&mut arena => &context => left => other_scrutinee => shared => &mut budget).unwrap()
     );
 
     // And a different motive does not: `unbox D gD b` eliminates over
@@ -684,14 +667,6 @@ fn stuck_unbox_eliminations_compare_componentwise() {
     let scrutinee = variable(&mut arena, 1);
     let other_motive = box_elim(&mut arena, motive, body, scrutinee);
     assert!(
-        !convertible(
-            &mut arena,
-            &context,
-            left,
-            other_motive,
-            shared,
-            &mut budget
-        )
-        .unwrap()
+        !conv!(&mut arena => &context => left => other_motive => shared => &mut budget).unwrap()
     );
 }

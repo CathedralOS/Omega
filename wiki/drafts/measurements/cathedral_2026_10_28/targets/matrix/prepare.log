@@ -1,0 +1,2 @@
+package candidate checking failed: checked compilation failed for package `cathedral_matrix_configuration` with 1 diagnostic(s)
+  error: \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\matrix\\configuration\\main.omg:12:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract

@@ -5,7 +5,7 @@
 
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
-use typed_trees::data::{DataDefinition, DataField, DataMember};
+use typed_trees::data::{DataDefinition, DataField};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
@@ -19,66 +19,7 @@ pub fn data_float_predicate(
     expression: ExpressionHandle,
     field_value: &impl Fn(SymbolHandle, PrimitiveType) -> Option<FloatMeaning>,
 ) -> Option<bool> {
-    predicate(program, definition, expression, field_value, false, 0)
-}
-
-/// Prove the complete expression predicate of a closed record at zero.
-/// Early callers may precede literal stamping: an anonymous endpoint takes
-/// its format only from the exact opposite field operand, with the same
-/// selected comparison authority checked afterward. An integer fact holds
-/// when it folds true at the born-zero valuation, so one declaration may mix
-/// integer and float bounds. A fact applying a collection predicate to fields
-/// instead holds when exploring the predicate's checked body at the zeroed
-/// fields returns `true` on every path. This does not establish contained
-/// fields, memberships, cases or binding custody.
-pub fn data_predicates_admit_zero(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-) -> bool {
-    if !definition.type_parameters.is_empty()
-        || definition.where_facts.is_empty()
-        || program
-            .data_members(definition)
-            .iter()
-            .any(|member| matches!(member, DataMember::Variant(_)))
-    {
-        return false;
-    }
-    program
-        .proof_facts
-        .span_or_empty(definition.where_facts)
-        .iter()
-        .all(|fact| {
-            let Some(expression) = fact.as_expression() else {
-                return false;
-            };
-            predicate(
-                program,
-                definition,
-                *expression,
-                &|_, _| Some(FloatMeaning::Zero { negative: false }),
-                true,
-                0,
-            ) == Some(true)
-                // An integer fact folds at the born-zero valuation exactly as
-                // the resolution-stage gate folds it; a float fact elsewhere in
-                // the same declaration is what left the gate for this pass.
-                || super::symbolic_values::fold(
-                    program,
-                    definition,
-                    &[],
-                    &[],
-                    &[],
-                    true,
-                    *expression,
-                )
-                .is_some_and(|value| value != 0)
-                || crate::proof_contracts::collection_predicates::data_fact_holds_at_zero(
-                    program,
-                    definition,
-                    *expression,
-                )
-        })
+    predicate(program, definition, expression, field_value, 0)
 }
 
 /// The exact IEEE meaning of the literal in a `field <comparison> literal`
@@ -147,7 +88,6 @@ fn predicate(
     definition: &DataDefinition,
     expression: ExpressionHandle,
     field_value: &impl Fn(SymbolHandle, PrimitiveType) -> Option<FloatMeaning>,
-    infer_field_landing: bool,
     depth: usize,
 ) -> Option<bool> {
     let node = program
@@ -162,54 +102,18 @@ fn predicate(
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         // Evaluate both clauses: no unknown obligation is discharged merely
         // because another clause short-circuits its runtime evaluation.
-        let left = predicate(
-            program,
-            definition,
-            binary.left,
-            field_value,
-            infer_field_landing,
-            depth + 1,
-        )?;
-        let right = predicate(
-            program,
-            definition,
-            binary.right,
-            field_value,
-            infer_field_landing,
-            depth + 1,
-        )?;
+        let left = predicate(program, definition, binary.left, field_value, depth + 1)?;
+        let right = predicate(program, definition, binary.right, field_value, depth + 1)?;
         return Some(if binary.operator == BinaryOperator::And {
             left && right
         } else {
             left || right
         });
     }
-    let field_format = |expression| {
-        infer_field_landing
-            .then(|| {
-                let field = declared_field(program, definition, expression)?;
-                match program.primitive_type_reference(field.type_reference)? {
-                    PrimitiveType::F32 => Some(numerics::literals::FloatFormat::F32),
-                    PrimitiveType::F64 => Some(numerics::literals::FloatFormat::F64),
-                    _ => None,
-                }
-            })
-            .flatten()
-    };
-    let (left, left_primitive, left_type) = operand(
-        program,
-        definition,
-        binary.left,
-        field_value,
-        field_format(binary.right),
-    )?;
-    let (right, right_primitive, right_type) = operand(
-        program,
-        definition,
-        binary.right,
-        field_value,
-        field_format(binary.left),
-    )?;
+    let (left, left_primitive, left_type) =
+        operand(program, definition, binary.left, field_value, None)?;
+    let (right, right_primitive, right_type) =
+        operand(program, definition, binary.right, field_value, None)?;
     if left_primitive != right_primitive
         || !crate::has_builtin_or_sealed_float_comparison_meaning(
             program,

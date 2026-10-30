@@ -1,0 +1,75 @@
+diff --git a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+index d8ccc258ee9..821783c690d 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+@@ -68,15 +68,15 @@ impl CompilationSession {
+         self
+     }
+ 
+-    fn restore_source_graph(&mut self) {
++    fn restore_source_graph(&mut self, root: &std::path::Path) {
+         if self.source_graph_loaded {
+             return;
+         }
+         self.source_graph_loaded = true;
+-        let Some(cache) = &self.source_graph else {
++        let Some(cache) = &mut self.source_graph else {
+             return;
+         };
+-        match cache.load() {
++        match cache.load(root) {
+             Ok(Some(graph)) => {
+                 // Decode one coupled owner before any new IDs are allocated.
+                 // Every request below still supplies fresh source/custody and
+@@ -293,7 +293,7 @@ impl CompilationSession {
+         });
+         let root_path = canonical_entry.as_deref().unwrap_or(root_path);
+         let capture = capture.or(acquired.as_ref());
+-        self.restore_source_graph();
++        self.restore_source_graph(root_path);
+         if let Some(prepared) = self.sources.iter_mut().find(|prepared| {
+             prepared.root == root_path
+                 && prepared.inputs == inputs
+diff --git a/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs b/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
+index bbaeba5b741..39aa8ef37d6 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
+@@ -42,12 +42,6 @@ impl SourceGraphCache {
+             write!(&mut name, "{byte:02x}").expect("String write");
+         }
+         name.push_str(".rec");
+-        if phase_profile::enabled() {
+-            eprintln!(
+-                "compiler source record: {}",
+-                storage.path().join(&name).display()
+-            );
+-        }
+         Ok(Self {
+             storage,
+             compiler,
+@@ -63,7 +57,24 @@ impl SourceGraphCache {
+         }
+         Ok(())
+     }
+-    pub fn load(&self) -> Result<Option<SourceGraph>, String> {
++    pub fn load(&mut self, root: &std::path::Path) -> Result<Option<SourceGraph>, String> {
++        // A review snapshot and a live entry have different source custody.
++        // Select one whole graph by its initial entry; reuse still checks exact inputs.
++        let mut key = self.compiler.to_vec();
++        key.extend_from_slice(root.as_os_str().as_encoded_bytes());
++        self.name.clear();
++        for byte in content_identity(&key) {
++            use std::fmt::Write;
++            write!(&mut self.name, "{byte:02x}").expect("String write");
++        }
++        self.name.push_str(".rec");
++        if phase_profile::enabled() {
++            eprintln!(
++                "compiler source record: {}",
++                self.storage.path().join(&self.name).display()
++            );
++        }
++
+         phase_profile::scope("source.graph.load.require_before", || {
+             self.require_current()
+         })?;

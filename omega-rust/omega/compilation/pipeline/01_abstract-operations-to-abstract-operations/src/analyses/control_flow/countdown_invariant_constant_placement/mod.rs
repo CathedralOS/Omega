@@ -105,8 +105,6 @@ failed_display!(
     "countdown invariant-constant placement analysis failure"
 );
 
-impl std::error::Error for CountdownInvariantConstantPlacementAnalysisError {}
-
 /// The certificate operation that consumes one invariant constant: the guard
 /// comparison reading the zero, or the backedge decrement reading the one.
 pub(crate) fn consumer_operation(

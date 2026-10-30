@@ -22,6 +22,14 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
 
+/// Provenance that names one scalar value and nothing else.
+pub(in crate::selection) fn value_provenance(value: ValueId) -> SelectedInstructionProvenance {
+    SelectedInstructionProvenance {
+        values: vec![value],
+        ..Default::default()
+    }
+}
+
 mod aggregate_argument;
 mod aggregate_memory;
 mod aggregate_return;
@@ -212,15 +220,7 @@ fn select_function(
                 &constraints.keys,
             ) {
             let output = builder.register(value, site, scalar_type)?;
-            builder.emit(
-                kind,
-                key,
-                &[input, output],
-                SelectedInstructionProvenance {
-                    values: vec![value],
-                    ..Default::default()
-                },
-            )?;
+            builder.emit(kind, key, &[input, output], value_provenance(value))?;
             output
         } else if crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
             != SelectedInstructionKind::CopyI64
@@ -230,10 +230,7 @@ fn select_function(
                 crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
                 constraints.keys.copy_i64,
                 &[input, output],
-                SelectedInstructionProvenance {
-                    values: vec![value],
-                    ..Default::default()
-                },
+                value_provenance(value),
             )?;
             output
         } else {
@@ -1076,10 +1073,7 @@ impl Builder<'_> {
             SelectedInstructionKind::CopyI64,
             self.constraints.keys.copy_i64,
             &[input, output],
-            SelectedInstructionProvenance {
-                values: vec![value],
-                ..Default::default()
-            },
+            value_provenance(value),
         )?;
         Ok(output)
     }

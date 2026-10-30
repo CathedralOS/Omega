@@ -339,10 +339,7 @@ where
     let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
     let mut candidates = Vec::new();
     for function in &unit.functions {
-        let machine_dominators = dominators
-            .function(function.machine)
-            .map(|(_, rows)| rows.as_slice())
-            .unwrap_or_default();
+        let machine_dominators = dominators.rows(function.machine);
         let value_types = function_value_types(function);
         let mut leaders = Vec::new();
         let mut expressions = Vec::new();
@@ -517,10 +514,7 @@ where
     let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
     let mut candidates = Vec::new();
     for function in &unit.functions {
-        let machine_dominators = dominators
-            .function(function.machine)
-            .map(|(_, rows)| rows.as_slice())
-            .unwrap_or_default();
+        let machine_dominators = dominators.rows(function.machine);
         let value_types = function_value_types(function);
         let (leaders, redundants) = rows(unit, function, effects, &value_types);
         for (key, redundant, redundant_operation, redundant_result, scalar_type, extras) in

@@ -125,11 +125,7 @@ pub(in crate::checks::multiplicity) fn check_recorded_invocations(
             )));
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 /// Service reach and boundary invocation are different facts: an opaque

@@ -757,3 +757,34 @@ fn repository_metadata_still_rejects_its_own_entry_ceiling() {
         })
     ));
 }
+
+#[test]
+fn git_paths_use_native_separators_without_changing_portable_identity() {
+    let path = validate_git_path(b".agents/skills", LocalSourceLimits::default()).unwrap();
+    assert_eq!(
+        path.as_os_str(),
+        Path::new(".agents").join("skills").as_os_str()
+    );
+    let tree = source::CapturedSourceTree::new([
+        (
+            PathBuf::from(".agents"),
+            source::CapturedSourceNode::Directory,
+        ),
+        (path.clone(), source::CapturedSourceNode::Directory),
+        (
+            path.join("main.omg"),
+            source::CapturedSourceNode::File {
+                bytes: Arc::from(b"source".as_slice()),
+                executable: false,
+            },
+        ),
+    ])
+    .unwrap();
+    assert_eq!(
+        &*tree.read_to_string(&path.join("main.omg")).unwrap(),
+        "source"
+    );
+    for invalid in [b"a/../b".as_slice(), b"a//b", b"a/./b", b"a\\b", b"/a/b"] {
+        assert!(validate_git_path(invalid, LocalSourceLimits::default()).is_err());
+    }
+}

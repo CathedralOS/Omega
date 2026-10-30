@@ -1,0 +1,21 @@
+{
+  "seconds": {
+    "pair": [
+      17.05385650000244,
+      16.21640550000302
+    ],
+    "cohort": [
+      12.080873099999735,
+      12.321571499996935
+    ]
+  },
+  "median_seconds": {
+    "pair": 16.63513100000273,
+    "cohort": 12.201222299998335
+  },
+  "saving_fraction": 0.26653885082141326,
+  "warmup_excluded": true,
+  "cache_state": "Ordinary retained compiler caches; fresh output directories, not empty caches.",
+  "runtime_tests": 7,
+  "runtime_tests_passed": 7
+}

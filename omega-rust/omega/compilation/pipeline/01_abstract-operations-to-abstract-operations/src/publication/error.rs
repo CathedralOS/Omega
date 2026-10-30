@@ -13,13 +13,7 @@ pub enum OptimizedAbstractProjectionError {
     PrePhysicalManifest(PrePhysicalOptimizationManifestError),
 }
 
-impl std::fmt::Display for OptimizedAbstractProjectionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "cannot project optimized abstract plan: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedAbstractProjectionError {}
+failed_display!(
+    OptimizedAbstractProjectionError,
+    "cannot project optimized abstract plan"
+);

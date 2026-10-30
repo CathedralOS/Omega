@@ -1,0 +1,18 @@
+// A saved reference guard describes its captured element, not a later selector.
+// Expected exit: 0.
+machine probe() -> u64 {
+ let mut index: u64 = 0;
+ let values: [u64; 2] = [7, 0];
+ let saved: &u64 = &values[index];
+ index = 1;
+ transition saved >= 7 {
+  true -> (values[index] - 7)
+  false -> (23u64)
+ }
+}
+machine main() crashes Trap {
+ let observed: u64 = probe();
+ transition observed == 0u64 { true -> done() false -> wrong() }
+ machine done() {}
+ machine wrong() crashes Trap { crash Trap; }
+}

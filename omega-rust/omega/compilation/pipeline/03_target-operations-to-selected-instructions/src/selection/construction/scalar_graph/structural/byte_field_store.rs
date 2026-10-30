@@ -4,13 +4,13 @@
 //! not observed or cleared. ISA-local scratch/control is not source control flow.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegisterId,
-    memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind, SelectedMemoryAccessRole,
+    StructuralAccess, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::byte_views;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::obligation_provenance;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
@@ -199,47 +199,25 @@ pub(super) fn replace(
     let byte = scratch(builder, 4)?;
     // The copy's source bytes live in the view's storage root, not the view's
     // own identity; a block-parameter view reaches each bound root.
-    match crate::selection::byte_view_homes::view_backing_roots(
+    byte_views::charge_backing_roots(
         function,
-        &builder.transport.views,
+        builder,
+        row,
         *source,
         *length,
-    )? {
-        Some(roots) => {
-            for (root, extent) in roots {
-                memory(
-                    builder,
-                    row,
-                    root,
-                    0,
-                    0,
-                    SelectedMemoryAccessRole::ReadByteSpan {
-                        length: extent,
-                        obligation: *obligation,
-                        accepted_fact: *accepted_fact,
-                    },
-                )?;
-            }
-        }
-        None => memory(
-            builder,
-            row,
-            *source,
-            if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
-                .is_some()
-            {
-                8
-            } else {
-                0
-            },
-            0,
-            SelectedMemoryAccessRole::ReadByteSpan {
-                length: *length,
-                obligation: *obligation,
-                accepted_fact: *accepted_fact,
-            },
-        )?,
-    }
+        |extent| SelectedMemoryAccessRole::ReadByteSpan {
+            length: extent,
+            obligation: *obligation,
+            accepted_fact: *accepted_fact,
+        },
+        byte_views::unsliced_payload_offset(function, *source),
+        0,
+        SelectedMemoryAccessRole::ReadByteSpan {
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: *accepted_fact,
+        },
+    )?;
     memory(
         builder,
         row,
@@ -260,12 +238,7 @@ pub(super) fn replace(
             .copy_bytes
             .ok_or_else(|| invalid())?,
         &[source_pointer, destination_pointer, count, cursor, byte],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        obligation_provenance(row, &[*length], &[*obligation]),
     )?;
     memory(
         builder,
@@ -357,12 +330,7 @@ pub(super) fn replace_byte(
         payload,
         index_register,
         address,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*index, *length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        obligation_provenance(row, &[*index, *length], &[*obligation]),
     )?;
     memory(
         builder,

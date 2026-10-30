@@ -136,39 +136,31 @@ fn retain_result(
     invocation: source::SourceSpan,
     selections: &mut Vec<SelectedArgument>,
 ) -> Result<(), Vec<Diagnostic>> {
+    macro_rules! retain_child {
+        ($result:expr $(,)?) => {
+            retain_result(
+                syntax,
+                resolved,
+                $result,
+                substitutions,
+                invocation,
+                selections,
+            )
+        };
+    }
     match result {
-        TypeReference::Reference(reference) => retain_result(
-            syntax,
-            resolved,
-            resolved.child_type_reference(reference.referee),
-            substitutions,
-            invocation,
-            selections,
-        )?,
-        TypeReference::Constrained(reference) => retain_result(
-            syntax,
-            resolved,
-            resolved.child_type_reference(reference.base_type),
-            substitutions,
-            invocation,
-            selections,
-        )?,
-        TypeReference::FixedArray(reference) => retain_result(
-            syntax,
-            resolved,
-            resolved.child_type_reference(reference.element_type),
-            substitutions,
-            invocation,
-            selections,
-        )?,
-        TypeReference::Slice(reference) => retain_result(
-            syntax,
-            resolved,
-            resolved.child_type_reference(reference.element_type),
-            substitutions,
-            invocation,
-            selections,
-        )?,
+        TypeReference::Reference(reference) => {
+            retain_child!(resolved.child_type_reference(reference.referee))?
+        }
+        TypeReference::Constrained(reference) => {
+            retain_child!(resolved.child_type_reference(reference.base_type))?
+        }
+        TypeReference::FixedArray(reference) => {
+            retain_child!(resolved.child_type_reference(reference.element_type))?
+        }
+        TypeReference::Slice(reference) => {
+            retain_child!(resolved.child_type_reference(reference.element_type))?
+        }
         TypeReference::Generic(application) => {
             let arguments = resolved.child_type_references(application.arguments);
             let sealed = resolved
@@ -232,26 +224,12 @@ fn retain_result(
                 }
             }
             for argument in arguments {
-                retain_result(
-                    syntax,
-                    resolved,
-                    argument,
-                    substitutions,
-                    invocation,
-                    selections,
-                )?;
+                retain_child!(argument)?;
             }
         }
         TypeReference::DynamicTrait { arguments, .. } => {
             for argument in resolved.child_type_references(*arguments) {
-                retain_result(
-                    syntax,
-                    resolved,
-                    argument,
-                    substitutions,
-                    invocation,
-                    selections,
-                )?;
+                retain_child!(argument)?;
             }
         }
         TypeReference::Named { .. } | TypeReference::ConstExpression(_) | TypeReference::Unit => {}

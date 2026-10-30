@@ -99,10 +99,7 @@ pub(super) fn emit(
         kind,
         key,
         &[short_result, output],
-        SelectedInstructionProvenance {
-            values: vec![result.value],
-            ..Default::default()
-        },
+        super::value_provenance(result.value),
     )?;
     Ok(output)
 }

@@ -21,7 +21,7 @@ use terminal_interpreter::{
     TerminalScalarValue,
 };
 
-pub(super) fn rejection(reason: impl Into<String>) -> TerminalEffectRejection {
+pub(in super::super) fn rejection(reason: impl Into<String>) -> TerminalEffectRejection {
     TerminalEffectRejection::new(reason)
 }
 
@@ -97,7 +97,9 @@ pub(in super::super) struct NativeContext {
 }
 struct OriginalHome {
     root: TerminalOriginalStorageRoot,
-    structural_type: StructuralTypeId,
+    // Raw byte allocations have byte geometry, not the type of the first
+    // descriptor that happened to expose them. Typed roots retain their type.
+    structural_type: Option<StructuralTypeId>,
     home: NativeHomeId,
     extent: usize,
     alignment: usize,
@@ -172,28 +174,45 @@ impl NativeContext {
         // yet. Only exact endpoints created here may use that exception.
         let mut established_here = BTreeSet::new();
         for request in requests {
-            let layout = exact_layout(layouts, request.structural_type())?;
+            let layout = if request.byte_extent().is_some() {
+                None
+            } else {
+                Some(exact_layout(layouts, request.structural_type())?)
+            };
+            let (extent, alignment) = match (request.byte_extent(), layout) {
+                (Some(extent), None) if request.references().is_empty() => (extent, 1),
+                (None, Some(layout)) => (layout.byte_size as usize, usize::from(layout.alignment)),
+                _ => {
+                    return Err(rejection(
+                        "original byte backing contains unsupported reference slots",
+                    ));
+                }
+            };
+            let structural_type = layout.map(|_| request.structural_type());
             let root = request.root();
             let key = (root.namespace(), root.allocation());
             if let std::collections::btree_map::Entry::Vacant(entry) = homes.entry(key) {
                 let home = self.sponsor.borrow_mut().with(|process| {
-                    process.create_home(layout.byte_size as usize, usize::from(layout.alignment))
+                    // A zero-byte allocation can still own a stable empty
+                    // view. The mapping needs a physical page; logical extent
+                    // remains zero and confers no byte access.
+                    process.create_home(extent.max(1), alignment)
                 })?;
                 entry.insert(OriginalHome {
                     root,
-                    structural_type: request.structural_type(),
+                    structural_type,
                     home,
-                    extent: layout.byte_size as usize,
-                    alignment: usize::from(layout.alignment),
+                    extent,
+                    alignment,
                     cells: BTreeMap::new(),
                     references: BTreeMap::new(),
                 });
             }
             let original = homes.get_mut(&key).unwrap();
             if original.root != root
-                || original.structural_type != request.structural_type()
-                || original.extent != layout.byte_size as usize
-                || original.alignment != usize::from(layout.alignment)
+                || original.structural_type != structural_type
+                || original.extent != extent
+                || original.alignment != alignment
             {
                 return Err(rejection(
                     "original native root changed artifact, type or geometry",
@@ -201,7 +220,26 @@ impl NativeContext {
             }
             let mut row = Vec::with_capacity(request.values().len());
             for value in request.values() {
-                let (offset, logical, stored) = scalar_location(layout, value.path())?;
+                let (offset, logical, stored) = match layout {
+                    Some(layout) => scalar_location(layout, value.path())?,
+                    None => {
+                        let [Path::FixedIndex(index)] = value.path() else {
+                            return Err(rejection("original byte owner lost its exact byte index"));
+                        };
+                        let offset = usize::try_from(*index).map_err(|_| {
+                            rejection("original byte index exceeds the host address space")
+                        })?;
+                        let logical = value.value().scalar_type();
+                        if offset >= extent
+                            || !matches!(logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
+                        {
+                            return Err(rejection(
+                                "original byte owner has an invalid byte coordinate or carrier",
+                            ));
+                        }
+                        (offset, logical, logical)
+                    }
+                };
                 if value.value().scalar_type() != logical {
                     return Err(rejection("original scalar differs from native recipe"));
                 }
@@ -243,7 +281,12 @@ impl NativeContext {
                 }
             }
             for reference in request.references() {
-                let offset = reference_location(layout, reference.path())?;
+                let offset = reference_location(
+                    layout.ok_or_else(|| {
+                        rejection("byte owner cannot materialize reference slots")
+                    })?,
+                    reference.path(),
+                )?;
                 let entry = original
                     .references
                     .entry(reference.path().to_vec())
@@ -421,6 +464,66 @@ impl NativeContext {
             ));
         }
         Ok((original.home, base))
+    }
+
+    pub(super) fn byte_loan(
+        &self,
+        loan: &TerminalOriginalStorageLoan,
+    ) -> Result<(NativeHomeId, usize, usize), TerminalEffectRejection> {
+        let (captured_offset, length) = loan
+            .byte_window()
+            .ok_or_else(|| rejection("native byte view lost its sealed original window"))?;
+        let root = loan.root();
+        let homes = self.homes.borrow();
+        let original = homes
+            .get(&(root.namespace(), root.allocation()))
+            .filter(|home| home.root == root)
+            .ok_or_else(|| rejection("native byte view has no original allocation"))?;
+        let mut base = None;
+        for index in 0..length {
+            let path = loan
+                .scalar_path(&[Path::FixedIndex(index as u64)])
+                .ok_or_else(|| rejection("native byte view includes an uncaptured byte"))?;
+            let cell = original
+                .cells
+                .get(&path)
+                .ok_or_else(|| rejection("native byte view includes an unestablished byte"))?;
+            if !matches!(cell.logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
+                || cell.stored != cell.logical
+            {
+                return Err(rejection(
+                    "native byte view changes its original byte representation",
+                ));
+            }
+            let start = cell
+                .offset
+                .checked_sub(index)
+                .ok_or_else(|| rejection("native byte view precedes its original home"))?;
+            if base.is_some_and(|base| base != start) {
+                return Err(rejection(
+                    "native byte view is not one contiguous original window",
+                ));
+            }
+            base = Some(start);
+        }
+        let base = match base {
+            Some(base) => base,
+            None if original.structural_type.is_none() => captured_offset,
+            None => {
+                return Err(rejection(
+                    "empty typed byte view requires its retained target anchor",
+                ));
+            }
+        };
+        if base
+            .checked_add(length)
+            .is_none_or(|end| end > original.extent)
+        {
+            return Err(rejection(
+                "native byte view exceeds its original allocation",
+            ));
+        }
+        Ok((original.home, base, length))
     }
 }
 

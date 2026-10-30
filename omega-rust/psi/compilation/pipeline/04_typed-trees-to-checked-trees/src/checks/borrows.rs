@@ -168,11 +168,7 @@ pub(crate) fn check_flow_call_borrows(
         diagnostics.extend(local_diagnostics);
     }
 
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 pub(super) fn initialize_checked_direct_borrow_resources(

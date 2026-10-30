@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::obligation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
@@ -379,12 +380,7 @@ pub(super) fn establish(
             if start_type != word || end_type != word || geometry.stride == 0 {
                 return Err(invalid());
             }
-            let region_provenance = selected_instructions::SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![*start, *end],
-                obligations: vec![*obligation],
-                ..Default::default()
-            };
+            let region_provenance = obligation_provenance(row, &[*start, *end], &[*obligation]);
             let selected_backing = transport_register(builder, *destination, 0)?;
             builder.emit_byte_view_address(
                 backing,

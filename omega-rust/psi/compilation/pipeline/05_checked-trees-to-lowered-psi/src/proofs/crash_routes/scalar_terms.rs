@@ -227,22 +227,8 @@ pub(crate) fn lowered_direct_scalar_term(
             path,
             scalar_type,
             ..
-        } => {
-            if !path.is_empty() {
-                return unsupported(
-                    "projected crash extent requires its canonical descriptor path",
-                );
-            }
-            let Some(extent_type) = scalar_type.as_integer() else {
-                return unsupported("view extent observation has a non-integer carrier");
-            };
-            ScalarTerm::ViewExtent {
-                root: *source,
-                path: Vec::new(),
-                scalar_type: extent_type,
-            }
         }
-        LoweredDirectExpression::ElementViewLength {
+        | LoweredDirectExpression::ElementViewLength {
             source,
             path,
             scalar_type,

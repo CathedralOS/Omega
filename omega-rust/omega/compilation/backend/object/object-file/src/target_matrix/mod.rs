@@ -26,6 +26,22 @@ pub(crate) struct ObjectTargetPolicy {
     pub text_section_alignment: u64,
 }
 
+const fn row(
+    entry_symbol_name: &'static str,
+    text_section_name: &'static str,
+    data_section_name: &'static str,
+    bss_section_name: &'static str,
+    text_section_alignment: u64,
+) -> ObjectTargetPolicy {
+    ObjectTargetPolicy {
+        entry_symbol_name,
+        text_section_name,
+        data_section_name,
+        bss_section_name,
+        text_section_alignment,
+    }
+}
+
 /// Resolve one declared (architecture, object-format) pair to its object
 /// policy.
 ///
@@ -35,43 +51,33 @@ pub(crate) struct ObjectTargetPolicy {
 /// extends this matrix deliberately rather than widening a wildcard.
 pub(crate) fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> {
     match (target.architecture, target.object_format) {
-        (Architecture::Aarch64, ObjectFormat::Elf) => Some(ObjectTargetPolicy {
-            entry_symbol_name: "main",
-            text_section_name: ".text",
-            data_section_name: ".data",
-            bss_section_name: ".bss",
-            text_section_alignment: 4,
-        }),
-        (Architecture::Aarch64, ObjectFormat::MachO) => Some(ObjectTargetPolicy {
-            entry_symbol_name: "_main",
-            text_section_name: "__TEXT,__text",
-            data_section_name: "__DATA,__data",
-            bss_section_name: "__DATA,__bss",
-            text_section_alignment: 4,
-        }),
-        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::Coff) => {
-            Some(ObjectTargetPolicy {
-                entry_symbol_name: "main",
-                text_section_name: ".text",
-                data_section_name: ".data",
-                bss_section_name: ".bss",
-                text_section_alignment: 1,
-            })
+        (Architecture::Aarch64, ObjectFormat::Elf) => {
+            Some(row("main", ".text", ".data", ".bss", 4))
         }
-        (Architecture::X86_64, ObjectFormat::MachO) => Some(ObjectTargetPolicy {
-            entry_symbol_name: "_main",
-            text_section_name: "__TEXT,__text",
-            data_section_name: "__DATA,__data",
-            bss_section_name: "__DATA,__bss",
-            text_section_alignment: 1,
-        }),
+        (Architecture::Aarch64, ObjectFormat::MachO) => Some(row(
+            "_main",
+            "__TEXT,__text",
+            "__DATA,__data",
+            "__DATA,__bss",
+            4,
+        )),
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::Coff) => {
+            Some(row("main", ".text", ".data", ".bss", 1))
+        }
+        (Architecture::X86_64, ObjectFormat::MachO) => Some(row(
+            "_main",
+            "__TEXT,__text",
+            "__DATA,__data",
+            "__DATA,__bss",
+            1,
+        )),
         (Architecture::Aarch64, ObjectFormat::Coff) => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ObjectTargetPolicy, object_target_policy};
+    use super::{object_target_policy, row};
     use target::{Architecture, NativeTarget, ObjectFormat};
 
     #[test]
@@ -79,53 +85,23 @@ mod tests {
         for (target, expected) in [
             (
                 NativeTarget::linux_arm64(),
-                ObjectTargetPolicy {
-                    entry_symbol_name: "main",
-                    text_section_name: ".text",
-                    data_section_name: ".data",
-                    bss_section_name: ".bss",
-                    text_section_alignment: 4,
-                },
+                row("main", ".text", ".data", ".bss", 4),
             ),
             (
                 NativeTarget::macos_arm64(),
-                ObjectTargetPolicy {
-                    entry_symbol_name: "_main",
-                    text_section_name: "__TEXT,__text",
-                    data_section_name: "__DATA,__data",
-                    bss_section_name: "__DATA,__bss",
-                    text_section_alignment: 4,
-                },
+                row("_main", "__TEXT,__text", "__DATA,__data", "__DATA,__bss", 4),
             ),
             (
                 NativeTarget::linux_x64(),
-                ObjectTargetPolicy {
-                    entry_symbol_name: "main",
-                    text_section_name: ".text",
-                    data_section_name: ".data",
-                    bss_section_name: ".bss",
-                    text_section_alignment: 1,
-                },
+                row("main", ".text", ".data", ".bss", 1),
             ),
             (
                 NativeTarget::macos_x64(),
-                ObjectTargetPolicy {
-                    entry_symbol_name: "_main",
-                    text_section_name: "__TEXT,__text",
-                    data_section_name: "__DATA,__data",
-                    bss_section_name: "__DATA,__bss",
-                    text_section_alignment: 1,
-                },
+                row("_main", "__TEXT,__text", "__DATA,__data", "__DATA,__bss", 1),
             ),
             (
                 NativeTarget::windows_x64(),
-                ObjectTargetPolicy {
-                    entry_symbol_name: "main",
-                    text_section_name: ".text",
-                    data_section_name: ".data",
-                    bss_section_name: ".bss",
-                    text_section_alignment: 1,
-                },
+                row("main", ".text", ".data", ".bss", 1),
             ),
         ] {
             assert_eq!(object_target_policy(target), Some(expected));

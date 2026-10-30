@@ -86,10 +86,7 @@ pub(super) fn pack_fields_at(
 
     Ok((
         field_storage.insert_many(placed),
-        TypeLayout {
-            size,
-            alignment: max_alignment,
-        },
+        crate::type_layout(size, max_alignment),
     ))
 }
 

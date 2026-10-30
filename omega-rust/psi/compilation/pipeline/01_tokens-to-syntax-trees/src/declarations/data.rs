@@ -9,8 +9,9 @@ use crate::type_syntax::properties::parse_property_brackets;
 use arena::HandleSpan;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataVariant, QuotientDefinition,
+    DataDefinition, DataField, DataMember, DataVariant, ProofFact, QuotientDefinition,
     QuotientEquivalenceSelection,
 };
 use tokens::PunctuationKind;
@@ -156,6 +157,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
 
     let (members, input) = parse_data_members(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    project_case_predicate_facts(syntax_trees, &name, where_facts, members);
 
     Ok((
         DataDefinition {
@@ -467,7 +469,10 @@ fn parse_case_member<'tokens, 'source>(
 
     // CASE-CONSTRAINTS: a case-local `where` clause after the payload list --
     // `case Range(lo: u64, hi: u64) where lo <= hi;` -- names payload and
-    // common fields; the fact list ends at the case's `;`.
+    // common fields; the fact list ends at the case's `;`. The
+    // case-constraints-through-default-domain migration spells the same
+    // proposition in the data's `requires` disjunction; both views land on
+    // this `where_facts` span (see `project_case_predicate_facts`).
     let mut where_facts = HandleSpan::empty();
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
@@ -569,4 +574,375 @@ fn parse_case_payload_fields<'tokens, 'source>(
         input,
     )?;
     Ok(((payload, retired_identities), input))
+}
+
+/// CASE-CONSTRAINTS (case-constraints-through-default-domain): the data
+/// `requires` disjunction's `(self in Data::Case) && <guard>` branches carry
+/// the same proposition a retired case-local `where` spelled. Project each
+/// recognized branch's remaining conjuncts onto its named variant so the
+/// resolved `where_facts` view stays populated for construction, matching and
+/// coverage consumers once the authored clause retires.
+fn project_case_predicate_facts(
+    syntax_trees: &mut SyntaxTrees,
+    data_name: &syntax_trees::identifier::Identifier,
+    where_facts: arena::HandleSpan<ProofFact>,
+    members: arena::HandleSpan<DataMember>,
+) {
+    if where_facts.is_empty() {
+        return;
+    }
+    let data_name = data_name.as_str(syntax_trees).to_owned();
+    let roots: Vec<ExpressionHandle> = syntax_trees
+        .items
+        .proof_facts(where_facts)
+        .iter()
+        .filter_map(|fact| match fact {
+            ProofFact::Expression(root) => Some(*root),
+            _ => None,
+        })
+        .collect();
+    let mut extracted: Vec<(String, Vec<ExpressionHandle>)> = Vec::new();
+    for root in roots {
+        let mut disjuncts = Vec::new();
+        flatten_or(syntax_trees, root, &mut disjuncts);
+        for disjunct in disjuncts {
+            project_disjunct_onto_case(syntax_trees, &data_name, disjunct, &mut extracted);
+        }
+    }
+    if extracted.is_empty() {
+        return;
+    }
+    let member_count = syntax_trees.items.data_members(members).len();
+    for (case_name, fact_handles) in extracted {
+        let member_index = (0..member_count).find(|index| {
+            matches!(
+                syntax_trees.items.data_members(members)[*index],
+                DataMember::Variant(ref variant)
+                    if variant.name.as_str(syntax_trees) == case_name
+            )
+        });
+        let Some(member_index) = member_index else {
+            continue;
+        };
+        let mut facts = crate::handle_spans::HandleSpanBuilder::new();
+        // An authored clause and a projected branch may coexist while the
+        // surface retires; the union preserves both.
+        let authored: Vec<ProofFact> = match &syntax_trees.items.data_members(members)[member_index]
+        {
+            DataMember::Variant(variant) => variant
+                .where_facts
+                .handles()
+                .map(|handle| syntax_trees.items.proof_fact(handle).clone())
+                .collect(),
+            _ => Vec::new(),
+        };
+        for fact in authored {
+            facts.push(syntax_trees.items.append_proof_fact(fact));
+        }
+        for handle in fact_handles {
+            facts.push(
+                syntax_trees
+                    .items
+                    .append_proof_fact(ProofFact::Expression(handle)),
+            );
+        }
+        let facts = facts.finish();
+        if facts.is_empty() {
+            continue;
+        }
+        if let DataMember::Variant(variant) =
+            &mut syntax_trees.items.data_members_mut(members)[member_index]
+        {
+            variant.where_facts = facts;
+        }
+    }
+}
+
+/// One `||`-level disjunct of a `requires` fact: flatten its `&&` conjuncts,
+/// recognize the case-membership atom `self in Data::Case` (or the unqualified
+/// `self in Case`), and record the remaining conjuncts on that case. A
+/// disjunct carrying zero or more than one recognized case marker is left to
+/// the `requires` judgment alone.
+fn project_disjunct_onto_case(
+    syntax_trees: &mut SyntaxTrees,
+    data_name: &str,
+    disjunct: ExpressionHandle,
+    extracted: &mut Vec<(String, Vec<ExpressionHandle>)>,
+) {
+    let mut atoms = Vec::new();
+    flatten_and(syntax_trees, disjunct, &mut atoms);
+    let mut case_atom: Option<String> = None;
+    let mut kept = Vec::new();
+    for atom in atoms {
+        if let Some(case_name) = case_membership_name(syntax_trees, data_name, atom) {
+            match &case_atom {
+                None => {
+                    case_atom = Some(case_name);
+                    continue;
+                }
+                // A repeated marker for the same case is redundant; a marker
+                // for another case makes attribution ambiguous, so the whole
+                // disjunct stays with the requires judgment alone.
+                Some(existing) if *existing == case_name => continue,
+                Some(_) => return,
+            }
+        }
+        kept.push(atom);
+    }
+    let Some(case_name) = case_atom else {
+        return;
+    };
+    // A conjunct still bound on `self` (`self.method()`, a bare `self`
+    // leaf, or a self member under a node the rewriter does not rebuild)
+    // has no spelling in the variant's payload scope; it remains a
+    // premise of the `requires` judgment alone.
+    let mut kept: Vec<ExpressionHandle> = kept
+        .into_iter()
+        .map(|atom| rewrite_self_member_accesses(syntax_trees, atom))
+        .collect();
+    kept.retain(|atom| !mentions_self(syntax_trees, *atom));
+    match extracted.iter_mut().find(|(name, _)| *name == case_name) {
+        Some((_, handles)) => handles.extend(kept),
+        None => extracted.push((case_name, kept)),
+    }
+}
+
+/// Rewrite `self.<field>` member accesses inside an extracted case conjunct to
+/// the bare payload-field spelling the retired case `where` clause produced:
+/// `where lo <= hi` parsed `lo` as a one-member `Name` path while the
+/// `requires` disjunct spells the same leaf `self.lo` as a `Member` access.
+/// Rebuilding that leaf as `Name(lo)` presents every downstream `where_facts`
+/// consumer the identical internal form. Subtrees without a `self` member
+/// share their handles; only rewritten paths allocate.
+fn rewrite_self_member_accesses(
+    syntax: &mut SyntaxTrees,
+    handle: ExpressionHandle,
+) -> ExpressionHandle {
+    let node = syntax.expressions.expression(handle).clone();
+    let rewritten = match node {
+        ExpressionNode::Member(member)
+            if member.case_variant.is_none() && is_self_subject(syntax, member.receiver) =>
+        {
+            let first = syntax
+                .expressions
+                .append_identifier_path_member(member.member);
+            ExpressionNode::Name(HandleSpan::from_parts(first, 1))
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = rewrite_self_member_accesses(syntax, member.receiver);
+            if receiver == member.receiver {
+                return handle;
+            }
+            ExpressionNode::Member(syntax_trees::expression::TableMemberExpression {
+                receiver,
+                ..member
+            })
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = rewrite_self_member_accesses(syntax, binary.left);
+            let right = rewrite_self_member_accesses(syntax, binary.right);
+            if left == binary.left && right == binary.right {
+                return handle;
+            }
+            ExpressionNode::Binary(syntax_trees::expression::TableBinaryExpression {
+                left,
+                right,
+                ..binary
+            })
+        }
+        ExpressionNode::Unary(unary) => {
+            let operand = rewrite_self_member_accesses(syntax, unary.operand);
+            if operand == unary.operand {
+                return handle;
+            }
+            ExpressionNode::Unary(syntax_trees::expression::TableUnaryExpression {
+                operand,
+                ..unary
+            })
+        }
+        ExpressionNode::Cast(cast) => {
+            let value = rewrite_self_member_accesses(syntax, cast.value);
+            if value == cast.value {
+                return handle;
+            }
+            ExpressionNode::Cast(syntax_trees::expression::TableCastExpression {
+                value,
+                ..cast
+            })
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = rewrite_self_member_accesses(syntax, indexed.collection);
+            let index = rewrite_self_member_accesses(syntax, indexed.index);
+            if collection == indexed.collection && index == indexed.index {
+                return handle;
+            }
+            ExpressionNode::Indexed(syntax_trees::expression::TableIndexedExpression {
+                collection,
+                index,
+            })
+        }
+        ExpressionNode::Membership(membership) => {
+            let value = rewrite_self_member_accesses(syntax, membership.value);
+            if value == membership.value {
+                return handle;
+            }
+            ExpressionNode::Membership(
+                syntax_trees::expression::TableMembershipExpression { value, ..membership },
+            )
+        }
+        ExpressionNode::Borrow(borrow) => {
+            let target = rewrite_self_member_accesses(syntax, borrow.target);
+            if target == borrow.target {
+                return handle;
+            }
+            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
+                target,
+                ..borrow
+            })
+        }
+        ExpressionNode::Range(range) => {
+            let start = rewrite_self_member_accesses(syntax, range.start);
+            let end = rewrite_self_member_accesses(syntax, range.end);
+            if start == range.start && end == range.end {
+                return handle;
+            }
+            ExpressionNode::Range(syntax_trees::expression::TableRangeExpression {
+                start,
+                end,
+                ..range
+            })
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = rewrite_self_member_accesses(syntax, call.receiver);
+            let arguments = syntax
+                .expressions
+                .expression_handles(call.arguments)
+                .to_vec();
+            let mut changed = receiver != call.receiver;
+            let rewritten: Vec<ExpressionHandle> = arguments
+                .into_iter()
+                .map(|argument| {
+                    let rewritten = rewrite_self_member_accesses(syntax, argument);
+                    changed |= rewritten != argument;
+                    rewritten
+                })
+                .collect();
+            if !changed {
+                return handle;
+            }
+            ExpressionNode::Call(syntax_trees::expression::TableCallExpression {
+                receiver,
+                arguments: syntax.expressions.insert_expression_handles(rewritten),
+                ..call
+            })
+        }
+        _ => return handle,
+    };
+    let source_span = syntax.expressions.source_span(handle);
+    let rewritten_handle = syntax.expressions.insert(rewritten);
+    syntax
+        .expressions
+        .set_source_span(rewritten_handle, source_span);
+    rewritten_handle
+}
+
+/// The declared-case name a membership atom binds: `self in Data::Case` or
+/// `self in Case` where the last domain segment is a variant of this data.
+/// Domain memberships (`self in Data::Admitted`) never name a declared case,
+/// so they are left as ordinary conjuncts.
+fn case_membership_name(
+    syntax_trees: &SyntaxTrees,
+    data_name: &str,
+    atom: ExpressionHandle,
+) -> Option<String> {
+    let ExpressionNode::Membership(membership) = syntax_trees.expressions.expression(atom) else {
+        return None;
+    };
+    if !is_self_subject(syntax_trees, membership.value) {
+        return None;
+    }
+    let domain = syntax_trees
+        .expressions
+        .identifier_path_members(membership.domain);
+    match domain {
+        [case_name] => Some(case_name.as_str(syntax_trees).to_owned()),
+        [head, case_name] if head.as_str(syntax_trees) == data_name => {
+            Some(case_name.as_str(syntax_trees).to_owned())
+        }
+        _ => None,
+    }
+}
+
+fn is_self_subject(syntax_trees: &SyntaxTrees, value: ExpressionHandle) -> bool {
+    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(value) else {
+        return false;
+    };
+    matches!(
+        syntax_trees.expressions.identifier_path_members(*path),
+        [name] if name.as_str(syntax_trees) == "self"
+    )
+}
+
+fn flatten_or(
+    syntax_trees: &SyntaxTrees,
+    handle: ExpressionHandle,
+    out: &mut Vec<ExpressionHandle>,
+) {
+    if let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(handle) {
+        if binary.operator == BinaryOperator::Or {
+            flatten_or(syntax_trees, binary.left, out);
+            flatten_or(syntax_trees, binary.right, out);
+            return;
+        }
+    }
+    out.push(handle);
+}
+
+fn flatten_and(
+    syntax_trees: &SyntaxTrees,
+    handle: ExpressionHandle,
+    out: &mut Vec<ExpressionHandle>,
+) {
+    if let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(handle) {
+        if binary.operator == BinaryOperator::And {
+            flatten_and(syntax_trees, binary.left, out);
+            flatten_and(syntax_trees, binary.right, out);
+            return;
+        }
+    }
+    out.push(handle);
+}
+
+/// Whether the subtree still binds the `self` receiver -- a bare `self` name
+/// or a `self.<member>` access the caller declined to rewrite.
+fn mentions_self(syntax: &SyntaxTrees, handle: ExpressionHandle) -> bool {
+    let node = syntax.expressions.expression(handle);
+    if is_self_subject(syntax, handle) {
+        return true;
+    }
+    match node {
+        ExpressionNode::Member(member) => mentions_self(syntax, member.receiver),
+        ExpressionNode::Binary(binary) => {
+            mentions_self(syntax, binary.left) || mentions_self(syntax, binary.right)
+        }
+        ExpressionNode::Unary(unary) => mentions_self(syntax, unary.operand),
+        ExpressionNode::Cast(cast) => mentions_self(syntax, cast.value),
+        ExpressionNode::Indexed(indexed) => {
+            mentions_self(syntax, indexed.collection) || mentions_self(syntax, indexed.index)
+        }
+        ExpressionNode::Membership(membership) => mentions_self(syntax, membership.value),
+        ExpressionNode::Borrow(borrow) => mentions_self(syntax, borrow.target),
+        ExpressionNode::Range(range) => {
+            mentions_self(syntax, range.start) || mentions_self(syntax, range.end)
+        }
+        ExpressionNode::Call(call) => {
+            mentions_self(syntax, call.receiver)
+                || syntax
+                    .expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| mentions_self(syntax, *argument))
+        }
+        _ => false,
+    }
 }

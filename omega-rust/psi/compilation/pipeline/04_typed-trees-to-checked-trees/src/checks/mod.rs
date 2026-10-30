@@ -312,6 +312,16 @@ pub(crate) fn check_checked_facts_recording(
     }
 }
 
+/// The verdict of a check that batches every diagnostic instead of returning at
+/// the first one: `Ok` exactly when it collected none.
+pub(crate) fn finish(diagnostics: Vec<Diagnostic>) -> Result<(), Vec<Diagnostic>> {
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Whether `primitive` is a fixed-width unsigned integer type.
 pub(crate) fn unsigned(primitive: PrimitiveType) -> bool {
     matches!(

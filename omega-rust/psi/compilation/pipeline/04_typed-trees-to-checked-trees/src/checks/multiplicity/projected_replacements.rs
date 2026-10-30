@@ -300,6 +300,7 @@ fn append_place_replacement(
     // affine regions do not have their own tracked linear-claim row.
     let establishment = super::cleanup_dispositions::StorageEstablishment {
         event_ordinal: permissions.len(),
+        prior_value_transferred: remaining.definitely_transferred(place.root, &place.segments),
         destination: place,
     };
     permissions.push(FlowPermissionEventFact {

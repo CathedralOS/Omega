@@ -151,10 +151,18 @@ impl RetainedStorage {
         &mut self,
         binding: &crate::byte_sequences::binding::ByteSequenceBinding,
     ) {
-        if let crate::byte_sequences::binding::ByteSequenceBinding::MutableArray { array, .. } =
-            binding
-        {
-            self.array_storage(array);
+        use crate::byte_sequences::binding::ByteSequenceBinding;
+        match binding {
+            ByteSequenceBinding::MutableArray { array, .. } => self.array_storage(array),
+            ByteSequenceBinding::Immutable(bytes) => {
+                // A shared descriptor keeps its authenticated lending array
+                // alive just as an exclusive descriptor does. Owned byte
+                // snapshots have no original-array companion.
+                if let Some(original) = bytes.original_array() {
+                    self.array_storage(&original.array);
+                }
+            }
+            _ => {}
         }
     }
 

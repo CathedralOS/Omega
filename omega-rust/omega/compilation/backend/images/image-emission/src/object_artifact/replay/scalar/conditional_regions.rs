@@ -10,6 +10,7 @@ use machine_code::{
 use semantic_vocabulary::MachineId;
 use target::Architecture;
 
+use super::invalid_conditional_evidence as rejected;
 use crate::ObjectError;
 
 pub(crate) fn division_branches_in_region(
@@ -29,10 +30,7 @@ pub(crate) fn validate_division_branch_regions(
 ) -> Result<(), ObjectError> {
     for pair in branches.windows(2) {
         if pair[0].branch_offset >= pair[1].branch_offset {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: pair[1].branch_offset,
-            });
+            return Err(rejected(machine, pair[1].branch_offset));
         }
     }
     if let Some(branch) = branches.iter().find(|branch| {
@@ -40,10 +38,7 @@ pub(crate) fn validate_division_branch_regions(
             .iter()
             .any(|(start, end)| *start <= branch.branch_offset && branch.branch_offset < *end)
     }) {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: branch.branch_offset,
-        });
+        return Err(rejected(machine, branch.branch_offset));
     }
     Ok(())
 }
@@ -60,10 +55,7 @@ pub(crate) fn collect_conditional_tree_regions(
 ) -> Result<(), ObjectError> {
     let Some((root, descendants)) = decisions.split_first() else {
         if start >= end {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: start,
-            });
+            return Err(rejected(machine, start));
         }
         leaves.push((start, end));
         return Ok(());
@@ -71,18 +63,12 @@ pub(crate) fn collect_conditional_tree_regions(
     let branch_end = root
         .branch_offset
         .checked_add(root.branch_byte_count)
-        .ok_or(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: root.branch_offset,
-        })?;
+        .ok_or(rejected(machine, root.branch_offset))?;
     if root.branch_offset < start
         || branch_end >= root.false_arm_offset
         || root.false_arm_offset >= end
     {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: root.branch_offset,
-        });
+        return Err(rejected(machine, root.branch_offset));
     }
     validate_scalar_conditional_branch(
         architecture,
@@ -128,10 +114,7 @@ fn validate_scalar_conditional_branch(
     branch_byte_count: usize,
     false_arm_offset: usize,
 ) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidScalarConditionalEvidence {
-        machine,
-        offset: branch_offset,
-    };
+    let invalid = || rejected(machine, branch_offset);
     let target = match architecture {
         Architecture::X86_64 => {
             if branch_byte_count != 6

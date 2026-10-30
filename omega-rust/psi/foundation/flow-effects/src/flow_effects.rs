@@ -12,8 +12,9 @@ pub use invocations::{
     InvocationInferencePlan, InvocationTarget, MachineInvocationInference, RealizedInvocationTarget,
 };
 pub use operational::{
-    CallOperational, CleanupDependency, MachineOperational, OperationalPlan, StateOperational,
-    StaticMachineCallBinding,
+    CallOperational, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
+    CapturedSelectorOrigin, CleanupDependency, MachineOperational, OperationalPlan,
+    StateOperational, StaticMachineCallBinding,
 };
 pub use service_reach::{
     CallServiceReachInference, InstallationReachRequirement, MachineServiceReachInference,

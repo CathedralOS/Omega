@@ -61,6 +61,26 @@ struct ObservedOperation {
     admitted: bool,
 }
 
+fn polynomial_mentions(polynomial: &Polynomial, name: &str) -> bool {
+    polynomial
+        .terms
+        .keys()
+        .any(|monomial| monomial.contains_key(name))
+}
+
+fn divide_modulo_or_shift_mentions(
+    operation: &ObservedOperation,
+    name: &str,
+    include_value: bool,
+) -> bool {
+    matches!(
+        operation.operator,
+        BinaryOperator::Divide | BinaryOperator::Modulo | BinaryOperator::ShiftRight
+    ) && (polynomial_mentions(&operation.operands[0], name)
+        || polynomial_mentions(&operation.operands[1], name)
+        || (include_value && polynomial_mentions(&operation.value, name)))
+}
+
 /// Intrinsic bounds retain exact selected carrier and polynomial identity.
 #[derive(Clone)]
 struct ObservedCarrierBounds {
@@ -1183,31 +1203,12 @@ impl<'program> StructuralJudge<'program> {
                     let diff = left.sub(&right);
                     if (base_atoms..work.atoms.len()).any(|index| {
                         let name = atom_name(index);
-                        diff.terms
-                            .keys()
-                            .any(|monomial| monomial.contains_key(&name))
+                        polynomial_mentions(&diff, &name)
                             && !work
                                 .engine
                                 .opaque_terms_since_mention(base_engine_reg.1, &name)
-                            && !work.operations.iter().any(|op| {
-                                matches!(
-                                    op.operator,
-                                    BinaryOperator::Divide
-                                        | BinaryOperator::Modulo
-                                        | BinaryOperator::ShiftRight
-                                ) && (op.operands[0]
-                                    .terms
-                                    .keys()
-                                    .any(|monomial| monomial.contains_key(&name))
-                                    || op.operands[1]
-                                        .terms
-                                        .keys()
-                                        .any(|monomial| monomial.contains_key(&name))
-                                    || op
-                                        .value
-                                        .terms
-                                        .keys()
-                                        .any(|monomial| monomial.contains_key(&name)))
+                            && !work.operations.iter().any(|operation| {
+                                divide_modulo_or_shift_mentions(operation, &name, true)
                             })
                     }) && !(has_premises && prepared.is_contradictory())
                     {
@@ -1243,24 +1244,10 @@ impl<'program> StructuralJudge<'program> {
                             let Some(name) = name_opt else {
                                 return false;
                             };
-                            diff.terms
-                                .keys()
-                                .any(|monomial| monomial.contains_key(name))
+                            polynomial_mentions(&diff, name)
                                 && !work.engine.opaque_terms_since_mention(opaque_idx + 1, name)
-                                && !work.operations.iter().any(|op| {
-                                    matches!(
-                                        op.operator,
-                                        BinaryOperator::Divide
-                                            | BinaryOperator::Modulo
-                                            | BinaryOperator::ShiftRight
-                                    ) && (op.operands[0]
-                                        .terms
-                                        .keys()
-                                        .any(|monomial| monomial.contains_key(name))
-                                        || op.operands[1]
-                                            .terms
-                                            .keys()
-                                            .any(|monomial| monomial.contains_key(name)))
+                                && !work.operations.iter().any(|operation| {
+                                    divide_modulo_or_shift_mentions(operation, name, false)
                                 })
                         },
                     ) && !(has_premises && prepared.is_contradictory())
@@ -1390,29 +1377,10 @@ impl<'program> StructuralJudge<'program> {
                     let diff = left.sub(&right);
                     if (base_atoms..work.atoms.len()).any(|index| {
                         let name = atom_name(index);
-                        diff.terms
-                            .keys()
-                            .any(|monomial| monomial.contains_key(&name))
+                        polynomial_mentions(&diff, &name)
                             && !work.engine.opaque_terms_since_mention(0, &name)
-                            && !work.operations.iter().any(|op| {
-                                matches!(
-                                    op.operator,
-                                    BinaryOperator::Divide
-                                        | BinaryOperator::Modulo
-                                        | BinaryOperator::ShiftRight
-                                ) && (op.operands[0]
-                                    .terms
-                                    .keys()
-                                    .any(|monomial| monomial.contains_key(&name))
-                                    || op.operands[1]
-                                        .terms
-                                        .keys()
-                                        .any(|monomial| monomial.contains_key(&name))
-                                    || op
-                                        .value
-                                        .terms
-                                        .keys()
-                                        .any(|monomial| monomial.contains_key(&name)))
+                            && !work.operations.iter().any(|operation| {
+                                divide_modulo_or_shift_mentions(operation, &name, true)
                             })
                     }) && !(has_premises && prepared.is_contradictory())
                     {

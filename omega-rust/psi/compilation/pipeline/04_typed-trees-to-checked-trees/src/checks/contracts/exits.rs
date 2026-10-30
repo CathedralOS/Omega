@@ -124,7 +124,15 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         fact,
         call_frames,
         cached_exit_values,
-    ) || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
+    ) || scalars::proves(
+        program,
+        facts,
+        exit_flow,
+        entry_contexts,
+        fact,
+        call_frames,
+        cached_exit_values,
+    ))
 }
 
 pub(super) fn check_exit_ensures(

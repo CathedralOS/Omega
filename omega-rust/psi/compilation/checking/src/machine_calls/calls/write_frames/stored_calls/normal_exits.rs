@@ -14,9 +14,16 @@ pub(in crate::machine_calls::calls::write_frames) fn state_effects(
     if inference.active_states.contains(&entry.symbol) {
         return None;
     }
+    let key = inference.slot_effects_key(entry.symbol);
+    if let Some(effects) = inference.cached_slot_effects(&key) {
+        return Some(effects);
+    }
     inference.active_states.push(entry.symbol);
     let result = solve_state_effects(program, machine, entry, symbols, inference);
     inference.active_states.pop();
+    if let Some(effects) = result.as_ref() {
+        inference.retain_slot_effects(key, effects);
+    }
     result
 }
 

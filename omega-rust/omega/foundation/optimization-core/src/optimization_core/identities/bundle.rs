@@ -9,10 +9,7 @@ use std::fmt;
 const BUNDLE_MAGIC: &[u8; 8] = b"OMGIDB\0\0";
 const BUNDLE_VERSION: u32 = 1;
 
-canonical_identity!(
-    OptimizationIdentityBundleIdentity,
-    b"omega.optimization-identity-bundle-identity.v1\0"
-);
+s!(OptimizationIdentityBundleIdentity => b"omega.optimization-identity-bundle-identity.v1\0");
 /// Complete identities required to replay or cache one optimization result.
 ///
 /// Report rendering policy is intentionally absent. Optional authoritative

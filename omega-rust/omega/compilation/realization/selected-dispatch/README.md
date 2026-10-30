@@ -2,7 +2,7 @@
 
 [provider_binding.rs](src/provider_binding.rs) prepares one complete selected
 execution from the shared checked program and Build inputs: provider grants,
-callback placements, declaration catalogs, selected review, accepted host roles
+callback roots, declaration catalogs, selected review, accepted host roles
 and complete direct-call leaves. Source checking has already
 admitted representation properties and captured source review records. Psi
 derives and checks every authored generic operator candidate and finite boundary
@@ -30,6 +30,23 @@ to execute.
 Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
+Callback roots use [source preparation](../provider-planning/src/provider_planning/provenance_replay/specialization_rows.rs)
+followed by [source-free selection](../provider-selection/src/callback_roots.rs).
+Psi freezes the complete final nominal-use roster once in its existing prepared
+declaration product, including dormant/symbolic uses, exact requirement and body
+declarations, separate published/actual/refinement contracts and entry-resource
+reports. Target preparation borrows that inventory and closes calling declarations
+through its authenticated owner/member correspondence; it preserves empty-argument
+matching and duplicate counts without publishing an ABI merely to count plans.
+Preparation freezes exact adapter results once per original selected plan/row.
+Trait and top-level instance expansion consume those results at their original
+diagnostic points; the returned callback product contains only projected plans
+and checked-body facts, not source borrows. Selection owns use iteration, row
+lookup, calling counts and entry diagnostics. It rejoins complete plan/row values
+across the projection's clone and preserves dormant uses and duplicate order.
+Selected roots borrow the same canonical table instead of querying source
+signatures again. This is not native ABI placement or a claim that the instance
+producer is already Terminal-only.
 Checked-provider binding prepares exact service declaration/schema records once.
 Resolved semantic bindings retain those records without source symbols; role and
 permission settlement read them directly. The invocation's catalog provides local

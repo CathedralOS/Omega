@@ -14,6 +14,12 @@ use crate::optimization_unit::rewrite::{
     PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution, TotalScalarIdentityKind,
 };
 
+macro_rules! push_bytes {
+    ($bytes:expr, $value:expr) => {
+        crate::codec_bytes::push_encoded($bytes, $value)
+    };
+}
+
 /// Encode the leader and redundant definitions of a scalar-common-subexpression
 /// patch. The local and dominating payloads are distinct types with the same
 /// fields, so the shared step is spelled once here: both node locations, then
@@ -296,14 +302,8 @@ pub(super) fn encode_candidate(
         PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
             bytes.push(14);
             encode_location(&mut bytes, patch.redundant);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_operation.get().to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_result.get().to_le_bytes(),
-            );
+            push_bytes!(&mut bytes, patch.redundant_operation.get().to_le_bytes());
+            push_bytes!(&mut bytes, patch.redundant_result.get().to_le_bytes());
             encode_scalar_type(&mut bytes, patch.scalar_type);
             crate::codec_bytes::push_encoded(&mut bytes, patch.parameter_position.to_le_bytes());
             encode_len(&mut bytes, patch.incoming.len());
@@ -311,14 +311,8 @@ pub(super) fn encode_candidate(
                 crate::codec_bytes::push_encoded(&mut bytes, incoming.source.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, incoming.edge.get().to_le_bytes());
                 encode_location(&mut bytes, incoming.leader);
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    incoming.leader_operation.get().to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    incoming.leader_result.get().to_le_bytes(),
-                );
+                push_bytes!(&mut bytes, incoming.leader_operation.get().to_le_bytes());
+                push_bytes!(&mut bytes, incoming.leader_result.get().to_le_bytes());
             }
         }
         PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) => {
@@ -397,10 +391,7 @@ pub(super) fn encode_candidate(
                 bytes.push(u8::from(row.constant));
                 crate::codec_bytes::push_encoded(&mut bytes, row.taken_edge.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, row.rejected_edge.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    row.resolved_target.get().to_le_bytes(),
-                );
+                push_bytes!(&mut bytes, row.resolved_target.get().to_le_bytes());
             }
         }
         PsiRewritePatch::SpecializeCaseMembership(patch) => {
@@ -438,10 +429,7 @@ pub(super) fn encode_candidate(
                         CanonicalStructuralPathSegment::Referent => bytes.push(4),
                         CanonicalStructuralPathSegment::Field(identity) => {
                             bytes.push(1);
-                            crate::codec_bytes::push_encoded(
-                                &mut bytes,
-                                identity.get().to_le_bytes(),
-                            );
+                            push_bytes!(&mut bytes, identity.get().to_le_bytes());
                         }
                         CanonicalStructuralPathSegment::FixedIndex(index) => {
                             bytes.push(2);
@@ -449,10 +437,7 @@ pub(super) fn encode_candidate(
                         }
                         CanonicalStructuralPathSegment::Case(identity) => {
                             bytes.push(3);
-                            crate::codec_bytes::push_encoded(
-                                &mut bytes,
-                                identity.get().to_le_bytes(),
-                            );
+                            push_bytes!(&mut bytes, identity.get().to_le_bytes());
                         }
                     }
                 }
@@ -474,10 +459,7 @@ pub(super) fn encode_candidate(
                     }
                     FieldValueResolution::Forward(forwarded) => {
                         bytes.push(3);
-                        crate::codec_bytes::push_encoded(
-                            &mut bytes,
-                            forwarded.initializer.get().to_le_bytes(),
-                        );
+                        push_bytes!(&mut bytes, forwarded.initializer.get().to_le_bytes());
                         encode_scalar_type(&mut bytes, forwarded.scalar_type);
                         encode_len(&mut bytes, forwarded.uses.len());
                         for site in &forwarded.uses {

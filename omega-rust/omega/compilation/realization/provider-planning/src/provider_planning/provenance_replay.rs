@@ -19,8 +19,7 @@ mod specialization_rows;
 pub(crate) use adapter_conformance::exact_checked_adapter_invocations;
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
-pub(crate) use specialization_rows::derive_leaf_requirement_specializations;
-pub use specialization_rows::project_checked_provider_instances;
+pub use specialization_rows::{prepare_callback_providers, project_checked_provider_instances};
 
 use super::ProviderPlan;
 use crate::ProviderPlanningContext;
@@ -72,6 +71,8 @@ impl ProviderRowRealization {
 pub struct ProviderPlanProvenance {
     pub schema: ProviderSchemaDeclaration,
     pub provider_type: Option<symbols::SymbolHandle>,
+    /// Original named application, before selected rows lose their source scope.
+    pub named_application: Option<checked_trees::provider_declarations::NamedProviderApplication>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
     pub row_realizations: Vec<ProviderRowRealization>,
     /// Exact pre-resolution target-scoped declaration custody for catalog-

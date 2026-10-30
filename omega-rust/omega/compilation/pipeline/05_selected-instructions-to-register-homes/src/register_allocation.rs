@@ -94,24 +94,22 @@ pub fn stage_register_allocation(
     let legality =
         stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
     let mut home_reuse = crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
-    let assignment = match crate::assignment::runtime_spill::assign_source_reusing(
-        &legality,
-        &mut home_reuse,
-    ) {
-        Ok(homes) => homes,
-        Err(error) if error.admits_runtime_recovery() => {
-            let recovered =
-                crate::assignment::runtime_spill::recover_with_reuse(legality, home_reuse)
-                    .map_err(RegisterAllocationError::RuntimeSpill)?;
-            return RetainedAllocation::try_from(recovered)
-                .map_err(RegisterAllocationError::Admission);
-        }
-        Err(error) => {
-            return Err(RegisterAllocationError::Homes(
-                OptimizedRegisterHomeCustodyError::Assignment(error),
-            ));
-        }
-    };
+    let assignment =
+        match crate::assignment::runtime_spill::assign_source_reusing(&legality, &mut home_reuse) {
+            Ok(homes) => homes,
+            Err(error) if error.admits_runtime_recovery() => {
+                let recovered =
+                    crate::assignment::runtime_spill::recover_with_reuse(legality, home_reuse)
+                        .map_err(RegisterAllocationError::RuntimeSpill)?;
+                return RetainedAllocation::try_from(recovered)
+                    .map_err(RegisterAllocationError::Admission);
+            }
+            Err(error) => {
+                return Err(RegisterAllocationError::Homes(
+                    OptimizedRegisterHomeCustodyError::Assignment(error),
+                ));
+            }
+        };
     let homes =
         crate::assignment::baseline::stage_register_homes_with_assignment(legality, assignment)
             .map_err(RegisterAllocationError::Homes)?;

@@ -22,8 +22,6 @@ pub enum AnalysisManagerError {
 
 failed_display!(AnalysisManagerError, "Psi optimizer analysis failure");
 
-impl std::error::Error for AnalysisManagerError {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AnalysisRevisionCommit {
     pub previous: OptimizationUnitIdentity,

@@ -1,11 +1,11 @@
 //! Select one element store through a mutable element view.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionProvenance,
-    SelectedMemoryAccessRole, memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::obligation_provenance;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
@@ -76,7 +76,7 @@ pub(super) fn write(
         length,
         obligation,
         accepted_fact,
-        row.operation,
+        row,
     )?;
     memory(
         builder,
@@ -96,12 +96,7 @@ pub(super) fn write(
         pointer,
         physical_index,
         address,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+        obligation_provenance(row, &[index, length], &[obligation]),
     )?;
     builder.emit_store(
         byte_offset,

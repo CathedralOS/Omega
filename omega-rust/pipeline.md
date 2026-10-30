@@ -182,6 +182,13 @@ publication entrance. Terminal cohorts retain each admitted application beside
 its exact entry, callback roots and exclusion policy. Source-sharing comparisons
 use those requests directly; only caller order is restored after cohort work,
 without parallel entry tables or empty outcome slots.
+Composition admission runs once per application, before optimization. Psi lends
+an ordered, lazily projected stream of canonical entry, callback and physical
+adapter roots; Omega prepares the exclusion/provider context once and judges
+each root separately. Root-specific attribution and first-refusal precedence
+survive, including missing-body checks when no authored service exclusion
+resolves. This does not remove source-side callback selection or replace its
+complete dormant-declaration checks with emitted-call reachability.
 Before shared production, each application prepares the exact target-provider
 candidates, nominal owners and authored family declarations for its Build rows.
 After production, provider publication consumes that owned preparation and the
@@ -946,10 +953,51 @@ satisfaction and callable/package/target selection; source eligibility additiona
 checks Product, provider application and lifetime coordinates, while canonical
 admission checks nominal requirement and closed application. Neither fabricates
 the other's metadata. Unused invocation-local declarations are not forced into
-portable publication. The surrounding selected-execution coordinator still
-consumes source installation reach, leaf specialization, callback roots and
-service declarations; its complete source-to-Terminal facade migration remains
-unfinished. Early/reference source adapters remain distinct from Product policy.
+portable publication. Complete selected-plan binding now belongs to
+`provider-selection/selected_binding.rs`: grants, qualification, boundary
+admission, reach resolution, physical-leaf aliases and Import application
+attachment run in their original order without typed trees or check facts.
+Psi projects selected declaration evidence from the exact source associations;
+unavailable evidence remains deferred until its admission phase. Named-provider
+derivation retains the original declaration/capture scope and declaration-row
+order, so source projection never repeats target selection or substitutes an
+open declaration scope for a captured receiving application. The temporary view
+borrows the existing selected plan/provenance rather than creating a second
+candidate cache. Early/reference instance projection shares Psi's closed-leaf
+roster but remains separate from ordinary Product preparation.
+Callback-root selection likewise belongs to source-free `provider-selection`:
+Psi freezes the complete final checked nominal-use roster once in the existing
+prepared declaration product. Canonical arena rows retain registration
+classification, exact requirement/body declarations, separate published/actual
+and refinement contracts, and checked entry-resource report axes. Dormant and
+symbolic uses remain present; unavailable declaration projection stays deferred.
+Calling declarations close through the product's authenticated owner/member
+correspondence, preserving exact empty-argument matching and duplicate counts
+without ABI publication. Source preparation freezes exact adapter results once
+per original selected plan/row. Trait and top-level instance expansion consume
+those same results at their original diagnostic sites, including repeated error
+reports. The returned callback-provider product owns projected instance metadata
+and borrows source-free plan/row custody only. Callback admission itself runs in
+`provider-selection` without checked source: use iteration, exact selected-row
+lookup, calling counts and entry policy share one visible loop. Full plan/row
+equality rejoins the projection's clone; report hashes or source pointers cannot
+replace it. Missing preparation refuses a nonempty use roster, while a completed
+empty selection remains valid. Registration failures
+suppress only that occurrence's plan diagnostics. Selected roots borrow the same
+identity table in occurrence order. The application carries exact declarations,
+not callback source symbols. Composition rejoins each complete
+owner/signature/contract/specialization to exactly one unoptimized body, lazily
+after the semantic entry and before the physical adapter. Unavailable declarations
+remain deferred so checking-only products need no emitted callback body. Diagnostic
+names and spans remain payload; Psi still projects ordinary callee/provider names
+and root-specific caller chains. This transient companion changes no portable
+schema and does not replace dormant admission with emitted reachability. These
+producer-owned records are not independently admitted decoded evidence; complete
+portable dormant-use and checked-instance publication remain unfinished.
+The surrounding selected-execution coordinator still consumes this source
+preparation and service declarations; shared checked-instance/adapter projection
+and the complete source-to-Terminal facade migration remain unfinished.
+Early/reference source adapters remain distinct from Product policy.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare

@@ -79,6 +79,13 @@ impl DominatorAnalysis {
             .iter()
             .find(|(candidate, _)| *candidate == machine)
     }
+
+    /// The machine's dominator rows, or the empty slice when the roster omits
+    /// it: every rule reading precomputed dominators wants the same fallback.
+    pub fn rows(&self, machine: MachineId) -> &[BlockDominators] {
+        self.function(machine)
+            .map_or(&[], |(_, rows)| rows.as_slice())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -277,12 +277,7 @@ impl Builder<'_, '_> {
         CheckedScalarComputationStructuralArgument,
         checked_trees::CheckedStructuralValueHandle,
     )> {
-        let reference = validation::expression_type_reference_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let reference = self.expression_type(expression)?;
         // Observation borrows the completed owner. Its usage multiplicity does
         // not decide whether that tag can be read. The contextual source-death
         // owner checks the actual remaining claims and nominal disposition;

@@ -7,6 +7,12 @@ use crate::mathematical_core::{
     weak_head_normalize,
 };
 
+macro_rules! conv {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        convertible($a, $b, $c, $d, $e, $f)
+    };
+}
+
 #[test]
 fn unbound_variable_rejects() {
     let mut arena = TermArena::new();
@@ -107,26 +113,10 @@ fn pair_eta_converts_a_neutral_with_its_projections() {
     let w_second = snd(&mut arena, w);
     let reconstructed = pair(&mut arena, w_first, w_second);
     assert!(
-        convertible(
-            &mut arena,
-            &context,
-            w,
-            reconstructed,
-            shared_type,
-            &mut budget
-        )
-        .unwrap()
+        conv!(&mut arena => &context => w => reconstructed => shared_type => &mut budget).unwrap()
     );
     assert!(
-        convertible(
-            &mut arena,
-            &context,
-            reconstructed,
-            w,
-            shared_type,
-            &mut budget
-        )
-        .unwrap()
+        conv!(&mut arena => &context => reconstructed => w => shared_type => &mut budget).unwrap()
     );
 
     // A different neutral pair does not collapse into w.
@@ -140,15 +130,7 @@ fn pair_eta_converts_a_neutral_with_its_projections() {
     let shared_codomain = variable(&mut arena, 3);
     let shared_type = sigma(&mut arena, shared_domain, shared_codomain);
     assert!(
-        !convertible(
-            &mut arena,
-            &context,
-            w_inner,
-            w_other,
-            shared_type,
-            &mut budget
-        )
-        .unwrap()
+        !conv!(&mut arena => &context => w_inner => w_other => shared_type => &mut budget).unwrap()
     );
 }
 
@@ -306,15 +288,7 @@ fn case_two_computes_on_each_constructor_and_stays_stuck_on_neutrals() {
     let left_again = case_two(&mut arena, constant, zero, one, t);
     let right = case_two(&mut arena, constant, zero, one, u);
     assert!(
-        convertible(
-            &mut arena,
-            &context,
-            left,
-            left_again,
-            two_type,
-            &mut budget
-        )
-        .unwrap()
+        conv!(&mut arena => &context => left => left_again => two_type => &mut budget).unwrap()
     );
     assert!(!convertible(&mut arena, &context, left, right, two_type, &mut budget).unwrap());
 

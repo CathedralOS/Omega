@@ -208,6 +208,87 @@ pub(in crate::machine_calls::calls::write_frames) fn complete_contents(
     )
 }
 
+/// Retain the physical dependencies of an already captured scalar. Geometry
+/// still validates the whole suffix, but an unknown element in its final owned
+/// span depends on the containing collection. No coarse footprint may stand in
+/// for a descriptor load, and this result never exports an exact read source.
+pub(in crate::machine_calls::calls::write_frames) fn contents_invalidation_paths(
+    program: &dyn crate::CheckingInput,
+    source: super::super::stored_calls::SlotSource,
+    mut cursor: StorageProjectionCursor<'_>,
+    path: &[PlaceSegment],
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<String>> {
+    let mut spans = Vec::new();
+    let mut first_dynamic = None;
+    for position in 0..=path.len() {
+        while let Some(access) = cursor.reference_access() {
+            if !access.is_readable() || first_dynamic.is_some() {
+                // The selector's old AST cannot identify this pointer slot.
+                // A captured exact selector arrives as FixedIndex instead.
+                return None;
+            }
+            spans.push((position, true));
+            cursor.enter_referee()?;
+        }
+        if let Some(segment) = path.get(position) {
+            cursor.advance(segment)?;
+            if matches!(segment, PlaceSegment::Index { .. }) {
+                first_dynamic.get_or_insert(position);
+            }
+        }
+    }
+    cursor.finish()?;
+    if source.origin.precision == FramePathPrecision::CollectionCoarse {
+        // A completed window already names a physical containing region. It
+        // can retire an existing scalar observation anywhere in that region,
+        // but cannot identify a descriptor which the suffix would load.
+        if !spans.is_empty()
+            || source.lifetime_access.is_some()
+            || source.origin.source.output_identity().is_some()
+            || !source.origin.source.builtin_coordinates
+            || (!source.origin.source.root.is_valid() && !source.origin.source.is_static())
+        {
+            return None;
+        }
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-reference-coarse-dependency path={} source={:?}",
+                source.origin.path, source.origin.source
+            );
+        }
+        return Some(vec![source.origin.path]);
+    }
+    let read = admitted(
+        CapturedReferenceRead {
+            source,
+            slots: Vec::new(),
+        },
+        ProjectionUse::Contents,
+    )?;
+    // All required pointer loads precede the first unknown selector. Finish
+    // only that physical prefix; its existing frame spelling conservatively
+    // covers every element and descendant in the remaining owned suffix.
+    spans.push((first_dynamic.unwrap_or(path.len()), false));
+    let reads = complete_spans(
+        program,
+        vec![read],
+        path,
+        0,
+        spans,
+        stored,
+        ProjectionUse::Contents,
+    )?;
+    let backing = super::read_backing::from_reads(reads, Vec::new())?;
+    let mut paths = backing.values;
+    for binding in backing.bindings {
+        if !paths.contains(&binding) {
+            paths.push(binding);
+        }
+    }
+    Some(paths)
+}
+
 fn complete_spans(
     program: &dyn crate::CheckingInput,
     mut reads: Vec<CapturedReferenceRead>,

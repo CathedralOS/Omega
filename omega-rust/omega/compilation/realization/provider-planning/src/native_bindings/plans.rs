@@ -108,6 +108,7 @@ pub(crate) fn derive(
                     provenance: ProviderPlanProvenance {
                         schema: ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
                         provider_type: None,
+                        named_application: None,
                         row_requirements: Vec::new(),
                         row_realizations: Vec::new(),
                         row_target_machine_origins: Vec::new(),
