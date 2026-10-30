@@ -812,6 +812,11 @@ fn representation_semantic_type(
     else {
         return Ok(None);
     };
+    // Rewritten instances with no authored operands rejoin their retained
+    // generic origin below; they are not declarations in the header namespace.
+    if arguments.is_empty() {
+        return Ok(None);
+    }
     let Some(selection) = selection else {
         return Ok(None);
     };
