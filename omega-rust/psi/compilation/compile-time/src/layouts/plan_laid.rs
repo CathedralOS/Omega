@@ -9,8 +9,10 @@ use typed_trees::{TypedTrees, references::DeclarationSelection};
 /// Empty roots describe the reusable source surface, rather than a host entry.
 #[derive(Debug, Clone)]
 pub struct FixedLayoutTargetScope {
-    pub target: layout_plans::LayoutTargetFacts,
+    pub target: String,
+    pub facts: Option<layout_plans::LayoutTargetFacts>,
     pub roots: Vec<symbols::SymbolHandle>,
+    pub providers: Vec<crate::provider_declarations::ProviderSelectionIdentity>,
 }
 
 /// Close physical representation applications before the settled source judgment.
@@ -19,31 +21,44 @@ pub struct FixedLayoutTargetScope {
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if scopes.is_empty() {
+    if !typed_trees::references::collect_program_type_occurrences(typed)
+        .into_iter()
+        .any(|occurrence| {
+            typed
+                .layout_storage_arguments(occurrence.reference)
+                .is_some_and(|storage| {
+                    typed
+                        .closed_data_field_definition(storage.semantic_type)
+                        .is_some()
+                        && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
+                })
+        })
+    {
         return Ok(());
     }
     typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
     let mut targets = Vec::new();
     let mut inputs = Vec::new();
     for scope in scopes {
-        scope
-            .target
-            .validate()
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if !targets.contains(&scope.target) {
-            targets.push(scope.target.clone());
+        let mut roots = scope.roots.clone();
+        for provider in &scope.providers {
+            for member in provider
+                .prepared_implementation_members(typed)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+            {
+                if !roots.contains(&member) {
+                    roots.push(member);
+                }
+            }
         }
-        let work = if scope.roots.is_empty() {
+        let work = if roots.is_empty() {
             DeclarationSelection::from_program(typed)
         } else {
-            crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
-                typed,
-                &scope.roots,
-                &[],
-            )
-            .work()
-            .clone()
+            crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(typed, &roots, &[])
+                .work()
+                .clone()
         };
         for occurrence in
             typed_trees::references::collect_selected_program_type_occurrences(typed, &work)
@@ -58,6 +73,21 @@ pub fn evaluate_fixed_layout_applications(
             {
                 continue;
             }
+            let facts = scope.facts.as_ref().ok_or_else(|| vec![Diagnostic::error(format!(
+                "fixed representation application `{}` requires unavailable representation facts for `{}`",
+                typed.display_type_reference(storage.application), scope.target,
+            ))])?;
+            facts
+                .validate()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            if facts.profile != scope.target {
+                return Err(vec![Diagnostic::error(
+                    "fixed representation scope differs from its explicit target facts",
+                )]);
+            }
+            if !targets.contains(facts) {
+                targets.push(facts.clone());
+            }
             let identity = typed.normalized_type_identity(storage.application);
             let application_identity = typed.type_identity_text(identity).ok_or_else(|| {
                 vec![Diagnostic::error(
@@ -66,7 +96,8 @@ pub fn evaluate_fixed_layout_applications(
             })?;
             let input = crate::LayoutApplicationTargetInput {
                 application_identity,
-                target: scope.target.clone(),
+                target: facts.clone(),
+                lexical_owner: occurrence.lexical_owner,
             };
             if !inputs.contains(&input) {
                 inputs.push(input);
@@ -76,9 +107,25 @@ pub fn evaluate_fixed_layout_applications(
     let mut domain = crate::build_time_evaluation::EvaluationDomain::all();
     domain.layout_targets = targets;
     domain.layout_applications = Some(inputs);
-    compute_plan_laid_layouts_in(typed, None, &domain)?;
+    compute_plan_laid_layouts_in(typed, selection_authority, &domain)?;
     layout_installation::validate_layout_application_coverage(
         typed,
         domain.layout_applications.as_deref(),
-    )
+    )?;
+    for occurrence in typed_trees::references::collect_program_type_occurrences(typed) {
+        if let Some(storage) = typed.layout_storage_arguments(occurrence.reference)
+            && typed
+                .closed_data_field_definition(storage.semantic_type)
+                .is_some()
+            && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
+            && typed
+                .plan_laid_layout_for_type(storage.application)
+                .is_none()
+        {
+            return Err(vec![Diagnostic::error(
+                "fixed representation application has no explicit target-input closure",
+            )]);
+        }
+    }
+    Ok(())
 }

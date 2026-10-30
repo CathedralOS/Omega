@@ -117,7 +117,15 @@ impl TerminalExecution<'_> {
             )?;
             if let Some(view) = view {
                 return self
-                    .aggregate_view_primitive_access(&carrier, view, field_path)
+                    .aggregate_view_primitive_access(
+                        &carrier,
+                        view,
+                        field_path,
+                        self.aggregate_argument_backings
+                            .get(&source.place)
+                            .and_then(|backing| backing.collection_home.as_ref()),
+                        false,
+                    )
                     .map(|(storage, _, _)| storage.endpoint);
             }
             if let Some(observed) =

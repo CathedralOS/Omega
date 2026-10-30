@@ -33,6 +33,9 @@ pub(crate) fn check_product_source(
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let source_admission = psi_compiler::SourceAdmission {
         layout_scopes: &layout_scopes,
+        layout_selection_authority: package_inputs.map(|inputs| {
+            Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+        }),
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
@@ -163,7 +166,12 @@ fn layout_target_scopes(
     {
         return Ok(Vec::new());
     }
-    let mut scopes: Vec<build_time_evaluation::FixedLayoutTargetScope> = Vec::new();
+    let choices = build
+        .provider_selections
+        .iter()
+        .chain(&build.package_provider_selections)
+        .collect::<Vec<_>>();
+    let mut profiles = Vec::new();
     for binding in &build.root_bindings {
         let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
             vec![Diagnostic::error(
@@ -172,52 +180,65 @@ fn layout_target_scopes(
         })?;
         let profile =
             target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
-        let facts = profile.layout_target_facts().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "target `{}` has no layout representation facts",
-                profile.target_name(),
-            ))]
-        })?;
-        if let Some(scope) = scopes.iter_mut().find(|scope| scope.target == facts) {
-            if !scope.roots.contains(&binding.implementation_symbol) {
-                scope.roots.push(binding.implementation_symbol);
-            }
-        } else {
-            scopes.push(build_time_evaluation::FixedLayoutTargetScope {
-                target: facts,
-                roots: vec![binding.implementation_symbol],
-            });
+        if !profiles.contains(&profile) {
+            profiles.push(profile);
         }
     }
-    if scopes.is_empty() {
-        scopes.extend(
+    for choice in &choices {
+        if let Some(target) = choice.target {
+            let profile =
+                target::TargetProfile::from_canonical_target_name(target.canonical_name())
+                    .map_err(|error| vec![error])?;
+            if !profiles.contains(&profile) {
+                profiles.push(profile);
+            }
+        }
+    }
+    let reusable = profiles.is_empty();
+    if reusable {
+        profiles.extend(
             target::TargetProfile::ALL
                 .into_iter()
-                .filter_map(|profile| {
-                    profile.layout_target_facts().map(|target| {
-                        build_time_evaluation::FixedLayoutTargetScope {
-                            target,
-                            roots: Vec::new(),
-                        }
-                    })
-                }),
+                .filter(|profile| profile.layout_target_facts().is_some()),
         );
     }
-    for selection in build
-        .provider_selections
-        .iter()
-        .chain(&build.package_provider_selections)
-    {
-        for scope in &mut scopes {
-            if selection
-                .target
-                .is_none_or(|target| target.canonical_name() == scope.target.profile)
-                && !scope.roots.is_empty()
-                && !scope.roots.contains(&selection.provider_type.symbol)
-            {
-                scope.roots.push(selection.provider_type.symbol);
+    let mut scopes = Vec::new();
+    for profile in profiles {
+        let mut roots = Vec::new();
+        if !reusable {
+            for binding in &build.root_bindings {
+                let (owner, _) = binding
+                    .slot
+                    .rsplit_once("::")
+                    .expect("root slots were validated above");
+                if target::TargetProfile::from_root_slot_owner(owner)
+                    .map_err(|error| vec![error])?
+                    == profile
+                    && !roots.contains(&binding.implementation_symbol)
+                {
+                    roots.push(binding.implementation_symbol);
+                }
             }
         }
+        let providers = if reusable {
+            Vec::new()
+        } else {
+            choices
+                .iter()
+                .filter(|choice| {
+                    choice
+                        .target
+                        .is_none_or(|target| target.canonical_name() == profile.target_name())
+                })
+                .map(|choice| choice.provider_type.clone())
+                .collect()
+        };
+        scopes.push(build_time_evaluation::FixedLayoutTargetScope {
+            target: profile.target_name().to_owned(),
+            facts: profile.layout_target_facts(),
+            roots,
+            providers,
+        });
     }
     Ok(scopes)
 }

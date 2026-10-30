@@ -256,6 +256,12 @@ impl TerminalExecution<'_> {
                 &argument.path,
                 argument.access,
             )?;
+            if projected.view_tip.is_some() {
+                // The shared borrowed-ingress owner transports representation
+                // windows and their physical backing. This packed-array fast
+                // path owns only an actual collection of its declared type.
+                return Ok(None);
+            }
             (projected.value, projected.collection_home)
         };
         if referent.structural_type != collection_type

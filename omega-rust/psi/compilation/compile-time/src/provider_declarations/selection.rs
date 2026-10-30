@@ -18,6 +18,66 @@ pub struct ProviderSelectionIdentity {
     pub authored_path: String,
 }
 
+impl ProviderSelectionIdentity {
+    /// Exact prepared member bodies of this selected implementation. Generic
+    /// providers retain their whole applied telescope, including phantom inputs;
+    /// a declaration symbol alone cannot select one of its captured instances.
+    pub fn prepared_implementation_members(
+        &self,
+        program: &TypedTrees,
+    ) -> Result<Vec<SymbolHandle>, &'static str> {
+        let Some(identity) = &self.application_identity else {
+            return Ok(match program.conformance_by_symbol(self.symbol) {
+                Some(implementation) => implementation
+                    .rows
+                    .iter()
+                    .map(|row| row.realization_machine)
+                    .collect(),
+                // Legacy data providers remain with their existing declaration
+                // closure until the native-binding migration retires that form.
+                None => vec![self.symbol],
+            });
+        };
+        if !program
+            .product_operand_applications
+            .is_valid(self.application)
+        {
+            return Err("selected provider lost its prepared application custody");
+        }
+        let application = program.product_operand_applications.get(self.application);
+        if application.declaration != self.symbol {
+            return Err("selected provider application differs from its declaration");
+        }
+        let actual = program
+            .product_operand_application_identity(self.application)?
+            .and_then(|identity| program.type_identity_text(identity));
+        if actual.as_ref() != Some(identity) {
+            return Err(
+                "selected provider application differs from its complete canonical telescope",
+            );
+        }
+        let mut members = Vec::new();
+        for (_, capture) in program.captured_machine_applications.iter() {
+            if capture.conformance_application.declaration != self.symbol {
+                continue;
+            }
+            let actual = program
+                .portable_conformance_application_identity(
+                    &capture.conformance_application,
+                    capture.supplying_application,
+                )
+                .and_then(|identity| program.type_identity_text(identity));
+            if actual.as_ref() == Some(identity) && !members.contains(&capture.instance) {
+                members.push(capture.instance);
+            }
+        }
+        if members.is_empty() {
+            return Err("selected generic provider has no completed exact member applications");
+        }
+        Ok(members)
+    }
+}
+
 /// One exact boundary-operator overload coordinate belonging to an authored
 /// family selection. The readable family path is deliberately absent here:
 /// the compiler-derived requirement identity is the dispatch coordinate.

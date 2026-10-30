@@ -84,7 +84,7 @@ pub(crate) struct ResolvedStructuralProjection {
     pub(crate) array_loan: Option<crate::element_views::ElementView>,
     placed: Option<PlacedReference>,
     pub(crate) value: TerminalStructuralValue,
-    view_tip: Option<AggregateViewTip>,
+    pub(crate) view_tip: Option<AggregateViewTip>,
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
     pub(crate) primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
     pub(crate) collection_home: Option<crate::element_views::ElementViewHome>,
@@ -411,7 +411,7 @@ impl TerminalExecution<'_> {
         let mut byte_region = None;
         let mut region_referent = None;
         let mut aggregate_view = None;
-        let collection_loan = if storage.is_none() && access_covers(source.access, access) {
+        let mut collection_loan = if storage.is_none() && access_covers(source.access, access) {
             let argument = StructuralArgument {
                 access,
                 ..source.clone()
@@ -657,13 +657,37 @@ impl TerminalExecution<'_> {
                 } else {
                     None
                 };
+                // Physical storage belongs to the original collection. Capture
+                // its own declaration/count before introducing the logical view;
+                // a u64 array never becomes a longer u8 loan by relabeling.
+                if collection_loan.is_none() && !byte_endpoint {
+                    let argument = StructuralArgument {
+                        access,
+                        ..source.clone()
+                    };
+                    collection_loan = self.prepare_scalar_array_reference(
+                        original_type,
+                        &argument,
+                        identity_cursor,
+                        &mut RuntimeRows::new(self.account.as_ref()),
+                    )?;
+                }
                 let (projected, projected_view) = match &byte_loan {
                     Some(loan) => (loan.referent.clone(), None),
-                    None => self.resolve_live_view_projection(
-                        source.place,
-                        &source.path,
-                        source.access,
-                    )?,
+                    None => {
+                        let projected = self.resolve_live_storage_projection(
+                            source.place,
+                            &source.path,
+                            source.access,
+                        )?;
+                        if collection_loan.is_none() {
+                            collection_loan = projected
+                                .array_loan
+                                .clone()
+                                .map(|loan| (projected.value.clone(), loan));
+                        }
+                        (projected.value, projected.view_tip)
+                    }
                 };
                 let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
                 let captured = self.reference_byte_region(&projected)?;
@@ -1162,6 +1186,8 @@ impl TerminalExecution<'_> {
                 placed,
                 region,
                 byte_region,
+                collection_home: projected.collection_home,
+                array_loan: projected.array_loan,
             }
         });
         if let Some(region) = region {
@@ -1345,7 +1371,10 @@ impl TerminalExecution<'_> {
             leaf_type,
             view,
             placed,
-            self.element_view_values.get(&place).cloned(),
+            self.aggregate_argument_backings
+                .get(&place)
+                .and_then(|backing| backing.array_loan.clone())
+                .or_else(|| self.element_view_values.get(&place).cloned()),
         )?
         .ok_or_else(malformed)
     }
@@ -1410,7 +1439,10 @@ impl TerminalExecution<'_> {
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             view,
             placed,
-            self.element_view_values.get(&place).cloned(),
+            self.aggregate_argument_backings
+                .get(&place)
+                .and_then(|backing| backing.array_loan.clone())
+                .or_else(|| self.element_view_values.get(&place).cloned()),
         )?
         .map(|projection| projection.value)
         .ok_or_else(malformed)
@@ -1434,7 +1466,10 @@ impl TerminalExecution<'_> {
         let mut remaining = path;
         let mut aggregate_view = initial_view;
         let mut primitive_storage = None;
-        let mut collection_home = None;
+        let mut collection_home: Option<(
+            &crate::element_views::ElementView,
+            &[StructuralPathSegment],
+        )> = None;
         let mut array_loan = initial_array;
         let mut placed = initial_placed.or_else(|| {
             self.placed_view_occurrences
@@ -1525,6 +1560,13 @@ impl TerminalExecution<'_> {
             ) = tip
             {
                 let view = active_view.ok_or_else(malformed)?;
+                let projection_home = match collection_home {
+                    Some((loan, selected)) => loan.captured_storage_home(&types, selected)?,
+                    None => match supplying_array.as_ref() {
+                        Some(loan) => loan.captured_storage_home(&types, &[])?,
+                        None => None,
+                    },
+                };
                 let (storage, _, _) = self.aggregate_view_primitive_access(
                     &value,
                     AggregateViewTip::Aggregate {
@@ -1532,6 +1574,8 @@ impl TerminalExecution<'_> {
                         backing: value.structural_type,
                     },
                     logical_prefix,
+                    projection_home.as_ref(),
+                    access.is_some_and(|access| access != StructuralAccess::SharedBorrow),
                 )?;
                 primitive_storage = Some(storage);
                 // This is a logical loan descriptor, not a relabelled cell.

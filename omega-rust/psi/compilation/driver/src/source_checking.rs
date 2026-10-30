@@ -24,6 +24,8 @@ pub struct SourceAdmission<'request> {
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
+    pub layout_selection_authority:
+        Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
@@ -114,6 +116,7 @@ impl CheckRequest<'_> {
         build_time_evaluation::evaluate_fixed_layout_applications(
             &mut program,
             self.admission.layout_scopes,
+            self.admission.layout_selection_authority.clone(),
         )?;
         constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()

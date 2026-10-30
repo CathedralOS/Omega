@@ -33,6 +33,8 @@ impl TerminalExecution<'_> {
         referent: &TerminalStructuralValue,
         observed: terminal_semantics::ReferenceStorageProjection,
         byte_length: u64,
+        home: Option<&crate::element_views::ElementViewHome>,
+        writing: bool,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
         let width = terminal_semantics::reference_storage_byte_width(observed.stored_scalar)
             .ok_or_else(malformed)?;
@@ -62,12 +64,16 @@ impl TerminalExecution<'_> {
                 &fragment.path,
             )
             .ok_or_else(malformed)?;
-            let (storage, _, shared_view) = self.primitive_view_access(
+            let (storage, actual, shared_view) = self.original_view_primitive_access(
                 referent,
+                home,
                 &canonical,
                 fragment.scalar.logical_scalar,
-                false,
+                writing,
             )?;
+            if actual != fragment.scalar.logical_scalar {
+                return Err(malformed());
+            }
             shared |= shared_view;
             let start = fragment.scalar.byte_offset.max(observed.byte_offset);
             let fragment_end = fragment

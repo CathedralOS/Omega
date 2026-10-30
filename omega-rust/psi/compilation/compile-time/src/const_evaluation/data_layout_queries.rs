@@ -26,9 +26,9 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 /// only as an explicit `DataLayoutQueryRequest`, so the field's presence is
 /// the complete deferral condition — no admission or selection closure is
 /// needed to know the answer is target-dependent. Ownership traversal excludes
-/// unselected declarations and stale arena nodes. Closed fixed-storage
-/// applications also consume target facts even when the authored policy returns
-/// literal placements; open recipes remain templates until their exact use.
+/// unselected declarations and stale arena nodes. Fixed-storage policy jobs
+/// have their own explicit target-input closure; their presence alone does not
+/// make an otherwise semantic aggregate constant a scalar observation.
 pub(crate) fn has_pending_target_observations(
     typed: &TypedTrees,
     selection: &typed_trees::references::DeclarationSelection,
@@ -42,23 +42,57 @@ pub(crate) fn has_pending_target_observations(
                 _ => false,
             },
         )
-        || typed_trees::references::collect_selected_program_type_occurrences(typed, selection)
-            .into_iter()
-            .any(|occurrence| {
-                typed
-                    .layout_storage_arguments(occurrence.reference)
-                    .is_some_and(|storage| {
-                        typed
-                            .closed_data_definition(storage.semantic_type)
-                            .is_some()
-                            && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
-                    })
-            })
+        || has_pending_recast_geometry(typed, selection)
         || typed.const_declarations().iter().any(|declaration| {
             selection.contains(declaration.symbol)
                 && declaration.pending_target_observation
                 && declaration.evaluated_value.is_none()
         })
+}
+
+/// Recast formation consumes the actual source and target storage geometry.
+/// Plain scalar bit/qualification views remain semantic constants. Only an
+/// unresolved representation application defers this operation's value job.
+fn has_pending_recast_geometry(
+    typed: &TypedTrees,
+    selection: &typed_trees::references::DeclarationSelection,
+) -> bool {
+    let casts = typed_trees::references::collect_selected_program_references(typed, selection)
+        .expressions
+        .into_iter()
+        .filter_map(
+            |expression| match typed.expression_table.expression(expression) {
+                ExpressionNode::Cast(cast) if cast.form.recast_access().is_some() => {
+                    Some((expression, cast))
+                }
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+    if casts.is_empty() {
+        return false;
+    }
+    let owners = typed_trees::references::collect_program_operand_owners(typed);
+    casts.into_iter().any(|(expression, cast)| {
+        if validation::pending_layout_geometry(typed, [cast.target_type]) {
+            return true;
+        }
+        owners
+            .expression_owners(expression)
+            .filter(|owner| selection.contains(*owner))
+            .any(|owner| {
+                let Some(machine) = typed
+                    .machine_by_symbol(owner)
+                    .or_else(|| typed.machine_holding_state(owner))
+                else {
+                    return false;
+                };
+                typed.machine_states(machine).iter().any(|state| {
+                    validation::declared_place_type_raw(typed, machine, Some(state), cast.value)
+                        .is_some_and(|source| validation::pending_layout_geometry(typed, [source]))
+                })
+            })
+    })
 }
 
 /// Supplies a fresh measurement view for one query pass. Evaluation can install
@@ -70,6 +104,9 @@ pub struct LayoutApplicationTargetInput {
     /// declaration. Forked program interners rehydrate it before handle joins.
     pub application_identity: String,
     pub target: layout_plans::LayoutTargetFacts,
+    /// Actual demanding occurrence in this same typed invocation, not every
+    /// reference elsewhere to the selected policy declaration.
+    pub lexical_owner: symbols::SymbolHandle,
 }
 
 pub trait LayoutQueryProvider {

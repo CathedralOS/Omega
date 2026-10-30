@@ -32,6 +32,8 @@ pub(crate) struct AggregateBacking {
     /// a typed re-view may itself borrow an already captured byte region.
     pub(crate) region: Option<AggregateViewRegion>,
     pub(crate) byte_region: Option<super::ReferenceByteRegion>,
+    pub(crate) collection_home: Option<crate::element_views::ElementViewHome>,
+    pub(crate) array_loan: Option<crate::element_views::ElementView>,
 }
 
 impl AggregateViewRegion {

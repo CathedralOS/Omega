@@ -169,7 +169,7 @@ fn discover_layout_checking_targets(
 /// semantic members, not erased implementation arguments or nominal headers.
 /// No caller may use this test to claim geometry: it only withholds preliminary
 /// physical judgments until policy evaluation installs their complete inputs.
-pub(crate) fn pending_layout_geometry(
+pub fn pending_layout_geometry(
     program: &dyn CheckingInput,
     roots: impl IntoIterator<Item = TypeReferenceHandle>,
 ) -> bool {

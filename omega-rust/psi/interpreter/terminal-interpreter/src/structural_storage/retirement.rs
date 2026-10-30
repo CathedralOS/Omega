@@ -141,6 +141,11 @@ impl RetainedStorage {
     ) {
         use crate::primitive_storage::PrimitiveStorageEndpoint;
         match endpoint {
+            PrimitiveStorageEndpoint::Projection { fragments, .. } => {
+                for fragment in fragments {
+                    self.primitive_endpoint(&fragment.storage.endpoint);
+                }
+            }
             PrimitiveStorageEndpoint::OwnedArrayElement { home, .. } => self.primitive_home(*home),
             PrimitiveStorageEndpoint::ArrayElement { array, .. } => self.array_storage(array),
             _ => {}

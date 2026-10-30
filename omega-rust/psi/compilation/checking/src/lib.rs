@@ -543,7 +543,9 @@ pub(crate) use optimization::digest_encoder;
 pub mod expression_traversal;
 mod frozen_program;
 mod layout_checking;
-pub use layout_checking::{LayoutCheckingContext, layout_checking_targets};
+pub use layout_checking::{
+    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
+};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;

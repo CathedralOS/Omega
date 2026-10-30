@@ -725,7 +725,13 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             if let Some(view) = view {
                 return self
-                    .aggregate_view_primitive_access(&referent, view, &path[crossing + 1..])
+                    .aggregate_view_primitive_access(
+                        &referent,
+                        view,
+                        &path[crossing + 1..],
+                        None,
+                        writing,
+                    )
                     .map(Some);
             }
             let suffix = &path[crossing + 1..];
@@ -827,6 +833,8 @@ impl TerminalExecution<'_> {
         referent: &TerminalStructuralValue,
         view: crate::reference::AggregateViewTip,
         suffix: &[StructuralPathSegment],
+        home: Option<&crate::element_views::ElementViewHome>,
+        writing: bool,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
         let types = self.program.structural_types();
         let crate::reference::AggregateViewTip::Aggregate { view, backing } = view else {
@@ -846,7 +854,13 @@ impl TerminalExecution<'_> {
             byte_length,
         } = tip
         {
-            return self.aggregate_projection_storage(referent, observed, byte_length);
+            return self.aggregate_projection_storage(
+                referent,
+                observed,
+                byte_length,
+                home,
+                writing,
+            );
         }
         let crate::reference::AggregateViewTip::Scalar {
             view: observed,
@@ -860,11 +874,12 @@ impl TerminalExecution<'_> {
                 "aggregate re-view backing scalar has no retained cell coordinate",
             ),
         )?;
-        let (mut storage, _, shared_view) = self.primitive_view_access(
+        let (mut storage, _, shared_view) = self.original_view_primitive_access(
             referent,
-            canonical.as_slice(),
+            home,
+            &canonical,
             stored.logical_scalar,
-            false,
+            writing,
         )?;
         if storage
             .encoding
@@ -886,6 +901,30 @@ impl TerminalExecution<'_> {
             });
         }
         Ok((storage, observed.logical_scalar, shared_view))
+    }
+
+    fn original_view_primitive_access(
+        &self,
+        referent: &TerminalStructuralValue,
+        home: Option<&crate::element_views::ElementViewHome>,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+        writing: bool,
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        match home {
+            Some(home) => {
+                let suffix = terminal_semantics::canonical_structural_storage_path(
+                    self.program.structural_types().values(),
+                    referent.structural_type,
+                    path,
+                )
+                .ok_or_else(malformed)?;
+                let mut selected = home.path.clone();
+                selected.extend(suffix);
+                self.primitive_home_access(home.storage, writing, &selected)
+            }
+            None => self.primitive_view_access(referent, path, scalar_type, false),
+        }
     }
 
     pub(crate) fn capture_primitive_home(
@@ -1267,6 +1306,8 @@ impl TerminalExecution<'_> {
                         backing: backing.value.structural_type,
                     },
                     path,
+                    backing.collection_home.as_ref(),
+                    writing,
                 )?;
                 return Ok((storage, scalar_type, shared_view));
             }
@@ -1917,8 +1958,15 @@ impl TerminalExecution<'_> {
         let (carrier, view) =
             self.resolve_live_view_projection(source, prefix, StructuralAccess::SharedBorrow)?;
         if let Some(view) = view {
-            let (storage, logical_scalar, shared_view) =
-                self.aggregate_view_primitive_access(&carrier, view, field_path)?;
+            let (storage, logical_scalar, shared_view) = self.aggregate_view_primitive_access(
+                &carrier,
+                view,
+                field_path,
+                self.aggregate_argument_backings
+                    .get(&source)
+                    .and_then(|backing| backing.collection_home.as_ref()),
+                false,
+            )?;
             return self
                 .read_primitive_storage(source, storage, logical_scalar, scalar_type, shared_view)
                 .map(Some);

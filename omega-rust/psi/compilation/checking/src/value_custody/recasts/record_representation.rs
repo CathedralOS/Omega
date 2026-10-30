@@ -101,6 +101,7 @@ struct MutableRecordLeaf {
     primitive: typed_trees::types::PrimitiveType,
     stored_integer: Option<(u16, layout_plans::IntegerInterpretation)>,
     byte_projection: bool,
+    bit_fragments: Vec<typed_trees::PlanLaidBitFragment>,
     arrays: Vec<NormalizedArrayStep>,
 }
 
@@ -825,6 +826,26 @@ fn mutable_record_representation_inner_body(
         for bit_field in &plan.bit_fields {
             for leaf in &mut fields.get_mut(bit_field.field_index)?.leaves {
                 leaf.byte_projection = false;
+                leaf.bit_fragments = bit_field
+                    .fragments
+                    .iter()
+                    .map(|fragment| {
+                        let mut fragment = *fragment;
+                        fragment.container_byte_offset = fragment
+                            .container_byte_offset
+                            .checked_sub(plan.offsets[bit_field.field_index])?;
+                        Some(fragment)
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                leaf.bit_fragments.sort_by_key(|fragment| {
+                    (
+                        fragment.container_byte_offset,
+                        fragment.container_width_bits,
+                        fragment.destination_lsb,
+                        fragment.source_lsb,
+                        fragment.width,
+                    )
+                });
             }
         }
         for repeated_field in &plan.repeated_fields {
@@ -934,6 +955,7 @@ fn mutable_record_type_representation_body(
             primitive,
             stored_integer: None,
             byte_projection: true,
+            bit_fragments: Vec::new(),
             arrays: Vec::new(),
         });
         return Some(MutableRecordRepresentation {
@@ -1056,6 +1078,7 @@ fn representation_values_imply(
         if source_leaf.offset == target.offset
             && source_leaf.size == target.size
             && source_leaf.byte_projection == target.byte_projection
+            && source_leaf.bit_fragments == target.bit_fragments
             && scalar_representation_facts_imply(program, &source_leaf.facts, &target.facts)
         {
             return true;
@@ -1212,6 +1235,7 @@ mod representation_implication_tests {
             primitive: PrimitiveType::U64,
             stored_integer: None,
             byte_projection: true,
+            bit_fragments: Vec::new(),
             arrays: Vec::new(),
         }
     }
@@ -1269,6 +1293,39 @@ mod representation_implication_tests {
             &program, &source, &target
         ));
         target.leaves[0].facts.values = ScalarRepresentationSet::ExactBitPatterns(vec![(0, 1)]);
+        assert!(!record_representation_implies(&program, &source, &target));
+    }
+
+    #[test]
+    fn equal_logical_facts_require_the_same_fragment_encoding() {
+        let program = typed_trees::TypedTrees::default();
+        let mut source = MutableRecordRepresentation {
+            size: 8,
+            align: 8,
+            leaves: vec![leaf(0, 8, (1, 1))],
+        };
+        source.leaves[0].byte_projection = false;
+        source.leaves[0].bit_fragments = vec![
+            typed_trees::PlanLaidBitFragment {
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 32,
+            },
+            typed_trees::PlanLaidBitFragment {
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 32,
+                source_lsb: 32,
+                width: 32,
+            },
+        ];
+        let mut target = source.clone();
+        target.align = 1;
+        assert!(record_representation_implies(&program, &source, &target));
+        target.leaves[0].bit_fragments[0].source_lsb = 32;
+        target.leaves[0].bit_fragments[1].source_lsb = 0;
         assert!(!record_representation_implies(&program, &source, &target));
     }
 
