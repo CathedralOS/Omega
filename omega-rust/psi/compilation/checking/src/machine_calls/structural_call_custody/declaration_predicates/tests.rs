@@ -316,3 +316,5 @@ fn unresolved_nested_array_extents_cannot_hide_payload_requirements() {
         definition
     ));
 }
+
+mod own_fact_reuse;

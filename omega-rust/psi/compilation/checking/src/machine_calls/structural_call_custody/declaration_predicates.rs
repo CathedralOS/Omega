@@ -191,40 +191,67 @@ pub fn machine_declaration_predicates(
 /// Whether every own and reachable owned `where` fact has complete roster
 /// evidence. A store of an unrelated common field cannot skip this recursive
 /// fence merely because its destination path never enters a case payload.
-pub fn declaration_facts_carried(
-    program: &dyn crate::CheckingInput,
+pub fn declaration_facts_carried<'program>(
+    program: &'program dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
-    definition: &DataDefinition,
+    definition: &'program DataDefinition,
 ) -> bool {
-    complete_definition_storage(program, operators, definition, &mut Vec::new())
+    complete_definition_storage(
+        program,
+        operators,
+        definition,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
-fn complete_definition_storage(
-    program: &dyn crate::CheckingInput,
+fn complete_definition_storage<'program>(
+    program: &'program dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
-    definition: &DataDefinition,
+    definition: &'program DataDefinition,
     visited: &mut Vec<StorageDefinitionIdentity>,
+    checked_own_facts: &mut Vec<&'program DataDefinition>,
 ) -> bool {
     // Emission cannot revisit an inline recursive owner. Borrowed referents
     // and empty arrays are excluded by the same storage traversal below.
-    if visited.contains(&StorageDefinitionIdentity::of(definition))
-        || !definition_own_facts_carried(program, operators, definition)
-    {
+    if visited.contains(&StorageDefinitionIdentity::of(definition)) {
         return false;
+    }
+    // This query fixes the program and operator roster. Reconstruct a
+    // nonempty own-fact set once for the exact borrowed declaration row;
+    // equal nominal/application identities can retain different field views.
+    // Never reuse subtree completion: every visit still checks its active
+    // cycle context and walks every owned child in the original order.
+    if !definition.where_facts.is_empty()
+        && !checked_own_facts
+            .iter()
+            .any(|known| std::ptr::eq(*known, definition))
+    {
+        if !definition_own_facts_carried(program, operators, definition) {
+            return false;
+        }
+        checked_own_facts.push(definition);
     }
     visited.push(StorageDefinitionIdentity::of(definition));
     let complete = owned_storage_fields(program, definition).all(|(_, field)| {
-        complete_owned_storage(program, operators, field.type_reference, visited)
+        complete_owned_storage(
+            program,
+            operators,
+            field.type_reference,
+            visited,
+            checked_own_facts,
+        )
     });
     visited.pop();
     complete
 }
 
-fn complete_owned_storage(
-    program: &dyn crate::CheckingInput,
+fn complete_owned_storage<'program>(
+    program: &'program dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     reference: TypeReferenceHandle,
     visited: &mut Vec<StorageDefinitionIdentity>,
+    checked_own_facts: &mut Vec<&'program DataDefinition>,
 ) -> bool {
     let carrier = program
         .type_reference_table
@@ -237,7 +264,13 @@ fn complete_owned_storage(
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(_),
-        } => complete_owned_storage(program, operators, *element_type, visited),
+        } => complete_owned_storage(
+            program,
+            operators,
+            *element_type,
+            visited,
+            checked_own_facts,
+        ),
         TypeReferenceNode::FixedArray { element_type, .. } => {
             // The roster can enumerate only an exact retained literal extent.
             // Never publish a partial element predicate list for another form.
@@ -245,7 +278,7 @@ fn complete_owned_storage(
         }
         TypeReferenceNode::Reference { .. } => true,
         _ => owned_data_definition(program, carrier).is_none_or(|definition| {
-            complete_definition_storage(program, operators, definition, visited)
+            complete_definition_storage(program, operators, definition, visited, checked_own_facts)
         }),
     }
 }
