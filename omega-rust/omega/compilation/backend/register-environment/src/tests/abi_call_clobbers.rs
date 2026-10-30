@@ -455,45 +455,38 @@ fn every_supported_target_selects_its_exact_scalar_call_abi() {
     }
 }
 
+/// Whether the target's scalar-call row clobbers every unit `names` names.
+fn call_clobbers(environment: &ValidatedTargetRegisterEnvironment, names: &[&str]) -> bool {
+    let row = environment.scalar_call_constraint().unwrap();
+    units_for_names(environment.physical().model(), names)
+        .iter()
+        .all(|unit| row.clobbers.contains(unit))
+}
+
+/// Whether the target's scalar-call row preserves every unit `names` names.
+fn call_preserves(environment: &ValidatedTargetRegisterEnvironment, names: &[&str]) -> bool {
+    let row = environment.scalar_call_constraint().unwrap();
+    units_for_names(environment.physical().model(), names)
+        .iter()
+        .all(|unit| !row.clobbers.contains(unit))
+}
+
 #[test]
 fn platform_abi_differences_are_explicit_call_clobber_facts() {
     let linux_x64 = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     let windows_x64 = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
-    for name in ["rsi", "xmm6"] {
-        let units = units_for_names(linux_x64.physical().model(), &[name]);
-        assert!(units.iter().all(|unit| {
-            linux_x64
-                .scalar_call_constraint()
-                .unwrap()
-                .clobbers
-                .contains(unit)
-        }));
-        assert!(units.iter().all(|unit| {
-            !windows_x64
-                .scalar_call_constraint()
-                .unwrap()
-                .clobbers
-                .contains(unit)
-        }));
-    }
+    // The System V row clobbers the second argument register and the low
+    // SIMD view; the Microsoft row preserves both.
+    assert!(call_clobbers(&linux_x64, &["rsi", "xmm6"]));
+    assert!(call_preserves(&windows_x64, &["rsi", "xmm6"]));
 
     let linux_arm64 = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
     let macos_arm64 = baseline_target_register_environment(NativeTarget::macos_arm64()).unwrap();
+    // Linux reserves x18 as the platform register, so its call row clobbers
+    // it; Darwin neither reserves nor clobbers it.
+    assert!(call_clobbers(&linux_arm64, &["x18"]));
+    assert!(call_preserves(&macos_arm64, &["x18"]));
     let x18 = units_for_names(linux_arm64.physical().model(), &["x18"]);
-    assert!(x18.iter().all(|unit| {
-        linux_arm64
-            .scalar_call_constraint()
-            .unwrap()
-            .clobbers
-            .contains(unit)
-    }));
-    assert!(x18.iter().all(|unit| {
-        !macos_arm64
-            .scalar_call_constraint()
-            .unwrap()
-            .clobbers
-            .contains(unit)
-    }));
     assert!(
         x18.iter()
             .all(|unit| macos_arm64.reservations().reserved_units().contains(unit))
