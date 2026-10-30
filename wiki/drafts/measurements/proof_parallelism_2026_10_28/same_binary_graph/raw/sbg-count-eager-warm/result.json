@@ -1,0 +1,83 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\same-binary-graph\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\sbg-count-eager-warm\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 12.529267700003402,
+  "cpu_seconds": 11.765625,
+  "exit_code": 0,
+  "kernel_seconds": 1.015625,
+  "user_seconds": 10.75,
+  "io": {
+    "read_operations": 4109,
+    "write_operations": 172,
+    "other_operations": 43851,
+    "read_bytes": 254766819,
+    "write_bytes": 352857,
+    "other_bytes": 1689668
+  },
+  "peak_working_set_bytes": 1021153280,
+  "peak_commit_bytes": 1027272704,
+  "page_faults_observed": 342950,
+  "memory_final_available": true,
+  "system_cpu_capacity_seconds": 401.0,
+  "system_busy_seconds": 319.4375,
+  "external_busy_seconds": 307.671875,
+  "external_busy_capacity_percent": 76.72615336658355,
+  "sampling_seconds": 0.1611936000190326,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.1165203000055044,
+  "producer": "same-binary-graph",
+  "compiler_sha256": "f9937869a10f89a4de04d4dd70be13bf89db74c3f4eb3f36a91b327ca9c58df9",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "ec7b832157f461d51da0c7b8c94b867610573bfab546a0be18ce1050f7435cfb",
+  "cache_mode": "warm reuse of own mode cold private cache",
+  "checking_seconds": 0.03426,
+  "lowering_seconds": 7.336578,
+  "graph_mode": "eager",
+  "graph_counts": {
+    "ready": [
+      [
+        "eager",
+        202
+      ],
+      [
+        "eager",
+        202
+      ],
+      [
+        "eager",
+        202
+      ],
+      [
+        "eager",
+        202
+      ]
+    ],
+    "builds": [
+      [
+        202,
+        202
+      ],
+      [
+        202,
+        202
+      ],
+      [
+        202,
+        202
+      ]
+    ]
+  },
+  "counts_enabled": true,
+  "warm_cache_from": "sbg-count-eager-cold",
+  "comparison": false
+}

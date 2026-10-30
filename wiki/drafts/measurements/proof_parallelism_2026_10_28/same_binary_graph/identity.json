@@ -1,0 +1,38 @@
+{
+  "base": "1c358b5fd09bb57a45081cc707c052fbe6c2dad3",
+  "logical_processors": 32,
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.15.1 (main, Oct 21 2026, 17:51:31) [MSC v.1951 64 bit (AMD64)]",
+  "cold_schedule": [
+    "LEEL",
+    "LEEL",
+    "ELLE",
+    "LEEL",
+    "ELLE",
+    "ELLE"
+  ],
+  "warm_orders": [
+    "EL",
+    "LE",
+    "LE",
+    "EL",
+    "EL",
+    "LE"
+  ],
+  "producer": {
+    "producer": "same-binary-graph",
+    "compiler_sha256": "f9937869a10f89a4de04d4dd70be13bf89db74c3f4eb3f36a91b327ca9c58df9",
+    "accepted_lock_sha256": "ec7b832157f461d51da0c7b8c94b867610573bfab546a0be18ce1050f7435cfb",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    },
+    "corpus_sha256": "3c56f1b4683e4e4339b02b1e8a12f4d70025db3e05ea4537726d6e73bc6ce01e",
+    "corpus_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "input_manifest_sha256": "ed2509429e3d6cc5c27aeb016d990505796de30b99554b02c89ad1db784f5ed4",
+  "sampling_interval_seconds": 0.25
+}
