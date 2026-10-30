@@ -112,10 +112,14 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
     let first = review(usize::MAX).expect("review product");
     let bytes = first.evidence.policy_canonical_bytes;
     assert_eq!(first.evidence.policy.package(), package);
-    assert_eq!(first.evidence.build_handoff.package(), package);
+    assert_eq!(first.evidence.build_handoff.package(), Some(package));
     assert_eq!(
         first.evidence.source_consumption_commitment,
-        first.evidence.build_handoff.source_consumption_commitment()
+        first
+            .evidence
+            .build_handoff
+            .source_consumption_commitment()
+            .expect("package Build retains its exact source consumption commitment")
     );
     assert_eq!(
         first
