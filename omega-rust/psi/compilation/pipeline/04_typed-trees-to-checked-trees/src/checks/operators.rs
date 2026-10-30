@@ -60,11 +60,7 @@ pub(crate) fn check_operator_resolution(
         }
     }
 
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 /// The binding-site rule (chapter 8): a domain-owned meaning participates only
