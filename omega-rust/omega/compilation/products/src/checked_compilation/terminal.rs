@@ -80,7 +80,6 @@ impl CheckedCompilation {
             evaluated_binding_identities: &providers.native_binding_identities,
             direct_boundary_leaves: execution.direct_boundary_leaves.iter().collect(),
             provider_declarations: &native_sources.declarations,
-            family_realizations: &native_sources.family_realizations,
             target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {
                 selected_provider_plans: &execution.selected_provider_plan_facts,

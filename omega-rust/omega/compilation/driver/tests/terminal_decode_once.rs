@@ -183,10 +183,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
                     carrier_layout: profile
                         .native_realization()
                         .map(runtime_abi::target_carrier_layout),
-                    targets: terminal_installation::target_context(
-                        artifact.view(),
-                        scope,
-                    ),
+                    targets: terminal_installation::target_context(artifact.view(), scope),
                     providers,
                     address_model: Ok(target::TargetSemantics::close_address_model(profile).map(
                         |model| terminal_installation::ScalarAddressModel {

@@ -65,7 +65,7 @@ pub fn admit_native_realization<'execution>(
     )
     .map_err(artifact_lowering_error)?;
     let input = input
-        .bind_selected_provider_coordinates(artifact, request.providers.selected_provider_plans)
+        .bind_selected_provider_coordinates(request.providers.selected_provider_plans)
         .map_err(|error| realization_error("selected provider coordinates", error))?;
     admit_prepared_native_realization(input, artifact, request)
 }

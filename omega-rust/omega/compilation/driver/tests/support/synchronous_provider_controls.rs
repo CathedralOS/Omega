@@ -98,10 +98,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
         .map_err(|error| format!("uncalled artifact: {error:?}"))?;
     let uncalled = CanonicalTerminalArtifact::from_bytes(&uncalled.to_bytes())
         .map_err(|error| format!("uncalled transport: {error:?}"))?;
-    let calls = terminal_installation::SynchronousCallGraph::new(
-        uncalled.semantic_module(),
-        None,
-    )?;
+    let calls = terminal_installation::SynchronousCallGraph::new(uncalled.semantic_module(), None)?;
     if !calls.from_root(quiet)?.boundaries.is_empty() {
         return Err("quiet entry unexpectedly calls a provider".into());
     }

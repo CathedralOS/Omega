@@ -52,7 +52,7 @@ pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
     AssumedBindingContractSelection, InstallationReachResolution,
     SelectedExternalRequirementApplication, SelectedProviderPlanCandidate,
-    SelectedProviderPlanFacts, SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
+    SelectedProviderPlanFacts, SelectedRequirementSpecialization,
 };
 
 #[cfg(test)]

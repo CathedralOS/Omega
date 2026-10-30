@@ -563,20 +563,6 @@ fn prepare_target_provider_publication(
             .target_name()
             .to_owned(),
     );
-    targets.extend(
-        checked_trees::ProofApplications::new(
-            &source.program.facts.proof_applications,
-            &source.program.facts.operational,
-        )
-        .scopes(
-            source
-                .selected_target_profile
-                .unwrap_or_else(target::TargetProfile::host)
-                .target_name(),
-        )
-        .into_iter()
-        .map(str::to_owned),
-    );
     targets.sort();
     targets.dedup();
     let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {

@@ -148,9 +148,7 @@ impl SelectedProgramEntryCall {
             .entry(
                 artifact.view().identity(),
                 module,
-                terminal_psi::TerminalCallable::Machine(
-                    entry.checked_entry().terminal_entry(),
-                ),
+                terminal_psi::TerminalCallable::Machine(entry.checked_entry().terminal_entry()),
             )
             .map_err(|reason| format!("semantic-entry target selection: {reason}"))?;
         // The selected source declaration receives exactly these two existing

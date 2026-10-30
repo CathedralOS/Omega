@@ -37,7 +37,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 75 retains declaration-owned linear obligations beneath whole claims.
 // Version 78 distinguishes reads of operation-local storage from source places.
 // Version 83 retains exact formal-relative provider requirement paths.
-const VERSION: u32 = 84;
+// Version85 removes retired source target-family call origins.
+const VERSION: u32 = 85;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;

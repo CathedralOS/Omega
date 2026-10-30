@@ -229,37 +229,6 @@ pub(crate) fn derive_physical_evidence(
             .get(&occurrence.boundary())
             .copied()
             .ok_or("native physical evidence names an absent boundary requirement")?;
-        // A family is selected by its exact deployment row, not by a provider
-        // plan. Its unchanged boundary occurrence still owns this emitted call.
-        let family = module.target_machine_families.iter().any(|family| {
-            family.canonical == terminal_psi::TerminalCallable::Boundary(occurrence.boundary())
-                && !family
-                    .members
-                    .iter()
-                    .any(|member| member.callable == family.canonical)
-        });
-        if family && installed.is_none() && foreign.is_none() {
-            if let Some(child) = derive_boundary_internal_call_child(
-                module,
-                terminal_artifact.manifest().semantic(),
-                object,
-                image,
-                occurrence,
-                projection.identity(),
-                requirement,
-                None,
-                target,
-                fragment_publication,
-            )? {
-                children.push(child);
-                continue;
-            }
-            return Ok(blocked(
-                NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
-                    occurrence: *occurrence,
-                },
-            ));
-        }
         let matching_plans = selected_provider_plans
             .iter()
             .filter(|plan| {
@@ -271,14 +240,7 @@ pub(crate) fn derive_physical_evidence(
         let [selected_plan] = matching_plans.as_slice() else {
             return Err("native physical evidence cannot rejoin one exact selected provider plan");
         };
-        super::provider_custody::validate_family_provider_custody(
-            terminal_artifact.manifest().semantic(),
-            module,
-            target,
-            occurrence.boundary(),
-            requirement,
-            selected_plan,
-        )?;
+        selected_plan.validate_external_requirement_applications()?;
         match (installed, foreign) {
             (Some(installed), None) => {
                 if let Some(builtin) = hosted_builtin_settlement(&installed.settlement) {
@@ -346,13 +308,12 @@ pub(crate) fn derive_physical_evidence(
                 // retained custody binds the occurrence here.
                 if let Some(child) = derive_boundary_internal_call_child(
                     module,
-                    terminal_artifact.manifest().semantic(),
                     object,
                     image,
                     occurrence,
                     projection.identity(),
                     requirement,
-                    Some(selected_plan),
+                    selected_plan,
                     target,
                     fragment_publication,
                 )? {

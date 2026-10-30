@@ -121,25 +121,6 @@ fn admit_checked_roster(
         return Err("selected provider plan belongs to another deployment target".into());
     }
     let module = artifact.module();
-    let target_members = terminal_installation::target_context(artifact, target);
-    for selection in supplied {
-        let callable = terminal_psi::TerminalCallable::Machine(selection.candidate);
-        for family in module.target_machine_families.iter().filter(|family| {
-            family
-                .members
-                .iter()
-                .any(|member| member.callable == callable)
-        }) {
-            let member = target_members
-                .member(family.canonical)
-                .map_err(|error| format!("provider target membership rejected: {error:?}"))?;
-            if member.callable() != callable {
-                return Err(
-                    "checked provider candidate belongs to another deployment target".into(),
-                );
-            }
-        }
-    }
     let dependencies =
         matching_folded_constant_dependencies(artifact, target, selected.plans().iter())?;
     let installation = terminal_installation::admit_provider_installation(
@@ -157,7 +138,7 @@ fn admit_checked_roster(
             .collect::<Vec<_>>(),
     )
     .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
-    synchronous_calls::validate(artifact, target, selected, declarations)?;
+    synchronous_calls::validate(artifact, selected, declarations)?;
     if artifact.module().folded_constants.target.is_some() {
         installation.admit_folded_constant_closure(artifact, target, &dependencies)
     } else {

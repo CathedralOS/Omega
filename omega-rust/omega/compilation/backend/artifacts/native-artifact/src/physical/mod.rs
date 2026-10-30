@@ -358,28 +358,10 @@ impl BoundaryTraitSettlement {
     }
 }
 
-/// Physical custody for a checked target-family member. This parent records
-/// selection from the immutable canonical roster, not provider installation
-/// or external execution authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetFamilyInternalCall {
-    terminal: TerminalPsiIdentity,
-    occurrence: OptimizedBoundaryOccurrence,
-    head_identity: String,
-    head_contract: [u8; 32],
-    member: terminal_psi::TargetMachineFamilyMember,
-    target: NativeTarget,
-    completion_claim_sources: Vec<target_operations::CompletionClaimSource>,
-    completion_receipts: Vec<terminal_psi::CompletionReceipt>,
-    call: BoundaryInternalCallCustody,
-    identity: [u8; 32],
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhysicalChildParent {
     OperatorApplicationCoverage(OperatorApplicationCoverageRef),
     BoundaryTraitSettlement(BoundaryTraitSettlement),
-    TargetFamilyInternalCall(TargetFamilyInternalCall),
 }
 
 impl PhysicalChildParent {
@@ -387,7 +369,6 @@ impl PhysicalChildParent {
         match self {
             Self::OperatorApplicationCoverage(reference) => *reference.coverage().as_bytes(),
             Self::BoundaryTraitSettlement(settlement) => *settlement.identity(),
-            Self::TargetFamilyInternalCall(call) => call.identity,
         }
     }
 
@@ -395,17 +376,16 @@ impl PhysicalChildParent {
         match self {
             Self::OperatorApplicationCoverage(_) => 1,
             Self::BoundaryTraitSettlement(_) => 2,
-            Self::TargetFamilyInternalCall(_) => 3,
         }
     }
 
     /// The semantic occurrence class is independent from the physical parent
-    /// kind encoded in its digest. Both family selection and provider settlement
-    /// retain an ordinary boundary occurrence, with distinct selection custody.
+    /// kind encoded in its digest. Provider settlement retains its exact
+    /// ordinary boundary occurrence and admitted installation custody.
     pub(crate) const fn occurrence_role_tag(&self) -> u8 {
         match self {
             Self::OperatorApplicationCoverage(_) => 1,
-            Self::BoundaryTraitSettlement(_) | Self::TargetFamilyInternalCall(_) => 2,
+            Self::BoundaryTraitSettlement(_) => 2,
         }
     }
 
@@ -422,11 +402,6 @@ impl PhysicalChildParent {
                 settlement.occurrence.terminal() == terminal
                     && occurrence
                         == NativePhysicalOccurrence::Boundary(settlement.occurrence.identity())
-            }
-            Self::TargetFamilyInternalCall(call) => {
-                call.terminal == terminal
-                    && call.occurrence.terminal() == terminal
-                    && occurrence == NativePhysicalOccurrence::Boundary(call.occurrence.identity())
             }
         }
     }

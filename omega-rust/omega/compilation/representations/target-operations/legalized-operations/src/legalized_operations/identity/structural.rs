@@ -81,19 +81,6 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
             bytes.extend_from_slice(source_signature);
             encode_completion_roster(bytes, completion_claim_sources, completion_receipts);
         }
-        NativeCallOrigin::TargetFamily {
-            boundary,
-            member,
-            target,
-            completion_claim_sources,
-            completion_receipts,
-        } => {
-            bytes.push(3);
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
-            bytes.extend_from_slice(&member.get().to_le_bytes());
-            encode_string(bytes, target);
-            encode_completion_roster(bytes, completion_claim_sources, completion_receipts);
-        }
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,

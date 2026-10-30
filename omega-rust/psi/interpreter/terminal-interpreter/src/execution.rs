@@ -92,7 +92,6 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) boundary_supplies:
         BTreeMap<BoundaryMachineId, crate::effects::AdmittedBoundarySupply>,
     /// Exact family catalog selection, never provider or boundary issuance.
-    pub(crate) target_context: Option<terminal_installation::TerminalTargetContext>,
     /// Root-authorized assumed binding contracts admitted with the provider
     /// installation. They are conditional evidence on this execution, not
     /// checked redirects: call custody keeps consulting only
@@ -592,8 +591,6 @@ impl<'artifact> TerminalExecution<'artifact> {
             boundary_supplies: installation
                 .map(|installation| installation.supplies.clone())
                 .unwrap_or_default(),
-            target_context: installation
-                .and_then(|installation| installation.target_context.clone()),
             assumed_bindings: installation
                 .map(|installation| installation.assumed_bindings.clone())
                 .unwrap_or_default(),

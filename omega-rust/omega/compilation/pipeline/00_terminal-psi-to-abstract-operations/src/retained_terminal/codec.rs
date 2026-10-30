@@ -20,7 +20,7 @@ use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
 // Combined native catalogue custody differs from both predecessor records.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI08";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI09";
 
 #[cfg(test)]
 mod tests {
@@ -68,7 +68,6 @@ fn capture(
         direct_boundary_leaves,
         provider_declarations,
         target_profile,
-        family_realizations,
         boundaries,
         native_target,
         program_entry,
@@ -93,7 +92,6 @@ fn capture(
     }
     write_values(provider_declarations, &mut output)?;
     target_profile.write(&mut output)?;
-    write_values(family_realizations, &mut output)?;
     // Canonical Terminal owns checked-body associations. Persist only the
     // independent source selections; recovery closes their instances normally.
     boundaries
@@ -169,7 +167,6 @@ struct DerivationInputs {
     leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     provider_declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
     profile: Option<target::TargetProfile>,
-    families: Vec<backend_plan::SelectedFamilyRealizationSource>,
     selected: effects::SelectedProviderPlanFacts,
     intrinsic_provenance: Vec<IntrinsicPlanRecord>,
     calling: Vec<calling_conventions::BoundaryCallingApplication>,
@@ -202,7 +199,6 @@ impl DerivationInputs {
             leaves: RecordValue::read(input)?,
             provider_declarations: RecordValue::read(input)?,
             profile: RecordValue::read(input)?,
-            families: RecordValue::read(input)?,
             selected: RecordValue::read(input)?,
             intrinsic_provenance: RecordValue::read(input)?,
             calling: RecordValue::read(input)?,
@@ -248,7 +244,6 @@ pub fn recover_native_derivation_inputs(
         leaves,
         provider_declarations,
         profile,
-        families,
         selected,
         intrinsic_provenance,
         calling,
@@ -284,7 +279,6 @@ pub fn recover_native_derivation_inputs(
         direct_boundary_leaves: leaves.iter().collect(),
         provider_declarations: &provider_declarations,
         target_profile: profile,
-        family_realizations: &families,
         boundaries: crate::BoundaryApplicationSettlement {
             selected_provider_plans: &selected,
             selected_provider_provenance: intrinsic_provenance

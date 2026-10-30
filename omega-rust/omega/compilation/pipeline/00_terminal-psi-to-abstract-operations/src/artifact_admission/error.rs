@@ -3,7 +3,7 @@ use crate::lowering::LoweringError;
 #[derive(Debug)]
 pub enum ArtifactLoweringError {
     TargetSelectionRequired,
-    TargetFamily(String),
+    ExecutionSelection(String),
     SemanticDecode(terminal_codec::CodecError),
     /// A placed-view roster row is bound by its call rather than by the
     /// executable's host, or a declared direct-entry row was left without a

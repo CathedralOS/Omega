@@ -86,13 +86,13 @@ impl EvidenceGapKind {
             EvidenceGapKind::UnknownEntry => {
                 "the selected entry is not retained in the module".to_owned()
             }
-            EvidenceGapKind::TargetFamilySelection {
-                head,
+            EvidenceGapKind::ProviderSelection {
+                boundary,
                 target,
                 reason,
             } => {
                 format!(
-                    "target-family head {head} has incomplete member evidence for deployment `{target}`: {reason}"
+                    "boundary {boundary} has incomplete selected provider evidence for target `{target}`: {reason}"
                 )
             }
         }

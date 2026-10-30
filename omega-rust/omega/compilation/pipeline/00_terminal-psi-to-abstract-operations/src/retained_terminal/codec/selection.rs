@@ -8,7 +8,6 @@ record_fields!(effects::SelectedProviderPlanCandidate {
     installation_reach_resolutions,
     specialized_requirement_rows,
     external_requirement_applications,
-    family_realization_rows,
     toolchain_settled_identities,
     identities,
 });

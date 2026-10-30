@@ -64,7 +64,7 @@ impl PreparedNativeExecution {
             .lower(artifact, &[], &selection)
             .map_err(crate::native_admission::artifact_lowering_error)?;
         input
-            .bind_selected_provider_coordinates(artifact, &self.selection)
+            .bind_selected_provider_coordinates(&self.selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
 }
@@ -109,7 +109,7 @@ impl PreparedNativeWork<'_> {
             )
             .map_err(crate::native_admission::artifact_lowering_error)?;
         let input = input
-            .bind_selected_provider_coordinates(self.artifact, &self.execution.selection)
+            .bind_selected_provider_coordinates(&self.execution.selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok((input, self.execution))
     }
@@ -331,7 +331,6 @@ impl TerminalNativeRealizationProposal {
         };
         let mut demands = BTreeSet::new();
         let mut direct_demands = BTreeSet::new();
-        let mut family_members = Vec::new();
         for boundary in module
             .boundary_machines
             .iter()
@@ -347,26 +346,7 @@ impl TerminalNativeRealizationProposal {
             {
                 continue;
             }
-            match crate::optimization::target_family_member(
-                module,
-                Some(&scope.targets),
-                boundary.id,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?
-            {
-                Some(terminal_psi::TerminalCallable::Boundary(member)) => {
-                    let member = module.boundary_machine(member).ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "foreign family lost its exact target member",
-                        )]
-                    })?;
-                    direct_demands.insert(identity(member)?.to_owned());
-                    family_members.push((boundary, member));
-                }
-                _ => {
-                    direct_demands.insert(name.to_owned());
-                }
-            }
+            direct_demands.insert(name.to_owned());
         }
         let mut direct = Vec::new();
         let mut external_bindings = self.providers().external_bindings.clone();
@@ -380,33 +360,11 @@ impl TerminalNativeRealizationProposal {
                 }
             }
         }
-        let mut selection = self
+        let selection = self
             .providers()
             .selection
             .clone()
             .with_direct_boundary_plans(direct)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let mut family_rows = selection.family_realization_rows().to_vec();
-        let mut identities = selection.identities().clone().into_builder();
-        for (head, member) in family_members {
-            let Some((plan, row)) = selection.selected_requirement_row(identity(member)?) else {
-                continue;
-            };
-            family_rows.push(effects::SelectedTargetFamilyRealization {
-                terminal: artifact.manifest().semantic(),
-                target: self.target_profile().target_name().to_owned(),
-                head: head.id,
-                member: member.id,
-                head_identity: identities.intern(identity(head)?),
-                member_identity: identities.intern(identity(member)?),
-                selected_requirement_identity: identities
-                    .intern(plan.identities.text(row.requirement_identity)),
-                provider_plan_report_identity: plan.report_fingerprint(),
-                provider_plan_digest: plan.identity_digest(),
-            });
-        }
-        selection = selection
-            .with_family_realization_rows(family_rows, &identities.build())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         // Selection may reorder plans when executable direct dependencies
         // join. Rejoin complete plans, then derive every builtin in that one

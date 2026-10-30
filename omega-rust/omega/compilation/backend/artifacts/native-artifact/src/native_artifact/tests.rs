@@ -263,7 +263,7 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
         NativeSelectedProviderPlanDigest::from_digest(*digest.as_bytes()),
         vec![closed.into()],
     );
-    plan.family_realization_identities = identities.clone();
+    plan.requirement_application_identities = identities.clone();
     plan.external_requirement_applications
         .push(effects::SelectedExternalRequirementApplication {
             provider_plan_report_identity: 7,

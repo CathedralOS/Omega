@@ -576,19 +576,6 @@ pub(super) fn populate(
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
             },
-            NativeCallOrigin::TargetFamily {
-                boundary,
-                member,
-                target,
-                completion_claim_sources,
-                completion_receipts,
-            } => InternalUnitCallSource::TargetFamily {
-                boundary: *boundary,
-                member: *member,
-                target: target.clone(),
-                completion_claim_sources: completion_claim_sources.clone(),
-                completion_receipts: completion_receipts.clone(),
-            },
             NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,

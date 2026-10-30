@@ -24,10 +24,8 @@ pub(super) fn prepare<'host, 'artifact>(
             "component runtime companions name another producing occurrence",
         ));
     }
-    let target_machines = terminal_interpreter::target_context(
-        artifact,
-        runtime.target().target_name(),
-    );
+    let target_machines =
+        terminal_interpreter::target_context(artifact, runtime.target().target_name());
     let facts = super::layout_target_facts(runtime.target().target_name()).map_err(|error| {
         TerminalRuntimeError::Requirements(
             terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
@@ -62,9 +60,7 @@ pub(super) fn prepare<'host, 'artifact>(
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags,
             memory_ordering,
-            entry: Some(terminal_psi::TerminalCallable::Machine(
-                runtime.entry(),
-            )),
+            entry: Some(terminal_psi::TerminalCallable::Machine(runtime.entry())),
             installation: runtime
                 .scalar_applications()
                 .map(|completed| completed.primary().providers())

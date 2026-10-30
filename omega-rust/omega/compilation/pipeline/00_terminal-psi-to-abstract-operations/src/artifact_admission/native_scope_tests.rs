@@ -155,7 +155,7 @@ fn native_scope_preserves_target_member_exclusion() {
     module.entry = Some(callable(2));
     assert!(matches!(
         prepare(module.clone()),
-        Err(ArtifactLoweringError::TargetFamily(_))
+        Err(ArtifactLoweringError::ExecutionSelection(_))
     ));
     assert!(matches!(
         prepare_at(module, target::TargetProfile::WindowsX64),

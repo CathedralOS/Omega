@@ -7,7 +7,7 @@
 
 use super::{CheckedTrees, LoweringError, UnitPlans, unsupported};
 use checked_trees::{CheckedUnitRecordStorage, CheckedUnitStructuralTypeShape};
-use semantic_vocabulary::{AuthoredRecordStorage, MachineId, StructuralTypeId};
+use semantic_vocabulary::{AuthoredRecordStorage, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,

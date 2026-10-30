@@ -124,7 +124,7 @@ pub(crate) fn admit_native_providers<'request>(
         settlements::settle_provider_executions(input, request, artifact.view().identity())?;
     let mut settlements = settlements;
     let (builtin_settlements, builtin_mechanisms) =
-        compiler_builtins::settle_compiler_builtins(input, request)?;
+        compiler_builtins::settle_compiler_builtins(input, request, installation.as_ref())?;
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
     for settlement in &settlements {

@@ -240,15 +240,6 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
             .flat_map(|table| table.rows.iter().flatten())
             .copied(),
     );
-    roots.extend(module.target_machine_families.iter().flat_map(|family| {
-        family
-            .members
-            .iter()
-            .filter_map(|member| match member.callable {
-                terminal_psi::TerminalCallable::Machine(machine) => Some(machine),
-                terminal_psi::TerminalCallable::Boundary(_) => None,
-            })
-    }));
     for coercion in &module.scalar_qualifications.coercions {
         roots.insert(coercion.machine);
     }

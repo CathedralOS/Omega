@@ -95,7 +95,16 @@ pub(crate) fn check_with_private_entry_ram(
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
     let mut placed_candidates = Vec::new();
-    let mut selected_calls = Vec::new();
+    let selected_calls = installation
+        .into_iter()
+        .flat_map(|installation| &installation.supplies)
+        .filter_map(|(&boundary, supply)| match supply {
+            crate::effects::AdmittedBoundarySupply::CheckedProvider(machine) => {
+                Some((boundary, *machine))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
     let mut scalar_applications = BTreeSet::new();

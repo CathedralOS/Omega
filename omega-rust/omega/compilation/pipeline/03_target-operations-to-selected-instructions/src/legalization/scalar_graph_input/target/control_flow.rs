@@ -359,11 +359,6 @@ pub(super) fn validate(
                                             && provider.candidate == *callee
                                             && plan.provider_candidates.contains(provider)
                                     }
-                                    target_operations::NativeCallOrigin::TargetFamily {
-                                        boundary: required,
-                                        member,
-                                        ..
-                                    } => required == boundary && member == callee,
                                     target_operations::NativeCallOrigin::Authored
                                     | target_operations::NativeCallOrigin::ProgramEntry {
                                         ..

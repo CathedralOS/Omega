@@ -138,7 +138,7 @@ pub(super) fn validate_foreign_provider_binding(
             plan.report_identity == foreign.provider_execution.provider_plan_report_identity
         })
         .ok_or("native external call names an unselected provider plan")?;
-    let binding_identities = selected_plan.family_realization_identities();
+    let binding_identities = selected_plan.requirement_application_identities();
     let selected_requirement = selected_plan.selected_requirement_identity(requirement);
     if foreign.binding.requirement_identity(binding_identities) != Some(selected_requirement)
         || !foreign.binding.has_valid_entry_mechanism()

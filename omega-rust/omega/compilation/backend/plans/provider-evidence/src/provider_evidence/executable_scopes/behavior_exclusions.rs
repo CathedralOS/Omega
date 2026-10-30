@@ -52,8 +52,8 @@ use semantic_vocabulary::{
 };
 use std::collections::VecDeque;
 use terminal_psi::{
-    CrashCause, OperationKind, ProviderCandidateConformance, TerminalCallable,
-    TargetMachineSupply, TerminalMachine, TerminalModule, Terminator,
+    CrashCause, OperationKind, ProviderCandidateConformance, TerminalMachine, TerminalModule,
+    Terminator,
 };
 
 /// One exact exclusion selected by the build root.
@@ -235,8 +235,8 @@ pub enum EvidenceGapKind {
     UnknownCallee(MachineId),
     UnknownBoundary(BoundaryMachineId),
     UnknownBoundaryService(BoundaryMachineId),
-    TargetFamilySelection {
-        head: BoundaryMachineId,
+    ProviderSelection {
+        boundary: BoundaryMachineId,
         target: String,
         reason: String,
     },
@@ -339,7 +339,6 @@ pub fn establish_behavior_exclusions(
 /// bound realizations the retained catalog cannot name.
 fn boundary_realization_coverage(
     module: &TerminalModule,
-    boundary: BoundaryMachineId,
     candidates: &[&ProviderCandidateConformance],
     selected_provider_plans: &crate::SelectedProviderPlanFacts,
     deployment_target: &str,
@@ -361,39 +360,6 @@ fn boundary_realization_coverage(
         identities
     };
     for requirement_identity in requirement_identities {
-        if let Some(family_row) =
-            selected_provider_plans.family_realization_row(requirement_identity)
-        {
-            let head = module.boundary_machine(family_row.head);
-            let member = module.boundary_machine(family_row.member);
-            let selected_member = terminal_installation::resolve_target_machine_member(
-                module,
-                TerminalCallable::Boundary(family_row.head),
-                deployment_target,
-            )
-            .map_err(|error| error.to_string())?;
-            if family_row.target != deployment_target
-                || head.is_none_or(|declaration| {
-                    module.identities.text(declaration.identity)
-                        != selected_provider_plans
-                            .identities()
-                            .text(family_row.head_identity)
-                })
-                || member.is_none_or(|declaration| {
-                    module.identities.text(declaration.identity)
-                        != selected_provider_plans
-                            .identities()
-                            .text(family_row.member_identity)
-                })
-                || selected_member.is_none_or(|selected| {
-                    selected.callable != TerminalCallable::Boundary(family_row.member)
-                        || selected.supply == TargetMachineSupply::CheckedBody
-                        || family_row.member != boundary
-                })
-            {
-                return Err("selected provider family row disagrees with the exact catalog member or deployment".to_owned());
-            }
-        }
         let mut constrained = false;
         // Terminal candidates name closed requirement identities and
         // specialized provider instances; a template-keyed selected row
@@ -625,61 +591,17 @@ fn inspect_boundary<'module>(
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module TerminalMachine>,
 ) {
-    // A generated head is the portable checking contract, not
-    // this deployment's executable behavior. Resolve before
-    // accounting ordinary opaque service/provider contracts.
-    let selected_member = terminal_installation::resolve_target_machine_member(
-        module,
-        TerminalCallable::Boundary(called_boundary),
-        deployment_target,
-    );
-    let family_gap = |reason| EvidenceGap {
+    let boundary = called_boundary;
+    let selection_gap = |reason| EvidenceGap {
         entry,
         machine,
         block: Some(block),
         operation: invocation.operation(),
-        kind: EvidenceGapKind::TargetFamilySelection {
-            head: called_boundary,
+        kind: EvidenceGapKind::ProviderSelection {
+            boundary,
             target: deployment_target.to_owned(),
             reason,
         },
-    };
-    let boundary = match selected_member {
-        Ok(Some(member)) => match (member.callable, member.supply) {
-            (
-                TerminalCallable::Machine(callee),
-                TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
-            ) => {
-                match module.machine(callee) {
-                    Some(target) => pending.push_back(target),
-                    None => report.gaps.push(EvidenceGap {
-                        entry,
-                        machine,
-                        block: Some(block),
-                        operation: invocation.operation(),
-                        kind: EvidenceGapKind::UnknownCallee(callee),
-                    }),
-                }
-                return;
-            }
-            (TerminalCallable::Boundary(member), supply)
-                if supply != TargetMachineSupply::CheckedBody =>
-            {
-                member
-            }
-            _ => {
-                report.gaps.push(family_gap(format!(
-                    "selected callable {:?} has unsupported supply {:?}",
-                    member.callable, member.supply,
-                )));
-                return;
-            }
-        },
-        Ok(None) => called_boundary,
-        Err(error) => {
-            report.gaps.push(family_gap(error.to_string()));
-            return;
-        }
     };
     let Some(declaration) =
         terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
@@ -735,7 +657,6 @@ fn inspect_boundary<'module>(
         .collect();
     let coverage = boundary_realization_coverage(
         module,
-        boundary,
         &candidates,
         selected_provider_plans,
         deployment_target,
@@ -743,7 +664,7 @@ fn inspect_boundary<'module>(
     let (realizations, needs_contract) = match coverage {
         Ok(coverage) => coverage,
         Err(reason) => {
-            report.gaps.push(family_gap(reason));
+            report.gaps.push(selection_gap(reason));
             return;
         }
     };

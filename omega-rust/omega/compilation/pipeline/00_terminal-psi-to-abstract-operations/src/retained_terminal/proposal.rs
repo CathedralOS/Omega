@@ -10,7 +10,6 @@ use super::{
     TerminalNativeBodyProposal, TerminalNativeBoundaryApplications, TerminalNativeOccurrences,
     TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
-use backend_plan::SelectedFamilyRealizationSource;
 use diagnostics::Diagnostic;
 
 /// Borrow this target's source-side selections while closing them against one
@@ -23,7 +22,6 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
     pub provider_declarations: &'input [backend_plan::TerminalTargetProviderPlan],
     pub target_profile: Option<target::TargetProfile>,
-    pub family_realizations: &'input [SelectedFamilyRealizationSource],
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
     pub native_target: Option<target::NativeTarget>,
     pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
@@ -35,80 +33,6 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-}
-
-fn close_family_realizations(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    profile: target::TargetProfile,
-    selected: &effects::SelectedProviderPlanFacts,
-    sources: &[SelectedFamilyRealizationSource],
-) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
-    use terminal_psi::TerminalCallable;
-    let error = |message: String| vec![Diagnostic::error(message)];
-    let selections = terminal_installation::target_context(
-        artifact.view(),
-        profile.target_name(),
-    );
-    let module = artifact.semantic_module();
-    let mut rows = Vec::new();
-    // The requirement text is provider-side and absent from the module table,
-    // so the rows mint into a proposal-local table rather than `index_of`.
-    let mut row_identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    for source in sources {
-        let mut heads = module.boundary_machines.iter().filter(|boundary| {
-            boundary.declaration.as_ref().is_some_and(|declaration| {
-                module
-                    .identities
-                    .text(declaration.source.semantic_declaration)
-                    == Some(source.head_declaration_identity.as_str())
-                    && module.identities.text(declaration.source.callable)
-                        == Some(source.head_callable_identity.as_str())
-            })
-        });
-        let Some(head) = heads.next() else {
-            // An unretained source family creates no execution demand.
-            continue;
-        };
-        if heads.next().is_some() {
-            return Err(error(
-                "selected provider family has multiple retained heads".to_owned(),
-            ));
-        }
-        if source.target != selections.target() {
-            return Err(error(
-                "selected provider family has a different target".to_owned(),
-            ));
-        }
-        let selected_member = selections
-            .member(TerminalCallable::Boundary(head.id))
-            .map_err(|message| error(format!("selected provider family member: {message}")))?;
-        let TerminalCallable::Boundary(member_id) = selected_member.callable() else {
-            // Checked bodies execute through the ordinary family frame path.
-            continue;
-        };
-        let member = terminal_psi::find_boundary_machine(&module.boundary_machines, member_id)
-            .ok_or_else(|| {
-                error("selected provider family member declaration is absent".to_owned())
-            })?;
-        rows.push(effects::SelectedTargetFamilyRealization {
-            terminal: selections.terminal_psi(),
-            target: source.target.clone(),
-            head: head.id,
-            member: member.id,
-            head_identity: row_identities
-                .intern(module.identities.text(head.identity).unwrap_or_default()),
-            member_identity: row_identities
-                .intern(module.identities.text(member.identity).unwrap_or_default()),
-            selected_requirement_identity: row_identities
-                .intern(&source.selected_requirement_identity),
-            provider_plan_report_identity: source.provider_plan_report_identity,
-            provider_plan_digest: source.provider_plan_digest,
-        });
-    }
-    selected
-        .clone()
-        .with_family_realization_rows(rows, &row_identities.build())
-        .map_err(error)
 }
 
 /// Reconstruct the entry, provider and occurrence joins required by native
@@ -180,12 +104,6 @@ fn project_terminal_native_body(
         terminal_module,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    let selected = close_family_realizations(
-        artifact,
-        target_profile,
-        &selected,
-        request.family_realizations,
-    )?;
     // This closes static activation obligations, not executor installation.
     // The proposal is process-local: loaded code takes this same join once.
     task_plans::realize_task_activations(

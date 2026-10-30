@@ -257,9 +257,9 @@ pub fn execute_sliced(
             .provisions
             .map(|provisions| provisions.target_slot().owner.target_name())
     });
-    let target_machines = execution_target
-        .map(|target| terminal_interpreter::target_context(artifact, target));
-    let target_layouts = target_machines
+    let target_context =
+        execution_target.map(|target| terminal_interpreter::target_context(artifact, target));
+    let target_layouts = target_context
         .as_ref()
         .map(|selected| {
             let facts = layout_target_facts(selected.target())?;
@@ -314,7 +314,7 @@ pub fn execute_sliced(
                 .map(terminal_psi::TerminalCallable::Machine),
             installation: checked_installation,
             host_imports: &host_imports,
-            target_machines: target_machines.as_ref(),
+            target_context: target_context.as_ref(),
             target_layouts: target_layouts.as_ref(),
         })
         .map_err(TerminalRuntimeError::Requirements)?;

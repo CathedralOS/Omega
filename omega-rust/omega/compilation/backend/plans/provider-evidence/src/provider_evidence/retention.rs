@@ -10,7 +10,6 @@ pub struct SelectedProviderPlanCandidate {
     pub installation_reach_resolutions: Vec<InstallationReachResolution>,
     pub specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
     pub external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
-    pub family_realization_rows: Vec<SelectedTargetFamilyRealization>,
     pub toolchain_settled_identities: BTreeSet<u64>,
     pub identities: terminal_psi::TerminalIdentityTable,
 }
@@ -24,7 +23,6 @@ impl SelectedProviderPlanFacts {
             installation_reach_resolutions,
             specialized_requirement_rows,
             external_requirement_applications,
-            family_realization_rows,
             toolchain_settled_identities,
             identities,
         } = self;
@@ -35,7 +33,6 @@ impl SelectedProviderPlanFacts {
             installation_reach_resolutions: installation_reach_resolutions.clone(),
             specialized_requirement_rows: specialized_requirement_rows.clone(),
             external_requirement_applications: external_requirement_applications.clone(),
-            family_realization_rows: family_realization_rows.clone(),
             toolchain_settled_identities: toolchain_settled_identities.clone(),
             identities: identities.clone(),
         }
@@ -92,8 +89,6 @@ impl SelectedProviderPlanCandidate {
             self.external_requirement_applications.clone(),
             &self.identities,
         )?;
-        recovered = recovered
-            .with_family_realization_rows(self.family_realization_rows.clone(), &self.identities)?;
         if recovered.recovery_candidate() != self {
             return Err(
                 "recovered provider closure is not canonical or lost a retained field".to_owned(),
