@@ -5,6 +5,8 @@ use super::scalar_representation::{
 use std::collections::HashSet;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+mod initialized_storage;
+
 type SymbolIdentity = (symbols::SymbolHandle, Option<TypeReferenceHandle>);
 
 const MAX_RECAST_REPRESENTATION_DEPTH: usize = 256;
@@ -824,29 +826,45 @@ fn mutable_record_representation_inner_body(
         }
         // An offset and width cannot replace a fragmented bit recipe.
         for bit_field in &plan.bit_fields {
-            for leaf in &mut fields.get_mut(bit_field.field_index)?.leaves {
-                leaf.byte_projection = false;
-                leaf.bit_fragments = bit_field
-                    .fragments
-                    .iter()
-                    .map(|fragment| {
-                        let mut fragment = *fragment;
-                        fragment.container_byte_offset = fragment
-                            .container_byte_offset
-                            .checked_sub(plan.offsets[bit_field.field_index])?;
-                        Some(fragment)
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                leaf.bit_fragments.sort_by_key(|fragment| {
-                    (
-                        fragment.container_byte_offset,
-                        fragment.container_width_bits,
-                        fragment.destination_lsb,
-                        fragment.source_lsb,
-                        fragment.width,
-                    )
-                });
-            }
+            let field = fields.get_mut(bit_field.field_index)?;
+            let [leaf] = field.leaves.as_mut_slice() else {
+                return None;
+            };
+            leaf.byte_projection = false;
+            leaf.bit_fragments = bit_field
+                .fragments
+                .iter()
+                .map(|fragment| {
+                    let mut fragment = *fragment;
+                    fragment.container_byte_offset = fragment
+                        .container_byte_offset
+                        .checked_sub(plan.offsets[bit_field.field_index])?;
+                    Some(fragment)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            leaf.bit_fragments.sort_by_key(|fragment| {
+                (
+                    fragment.container_byte_offset,
+                    fragment.container_width_bits,
+                    fragment.destination_lsb,
+                    fragment.source_lsb,
+                    fragment.width,
+                )
+            });
+            // The selected containers own storage, independently of the wider
+            // logical scalar whose facts these fragments encode.
+            let stored_size = leaf
+                .bit_fragments
+                .iter()
+                .try_fold(0usize, |extent, fragment| {
+                    (fragment.container_width_bits % 8 == 0).then_some(())?;
+                    let end = fragment
+                        .container_byte_offset
+                        .checked_add(usize::from(fragment.container_width_bits / 8))?;
+                    Some(extent.max(end))
+                })?;
+            field.size = stored_size;
+            leaf.size = stored_size;
         }
         for repeated_field in &plan.repeated_fields {
             let field_type = *field_types.get(repeated_field.field_index)?;
@@ -1065,13 +1083,16 @@ fn representation_values_imply(
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
+    // Observation of unrestricted bits depends on established physical coverage,
+    // independently of the logical scalar partition or fragment encoding.
+    let initialized = initialized_storage::InitializedStorageBits::prepare(source);
     target.leaves.iter().all(|target| {
         // Both inventories are already sorted by physical offset. Reuse that
         // association rather than rebuilding a byte map or expanding bit sets.
         let position = source
             .leaves
             .partition_point(|source| source.offset <= target.offset);
-        let Some(mut position) = position.checked_sub(1) else {
+        let Some(position) = position.checked_sub(1) else {
             return false;
         };
         let source_leaf = &source.leaves[position];
@@ -1086,28 +1107,9 @@ fn representation_values_imply(
         if !leaf_accepts_all_bits(target) {
             return false;
         }
-        let Some(end) = target.offset.checked_add(target.size) else {
-            return false;
-        };
-        let mut covered = target.offset;
-        while covered < end {
-            let Some(source) = source.leaves.get(position) else {
-                return false;
-            };
-            let Some(source_end) = source.offset.checked_add(source.size) else {
-                return false;
-            };
-            if source.offset > covered
-                || source_end <= covered
-                || source.facts.atomic
-                || !source.byte_projection
-            {
-                return false;
-            }
-            covered = source_end.min(end);
-            position += 1;
-        }
-        true
+        initialized
+            .as_ref()
+            .is_some_and(|coverage| coverage.contains_bytes(target.offset, target.size))
     })
 }
 
