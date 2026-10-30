@@ -73,7 +73,7 @@ pub(super) fn project(
                     application: native
                         .selection
                         .application
-                        .coordinates(input.typed)
+                        .coordinates(&input.typed)
                         .map_err(|reason| vec![Diagnostic::error(reason)])?
                         .into(),
                     binding,

@@ -96,7 +96,7 @@ pub(super) fn project(
             .provider
             .row_realizations
             .get(*row_index)
-            .and_then(|origin| origin.machine())
+            .and_then(|origin| origin.authored())
             .ok_or_else(|| {
                 rejected("a checked application row without an authored realization machine")
             })?;

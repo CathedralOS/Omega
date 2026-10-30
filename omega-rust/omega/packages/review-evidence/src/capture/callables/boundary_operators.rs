@@ -1,6 +1,4 @@
-use super::external_supply::external_binding_matches_provider_binding;
 use crate::capture::PackageReviewInput;
-use crate::record::PackageReviewExternalBinding;
 use diagnostics::Diagnostic;
 
 /// The singleton members a boundary-operator plan must carry: exactly one
@@ -182,56 +180,6 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
     {
         return Err(vec![Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` does not join exact operator `{slot}` to checked adapter `{}`",
-            plan.name, machine.name,
-        ))]);
-    }
-    Ok(())
-}
-
-pub(super) fn validate_selected_boundary_operator_external_supply(
-    compilation: &PackageReviewInput<'_>,
-    machine: &typed_trees::machine::Machine,
-    operator: &typed_trees::operator::OperatorDefinition,
-    binding: &PackageReviewExternalBinding,
-) -> Result<(), Vec<Diagnostic>> {
-    let (slot, matches) = selected_boundary_operator_plans(compilation, operator)?;
-    let matches = matches
-        .into_iter()
-        .filter(|(_, retained)| {
-            retained
-                .provider
-                .row_realizations
-                .iter()
-                .any(|row| row.authored() == Some(machine.symbol))
-        })
-        .collect::<Vec<_>>();
-    if matches.is_empty() {
-        return Ok(());
-    }
-    let [(plan, retained)] = matches.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed external leaf `{}` realizes boundary operator `{slot}`, but package review found {} selected provider plans for that exact candidate",
-            machine.name,
-            matches.len(),
-        ))]);
-    };
-    let (method, row, requirement_symbol, realization_symbol) =
-        boundary_operator_plan_singletons(plan, retained)?;
-    let expected_package = compilation
-        .typed
-        .symbols
-        .symbol_package_identity(machine.symbol);
-    if retained.plan != **plan
-        || *requirement_symbol != operator.symbol
-        || *realization_symbol != machine.symbol
-        || plan.origin_package_identity != expected_package
-        || method.requirement_owner != slot
-        || plan.schema.identity_text(method.requirement_identity) != slot
-        || plan.identities.text(row.requirement_identity) != slot
-        || !external_binding_matches_provider_binding(compilation, machine, binding, &row.binding)
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` does not join exact operator `{slot}` to external leaf `{}` and its binding",
             plan.name, machine.name,
         ))]);
     }

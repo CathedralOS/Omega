@@ -98,7 +98,7 @@ fn table_declaration(
     nominal_identity(compilation, table.symbol)
 }
 
-pub(super) fn native_producer(
+pub(crate) fn native_producer(
     compilation: &PackageReviewInput<'_>,
     native: &provider_planning::native_bindings::NativeBuildRowOrigin,
 ) -> Result<PackagePolicyEvaluatedBindingProducer, Vec<Diagnostic>> {
@@ -109,7 +109,7 @@ pub(super) fn native_producer(
         .ok_or_else(|| rejected("native Build row has no Build-origin receipt"))?;
     let schema = provider_planning::service_schema::from_typed_requirement_application(
         provider_planning::ProviderPlanningContext::new(
-            compilation.typed,
+            &compilation.typed,
             source::DependencyScope::Product,
         ),
         &compilation

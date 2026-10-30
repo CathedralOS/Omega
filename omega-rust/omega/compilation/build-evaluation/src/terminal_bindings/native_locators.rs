@@ -36,7 +36,10 @@ enum Shape {
     Scalar(ScalarType),
     Record(Vec<Field>),
     Sum(Vec<Case>),
-    Array { element: usize, length: u64 },
+    Array {
+        element: usize,
+        length: terminal_psi::ArrayExtent,
+    },
     Bytes(u64),
 }
 
@@ -257,6 +260,11 @@ impl NativeBindingSchema {
             }
             Shape::Bytes(length) => read_bytes(*length, path, input),
             Shape::Array { element, length } => {
+                let terminal_psi::ArrayExtent::Literal(length) = length else {
+                    return Err(
+                        "native locator snapshot needs its admitted closed array extent".into(),
+                    );
+                };
                 if matches!(self.nodes[*element].shape, Shape::Scalar(ScalarType::Integer(integer))
                     if !integer.is_address() && integer.sign() == IntegerSign::Unsigned && integer.bits() == 8)
                 {
