@@ -286,6 +286,15 @@ pass/facts/static_callback_reach_through_other_machine built 2026ms exit:0 inter
 pass/facts/static_callback_reach_through_other_state built 2015ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @ba4c5b471bb8
 pass/facts/static_callback_reach_through_parameter built 2098ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @ba4c5b471bb8
 pass/facts/static_callback_reach_through_target_body built 2099ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @ba4c5b471bb8
+pass/facts/target_family_open_const/call_result built 1473ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/const_name built 1563ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/field built 1217ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/local built 1240ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/match_join built 1190ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/other_machine built 1164ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/other_state built 1148ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/parameter built 1175ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
+pass/facts/target_family_open_const/target_body built 1446ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @101f66e2f97e
 pass/generics/runtime_computed_direct_result_exit built 1003ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
 pass/generics/selected_value_bool_public_contract_exit built 1000ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
 pass/termination/runtime_rank_range_state_call_exit built 4584ms exit:70 interpreter-exit:70 interpreter:agrees @15a66acf6a30

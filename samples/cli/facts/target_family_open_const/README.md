@@ -54,8 +54,28 @@ require exact actual-argument substitution and independently proved returns.
 The current warm baseline `30641d4e0ddc80b1da0504511cc9574327a0bc59`, using
 optimized producer `767215d6ee2d6f734d20c963f1919eae9565faf7` with byte-identical
 compiler/library inputs, passes all nine original paired executions and their
-nine intended rejections. Those are pre-migration observations, not evidence
-that the replacement already passes. Source migration validation is in progress.
+nine intended rejections. The first well-formed ordinary replacement wrongly
+refused its forwarding postcondition on that producer. The repair admits the
+complete original static tuple before transporting it to the public invocation,
+and recognizes an already-substituted exact supplying binder in that admitted
+mapping. It does not use the selected implementation's private guarantees.
+
+Optimized producer `ad909308cdb32b3c95b5cbf8093262e4630e0c51` checks all nine
+migrated places, rejects their nine `42 <= 40` twins, and runs all nine with
+native exit 0 and Terminal exit 0 on macOS ARM64. The target-body pin also runs
+natively on macOS x86-64 with Terminal agreement. Its unchanged Terminal artifact
+runs with the supplied Build admissions for all five recorded targets, including
+the four required hosted targets. Two additional checking fixtures distinguish
+the exact forwarded binder from an unrelated available binder; neither is a
+runtime claim. Evidence retains the historical producer and source identities
+under `build/content-provider/open-const/`; other native hosts remain unmeasured.
+
+A focused same-input comparison of 139 nearby contract fixtures has no semantic
+moves between the historical and repaired producers. One preexisting collateral
+golden expected-diagnostic gap remains recorded on both sides. Terminal-only
+counterfactuals keep the valid bound but change the payload or selected match arm;
+both trap, while the positive exits 0. No native trap run is claimed.
+
 The earlier Windows `e4d9c74577f9ed221697b73113b045220364f9de` sibling-binder
 refusal remains historical; it is superseded by the actual current baseline.
 
