@@ -40,6 +40,41 @@ impl CapturedStorageReadBacking {
 }
 
 impl CallFrameResolver<'_> {
+    /// Public normal-result contents are observed after this exact call's
+    /// effects. Returned slots use their completed actual suppliers; another
+    /// pointer in the demanded suffix uses the current post-call inventory.
+    pub(crate) fn completed_result_read_backing(
+        &self,
+        machine: &Machine,
+        expression: ExpressionHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<CapturedStorageReadBacking> {
+        let (state, statement, index) = caller_aliases::caller_statement_owner(
+            self.program,
+            machine,
+            caller_aliases::CallerWriteSite::Expression(expression),
+        )?;
+        let prefix = state_write_walk::collected_prefix_at(
+            &self.caches.state_write_shared_collections,
+            self.program,
+            machine,
+            state,
+            &self.tables.symbols,
+            index,
+            true,
+        )?;
+        stored_calls::completed_result_read_backing(
+            self.program,
+            machine,
+            state,
+            statement,
+            expression,
+            path,
+            &prefix,
+            &self.tables.symbols,
+        )
+    }
+
     /// An invocation-entry contract observes this original statement prefix.
     pub(crate) fn storage_read_backing_before_statement(
         &self,

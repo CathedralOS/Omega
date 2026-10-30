@@ -170,6 +170,10 @@ pub struct ScopedCallResultObservation {
     pub path: Vec<facts::PlaceSegment>,
     pub primitive_type: typed_trees::types::PrimitiveType,
     pub value: ScopedArithmeticValue,
+    /// Frozen backing and loaded-slot footprints. An owned inline result has
+    /// none; a pointee observation expires when any supplier may change.
+    pub read_dependencies: Vec<String>,
+    pub(crate) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
 }
 
 pub fn scoped_call_result_observations(

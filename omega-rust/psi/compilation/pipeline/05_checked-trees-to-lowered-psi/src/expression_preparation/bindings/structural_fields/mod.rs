@@ -639,7 +639,7 @@ pub(crate) fn resolve_case_payload(
             // The observation owns preparation, not the successor argument
             // scanner. Its carrier copy is emitted only where this expression
             // executes, and Terminal replay checks the selected case there.
-            let source = prepare_case_observation(
+            prepare_case_observation(
                 payload.source,
                 binding.structural_type,
                 &[
@@ -648,25 +648,11 @@ pub(crate) fn resolve_case_payload(
                 ],
                 &binding.declarations,
             )?
-            .source;
-            match &mut payload.observation {
-                LoweredDirectExpression::PrimitiveRead { source: target, .. }
-                | LoweredDirectExpression::StructuralField { source: target, .. } => {
-                    *target = source
-                }
-                LoweredDirectExpression::Boolean { expression } => match expression.as_mut() {
-                    LoweredBooleanReturnExpression::StructuralField { source: target, .. }
-                    | LoweredBooleanReturnExpression::PrimitiveRead { source: target, .. } => {
-                        *target = source
-                    }
-                    _ => {
-                        return unsupported(
-                            "case payload did not resolve to a Boolean observation",
-                        );
-                    }
-                },
-                _ => return unsupported("case payload did not resolve to a field observation"),
-            }
+            .rebase_observation(
+                binding.structural_type,
+                &binding.declarations,
+                &mut payload.observation,
+            )?;
             return Ok(CasePayloadRead::Observation {
                 expression: payload.observation,
             });

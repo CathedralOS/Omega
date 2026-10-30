@@ -350,7 +350,7 @@ impl CurrentScalarValues<'_> {
                             path,
                             carrier: observation.primitive_type,
                             value: observation.value,
-                            read_dependencies: Vec::new(),
+                            read_dependencies: observation.read_dependencies,
                             sources: Vec::new(),
                         });
                     }

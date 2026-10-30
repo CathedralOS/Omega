@@ -37,6 +37,15 @@ pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'pro
     observation: NormalValueObservation,
 }
 
+/// Fresh normal-exit storage is installed only after the invocation retires
+/// incoming observations. Backing selectors freeze in that resulting epoch.
+#[derive(Clone)]
+pub(super) struct PostCallStorage {
+    pub(super) coordinate: super::storage_effects::CapturedStorageCoordinate,
+    pub(super) value: StructuralTerm,
+    pub(super) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
+}
+
 /// Completing an address/effect traversal does not observe its stored value.
 /// This scratch status travels with the operand, independently of its demand.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -2211,8 +2220,8 @@ impl<'program> StructuralJudge<'program> {
         let post_storage =
             self.capture_normal_call(expression, actuals, environment, scope, writes);
         self.observe_storage_effects(scope.1, writes.complete_paths())?;
-        for (coordinate, value) in post_storage.into_iter().flatten() {
-            self.retain_storage_value(coordinate, value, false);
+        for storage in post_storage.into_iter().flatten() {
+            self.install_post_call_storage(scope.1, storage);
         }
         Some(())
     }
@@ -2281,12 +2290,7 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         writes: &NormalizedWriteFrame,
-    ) -> Option<
-        Vec<(
-            super::storage_effects::CapturedStorageCoordinate,
-            StructuralTerm,
-        )>,
-    > {
+    ) -> Option<Vec<PostCallStorage>> {
         let program = self.program;
         let node = program.expression_table.expression(expression);
         let ExpressionNode::Call(call) = node else {
@@ -2535,7 +2539,11 @@ impl<'program> StructuralJudge<'program> {
             } else {
                 bindings.push((subject.entry.parameter, observed));
             }
-            post_storage.push((coordinate, value));
+            post_storage.push(PostCallStorage {
+                coordinate,
+                value,
+                backing: None,
+            });
         }
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
@@ -2603,6 +2611,10 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
+        if let Some(captured) = &captured {
+            post_storage
+                .extend(self.stage_completed_result_reads(scope.0, scope.1, expression, captured));
+        }
         let guarantees = self.selected_guarantees(
             &owner,
             &entry_bindings,
