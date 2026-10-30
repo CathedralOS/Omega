@@ -1,5 +1,27 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## First-time preparation convergence - 2026-10-29
+
+Retained locally on fixed `cb087c46476`: normalize realized invocation-set order
+before fixed-point comparison. Main's unchanged operand-order update hit 180 s
+and an extended diagnostic was stopped at 438 s in invocation inference; the
+candidate finishes first updates in 161-167 s and both original controls execute
+with native/Terminal agreement. Nine compile/native observations, nine separate
+Terminal comparisons and twelve expected rejects pass, including paired applied
+provider/cycle controls. No percentage speedup is claimed against an unfinished
+baseline. [Evidence, finite-set model and limits](preparation_convergence_2026_10_29/README.md).
+
+## Operand-order checker stack overflow - 2026-10-29
+
+The fixed-workbench repair and reduced regression establish that selected-contract
+queries must share the exact-context application recursion guard. Main already
+received the equivalent guard in #784, with a broader boundary around carrier
+selection. This publication retains that implementation and adds the regression
+pair and historical evidence, not duplicate compiler code. The historical
+baseline overflowed; five repaired positives and six reject controls passed.
+Mixed overlapping timing ranges establish no general speedup.
+[Evidence and source identities](operand_order_overflow_2026_10_29/README.md).
+
 Host: Windows `x86_64` (`windows_x86_64`), release profile (`target/release/omega.exe`, `target/release/deps/corpus_runner-*.exe`).
 Base commit: `e44ed43aefa9` (`HEAD`).
 

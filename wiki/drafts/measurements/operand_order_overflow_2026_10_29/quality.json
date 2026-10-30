@@ -1,0 +1,440 @@
+[
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 3,
+    "seconds": 58.15650920000189,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\00.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\input"
+    ],
+    "exit": 0,
+    "seconds": 3.534360800003924,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\01.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 10.55547910000314,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\02.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00",
+    "artifact_sha256": "7ccbfb89151d286167c97d51c39092b03e33ccf79762dbd9802205578209eb66",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.6511051999987103,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_order_exit\\03.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 3,
+    "seconds": 53.53434439999546,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\04.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input"
+    ],
+    "exit": 0,
+    "seconds": 2.6555051999966963,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\05.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed"
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 8.708591299997352,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\06.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed",
+    "artifact_sha256": "e7062df5782867db94d35677266e65773b72185ce932098ace4f6e188956c4d2",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.4389545000012731,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_numeric_operand_single_evaluation_exit\\07.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 2.2217915000001085,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\08.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.10576650000439258,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\09.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.7095206000012695,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\10.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d",
+    "artifact_sha256": "3c8ff49dd9e22cfbf449f5951d6df2d709bed4f321a9c8c9c59a8481cc72cf85",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.46355539999785833,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_exit\\11.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 2.1193983999983175,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\12.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.10570809999626363,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\13.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.8522689000019454,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\14.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb",
+    "artifact_sha256": "008150fa7f10c960a7b55fb502dff4d149bc772cc0687ab25845da2a58908764",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.5530440000002272,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-runtime_reference_call_scalar_snapshot_exit\\15.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb"
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 2.0638324999963515,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\16.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0"
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.10913670000445563,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\17.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0"
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.7175725000051898,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\18.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0",
+    "artifact_sha256": "586bc5ac68c2b3cf85bb23491370e83398cff813cfbe671968c751e2b30dc1a0",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.4734424999987823,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_call_argument_snapshot_through_match_join_exit\\19.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0"
+  },
+  {
+    "fixture": "fail/calls/authored_numeric_name_requires",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-authored_numeric_name_requires\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.9727396000016597,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-authored_numeric_name_requires\\20.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "efc010e06bb1fddfd534a7a9f38e6a5a35d4565a726f816dda2745f3c22d4403",
+    "expected": [
+      "requires"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/calls/selected_contract_equation_reentry_unproved_requirement",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_unproved_requirement\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 1.2034288000068045,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-selected_contract_equation_reentry_unproved_requirement\\21.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "be9246b95e2b785a7e6b3658ddf10d022781833dfaaba179031ce89c92e97868",
+    "expected": [
+      "cannot prove requires contract for call abs_i32"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/arithmetic/numeric_operand_abs_unrepresentable",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-numeric_operand_abs_unrepresentable\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 5.683324199999333,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-numeric_operand_abs_unrepresentable\\22.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "44af9d36521dd5b6d5062c74120c2a0b019d92a5fef0e24812b695ac948b6926",
+    "expected": [
+      "value call to `abs_i32` violates required fact `value > -2147483648`"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/calls/closed_constructor_requires_restricted_nested_call_rejected",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-closed_constructor_requires_restricted_nested_call_rejected\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 4.935505900000862,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-closed_constructor_requires_restricted_nested_call_rejected\\23.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "6e9be0f33a8fe89a8a88bc9c28cc8e8234abd8a4902e60a921d6fc300f63e187",
+    "expected": [
+      "value call to `restricted` violates required fact `false`"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-scalar_reference_result_does_not_preserve_mutated_bound\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 0.9925731999974232,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-scalar_reference_result_does_not_preserve_mutated_bound\\24.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "2fded616d38c11fe819788b6ea3a97f63901a0012c85ee6d10d3ddc4deb24456",
+    "expected": [
+      "cannot prove index",
+      "within length 2"
+    ],
+    "matched": true
+  },
+  {
+    "fixture": "fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_argument_ensures_cannot_restore_callee_mutated_source\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 1.0734665999989375,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\candidate-copied_argument_ensures_cannot_restore_callee_mutated_source\\25.txt",
+    "producer_sha256": "74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf",
+    "source_sha256": "ad21f8d978e8452defa96c41e7eb023b6a0c61d0169dbbdf9788c96b4d3a95c4",
+    "expected": [
+      "cannot prove requires contract for call take_ascii"
+    ],
+    "matched": true
+  }
+]

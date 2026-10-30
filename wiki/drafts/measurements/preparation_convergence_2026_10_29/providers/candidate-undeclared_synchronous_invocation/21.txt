@@ -1,0 +1,1 @@
+error: machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler;` (requirement invokes: [])
