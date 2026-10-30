@@ -74,9 +74,10 @@ impl<'program> ProbeProjection<'program> {
         loop {
             let before = retained.clone();
             for (owner, references) in &dependencies {
-                if owned_by(original, &probe_roots, *owner)
-                    || (owned_by(original, &candidates, *owner)
-                        && !owned_by(original, &retained, *owner))
+                // Only machine roots leave the helper program. A nested
+                // non-machine declaration still owns all its dependencies.
+                if probe_roots.contains(*owner)
+                    || (candidates.contains(*owner) && !retained.contains(*owner))
                 {
                     continue;
                 }
