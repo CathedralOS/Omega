@@ -74,26 +74,7 @@ impl OperationFrame<'_, '_> {
                     .scalar_locals_before(self.state, result.statement_index),
             }
         };
-        let lowered = {
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.source_value(
-                identities,
-                environment.checked,
-                environment.machine,
-                environment.state,
-                result.statement_index,
-                role,
-                value,
-                emission.source_value_count,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )
-        }?;
+        let lowered = self.source_value(identities, result.statement_index, role, value)?;
         if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
             return unsupported("Unit scalar expression local type disagrees with its binding");
         }
@@ -233,29 +214,11 @@ impl OperationFrame<'_, '_> {
         for (ordinal, element) in elements.iter().enumerate() {
             let element_ordinal = u32::try_from(ordinal)
                 .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
-            let value = {
-                let (mut environment, emission) = self.reborrow().split();
-                emission.evaluation.source_value(
-                    identities,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
-                    result.statement_index,
-                    CheckedScalarExpressionRole::ArrayElement {
-                        source: *source,
-                        element_ordinal,
-                    },
-                    element,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
+            let role = CheckedScalarExpressionRole::ArrayElement {
+                source: *source,
+                element_ordinal,
+            };
+            let value = self.source_value(identities, result.statement_index, role, element)?;
             self.values.push(value);
         }
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;

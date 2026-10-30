@@ -198,26 +198,7 @@ impl OperationFrame<'_, '_> {
             // Capture the destination before evaluating the RHS, just as for
             // field stores. A recast loan never invents another owned home.
             let destination = self.prepare_loaned_byte_store(identities, statement_index, &loan)?;
-            let value = {
-                let (mut environment, emission) = self.reborrow().split();
-                emission.evaluation.source_value(
-                    identities,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
-                    statement_index,
-                    role,
-                    authored_value,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
+            let value = self.source_value(identities, statement_index, role, authored_value)?;
             for kind in destination.emit(
                 value,
                 projection.stored_type,

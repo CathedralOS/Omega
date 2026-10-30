@@ -76,9 +76,9 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::unit::{
-    BoundaryMachineId, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation,
-    OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId, StructuralAccess,
-    StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
+    BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
+    LoweringError, Operation, OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId,
+    StructuralAccess, StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
     ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported,
 };
@@ -297,6 +297,36 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
                 calls: self.calls,
                 operations: self.operations,
             },
+        )
+    }
+
+    /// Evaluate one checked scalar operand on this frame's own lanes. The
+    /// split hands the evaluation the environment it recurses through while
+    /// the emission names this frame's value namespace and identity counters.
+    pub(super) fn source_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        statement: u32,
+        role: CheckedScalarExpressionRole,
+        value: &checked_trees::CheckedCallScalarArgument,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let (mut environment, emission) = self.reborrow().split();
+        emission.evaluation.source_value(
+            identities,
+            environment.checked,
+            environment.machine,
+            environment.state,
+            statement,
+            role,
+            value,
+            emission.source_value_count,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
+            &mut environment,
         )
     }
 }
