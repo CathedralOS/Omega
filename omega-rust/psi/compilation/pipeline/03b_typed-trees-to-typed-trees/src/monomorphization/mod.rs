@@ -301,6 +301,14 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let captured_owners = captured_rows::close(program)?;
         let captures_changed = !captured_owners.is_empty();
         changed_owners.extend(captured_owners);
+        // Projected receivers and captured results can complete operands after
+        // the initial inference pass. Settle their dependent subjects before
+        // collecting consumers or declaring the round unchanged.
+        let subjects = result_locals::materialize_dispatch_subjects(program);
+        if !subjects.is_empty() {
+            changed_owners.extend(subjects);
+            continue;
+        }
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {

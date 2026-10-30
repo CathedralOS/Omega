@@ -183,12 +183,8 @@ pub fn fold_data_layout_queries(
     Ok(())
 }
 
-/// Whether the operand is a `Policy<Schema>` application whose validated
-/// plan instance the deferred evaluation has not installed yet. Mirrors the
-/// layout builder's own route: an installed `plan_laid_layouts` entry for
-/// `{policy_symbol, schema_symbol}` answers immediately, otherwise the
-/// attached `{policy}::plan` machine marks the operand plan-laid and the
-/// query must wait for installation rather than error early.
+/// An exact fixed-representation application waits for its validated plan;
+/// ordinary record packing cannot supply a provisional answer.
 fn plan_laid_operand_pending_installation(
     program: &TypedTrees,
     operand: TypeReferenceHandle,
@@ -213,6 +209,13 @@ fn reject_unresolved_layout_operands(
             continue;
         }
         visited.push(reference);
+        // Code evidence selects geometry but occupies no field or runtime
+        // extent. The installer's ordinary evidence checker already validated
+        // its complete telescope before evaluation. Only T supplies contents.
+        if let Some(storage) = typed.layout_storage_arguments(reference) {
+            pending.push(storage.semantic_type);
+            continue;
+        }
         match typed.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray {
                 element_type,

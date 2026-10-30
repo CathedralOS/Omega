@@ -780,15 +780,6 @@ fn validate_type_reference_node(
                     )));
                 }
                 let parameters = program.data_type_parameters(definition);
-                // A zero-parameter data declaration can still appear in the
-                // `Policy<Schema>` layout-application form. Its argument is a
-                // schema, not a data-generic argument.
-                if parameters.is_empty() {
-                    for argument in argument_handles {
-                        validate_generic_argument(*argument, diagnostics, formation_obligations);
-                    }
-                    return;
-                }
                 if parameters.len() != argument_handles.len() {
                     diagnostics.push(Diagnostic::error(format!(
                         "generic data `{base_name}` expected {} arguments but got {}",

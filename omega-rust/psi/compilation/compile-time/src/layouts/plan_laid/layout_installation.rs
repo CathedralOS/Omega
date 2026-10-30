@@ -18,10 +18,17 @@ pub(crate) fn compute_plan_laid_layouts_in(
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     let mut requests = Vec::new();
-    for (reference, _) in typed.type_reference_table.type_reference_rows() {
-        let Some(storage) = typed.layout_storage_arguments(reference) else {
+    for occurrence in
+        typed_trees::references::collect_selected_program_type_occurrences(typed, domain.work())
+    {
+        let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
             continue;
         };
+        validation::conformance_applications::validate_data_evidence_application(
+            typed,
+            storage.application,
+            occurrence.lexical_owner,
+        )?;
         if requests.iter().any(
             |known: &typed_trees::layout_storage::LayoutStorageArguments| {
                 typed.normalized_type_identity(known.application)
