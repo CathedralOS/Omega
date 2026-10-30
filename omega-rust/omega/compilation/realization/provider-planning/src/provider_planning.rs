@@ -95,7 +95,7 @@ pub fn bind_selected_provider_plan_facts(
         &facts,
     )?;
     let (installation_reach_resolutions, installation_reach_identities) =
-        derive_selected_installation_reach_resolutions(typed, check_facts, &facts)?;
+        derive_selected_installation_reach_resolutions(typed, check_facts, &facts, provenance)?;
     let (specialized_requirement_rows, specialized_identities) =
         provenance_replay::derive_leaf_requirement_specializations(typed, &facts)?;
     let (external_applications, external_identities) =

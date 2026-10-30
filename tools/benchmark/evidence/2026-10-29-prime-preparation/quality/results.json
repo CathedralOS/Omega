@@ -1,0 +1,274 @@
+[
+  {
+    "producer": "current-main",
+    "producer_sha256": "47df422bd6f671306aaf90c7c8ea619eda9b4110da7381aa87a6bb36cfd8753c",
+    "case": "selected_synchronous_helper_cycle",
+    "expected": "fail",
+    "source_sha256": "f4bb4a114d924fd97969e3dba6c7a8ea99fd8d179a9634e151204bfb1b1950cd",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\fail\\capabilities\\selected_synchronous_helper_cycle",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 2.0395074999978533,
+        "transcript": "current-main-selected_synchronous_helper_cycle-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "current-main",
+    "producer_sha256": "47df422bd6f671306aaf90c7c8ea619eda9b4110da7381aa87a6bb36cfd8753c",
+    "case": "selected_synchronous_cycle",
+    "expected": "fail",
+    "source_sha256": "12a3663142263db73c209bf116b60ad9dcec951a7a548b51d004c026fc0b87fc",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\fail\\capabilities\\selected_synchronous_cycle",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.9574731000029715,
+        "transcript": "current-main-selected_synchronous_cycle-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "producer_sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf",
+    "case": "selected_synchronous_helper_cycle",
+    "expected": "fail",
+    "source_sha256": "f4bb4a114d924fd97969e3dba6c7a8ea99fd8d179a9634e151204bfb1b1950cd",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\fail\\capabilities\\selected_synchronous_helper_cycle",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.7434231000006548,
+        "transcript": "candidate-selected_synchronous_helper_cycle-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "producer_sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf",
+    "case": "selected_synchronous_cycle",
+    "expected": "fail",
+    "source_sha256": "12a3663142263db73c209bf116b60ad9dcec951a7a548b51d004c026fc0b87fc",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\fail\\capabilities\\selected_synchronous_cycle",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.621214200000395,
+        "transcript": "candidate-selected_synchronous_cycle-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "current-main",
+    "producer_sha256": "47df422bd6f671306aaf90c7c8ea619eda9b4110da7381aa87a6bb36cfd8753c",
+    "case": "selected_synchronous_helper_ceiling_exit",
+    "expected": "pass",
+    "source_sha256": "286be117f97db1c5a54ed632274511574dfb76bf487654221563d387120bbdd1",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_synchronous_helper_ceiling_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.8659302000014577,
+        "transcript": "current-main-selected_synchronous_helper_ceiling_exit-host-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_synchronous_helper_ceiling_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.17684000000008382,
+        "transcript": "current-main-selected_synchronous_helper_ceiling_exit-host-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_synchronous_helper_ceiling_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.756010499993863,
+        "transcript": "current-main-selected_synchronous_helper_ceiling_exit-host-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "current-main",
+    "producer_sha256": "47df422bd6f671306aaf90c7c8ea619eda9b4110da7381aa87a6bb36cfd8753c",
+    "case": "selected_applied_synchronous_chain_exit",
+    "expected": "pass",
+    "source_sha256": "fa292d4cd1a71619e05d326788ed9cde08795b7e67460092ed6031f41e5cc746",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_applied_synchronous_chain_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.891407100003562,
+        "transcript": "current-main-selected_applied_synchronous_chain_exit-host-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_applied_synchronous_chain_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.16876249999768334,
+        "transcript": "current-main-selected_applied_synchronous_chain_exit-host-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\current-main\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_applied_synchronous_chain_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.9560579000026337,
+        "transcript": "current-main-selected_applied_synchronous_chain_exit-host-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "producer_sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf",
+    "case": "selected_synchronous_helper_ceiling_exit",
+    "expected": "pass",
+    "source_sha256": "286be117f97db1c5a54ed632274511574dfb76bf487654221563d387120bbdd1",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_synchronous_helper_ceiling_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.7883835999964504,
+        "transcript": "candidate-selected_synchronous_helper_ceiling_exit-host-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_synchronous_helper_ceiling_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.16214960000070278,
+        "transcript": "candidate-selected_synchronous_helper_ceiling_exit-host-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_synchronous_helper_ceiling_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.644329700000526,
+        "transcript": "candidate-selected_synchronous_helper_ceiling_exit-host-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "producer_sha256": "b637de0fbced0b38deef5afbf9e0fda7889ee137567f9534b21bc18f2fc8dadf",
+    "case": "selected_applied_synchronous_chain_exit",
+    "expected": "pass",
+    "source_sha256": "fa292d4cd1a71619e05d326788ed9cde08795b7e67460092ed6031f41e5cc746",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_applied_synchronous_chain_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 2.0461131000047317,
+        "transcript": "candidate-selected_applied_synchronous_chain_exit-host-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_applied_synchronous_chain_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.17568570000003092,
+        "transcript": "candidate-selected_applied_synchronous_chain_exit-host-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation\\candidate\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\tests\\omega\\pass\\capabilities\\selected_applied_synchronous_chain_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 2.1145362999959616,
+        "transcript": "candidate-selected_applied_synchronous_chain_exit-host-2.txt"
+      }
+    ]
+  }
+]

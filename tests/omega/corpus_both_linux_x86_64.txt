@@ -1067,8 +1067,7 @@ pass/contracts/nested_call_outer_preserves_storage_fact built 3454ms exit:0 inte
 pass/contracts/opaque_call_preserves_model rejected 3270ms interpreter:unchecked @a92f16431042
 	cannot prove requires contract for call exact_seven from after_call: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/contracts/policy_field_ensures checked 4193ms @a92f16431042
-pass/contracts/proof_fact_indexed_domain_application rejected 2480ms @a92f16431042
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/contracts/proof_fact_indexed_domain_application checked 1438ms @ad7c6890a897+wt
 pass/contracts/range_requires_discharge checked 3724ms @a92f16431042
 pass/contracts/recurrent_call_prefix_preserves_model built 3064ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/contracts/requires_narrow_ceiling_unproven built 9900ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -1494,8 +1493,7 @@ pass/domains/executable_domain_membership_union_guard_exit built 6545ms exit:241
 pass/domains/explicit_domain_erasure checked 1613ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 1562ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit built 2049ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/domains/indexed_domain_fact rejected 2057ms @a92f16431042
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_fact checked 1783ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit built 1789ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values built 2318ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/intersected_qualifiers checked 2418ms @a92f16431042
@@ -4940,15 +4938,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 2587ms exit:0 in
 pass/facts/replaced_field_loan_through_other_state_exit built 2525ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/replaced_field_loan_through_parameter_exit built 2262ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/replaced_field_loan_through_target_body_exit built 1793ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_call_result_exit built 11326ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_const_name_exit built 10408ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_field_exit built 10183ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_local_exit built 10095ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_match_join_exit built 9986ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_other_machine_exit built 9549ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_other_state_exit built 9804ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_parameter_exit built 12873ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/repro_through_target_body_exit built 10107ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3917ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3614ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantee_through_field_exit built 3862ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

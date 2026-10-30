@@ -808,4 +808,5 @@ fn invoked_services(module: &TerminalModule, owner: Option<ServiceId>) -> Vec<Se
 mod authored;
 pub use authored::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, authored_behavior_exclusion_set_in,
+    resolve_authored_behavior_exclusion,
 };

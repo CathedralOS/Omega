@@ -379,3 +379,15 @@ latency by 19–30% and six-root warm median latency by 34–56%. All native ima
 matched the baseline bytes; focused native/Terminal, reject, corruption, source
 change, foreign-root and pruning controls passed. This next substantial latency
 win is committed locally, with raw evidence and limitations in its record.
+
+The [bounded native queue integration](../measurements/target_native_queue_landing_2026_10_29/README.md)
+uses application Build's newer source-free product boundary. A fresh fixed-base
+comparison measured the heavy four-target compile at 2682.9→1749.2 ms (34.8%
+lower), with all four balanced blocks improving. Exact target images, actual
+native/Terminal agreement, rejects, cache custody and ordered failure controls
+passed. Peak private commit increased 107 MiB and root CPU rose 5%; small and
+single-target programs showed no general speedup. The initial baseline-native
+launch timeout and incomplete cohort remain separate from the complete replay;
+its cause is unresolved after 32 successful bounded replays. Source-bound pinned
+qualification passed. Publication is tracked with the experiment rather than
+inferred from the local commit.

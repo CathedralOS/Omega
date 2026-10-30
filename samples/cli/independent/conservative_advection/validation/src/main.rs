@@ -6,7 +6,9 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "advection-terminal-validation",
     review: true,
+    caps: None,
     evidence: Evidence::Captured,
+    frozen: None,
 };
 
 fn main() {

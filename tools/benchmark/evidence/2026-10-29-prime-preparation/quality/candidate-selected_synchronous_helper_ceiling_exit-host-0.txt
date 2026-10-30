@@ -1,0 +1,7 @@
+windows_x86_64: checked 1 source packages.
+Source diff: selected_synchronous_helper_ceiling_exit [a89e1851d141]: 0 changed entries.
+Capability comparison uses accepted lock policy independently of old-source availability.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\tests\omega\pass\capabilities\selected_synchronous_helper_ceiling_exit\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\tests\omega\pass\capabilities\selected_synchronous_helper_ceiling_exit\build\package-manager\review-windows_x86_64.txt

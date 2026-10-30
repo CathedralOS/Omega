@@ -11,6 +11,7 @@ pub(super) fn encode(
     writer.u32(application.static_machine_ordinal);
     writer.string("callback requirement", &application.requirement)?;
     writer.bytes(&application.published_contract);
+    writer.boolean(application.entry_admitted);
     super::super::machine_declaration_wire::encode(writer, &application.body)
 }
 
@@ -21,6 +22,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalCallbackApplicat
         static_machine_ordinal: reader.u32()?,
         requirement: reader.string("callback requirement")?,
         published_contract: reader.array()?,
+        entry_admitted: reader.boolean()?,
         body: super::super::machine_declaration_wire::decode(reader)?,
     })
 }
@@ -38,6 +40,7 @@ mod tests {
             static_machine_ordinal: 2,
             requirement: "Hooks::call(u64)".to_owned(),
             published_contract: [3; 32],
+            entry_admitted: true,
             body: terminal_psi::CheckedMachineDeclaration {
                 semantic_declaration: Default::default(),
                 parameter_types: Vec::new(),

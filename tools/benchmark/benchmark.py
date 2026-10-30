@@ -29,6 +29,7 @@ import argparse
 import ctypes
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -679,6 +680,8 @@ def measure(args):
         raise SystemExit(f"not a target profile name: {args.target!r}")
 
     project_dir = root.resolve().parent
+    preparation = {'status': 'skipped', 'unit': 'ms',
+                   'reason': 'accepted omega.lock already present'}
     if not (project_dir / "omega.lock").is_file():
         if not args.prepare:
             raise SystemExit(
@@ -687,12 +690,17 @@ def measure(args):
         sys.stderr.write(
             "omega.lock missing; settling package review via omega update "
             "(records project acceptance, not an audit)\n")
+        preparation_started = time.monotonic()
         try:
             settle_package_review(omega, project_dir, args.target)
         except SubjectNotApplicable as not_applicable:
             return non_applicable_record(
                 args, root, repository, omega, selection, revision,
                 not_applicable.reason)
+        preparation_ms = (time.monotonic() - preparation_started) * 1000
+        preparation = {'status': 'measured', 'unit': 'ms',
+                       'samples': [preparation_ms], 'median_ms': preparation_ms,
+                       'min_ms': preparation_ms}
 
     dependency_lock_before = hashlib.sha256((project_dir / 'omega.lock').read_bytes()).hexdigest()
     compile_wall = []
@@ -842,6 +850,7 @@ def measure(args):
             "the runtime observation failed so no record was written")
 
     metrics = {
+        "package_preparation_ms": preparation,
         "compile_time_ms": {
             "status": "measured",
             "unit": "ms",
@@ -1036,7 +1045,7 @@ def validate_record(record, path):
                  and applicability["reason"],
                  "applicability.reason is required")
             need(all(record.get("metrics", {}).get(name, {}).get("status")
-                     != "measured" for name in METRIC_NAMES),
+                     != "measured" for name in (*METRIC_NAMES, 'package_preparation_ms')),
                  "a non-applicable row cannot carry a measured metric")
     host = record.get("host", {})
     for field in ("os", "machine", "omega_binary"):
@@ -1054,7 +1063,8 @@ def validate_record(record, path):
              is not None,
              "host.omega_binary_sha256 must be a lowercase sha256 hex digest")
     metrics = record.get("metrics", {})
-    for name in METRIC_NAMES:
+    for name in (*METRIC_NAMES, *(('package_preparation_ms',)
+                                 if 'package_preparation_ms' in metrics else ())):
         metric = metrics.get(name)
         need(isinstance(metric, dict), f"metrics.{name} is required")
         if not isinstance(metric, dict):
@@ -1074,6 +1084,10 @@ def validate_record(record, path):
                      "metrics.code_size_bytes.value must be a positive int")
             else:
                 samples = metric.get("samples")
+                if name == 'package_preparation_ms':
+                    need(isinstance(samples, list) and bool(samples)
+                         and all(type(s) in (int, float) and math.isfinite(s) and s > 0 for s in samples),
+                         'metrics.package_preparation_ms requires finite positive samples')
                 need(isinstance(samples, list) and samples
                      and all(isinstance(s, (int, float)) for s in samples),
                      f"metrics.{name}.samples must be a nonempty number list")

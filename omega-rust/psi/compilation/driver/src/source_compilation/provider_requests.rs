@@ -19,7 +19,7 @@ impl SourceContinuation {
     /// Form authored provider recipes and admit the exact executed selections.
     /// Call after Product source admission; this does not execute Product code,
     /// choose target providers, or grant authority beyond the Build activation.
-    pub fn admit_product_provider_requests(
+    pub(super) fn admit_product_provider_requests(
         &mut self,
         activation: Option<SymbolHandle>,
         declared: &[Arc<ProductDeclarationRequest>],

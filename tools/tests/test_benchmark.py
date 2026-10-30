@@ -134,6 +134,15 @@ def legacy_record():
 
 
 class Validation(unittest.TestCase):
+    def test_preparation_requires_real_positive_timings(self):
+        record = minimal_record()
+        for value in (0, -1, True, float('inf'), float('nan')):
+            record['metrics']['package_preparation_ms'] = {'status': 'measured', 'samples': [value]}
+            self.assertTrue(any('package_preparation_ms' in error
+                                for error in benchmark.validate_record(record, '<test>')))
+        record['metrics']['package_preparation_ms'] = {'status': 'measured', 'samples': [50]}
+        self.assertEqual(benchmark.validate_record(record, '<test>'), [])
+
     def test_observation_warnings_preserve_unknown_results_without_fake_metrics(self):
         record = minimal_record()
         record['observation_warnings'] = ['Another workload timed out during preparation']
@@ -595,8 +604,10 @@ class RecorderContextTests(unittest.TestCase):
             program=subject/'main.omg';program.write_text('machine main() {}')
             compiler=root/'omega.exe';compiler.write_bytes(b'unit-test producer')
             args=SimpleNamespace(root=str(program),omega=str(compiler),target='windows_x86_64',name='probe',enable=[],disable=[],prepare=False,compile_samples=1,run_samples=1,no_run=False,expected_exit=0,note=[],work_units=100)
-            for mode in ('normal','lock','source','producer','revision'):
+            for mode in ('normal','lock','source','producer','revision','prepare'):
                 lock=subject/'omega.lock';lock.write_text('locked inputs')
+                args.prepare = mode == 'prepare'
+                if args.prepare: lock.unlink()
                 keep=root/mode;keep.mkdir();heads=[0]
                 def output(argv,**kwargs):
                     if '--show-toplevel' in argv:return str(root)
@@ -610,7 +621,7 @@ class RecorderContextTests(unittest.TestCase):
                     return 0,10,1024,'optimizer rollback: requested=[Probe]; applied=[]; effective=[]\npublished native output to '+str(artifact)+'\n'
                 host=minimal_record()['host'];host['omega_binary_sha256']=('c' if mode=='producer' else 'b')*64
                 profile={'schema':'omega-compiler-build-profile-v1','opt_level':'3'}
-                with patch.object(benchmark.subprocess,'check_output',side_effect=output), patch.object(benchmark,'require_optimized',return_value={'sha256':'b'*64,'profile':profile}), patch.object(benchmark,'host_block',return_value=host), patch.object(benchmark,'catalog_rules',return_value=[('Probe','TypedInput')]), patch.object(benchmark,'capture_compile',side_effect=compile_sample), patch.object(benchmark,'run_measured',return_value=(0,2,512)), patch.object(benchmark.tempfile,'mkdtemp',side_effect=lambda *a,**kw: str(keep) if kw.get('prefix')=='omega-benchmark-exe-' else original_mkdtemp(*a,**kw)):
+                with patch.object(benchmark.subprocess,'check_output',side_effect=output), patch.object(benchmark,'require_optimized',return_value={'sha256':'b'*64,'profile':profile}), patch.object(benchmark,'host_block',return_value=host), patch.object(benchmark,'catalog_rules',return_value=[('Probe','TypedInput')]), patch.object(benchmark,'capture_compile',side_effect=compile_sample), patch.object(benchmark,'run_measured',return_value=(0,2,512)), patch.object(benchmark,'settle_package_review',side_effect=lambda *a: lock.write_text('locked inputs')), patch.object(benchmark.tempfile,'mkdtemp',side_effect=lambda *a,**kw: str(keep) if kw.get('prefix')=='omega-benchmark-exe-' else original_mkdtemp(*a,**kw)):
                     if mode in ('producer','revision'):
                         with self.assertRaises(SystemExit):benchmark.measure(args)
                     else:
@@ -618,6 +629,8 @@ class RecorderContextTests(unittest.TestCase):
                         self.assertEqual(measured['measurement']['source_clean'],mode!='source')
                         self.assertEqual(measured['measurement']['dependency_lock_stable'],mode!='lock')
                         self.assertEqual(measured['measurement']['work_units'],100)
+                        self.assertEqual(measured['metrics']['package_preparation_ms']['status'],
+                                         'measured' if mode == 'prepare' else 'skipped')
                         self.assertEqual(benchmark.validate_record(measured,'test'),[])
 
 

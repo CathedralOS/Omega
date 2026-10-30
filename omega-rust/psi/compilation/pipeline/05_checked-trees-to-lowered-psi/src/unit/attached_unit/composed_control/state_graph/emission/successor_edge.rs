@@ -82,7 +82,7 @@ impl StateGraphEmission<'_, '_> {
             .storage_observations
             .clone_from(inherited_lengths);
         let target = plan
-            .state_position(edge.target_state)
+            .successor_position(edge)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph target disappeared during emission",
             ))?;

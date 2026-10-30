@@ -5,6 +5,8 @@
 //! its scalar demand; neither the source compiler nor native stages run an
 //! interpreter callback. Every failure retains the attempted evaluation ledger.
 
+mod queue;
+
 use compilation_products::PendingNativeProduct;
 use compiler::{CompilationOutput, CompilationProductError};
 use diagnostics::Diagnostic;
@@ -20,6 +22,29 @@ pub fn complete_product(
     // Direct product consumers need the same stack as the enclosing batch
     // entrances. Nested completion reuses their existing compiler worker.
     compiler::checked::run_on_compile_thread(|| complete_native(*product))
+}
+
+/// Source admission has finished for the roster. Only owned native products
+/// enter workers; every owner remains attached to its complete result.
+pub(crate) fn complete_products<Owner: Send>(
+    products: Vec<(Owner, Result<CompilationOutput, CompilationProductError>)>,
+) -> Vec<(Owner, Result<CompilationOutput, CompilationProductError>)> {
+    let count = products.len();
+    let mut completed = Vec::new();
+    let mut pending = Vec::new();
+    for (position, (owner, product)) in products.into_iter().enumerate() {
+        match product {
+            Ok(CompilationOutput::Native(product)) => {
+                pending.push((position, move || (owner, complete_native(*product))))
+            }
+            result => completed.push((position, (owner, result))),
+        }
+    }
+    completed.extend(queue::execute(pending));
+    completed.sort_unstable_by_key(|(position, _)| *position);
+    assert_eq!(completed.len(), count, "native completion lost a product");
+    assert!(completed.iter().map(|(position, _)| *position).eq(0..count));
+    completed.into_iter().map(|(_, product)| product).collect()
 }
 
 fn complete_native(
