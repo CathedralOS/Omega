@@ -1,6 +1,7 @@
 //! Discover the whole demand closure before freezing each entry's captures.
 //! Only executable reads and geometry extents constrain execution order.
 
+use crate::unique::extend_unique;
 use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, ValueId};
 use terminal_installation::{ScalarApplicationObservations, ScalarConditionSelection};
 use terminal_interpreter::{
@@ -30,14 +31,14 @@ pub(super) fn discover(
     conditions: &mut ScalarConditionSelection<'_>,
 ) -> Result<Vec<Job>, String> {
     let mut demanded = Vec::new();
-    extend_demand(&mut demanded, requested.iter().copied());
-    extend_demand(&mut demanded, conditions.applications()?);
+    extend_unique(&mut demanded, requested.iter().copied());
+    extend_unique(&mut demanded, conditions.applications()?);
     let mut jobs = Vec::new();
     let mut discovered = 0;
     while discovered < demanded.len() {
         let batch_end = demanded.len();
         conditions.include_applications(&demanded[discovered..batch_end]);
-        extend_demand(&mut demanded, conditions.applications()?);
+        extend_unique(&mut demanded, conditions.applications()?);
         for position in discovered..batch_end {
             let application = demanded[position];
             let declaration = observations
@@ -83,7 +84,7 @@ pub(super) fn discover(
                             "scalar evaluation needs an unavailable external completion".into()
                         );
                     }
-                    extend_demand(&mut demanded, requirements.scalar_entry_conditions);
+                    extend_unique(&mut demanded, requirements.scalar_entry_conditions);
                     (
                         Execution::Entry {
                             machine,
@@ -93,7 +94,7 @@ pub(super) fn discover(
                     )
                 }
             };
-            extend_demand(&mut demanded, dependencies.iter().copied());
+            extend_unique(&mut demanded, dependencies.iter().copied());
             jobs.push(Job {
                 application,
                 execution,
@@ -104,17 +105,6 @@ pub(super) fn discover(
         discovered = batch_end;
     }
     Ok(jobs)
-}
-
-fn extend_demand(
-    demanded: &mut Vec<ScalarApplicationId>,
-    applications: impl IntoIterator<Item = ScalarApplicationId>,
-) {
-    for application in applications {
-        if !demanded.contains(&application) {
-            demanded.push(application);
-        }
-    }
 }
 
 /// Reject the entire execution cycle before running any of its unrelated jobs.

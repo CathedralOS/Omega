@@ -48,6 +48,7 @@
 //! orders that extent's evaluation; neither a probe stand-in nor a provisional
 //! layout may provide the encoded value.
 
+use crate::unique::extend_unique;
 use std::collections::HashMap;
 
 use diagnostics::Diagnostic;
@@ -793,16 +794,8 @@ pub(crate) fn evaluate(
                             call_selections.push(*selection);
                         }
                     }
-                    for origin in evaluation.origins {
-                        if !selections.contains(&origin) {
-                            selections.push(origin);
-                        }
-                    }
-                    for operator in evaluation.operators {
-                        if !builtin_operators.contains(&operator) {
-                            builtin_operators.push(operator);
-                        }
-                    }
+                    extend_unique(&mut selections, evaluation.origins);
+                    extend_unique(&mut builtin_operators, evaluation.operators);
                     let materialized = materialize::literal(
                         &mut syntax,
                         typed,
@@ -849,19 +842,11 @@ pub(crate) fn evaluate(
                         call_selections.push(*selection);
                     }
                 }
-                for origin in result.origins {
-                    if !selections.contains(&origin) {
-                        selections.push(origin);
-                    }
-                }
+                extend_unique(&mut selections, result.origins);
                 // Several fields may depend on the same computed declaration.
                 // Its authored operators remain one provenance roster, not one
                 // synthetic occurrence for every leaf which reads the value.
-                for operator in result.operators {
-                    if !builtin_operators.contains(&operator) {
-                        builtin_operators.push(operator);
-                    }
-                }
+                extend_unique(&mut builtin_operators, result.operators);
                 scalar_value = Some(result.value.declaration_value());
                 use crate::const_evaluation::const_generic_expressions::value::ScalarValue;
                 let literal = match result.value {
@@ -953,21 +938,9 @@ pub(crate) fn evaluate(
                     &preparation,
                     InitializerCustodyPurpose::Value,
                 )?;
-                for origin in custody.selections {
-                    if !selections.contains(&origin) {
-                        selections.push(origin);
-                    }
-                }
-                for operator in custody.builtin_operators {
-                    if !builtin_operators.contains(&operator) {
-                        builtin_operators.push(operator);
-                    }
-                }
-                for call in custody.call_selections {
-                    if !call_selections.contains(&call) {
-                        call_selections.push(call);
-                    }
-                }
+                extend_unique(&mut selections, custody.selections);
+                extend_unique(&mut builtin_operators, custody.builtin_operators);
+                extend_unique(&mut call_selections, custody.call_selections);
             }
             let authored_custody = ConstInitializerCustody {
                 selections: dependency_origins(
@@ -1108,11 +1081,7 @@ fn dependency_origins(
             origins.push(origin);
         }
         let custody = dependency.custody(declarations, preparation, purpose)?;
-        for origin in custody.selections {
-            if !origins.contains(&origin) {
-                origins.push(origin);
-            }
-        }
+        extend_unique(&mut origins, custody.selections);
     }
     Ok(origins)
 }

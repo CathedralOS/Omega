@@ -2,6 +2,7 @@
 
 use super::integer_type::ScalarPosition;
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
+use crate::unique::extend_unique;
 use crate::{BuildTimeAdmissionPlan, BuildTimeSelectionAuthority, BuildTimeValue};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
@@ -106,7 +107,7 @@ impl Invocation<'_> {
                 policy(&position),
                 self,
             )?;
-            append_warnings(&mut warnings, new_warnings);
+            extend_unique(&mut warnings, new_warnings);
             match (position, value.decode_encoding()) {
                 (ScalarPosition::Boolean, Some(DecodedCanonicalConstValue::Boolean(value))) => {
                     literals.push(ExpressionNode::Boolean(value));
@@ -284,7 +285,7 @@ impl ConstantCalls for Invocation<'_> {
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
             let position = self.position(callee, parameter.type_reference)?;
-            append_warnings(
+            extend_unique(
                 &mut warnings,
                 value::validate_closed_scalar_with_policy(
                     self.execution,
@@ -386,13 +387,5 @@ fn policy(position: &ScalarPosition) -> numerics::arithmetic::ArithmeticDomain {
     match position {
         ScalarPosition::Boolean => numerics::arithmetic::ArithmeticDomain::Exact,
         ScalarPosition::Integer(position) => position.policy,
-    }
-}
-
-fn append_warnings(warnings: &mut Vec<Diagnostic>, additions: Vec<Diagnostic>) {
-    for warning in additions {
-        if !warnings.contains(&warning) {
-            warnings.push(warning);
-        }
     }
 }

@@ -20,6 +20,7 @@
 //! Scalar probes keep their exact evaluator rather than acquiring runtime
 //! return-range obligations.
 
+use crate::unique::extend_unique;
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -291,11 +292,7 @@ impl Invocation<'_> {
             typed,
             &body.roots,
         )? {
-            for warning in self.check_call(call)? {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
-            }
+            extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = scalar_result(self.interpret(body.reference)?, destination)?;
         Ok((value, warnings))
@@ -745,11 +742,7 @@ impl Invocation<'_> {
                     _ => return Err("constant argument is not a canonical scalar snapshot".into()),
                 },
             });
-            for warning in argument_warnings {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
-            }
+            extend_unique(&mut warnings, argument_warnings);
         }
         if needs_concrete_discharge {
             let callee = match target {
@@ -1047,11 +1040,7 @@ impl Invocation<'_> {
         for call in
             crate::const_evaluation::const_generic_expressions::call_expressions(typed, &roots)?
         {
-            for warning in self.check_call(call)? {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
-            }
+            extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = self.interpret(reference)?;
         Ok(LeafEvaluation {

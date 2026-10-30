@@ -47,6 +47,7 @@ pub use scalar_applications::{
     ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
 };
 mod syntax_probes;
+mod unique;
 
 pub use language_semantics::wire::WireCompatibilityDemand;
 

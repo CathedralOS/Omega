@@ -8,6 +8,7 @@ use crate::reflection::schema_graph::{
     CaseDescription, DeclarationDescription, FieldDescription, SchemaNode, SchemaNodeHandle,
     SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
 };
+use crate::unique::extend_unique;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
@@ -297,11 +298,7 @@ pub fn replay_semantic_schema_graph(
         stored_nominals.push(key);
     }
     let mut expected_unique: Vec<(String, String)> = Vec::new();
-    for key in expected_nominals {
-        if !expected_unique.contains(&key) {
-            expected_unique.push(key);
-        }
-    }
+    extend_unique(&mut expected_unique, expected_nominals);
     if stored_nominals != expected_unique {
         return Err(format!(
             "schema `{}` nominal references do not match the bound member types",

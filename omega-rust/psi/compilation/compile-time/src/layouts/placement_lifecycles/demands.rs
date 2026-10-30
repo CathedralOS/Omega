@@ -1,6 +1,7 @@
 //! Source-owned policy demand across ordinary specialization. An interned
 //! callable tuple describes a signature, not an invocation or its requester.
 
+use crate::unique::extend_unique;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -84,11 +85,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Demand>, Vec<Diagn
                         .with_source_span(call.source),
                 ]);
             }
-            for source in result {
-                if !demand.sources.contains(&source) {
-                    demand.sources.push(source);
-                }
-            }
+            extend_unique(&mut demand.sources, result);
         } else {
             demands.push(Demand {
                 callable: arguments.callable,
