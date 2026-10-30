@@ -318,10 +318,7 @@ impl TerminalExecution<'_> {
         field: &StructuralByteSequenceRuntimeField,
     ) -> Result<super::read::TerminalByteRead<'_>, TerminalInterpretError> {
         use super::read::TerminalByteRead;
-        let binding = self
-            .structural_byte_sequence_fields
-            .get(field)
-            .ok_or_else(malformed)?;
+        let binding = self.structural_byte_sequence_fields.require(field)?;
         if let ByteSequenceBinding::Immutable(bytes) = binding {
             return Ok(TerminalByteRead::contiguous(bytes.bytes()));
         }
@@ -341,8 +338,7 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::MutableField { field, .. } => {
                 let bytes = self
                     .structural_byte_sequence_fields
-                    .get(field)
-                    .ok_or_else(malformed)?
+                    .require(field)?
                     .immutable()?;
                 Ok(TerminalByteRead::contiguous(bytes.bytes()))
             }
@@ -359,10 +355,7 @@ impl TerminalExecution<'_> {
         &self,
         field: &StructuralByteSequenceRuntimeField,
     ) -> Result<u64, TerminalInterpretError> {
-        let binding = self
-            .structural_byte_sequence_fields
-            .get(field)
-            .ok_or_else(malformed)?;
+        let binding = self.structural_byte_sequence_fields.require(field)?;
         match binding {
             ByteSequenceBinding::Immutable(bytes) => {
                 u64::try_from(bytes.len()).map_err(|_| malformed())
@@ -379,10 +372,7 @@ impl TerminalExecution<'_> {
         &self,
         field: &StructuralByteSequenceRuntimeField,
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
-        let binding = self
-            .structural_byte_sequence_fields
-            .get(field)
-            .ok_or_else(malformed)?;
+        let binding = self.structural_byte_sequence_fields.require(field)?;
         if let ByteSequenceBinding::Immutable(bytes) = binding {
             return Ok(bytes.clone());
         }
@@ -524,10 +514,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
             if field.field_type.byte_sequence_carrier().is_some() {
                 let (cell, _) = self.readable_byte_field(argument.place, prefix, field.id)?;
-                let bytes = self
-                    .structural_byte_sequence_fields
-                    .get(&cell)
-                    .ok_or_else(malformed)?;
+                let bytes = self.structural_byte_sequence_fields.require(&cell)?;
                 return Ok(bytes.clone().with_descriptor_home(selected.clone()));
             }
         }
@@ -904,8 +891,7 @@ impl TerminalExecution<'_> {
                 }),
             ByteSequenceBinding::MutableField { field, .. } => self
                 .structural_byte_sequence_fields
-                .get(field)
-                .ok_or_else(malformed)?
+                .require(field)?
                 .immutable()?
                 .clone(),
             ByteSequenceBinding::MutableOwner { home, .. } => self.byte_owner_bytes(home)?.clone(),
@@ -927,8 +913,7 @@ impl TerminalExecution<'_> {
                 field, capacity, ..
             } => (
                 self.structural_byte_sequence_fields
-                    .get(field)
-                    .ok_or_else(malformed)?
+                    .require(field)?
                     .immutable()?,
                 *capacity,
             ),

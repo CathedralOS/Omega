@@ -110,10 +110,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let binding = self
-            .byte_sequence_values
-            .get(&place)
-            .ok_or_else(malformed)?;
+        let binding = self.byte_sequence_values.require(&place)?;
         binding.validate_mutable_referent(self, value)?;
         if let ByteSequenceBinding::MutableArray {
             array,
@@ -224,11 +221,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let bytes = self
-            .byte_sequence_values
-            .get(&place)
-            .ok_or_else(malformed)?
-            .immutable()?;
+        let bytes = self.byte_sequence_values.require(&place)?.immutable()?;
         let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
         if length > capacity {
             return Err(malformed());
@@ -264,11 +257,7 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         index: usize,
     ) -> Result<u8, TerminalInterpretError> {
-        match self
-            .byte_sequence_values
-            .get(&source)
-            .ok_or_else(malformed)?
-        {
+        match self.byte_sequence_values.require(&source)? {
             ByteSequenceBinding::Immutable(view) => view.get(index).copied().ok_or_else(malformed),
             ByteSequenceBinding::MutableArray { .. }
             | ByteSequenceBinding::MutableField { .. }
@@ -287,8 +276,7 @@ impl TerminalExecution<'_> {
                     }
                     MutableByteSequenceStorage::Field(field) => self
                         .structural_byte_sequence_fields
-                        .get(&field)
-                        .ok_or_else(malformed)?
+                        .require(&field)?
                         .immutable()?
                         .get(index)
                         .copied()

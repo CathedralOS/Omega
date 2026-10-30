@@ -889,7 +889,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &self,
         place: PlaceId,
     ) -> Result<&TerminalStructuralValue, TerminalInterpretError> {
-        self.structural_values.get(&place).ok_or_else(malformed)
+        self.structural_values.require(&place)
     }
 
     /// Every live structural value: the running frame's own table, then each

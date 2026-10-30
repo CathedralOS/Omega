@@ -665,8 +665,7 @@ impl TerminalExecution<'_> {
             };
             let bytes = self
                 .structural_byte_sequence_fields
-                .get(destination)
-                .ok_or_else(malformed)?
+                .require(destination)?
                 .immutable()?
                 .bytes();
             if bytes.len() as u128 > u128::from(*capacity) {
@@ -993,8 +992,7 @@ impl TerminalExecution<'_> {
         };
         let bytes = self
             .structural_byte_sequence_fields
-            .get(&source)
-            .ok_or_else(malformed)?
+            .require(&source)?
             .immutable()?;
         let bytes = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => bytes.clone(),

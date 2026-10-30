@@ -69,11 +69,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let bytes = self
-            .byte_sequence_values
-            .get(source)
-            .ok_or_else(malformed)?
-            .immutable()?;
+        let bytes = self.byte_sequence_values.require(source)?.immutable()?;
         // A qualified value is still a readable byte carrier. Its immutable
         // binding retains the captured contents and exact descriptor home;
         // qualifiers neither change those bytes nor require an empty backing
@@ -192,8 +188,7 @@ impl TerminalExecution<'_> {
         }
         let view = self
             .byte_sequence_values
-            .get(source)
-            .ok_or_else(malformed)?
+            .require(source)?
             .immutable()?
             .clone();
         if !view.matches_descriptor_home(source_value) {

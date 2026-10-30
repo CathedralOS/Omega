@@ -27,10 +27,7 @@ impl TerminalExecution<'_> {
         let ConstructorValue::Placed(child) = child else {
             return Err(malformed());
         };
-        let binding = self
-            .byte_sequence_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
+        let binding = self.byte_sequence_values.require(&argument.place)?;
         if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
             return Err(malformed());
         }

@@ -362,10 +362,7 @@ impl TerminalExecution<'_> {
                         structural_type,
                     } => (depth, place, structural_type),
                     ArrayStorageHome::Runtime => {
-                        let payload = self
-                            .structural_byte_storage
-                            .get(&array.referent)
-                            .ok_or_else(malformed)?;
+                        let payload = self.structural_byte_storage.require(&array.referent)?;
                         if *index >= payload.len() {
                             return Err(malformed());
                         }
@@ -464,8 +461,7 @@ impl TerminalExecution<'_> {
             Some(ArrayCell::Structural { array, index }) => {
                 if self
                     .structural_byte_storage
-                    .get(&array)
-                    .ok_or_else(malformed)?
+                    .require(&array)?
                     .capture_scalar(index)?
                     .1
                     .is_none()

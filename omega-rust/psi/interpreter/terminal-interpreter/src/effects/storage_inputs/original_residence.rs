@@ -563,8 +563,7 @@ impl TerminalExecution<'_> {
                 ArrayCell::Structural { array, .. } => {
                     let structural_type = self
                         .structural_byte_storage
-                        .get(&array)
-                        .ok_or_else(malformed)?
+                        .require(&array)?
                         .structural_type;
                     let mut source = TerminalStructuralValue::minted(
                         array.opaque_identity,
@@ -688,10 +687,7 @@ impl TerminalExecution<'_> {
             let (home, index) = match cell {
                 ArrayCell::Frame { home, index } => (home, index),
                 ArrayCell::Structural { array, index } => {
-                    let payload = self
-                        .structural_byte_storage
-                        .get(&array)
-                        .ok_or_else(malformed)?;
+                    let payload = self.structural_byte_storage.require(&array)?;
                     let (selected, mut path) = self.actual_storage_projection(original, &array)?;
                     if selected != payload.structural_type {
                         return Err(malformed());

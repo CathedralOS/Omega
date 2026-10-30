@@ -654,10 +654,7 @@ impl ConstructorStorage {
             namespace,
             field,
         };
-        let bytes = execution
-            .structural_byte_sequence_fields
-            .get(&cell)
-            .ok_or_else(malformed)?;
+        let bytes = execution.structural_byte_sequence_fields.require(&cell)?;
         self.bytes.insert(cell, bytes.clone())?;
         Ok(())
     }

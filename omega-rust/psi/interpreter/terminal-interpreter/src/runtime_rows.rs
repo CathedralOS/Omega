@@ -173,6 +173,13 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
     pub(crate) fn get(&self, key: &Key) -> Option<&Value> {
         self.rows.get(key)
     }
+
+    /// The row keyed `key`, malformed when the table holds none: every live
+    /// table row was minted by an executed operation and retired with its
+    /// custody, so absence here is a defect rather than an input error.
+    pub(crate) fn require(&self, key: &Key) -> Result<&Value, TerminalInterpretError> {
+        self.get(key).ok_or_else(malformed)
+    }
     pub(crate) fn get_mut(&mut self, key: &Key) -> Option<&mut Value> {
         self.rows.get_mut(key)
     }

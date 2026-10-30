@@ -1513,11 +1513,7 @@ impl TerminalExecution<'_> {
             }) = self.program.structural_types().get(&result.structural_type)
         {
             let source_value = self.structural_value(*source)?;
-            let bytes = self
-                .byte_sequence_values
-                .get(source)
-                .ok_or_else(malformed)?
-                .immutable()?;
+            let bytes = self.byte_sequence_values.require(source)?.immutable()?;
             if result.multiplicity != StructuralMultiplicity::Unrestricted
                 || result.structural_type != source_value.structural_type
                 || result.qualifications != source_value.qualifications
@@ -1910,10 +1906,7 @@ impl TerminalExecution<'_> {
             opaque_identity: leaf.opaque_identity,
             path: parent_path.to_vec(),
         };
-        let bytes = self
-            .structural_byte_storage
-            .get(&array)
-            .ok_or_else(malformed)?;
+        let bytes = self.structural_byte_storage.require(&array)?;
         let layout = terminal_semantics::byte_carrier_scalar_layout(
             self.program.structural_types().values(),
             result.structural_type,

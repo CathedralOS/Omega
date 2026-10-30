@@ -123,11 +123,7 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            match self
-                .byte_sequence_values
-                .get(&source.place)
-                .ok_or_else(malformed)?
-            {
+            match self.byte_sequence_values.require(&source.place)? {
                 binding @ ByteSequenceBinding::MutableArray { array, offset, .. } => {
                     binding.validate_mutable_referent(self, value)?;
                     ByteStorage::Array {
