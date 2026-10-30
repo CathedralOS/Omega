@@ -3,9 +3,10 @@ use crate::{
     SelectedFormInternalMachineFixupState,
 };
 use physical_instructions::PostAllocationMachineIdentity;
-use register_model::RegisterViewId;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
+
+use crate::machine_code::identity_encoding::encode_views;
 
 use super::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
@@ -408,13 +409,6 @@ fn encode_machine_disposition(
             hasher.byte(3);
             hasher.raw(&consumer.0.to_le_bytes());
         }
-    }
-}
-
-fn encode_views(hasher: &mut crate::digest_encoder::DomainDigestEncoder, views: &[RegisterViewId]) {
-    hasher.u64(views.len() as u64);
-    for view in views {
-        hasher.raw(&view.0.to_le_bytes());
     }
 }
 
