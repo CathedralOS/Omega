@@ -262,13 +262,14 @@ python3 tools/qualification.py start --state build/qualification.json --base FUL
 python3 tools/qualification.py run-pending --state build/qualification.json --revision 0 --base FULL_BASE_SHA
 ```
 
-State updates retain complete history in compact JSON. State commands emit a distinct
+State updates retain complete indexed history and immutable receipts. State commands emit a distinct
 `omega-qualification-summary-v1` presentation with the canonical state's absolute
 path and revision, latest immutable observation receipt and latest assessment.
 It preserves the command's actual exit status. The presentation cannot be loaded
 as qualification state; context, handoff and source-reuse packets remain complete.
-Read the canonical state file for complete history, or request `--full-output`
-when that full JSON response is needed. The explicit `--summary-output` flag
+Read the canonical state and its receipts for complete history, or request `--full-output`
+to authenticate and expand all historical snapshots into one JSON response. That
+explicit expansion can be very large. The `--summary-output` flag
 remains supported. Neither presentation changes canonical state or immutable
 receipt bytes. Summaries avoid duplicating large source/artifact histories into
 every command's redirected log.
@@ -279,6 +280,64 @@ changed bytes use the normal loader and stale-revision checks. Readers receive
 detached projections, and a snapshot is consumed once, including on failure.
 This avoids repeated decoding of large histories while preserving the complete
 canonical state, immutable receipts and ordinary capture checks.
+
+### Receipt-backed state storage
+
+New state saves use `omega-qualification-v2`. The updated tool also reads v1;
+older tools deliberately refuse v2 instead of treating absent snapshots as
+complete observations. The first ordinary locked mutation migrates v1 after its
+usual exact revision, active-worktree and recovery checks. It does not reset
+history or change any execution result. That first migration still has to read
+the old state and authenticate its observation receipts; subsequent reads and
+saves use the small index. Existing capture/recovery receipt bytes and their
+SHA-256 identities are unchanged.
+
+Each completed observation keeps its command, source/artifact digests, producer,
+profiles, streams, result, invalidations and other semantic fields inline.
+Only `source_stamps` and `artifact_stamps` move behind the existing immutable
+observation receipt. A fixed `receipt_fields` roster declares those two fields.
+Only an exact match against the authenticated original receipt may be compacted.
+Damaged or unbound legacy observations remain inline and nonreusable; compaction
+never substitutes the receipt's values for a differing historical record.
+
+Assessments keep their candidate/base, check decisions, canonical context and
+timing inline. Their `incoming_paths` list moves into a new immutable full-row
+`*.assessment.json` receipt, written before the atomic state replacement. Its
+content-addressed name allows a retry to reuse an unchanged orphan after a failed
+state save. Never delete orphan receipts to disguise a failure. Every v2
+assessment must retain its receipt; removing both receipt fields cannot downgrade
+it to unauthenticated legacy data. Complete v1 inline assessments remain readable.
+
+Normal saves do not reread archived payloads. Consumers authenticate the exact
+receipt bytes they decode and compare every inline key and typed JSON value;
+extra/missing fields, changed receipts and altered field rosters refuse. The
+latest assessment is authenticated before it supplies a candidate or base.
+`observation(row)` and `assessment(row)` are the explicit full-row reader APIs;
+`load(path)` returns the index. `--full-output` authenticates and expands receipt-
+backed rows, refusing missing or damaged archives instead of inventing values.
+All before/after capture checks, separate stream hashes, producer profile rules,
+source-reuse admission and interrupted/completed recovery checks remain in force.
+
+Back up the state and its entire `.records` directory together, including existing
+observation and new assessment receipts. Removing the duplicate snapshots from
+the index does not make those immutable receipts disposable. A crash leaves the
+old complete state or the new complete index; failed writes never update the
+canonical revision. Receipt storage is evidence retention, not new acceptance.
+
+The read-only provider-campaign measurement at historical revision 507 (SHA-256
+`8e601cc1482681591e1f528c389321a1ac2732fe0eb7c498241c9682eb1a3ad0`)
+contained 105 observations and 187 assessments. Its 2,412,356,762-byte state
+projected to 1,925,834 bytes, retaining its running reservation as well. A counting
+sink measured 29.10 seconds serializing the old rows versus 0.020 seconds for the
+new index. First migration additionally retains 184,716,540 bytes of assessment
+receipts; existing multi-gigabyte observation receipts are not copied. This was
+a coherent historical snapshot, not the concurrently advancing canonical path;
+no parent state, receipt or producer was modified. These are storage measurements,
+not execution acceptance or a claim that source/artifact validation takes no time.
+A separate local-filesystem measurement authenticated and compacted a real
+27,133,558-byte new observation and atomically saved its index with a conservative
+2 MiB historical-index allowance: 2,108,557 bytes in 0.272 seconds. Its original
+receipt remained byte-identical. No multi-gigabyte scratch state was written.
 
 Retain this revision and its base through publication. Main/queue SHA movement
 alone never requires a pull, rebase, rebuild or requalification. Assess the
