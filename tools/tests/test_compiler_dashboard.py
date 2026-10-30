@@ -99,6 +99,70 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("error", host)
         self.assertEqual(sum("Cannot read native golden linux_arm64" in warning for warning in warnings), 1)
 
+    def test_recording_hosts_match_the_corpus_gate(self):
+        import corpus_gate
+        self.assertEqual(dashboard.RECORDING_HOSTS, corpus_gate.HOST_TARGETS)
+
+    def test_qemu_recorded_linux_arm64_rows_stay_and_are_marked_emulated(self):
+        corpus = self.root / "tests/omega"
+        corpus.mkdir(parents=True)
+        (corpus / "corpus_both_linux_arm64.txt").write_text(
+            '# context: {"schema": "omega-corpus-context-v1", "platform": "linux", "machine": "x86_64"}\n'
+            "pass/g/a built 1ms exit:0\n")
+        warnings = []
+        with patch.object(dashboard, "git", return_value="2026-10-30T00:00:00Z"):
+            hosts = dashboard.collect_native(self.root, warnings)
+        self.assertEqual([host["target"] for host in hosts], list(dashboard.TARGETS))
+        arm = hosts[3]
+        self.assertEqual(arm["target"], "linux_arm64")
+        self.assertTrue(arm["available"])
+        self.assertTrue(arm["emulated"])
+        self.assertEqual(arm["golden_paths"], ["tests/omega/corpus_both_linux_arm64.txt"])
+        self.assertEqual(arm["counts"]["executed"], 1)
+        self.assertFalse(any("Skipped" in warning for warning in warnings))
+        self.assertFalse(hosts[1]["available"])
+        self.assertFalse(hosts[1]["emulated"])
+        (corpus / "corpus_native_linux_arm64.txt").write_text(
+            '# context: {"schema": "omega-corpus-context-v1", "platform": "linux", "machine": "aarch64"}\n'
+            "pass/g/native built 1ms exit:0\n")
+        warnings.clear()
+        with patch.object(dashboard, "git", return_value="2026-10-30T00:00:00Z"):
+            arm = dashboard.collect_native(self.root, warnings)[3]
+        self.assertTrue(arm["available"])
+        self.assertFalse(arm["emulated"])
+        self.assertEqual(arm["golden_paths"], ["tests/omega/corpus_native_linux_arm64.txt"])
+        self.assertEqual(arm["counts"]["executed"], 1)
+        self.assertEqual(arm["source_counts"], {"tests/omega/corpus_native_linux_arm64.txt": 1})
+        self.assertFalse(any("Skipped" in warning for warning in warnings))
+
+    def test_matching_aarch64_context_remains_linux_arm64_host_evidence(self):
+        corpus = self.root / "tests/omega"
+        corpus.mkdir(parents=True)
+        (corpus / "corpus_both_linux_arm64.txt").write_text(
+            '# context: {"schema": "omega-corpus-context-v1", "platform": "linux", "machine": "aarch64"}\n'
+            "pass/g/a built 1ms exit:0\n")
+        with patch.object(dashboard, "git", return_value="2026-10-30T00:00:00Z"):
+            host = dashboard.collect_native(self.root, [])[3]
+        self.assertTrue(host["available"])
+        self.assertFalse(host["emulated"])
+        self.assertEqual(host["counts"]["executed"], 1)
+        self.assertEqual(host["golden_paths"], ["tests/omega/corpus_both_linux_arm64.txt"])
+
+    def test_emulated_history_starts_when_the_recorder_matches_the_target(self):
+        path = "tests/omega/corpus_both_linux_arm64.txt"
+        qemu = ('# context: {"platform": "linux", "machine": "x86_64"}\n'
+                "pass/g/a built 1ms exit:0\n")
+        native = ('# context: {"platform": "linux", "machine": "aarch64"}\n'
+                  "pass/g/a built 1ms exit:0\npass/g/b built 1ms exit:0\n")
+        responses = ["2026-10-30T12:00:00Z",
+                     "native 2026-10-30T12:00:00Z\nqemu 2026-10-29T12:00:00Z",
+                     qemu, native]
+        with patch.object(dashboard, "git", side_effect=responses):
+            history = dashboard.native_history(self.root, path)
+        self.assertEqual([(point["revision"], point["executed"], point["fixtures"], point["emulated"])
+                          for point in history],
+                         [("qemu", 1, 1, True), ("native", 2, 2, False)])
+
     def test_execution_goldens_reconcile_per_fixture_and_keep_unmeasured_native_rows(self):
         corpus = self.root / "tests/omega"
         corpus.mkdir(parents=True)

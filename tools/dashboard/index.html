@@ -334,11 +334,16 @@ function cellState(place){
  if(['checked','not-host-runnable','no-oracle','skipped'].includes(o.state))return ['unmeasured','·',`Recorded ${o.state}; no runtime acceptance`];
  return ['failed','!','Recorded '+o.state];
 }
+function hostName(target, emulated) {
+ const parts = hosts[target] || [target];
+ const name = parts.join(' ').replace('x86_64', 'x86-64');
+ return emulated ? name + ' (emulated)' : name;
+}
 function renderHistory() {
  const colors={windows_x86_64:'#42cba5',linux_x86_64:'#62a5ff',macos_arm64:'#f18a62',linux_arm64:'#b29af5'};
  const target=$('history-target').value;
  const series=data.native.filter(host=>(target==='all'||host.target===target)&&(host.history||[]).length)
-   .map(host=>({host,color:colors[host.target],points:host.history,name:hosts[host.target].join(' ').replace('x86_64','x86-64')}));
+   .map(host=>({host,color:colors[host.target],points:host.history,name:hostName(host.target, host.emulated)}));
  if(!series.length){
   $('history-readout').textContent='No committed native history available for this target.';
   $('history-plot').innerHTML='<div class="chart-empty">No native golden has been recorded for this host.</div>';
@@ -469,7 +474,7 @@ function renderPerformance(){
 function renderCohort(){
  const rows=data.native.filter(host=>host.cohort?.available);
  const percent=(n,d)=>d?Math.round(n/d*100):null;
- const title=host=>hosts[host.target].join(' ').replace('x86_64','x86-64');
+ const title=host=>hostName(host.target, host.emulated);
  if(!rows.length){$('cohort-plot').innerHTML=$('growth-plot').innerHTML='<div class="chart-empty">No baseline recorded</div>';$('cohort-details').textContent='No usable September 30 baseline was found.';return;}
  const narrow=matchMedia('(max-width:700px)').matches,W=narrow?350:580,H=35+rows.length*110,L=narrow?78:112,R=W-(narrow?33:50),barWidth=R-L;
  $('cohort-plot').innerHTML=`<svg class="plot cohort-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="September 30 recorded run rate, same frozen fixture IDs now, and all programs now">
@@ -500,10 +505,11 @@ function renderFacts(){
 }
 function renderNative(){
  $('hosts').innerHTML=data.native.map(host=>{
- const title=hosts[host.target], c=host.counts;
- if(!host.available)return `<article class="host"><div class="host-top"><span class="host-title">${title[0]}</span><span class="host-arch">${title[1]}</span></div><div class="host-number">—</div><small>${escapeHTML(host.error?'Golden unreadable':'No native golden recorded')}</small></article>`;
+ const title=hosts[host.target], arch=title[1]+(host.emulated?' (emulated)':''), c=host.counts;
+ if(!host.available)return `<article class="host"><div class="host-top"><span class="host-title">${title[0]}</span><span class="host-arch">${arch}</span></div><div class="host-number">—</div><small>${escapeHTML(host.error?'Golden unreadable':'No native golden recorded')}</small></article>`;
  const percent=c.fixtures?c.authored/c.fixtures*100:0, remainder=c.fixtures?Math.max(0,c.executed-c.authored)/c.fixtures*100:0;
- return `<article class="host"><div class="host-top"><span class="host-title">${title[0]}</span><span class="host-arch">${title[1]}</span></div><div class="host-number">${number(c.authored)} <span>/ ${number(c.fixtures)} valid rows</span></div><div class="bar" role="img" aria-label="${number(c.authored)} exit matches; ${number(c.executed)} executed; ${number(c.fixtures)} valid golden rows"><span style="width:${percent}%"></span><span class="executed" style="width:${remainder}%"></span></div><div class="host-meta"><span>${number(c.executed)} executed · ${number(c.checked)} checked</span><span>${number(c.regressed)} regressed</span></div><div class="host-meta"><span>Golden updated ${escapeHTML(date(host.golden_updated))}</span></div><details><summary>Provenance & limits</summary><p>${number(c.unverified)} runs without exit oracle · ${number(c.oracle_mismatch.length)} exit mismatches · ${number(c.stdout_differs)} output mismatches. Exit matches alone do not establish output or Terminal agreement.</p><div class="stamp-list">${Object.entries(host.stamps).sort((a,b)=>b[1]-a[1]).map(([stamp,n])=>`<div class="stamp"><code>${escapeHTML(stamp)}</code><span>${number(n)} rows</span></div>`).join('')}</div>${(host.golden_paths||[host.path]).map(path=>source(path,path.includes('corpus_both_')?'Dual-engine golden':'Native golden')).join(' · ')}</details></article>`;
+ const emulatedNote=host.emulated?'These rows are qemu-aarch64 user-mode runs recorded on Linux x86_64. ':'';
+ return `<article class="host"><div class="host-top"><span class="host-title">${title[0]}</span><span class="host-arch">${arch}</span></div><div class="host-number">${number(c.authored)} <span>/ ${number(c.fixtures)} valid rows</span></div><div class="bar" role="img" aria-label="${number(c.authored)} exit matches; ${number(c.executed)} executed; ${number(c.fixtures)} valid golden rows"><span style="width:${percent}%"></span><span class="executed" style="width:${remainder}%"></span></div><div class="host-meta"><span>${number(c.executed)} executed · ${number(c.checked)} checked</span><span>${number(c.regressed)} regressed</span></div><div class="host-meta"><span>Golden updated ${escapeHTML(date(host.golden_updated))}</span></div><details><summary>Provenance & limits</summary><p>${emulatedNote}${number(c.unverified)} runs without exit oracle · ${number(c.oracle_mismatch.length)} exit mismatches · ${number(c.stdout_differs)} output mismatches. Exit matches alone do not establish output or Terminal agreement.</p><div class="stamp-list">${Object.entries(host.stamps).sort((a,b)=>b[1]-a[1]).map(([stamp,n])=>`<div class="stamp"><code>${escapeHTML(stamp)}</code><span>${number(n)} rows</span></div>`).join('')}</div>${(host.golden_paths||[host.path]).map(path=>source(path,path.includes('corpus_both_')?'Dual-engine golden':'Native golden')).join(' · ')}</details></article>`;
  }).join('');
 }
 function claimRows(){
@@ -539,7 +545,7 @@ function render(){
  renderFacts();renderNative();renderClaims();renderHistory();renderOutcomes();renderCohort();renderPerformance();
 }
 $('target').innerHTML=data.targets.map(t=>`<option value="${t}">${hosts[t].join(' · ')}</option>`).join('');
-$('history-target').innerHTML='<option value="all">All hosts</option>'+$('target').innerHTML;$('chart-target').innerHTML=$('target').innerHTML;
+$('history-target').innerHTML='<option value="all">All hosts</option>'+data.native.map(host=>`<option value="${escapeHTML(host.target)}">${escapeHTML(hostName(host.target, host.emulated))}</option>`).join('');$('chart-target').innerHTML=$('target').innerHTML;
 $('performance-host').onchange=()=>{$('performance-readout').textContent='';renderPerformance();};
 $('history-target').onchange=()=>{historySelection=null;renderHistory();};
 $('chart-target').onchange=()=>{$('target').value=$('chart-target').value;$('target').onchange();};
