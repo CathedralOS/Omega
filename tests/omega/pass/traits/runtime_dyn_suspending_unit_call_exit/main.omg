@@ -1,0 +1,23 @@
+// A suspension-capable Unit call checks its public scalar input and executes its selected row.
+// Expected exit: 0
+public boundary trait Scheduler {
+    machine identity(value: u64) -> u64 ensures result == value suspends; reaches;
+}
+InlineScheduler satisfies Scheduler {
+    machine identity(value: u64) -> u64 ensures result == value { value }
+}
+trait DeferredUnit {
+    machine check(value: u64) requires value == 100u64 suspends; crashes Trap;
+}
+InlineCheck satisfies DeferredUnit {
+    machine check(value: u64) requires value == 100u64 suspends; crashes Trap {
+        let returned: u64 = suspend Scheduler::identity(value);
+        transition returned == 100u64 { true -> done() _ -> bad() }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+machine main() crashes Trap {
+    let selected: dyn DeferredUnit = InlineCheck as dyn DeferredUnit;
+    suspend DeferredUnit::check(selected, 100u64);
+}
