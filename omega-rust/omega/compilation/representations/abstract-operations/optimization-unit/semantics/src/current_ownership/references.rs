@@ -1001,43 +1001,23 @@ fn establish_constructor<'a>(
     >,
     live: &mut [LiveReference],
 ) -> Result<(), OptimizationUnitValidationError> {
+    let refusal = |reason| invalid(function, block, Some(node), reason);
     if live.iter().any(|reference| {
         reference.carrier == result.place || reference.identity.place == result.place
     }) {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
+        return Err(refusal(
             "record destination still owns live reference custody",
         ));
     }
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
     for (destination, argument) in operands {
-        let signature = structural_source_contract(function, argument.place).ok_or_else(|| {
-            invalid(
-                function,
-                block,
-                Some(node),
-                "record operand has no structural source",
-            )
-        })?;
+        let signature = structural_source_contract(function, argument.place)
+            .ok_or_else(|| refusal("record operand has no structural source"))?;
         let selected_type = leaf_type(structural_types, signature.structural_type, &argument.path)
-            .ok_or_else(|| {
-                invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "constructor operand has no exact selected type",
-                )
-            })?;
+            .ok_or_else(|| refusal("constructor operand has no exact selected type"))?;
         let paths = leaf_paths(structural_types, selected_type, live.len()).ok_or_else(|| {
-            invalid(
-                function,
-                block,
-                Some(node),
-                "constructor operand requires more reference leaves than are live",
-            )
+            refusal("constructor operand requires more reference leaves than are live")
         })?;
         for path in paths {
             let mut source_path = argument.path.clone();
@@ -1047,21 +1027,9 @@ fn establish_constructor<'a>(
                 .position(|reference| {
                     reference.carrier == argument.place && reference.carrier_path == source_path
                 })
-                .ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "record operand does not own its reference leaf",
-                    )
-                })?;
+                .ok_or_else(|| refusal("record operand does not own its reference leaf"))?;
             if !moved.insert(position) {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "record cannot duplicate reference custody",
-                ));
+                return Err(refusal("record cannot duplicate reference custody"));
             }
             let mut destination = destination.clone();
             destination.extend(path);
@@ -1072,10 +1040,7 @@ fn establish_constructor<'a>(
                 && owned_resident(&reference.carrier_path, &argument.path)
                 && !moved.contains(&position)
         }) {
-            return Err(invalid(
-                function,
-                block,
-                Some(node),
+            return Err(refusal(
                 "record operand reference roster differs from its type",
             ));
         }
@@ -1107,6 +1072,7 @@ pub(super) fn apply_operation(
     operation: &O,
     live: &mut Vec<LiveReference>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let refusal = |reason| invalid(function, block, Some(node), reason);
     // Every publication rebinds its result storage, regardless of producer
     // family or disposal multiplicity. The validated current place catalog
     // identifies the producer; a surviving loan pins that previous iteration.
@@ -1120,7 +1086,7 @@ pub(super) fn apply_operation(
                 }))
         })
     {
-        return Err(invalid(function, block, Some(node), "operation result remains pinned by live reference custody"));
+        return Err(refusal("operation result remains pinned by live reference custody"));
     }
     match operation {
         O::AtomicEvent { event, .. } => {
@@ -1492,14 +1458,7 @@ pub(super) fn apply_operation(
             ..
         } => {
             let value_type = structural_source_contract(function, value.place)
-                .ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "window store value has no declaration",
-                    )
-                })?
+                .ok_or_else(|| refusal("window store value has no declaration"))?
                 .structural_type;
             return windows::transfer(
                 function,
@@ -1528,10 +1487,7 @@ pub(super) fn apply_operation(
             // parent; distinct identities keep both shared cohort members live
             // until their independent releases.
             let abstract_operations::StructuralCopyPath::Ordinary(path) = path else {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
+                return Err(refusal(
                     "reference copy needs an exact ordinary carrier path",
                 ));
             };
@@ -1551,10 +1507,7 @@ pub(super) fn apply_operation(
                     reference.carrier == result.place || reference.identity.place == result.place
                 })
             {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
+                return Err(refusal(
                     "reference copy has no exact shared source or fresh destination",
                 ));
             }
@@ -1587,10 +1540,7 @@ pub(super) fn apply_operation(
                 position != argument_position
                     && call_dependency_conflict(&custody.dependencies, other)
             }) {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
+                return Err(refusal(
                     "call consumes or mutates an intermediate reference carrier",
                 ));
             }
@@ -1607,30 +1557,15 @@ pub(super) fn apply_operation(
             .is_some_and(|source| contains_reference(structural_types, source.structural_type))
         {
             if matches!(operation, O::BoundaryCall { .. }) {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
+                return Err(refusal(
                     "reference-bearing owned calls require a whole internal argument",
                 ));
             }
-            let signature =
-                structural_source_contract(function, argument.place).ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "owned reference argument has no source",
-                    )
-                })?;
+            let signature = structural_source_contract(function, argument.place)
+                .ok_or_else(|| refusal("owned reference argument has no source"))?;
             if !crate::unit_validation::references::access_covers(signature.access, argument.access)
             {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "carrier borrow exceeds source authority",
-                ));
+                return Err(refusal("carrier borrow exceeds source authority"));
             }
             // Ownership moves the selected subtree's entire leaf roster, not
             // the containing root. Resolve the declared path, then rebase each
@@ -1648,22 +1583,10 @@ pub(super) fn apply_operation(
                 })
                 .flatten()
                 .ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "projected reference argument path is not a declared record edge",
-                    )
+                    refusal("projected reference argument path is not a declared record edge")
                 })?;
-            let paths =
-                leaf_paths(structural_types, projected_type.id, live.len()).ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "owned argument reference roster exceeds live custody",
-                    )
-                })?;
+            let paths = leaf_paths(structural_types, projected_type.id, live.len())
+                .ok_or_else(|| refusal("owned argument reference roster exceeds live custody"))?;
             if paths.len()
                 != live
                     .iter()
@@ -1673,10 +1596,7 @@ pub(super) fn apply_operation(
                     })
                     .count()
             {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
+                return Err(refusal(
                     "owned argument reference roster differs from its type",
                 ));
             }
@@ -1692,12 +1612,7 @@ pub(super) fn apply_operation(
                     && owned_resident(&reference.carrier_path, &argument.path))
                     && origins_overlap(&storage, &reference.root)
             }) {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "carrier storage has an outstanding loan",
-                ));
+                return Err(refusal("carrier storage has an outstanding loan"));
             }
             normalized_arguments.push((
                 vec![storage],
@@ -1715,14 +1630,7 @@ pub(super) fn apply_operation(
             for path in paths {
                 let permission = leaf_type(structural_types, projected_type.id, &path)
                     .and_then(|leaf| reference_access(structural_types, leaf))
-                    .ok_or_else(|| {
-                        invalid(
-                            function,
-                            block,
-                            Some(node),
-                            "carrier leaf lacks declared permission",
-                        )
-                    })?;
+                    .ok_or_else(|| refusal("carrier leaf lacks declared permission"))?;
                 let mut carrier_path = argument.path.clone();
                 carrier_path.extend(path);
                 let reference = live
@@ -1731,26 +1639,14 @@ pub(super) fn apply_operation(
                         reference.carrier == argument.place
                             && reference.carrier_path == carrier_path
                     })
-                    .ok_or_else(|| {
-                        invalid(
-                            function,
-                            block,
-                            Some(node),
-                            "owned argument reference leaf is not live",
-                        )
-                    })?;
+                    .ok_or_else(|| refusal("owned argument reference leaf is not live"))?;
                 // Abstract callee ingress promises independently available
                 // leaves. A type cannot describe an unknown suspended parent
                 // or a parent/child pair packed into the same incoming record.
                 if live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
                     || (argument.access == StructuralAccess::Owned && !moved.insert(reference.identity.clone()))
                 {
-                    return Err(invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "owned reference argument duplicates or suspends a leaf",
-                    ));
+                    return Err(refusal("owned reference argument duplicates or suspends a leaf"));
                 }
                 normalized_arguments.push((
                     vec![reference.root.clone()],
@@ -1778,10 +1674,7 @@ pub(super) fn apply_operation(
             if carrier_or_suspended
                 && !is_reference_projection(function, structural_types, argument)
             {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
+                return Err(refusal(
                     "call cannot access a suspended root or move its referent",
                 ));
             }
@@ -1838,10 +1731,7 @@ pub(super) fn apply_operation(
                         }))
             },
         ) {
-            return Err(invalid(
-                function,
-                block,
-                Some(node),
+            return Err(refusal(
                 "call arguments overlap through reference origins or descriptor dependencies",
             ));
         }
@@ -1873,14 +1763,7 @@ pub(super) fn apply_operation(
                     suffix: Vec::new(),
                     extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                     endpoint: reference_source_type(function, structural_types, source)
-                        .ok_or_else(|| {
-                            invalid(
-                                function,
-                                block,
-                                Some(node),
-                                "reference formation has no source type",
-                            )
-                        })?,
+                        .ok_or_else(|| refusal("reference formation has no source type"))?,
                 }],
             }]
         }
@@ -1890,16 +1773,15 @@ pub(super) fn apply_operation(
             result: AbstractStructuralCallResult::Structural { result, .. },
             ..
         } if contains_reference(structural_types, result.structural_type) => {
-            let fail = |reason| invalid(function, block, Some(node), reason);
             let contract = match callee {
                 abstract_operations::AbstractCallTarget::Machine(machine) => {
                     let callee = functions
                         .get(machine)
-                        .ok_or_else(|| fail("reference call target is absent"))?;
+                        .ok_or_else(|| refusal("reference call target is absent"))?;
                     let declaration = callee
                         .result
                         .structural()
-                        .ok_or_else(|| fail("reference call target has no structural result"))?;
+                        .ok_or_else(|| refusal("reference call target has no structural result"))?;
                     terminal_semantics::ReferenceCallContract::Machine {
                         parameters: &callee.structural_parameters,
                         sources: &declaration.reference_sources,
@@ -1911,7 +1793,7 @@ pub(super) fn apply_operation(
                     let requirement = dynamic_dispatch
                         .interface(*interface)
                         .and_then(|interface| interface.slots.get(*slot as usize))
-                        .ok_or_else(|| fail("reference call requirement is absent"))?;
+                        .ok_or_else(|| refusal("reference call requirement is absent"))?;
                     terminal_semantics::ReferenceCallContract::Requirement(requirement)
                 }
             };
@@ -1920,7 +1802,7 @@ pub(super) fn apply_operation(
                 contract,
                 structural_arguments,
             )
-            .map_err(fail)?
+            .map_err(|reason| refusal(reason))?
         }
         _ => Vec::new(),
     };
@@ -1933,23 +1815,13 @@ pub(super) fn apply_operation(
                 ..
             } => result,
             _ => {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "reference establishment result is absent",
-                ));
+                return Err(refusal("reference establishment result is absent"));
             }
         };
         if live.iter().any(|reference| {
             reference.carrier == result.place || reference.identity.place == result.place
         }) {
-            return Err(invalid(
-                function,
-                block,
-                Some(node),
-                "reference carrier is already live",
-            ));
+            return Err(refusal("reference carrier is already live"));
         }
         // Stage the complete result before publication. Independent leaves
         // cannot duplicate an exclusive origin, even through distinct actual
@@ -1963,24 +1835,10 @@ pub(super) fn apply_operation(
         } in sources
         {
             let expected = leaf_referent(structural_types, result.structural_type, &path)
-                .ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "reference call result leaf is unsupported",
-                    )
-                })?;
+                .ok_or_else(|| refusal("reference call result leaf is unsupported"))?;
             let access = leaf_type(structural_types, result.structural_type, &path)
                 .and_then(|leaf| reference_access(structural_types, leaf))
-                .ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "reference call result access is absent",
-                    )
-                })?;
+                .ok_or_else(|| refusal("reference call result access is absent"))?;
             let mut alternatives = Vec::with_capacity(candidates.len());
             for terminal_semantics::ReferenceCallSource {
                 origin,
@@ -2008,10 +1866,7 @@ pub(super) fn apply_operation(
                                 supplied,
                             )
                         {
-                            return Err(invalid(
-                                function,
-                                block,
-                                Some(node),
+                            return Err(refusal(
                                 "invocation result changes admitted reference geometry",
                             ));
                         }
@@ -2085,23 +1940,13 @@ pub(super) fn apply_operation(
                         source.access,
                     )
                 {
-                    return Err(invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "reference result changes its mapped source type",
-                    ));
+                    return Err(refusal("reference result changes its mapped source type"));
                 }
                 let reference = if transfers_existing {
                     let Some((terminal_psi::StructuralPathSegment::Referent, carrier_path)) =
                         source.path.split_last()
                     else {
-                        return Err(invalid(
-                            function,
-                            block,
-                            Some(node),
-                            "owned result mapping has no incoming leaf",
-                        ));
+                        return Err(refusal("owned result mapping has no incoming leaf"));
                     };
                     let mut reference = live
                         .iter()
@@ -2112,12 +1957,7 @@ pub(super) fn apply_operation(
                         .filter(|reference| moved.contains(&reference.identity))
                         .cloned()
                         .ok_or_else(|| {
-                            invalid(
-                                function,
-                                block,
-                                Some(node),
-                                "returned reference is not among the transferred leaves",
-                            )
+                            refusal("returned reference is not among the transferred leaves")
                         })?;
                     reference.carrier = result.place;
                     reference.carrier_path = path.clone();
@@ -2166,10 +2006,7 @@ pub(super) fn apply_operation(
                             )
                             .is_none()
                         {
-                            return Err(invalid(
-                                function,
-                                block,
-                                Some(node),
+                            return Err(refusal(
                                 "returned interpretation differs from actual view formation",
                             ));
                         }
@@ -2208,12 +2045,7 @@ pub(super) fn apply_operation(
                             || *prior_access != StructuralAccess::SharedBorrow)
                 })
             {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "reference result aliases its mapped sources",
-                ));
+                return Err(refusal("reference result aliases its mapped sources"));
             }
             roots.push((reference.root.clone(), access));
             established.push(reference);

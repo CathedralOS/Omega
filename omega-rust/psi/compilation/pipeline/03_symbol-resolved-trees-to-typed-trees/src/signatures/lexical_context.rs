@@ -9,10 +9,10 @@ use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees as typed;
 
-pub(crate) fn enclosing_parameters<'program>(
+fn enclosing_declarations<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     machine: &resolved::machine::Machine,
-) -> Vec<&'program resolved::data::TypeParameter> {
+) -> impl Iterator<Item = &'program resolved::machine::Machine> {
     let mut owners = Vec::new();
     let mut parent = machine.lexical_parent;
     while parent.is_valid() {
@@ -20,11 +20,23 @@ pub(crate) fn enclosing_parameters<'program>(
         owners.push(owner);
         parent = owner.lexical_parent;
     }
-    owners
-        .into_iter()
-        .rev()
+    owners.into_iter().rev()
+}
+
+pub(crate) fn enclosing_parameters<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
+    machine: &resolved::machine::Machine,
+) -> Vec<&'program resolved::data::TypeParameter> {
+    enclosing_declarations(program, machine)
         .flat_map(|owner| program.machine_type_parameters(owner))
         .collect()
+}
+
+pub(crate) fn enclosing_bounds<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
+    machine: &resolved::machine::Machine,
+) -> impl Iterator<Item = &'program resolved::machine::GenericConformanceBound> {
+    enclosing_declarations(program, machine).flat_map(|owner| &owner.conformance_bounds)
 }
 
 pub(crate) fn call_arguments(
@@ -75,6 +87,14 @@ pub(crate) fn captured_arguments(
                 path: vec![crate::lowerer::name::lower_name(&parameter.name)].into_boxed_slice(),
                 ..Default::default()
             })
+            .chain(enclosing_bounds(program, machine).map(|bound| {
+                typed::expression::StaticMachineArgument {
+                    symbol: bound.binder,
+                    path: vec![crate::lowerer::name::lower_name(&bound.binder_name)]
+                        .into_boxed_slice(),
+                    ..Default::default()
+                }
+            }))
             .collect()
     })
 }

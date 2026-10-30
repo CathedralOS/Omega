@@ -58,19 +58,7 @@ impl StagedOptimizedRegisterHomes {
     ) -> &target_operations_to_selected_instructions::ValidatedSelectedInstructions {
         self.legality.selected()
     }
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.legality.register_environment()
-    }
-    /// The governing optimizer selections admitted with the retained stage.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.legality.selections()
-    }
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.legality.budget_per_pass()
-    }
+    admitted_stage_accessors!(const pub, legality);
     pub const fn liveness(&self) -> &ValidatedLiveness {
         self.legality.liveness()
     }
@@ -129,16 +117,10 @@ pub enum OptimizedRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedRegisterHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized register-home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedRegisterHomeCustodyError {}
+stage_error_display!(
+    OptimizedRegisterHomeCustodyError,
+    "optimized register-home staging failed"
+);
 
 /// Physical homes after one exact fixed-view copy transformation and complete
 /// reanalysis. This remains custody-only and cannot enter machine emission.
@@ -157,19 +139,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     pub const fn selected(&self) -> &ValidatedFixedViewCopies {
         self.reanalysis.transformation_stage().copies()
     }
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.reanalysis.register_environment()
-    }
-    /// The governing optimizer selections admitted with the retained stage.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.reanalysis.selections()
-    }
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.reanalysis.budget_per_pass()
-    }
+    admitted_stage_accessors!(const pub, reanalysis);
     /// The reanalyzed facts over the transformed program.
     pub const fn liveness(&self) -> &ValidatedLiveness {
         self.reanalysis.liveness()
@@ -207,13 +177,7 @@ pub enum OptimizedPostCopyRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedPostCopyRegisterHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-copy register-home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostCopyRegisterHomeCustodyError {}
+stage_error_display!(
+    OptimizedPostCopyRegisterHomeCustodyError,
+    "optimized post-copy register-home staging failed"
+);

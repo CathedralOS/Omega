@@ -16,6 +16,9 @@ class DashboardTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.addCleanup(self.temporary.cleanup)
+        dates = patch.object(dashboard, "execution_revision_dates", return_value={})
+        dates.start()
+        self.addCleanup(dates.stop)
 
     def record(self, filename, *, target="windows_x86_64", started="2026-10-29T10:00:00Z", results=None):
         record = {"started": started, "target": target, "revision": "abc",
@@ -90,10 +93,58 @@ class DashboardTests(unittest.TestCase):
         corpus.mkdir(parents=True)
         (corpus / "corpus_native_linux_arm64.txt").write_text("invalid golden")
         warnings = []
-        host = dashboard.collect_native(self.root, warnings)[3]
+        with patch.object(dashboard, "git", return_value="2026-10-29T00:00:00Z"):
+            host = dashboard.collect_native(self.root, warnings)[3]
         self.assertFalse(host["available"])
         self.assertIn("error", host)
         self.assertEqual(sum("Cannot read native golden linux_arm64" in warning for warning in warnings), 1)
+
+    def test_execution_goldens_reconcile_per_fixture_and_keep_unmeasured_native_rows(self):
+        corpus = self.root / "tests/omega"
+        corpus.mkdir(parents=True)
+        native = corpus / "corpus_native_macos_arm64.txt"
+        both = corpus / "corpus_both_macos_arm64.txt"
+        native.write_text("pass/g/a built 1ms exit:0\npass/g/b built 1ms exit:0\n")
+        both.write_text("pass/g/a rejected 1ms\npass/g/c built 1ms exit:0\n")
+        with patch.object(dashboard, "git", return_value="2026-10-30T00:00:00Z"), patch.object(dashboard, "collect_cohort", return_value={"available": True}):
+            host = dashboard.collect_native(self.root, [])[2]
+        self.assertEqual((host["counts"]["executed"], host["counts"]["fixtures"]), (2, 3))
+        self.assertEqual(host["source_counts"], {
+            "tests/omega/corpus_native_macos_arm64.txt": 1,
+            "tests/omega/corpus_both_macos_arm64.txt": 2})
+        both.write_text("invalid golden")
+        with patch.object(dashboard, "git", return_value="2026-10-30T00:00:00Z"):
+            host = dashboard.collect_native(self.root, [])[2]
+        self.assertFalse(host["available"])
+
+    def test_row_revision_beats_file_update_and_never_selects_the_highest_success(self):
+        import corpus_records
+        native = corpus_records.parse("pass/g/a rejected 1ms @aaaaaaa\npass/g/b built 1ms exit:0 @ccccccc\n")
+        both = corpus_records.parse("pass/g/a built 1ms exit:0 @bbbbbbb\npass/g/b rejected 1ms @ccccccc\npass/g/c built 1ms exit:0\n")
+        dates = {"a" * 40: dashboard.instant("2026-10-30T00:00:00Z"),
+                 "b" * 40: dashboard.instant("2026-10-29T00:00:00Z"),
+                 "c" * 40: dashboard.instant("2026-10-28T00:00:00Z")}
+        rows = dashboard.merge_execution_records(self.root, [
+            ("corpus_native_host.txt", native), ("corpus_both_host.txt", both)], dates)
+        self.assertEqual({r["fixture"]:r["status"] for r in rows},
+                         {"pass/g/a":"rejected","pass/g/b":"rejected","pass/g/c":"built"})
+        self.assertEqual(rows[0]["golden_path"], "corpus_native_host.txt")
+        self.assertEqual(rows[1]["golden_path"], "corpus_both_host.txt")
+        self.assertIsNone(rows[2]["recorded_at"])
+
+    def test_history_reconciles_files_at_each_historical_revision(self):
+        native, both = "corpus_native_host.txt", "corpus_both_host.txt"
+        responses = ["2026-10-30T12:00:00Z", "new 2026-10-30T12:00:00Z\nold 2026-10-29T12:00:00Z",
+                     "pass/g/a built 1ms exit:0\npass/g/b built 1ms exit:0\n",
+                     ValueError("path does not exist in old"),
+                     "pass/g/a built 1ms exit:0\npass/g/b built 1ms exit:0\n",
+                     "pass/g/a rejected 1ms\npass/g/c built 1ms exit:0\n"]
+        with patch.object(dashboard, "git", side_effect=responses):
+            history = dashboard.native_history(self.root, [native, both])
+        self.assertEqual([(p["revision"], p["executed"], p["fixtures"]) for p in history],
+                         [("old", 2, 2), ("new", 2, 3)])
+        self.assertEqual(history[0]["paths"], [native])
+        self.assertEqual(history[1]["paths"], [native,both])
 
     def test_registry_error_is_unknown_not_an_empty_active_list(self):
         with patch.object(dashboard.subprocess, "run", side_effect=OSError("offline")):

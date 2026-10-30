@@ -1,0 +1,25 @@
+// Expected exit: 0
+// A copied record field keeps its full scalar carrier when another field
+// in the call graph has a stricter logical bound.
+data Frame [copy] { value: u64; sibling: u64; }
+data Limits requires value <= 5 { value: u64; }
+data Reply { case Empty; case Ready(frame: Frame); }
+machine bounded(value: &u64) -> u64 requires value <= 5 { value }
+machine read(reply: &Reply, limits: &Limits) -> u64 {
+    transition reply {
+        Reply::Ready { frame } -> selected(frame.value, frame.sibling, limits)
+        Reply::Empty -> 0u64
+    }
+    machine selected(value: u64, sibling: u64, limits: &Limits) -> u64 {
+        let observed: u64 = bounded(&limits.value);
+        transition sibling == 99u64 && observed == 5u64 { true -> (value) _ -> (0u64) }
+    }
+}
+machine main() crashes Trap {
+    let reply: Reply = Reply::Ready { frame: Frame { value: 42u64, sibling: 99u64 } };
+    let limits: Limits = Limits { value: 5u64 };
+    let value: u64 = read(&reply, &limits);
+    transition value == 42u64 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

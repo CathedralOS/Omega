@@ -10,6 +10,51 @@
 use proof_admission::{IndexedFamily, Level, Term, TermArena, TermHandle};
 use symbols::SymbolHandle;
 
+macro_rules! term {
+    (Pi => $domain:expr => $codomain:expr) => {
+        Term::Pi {
+            domain: $domain,
+            codomain: $codomain,
+        }
+    };
+    (Sigma => $domain:expr => $codomain:expr) => {
+        Term::Sigma {
+            domain: $domain,
+            codomain: $codomain,
+        }
+    };
+    (Lambda => $domain:expr => $body:expr) => {
+        Term::Lambda {
+            domain: $domain,
+            body: $body,
+        }
+    };
+    (Apply => $function:expr => $argument:expr) => {
+        Term::Apply {
+            function: $function,
+            argument: $argument,
+        }
+    };
+    (Constant => $declaration:expr => $levels:expr) => {
+        Term::Constant {
+            declaration: $declaration,
+            levels: $levels,
+        }
+    };
+    (Pair => $first:expr => $second:expr) => {
+        Term::Pair {
+            first: $first,
+            second: $second,
+        }
+    };
+    (Refl => $ty:expr => $value:expr) => {
+        Term::Refl {
+            ty: $ty,
+            value: $value,
+        }
+    };
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Key {
     Source(SymbolHandle),
@@ -113,25 +158,13 @@ impl S {
                 scope.pop();
                 let body = body?;
                 match self {
-                    Self::Pi(..) => Term::Pi {
-                        domain,
-                        codomain: body,
-                    },
+                    Self::Pi(..) => term!(Pi => domain => body),
                     Self::Lam(..) => Term::Lambda { domain, body },
-                    _ => Term::Sigma {
-                        domain,
-                        codomain: body,
-                    },
+                    _ => term!(Sigma => domain => body),
                 }
             }
-            Self::App(f, x) => Term::Apply {
-                function: f.term(arena, scope)?,
-                argument: x.term(arena, scope)?,
-            },
-            Self::Pair(a, b) => Term::Pair {
-                first: a.term(arena, scope)?,
-                second: b.term(arena, scope)?,
-            },
+            Self::App(f, x) => term!(Apply => f.term(arena, scope)? => x.term(arena, scope)?),
+            Self::Pair(a, b) => term!(Pair => a.term(arena, scope)? => b.term(arena, scope)?),
             Self::Fst(a) => Term::Fst {
                 pair: a.term(arena, scope)?,
             },
@@ -470,24 +503,12 @@ pub(super) fn constructor_children(
     label: TermHandle,
     children: &[TermHandle],
 ) -> Result<TermHandle, &'static str> {
-    let child_domain = arena.insert(Term::Apply {
-        function: description.children,
-        argument: label,
-    });
+    let child_domain = arena.insert(term!(Apply => description.children => label));
     let position = arena.insert(Term::Variable(0));
-    let next = arena.insert(Term::Apply {
-        function: description.next,
-        argument: label,
-    });
-    let child_index = arena.insert(Term::Apply {
-        function: next,
-        argument: position,
-    });
+    let next = arena.insert(term!(Apply => description.next => label));
+    let child_index = arena.insert(term!(Apply => next => position));
     let child_type = description.indexed_w(arena, child_index);
-    let result_family = arena.insert(Term::Lambda {
-        domain: child_domain,
-        body: child_type,
-    });
+    let result_family = arena.insert(term!(Lambda => child_domain => child_type));
     let mut terms = SourceTerms::default();
     let position = terms.fresh();
     let values = children.iter().copied().map(S::Closed).collect::<Vec<_>>();
@@ -553,10 +574,7 @@ pub(super) fn intern_description(
     ) -> TermHandle {
         let declaration = declarations.len() as u32;
         declarations.push(proof_admission::Declaration::definition(0, ty, body));
-        arena.insert(Term::Constant {
-            declaration,
-            levels: vec![],
-        })
+        arena.insert(term!(Constant => declaration => vec![]))
     }
     let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
     let index_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
@@ -567,29 +585,14 @@ pub(super) fn intern_description(
     )));
     family.index = retain(arena, declarations, index_sort, family.index);
     family.carrier = retain(arena, declarations, carrier_sort, family.carrier);
-    let ty = arena.insert(Term::Pi {
-        domain: family.carrier,
-        codomain: sort,
-    });
+    let ty = arena.insert(term!(Pi => family.carrier => sort));
     family.children = retain(arena, declarations, ty, family.children);
-    let ty = arena.insert(Term::Pi {
-        domain: family.carrier,
-        codomain: family.index,
-    });
+    let ty = arena.insert(term!(Pi => family.carrier => family.index));
     family.out = retain(arena, declarations, ty, family.out);
     let a = arena.insert(Term::Variable(0));
-    let domain = arena.insert(Term::Apply {
-        function: family.children,
-        argument: a,
-    });
-    let codomain = arena.insert(Term::Pi {
-        domain,
-        codomain: family.index,
-    });
-    let ty = arena.insert(Term::Pi {
-        domain: family.carrier,
-        codomain,
-    });
+    let domain = arena.insert(term!(Apply => family.children => a));
+    let codomain = arena.insert(term!(Pi => domain => family.index));
+    let ty = arena.insert(term!(Pi => family.carrier => codomain));
     family.next = retain(arena, declarations, ty, family.next);
     Ok(family)
 }
@@ -640,26 +643,11 @@ pub(super) fn abstract_parameters(
                 }
                 return Ok(term);
             }
-            Term::Pi { domain, codomain } => Term::Pi {
-                domain: at!(domain),
-                codomain: under!(codomain),
-            },
-            Term::Lambda { domain, body } => Term::Lambda {
-                domain: at!(domain),
-                body: under!(body),
-            },
-            Term::Sigma { domain, codomain } => Term::Sigma {
-                domain: at!(domain),
-                codomain: under!(codomain),
-            },
-            Term::Apply { function, argument } => Term::Apply {
-                function: at!(function),
-                argument: at!(argument),
-            },
-            Term::Pair { first, second } => Term::Pair {
-                first: at!(first),
-                second: at!(second),
-            },
+            Term::Pi { domain, codomain } => term!(Pi => at!(domain) => under!(codomain)),
+            Term::Lambda { domain, body } => term!(Lambda => at!(domain) => under!(body)),
+            Term::Sigma { domain, codomain } => term!(Sigma => at!(domain) => under!(codomain)),
+            Term::Apply { function, argument } => term!(Apply => at!(function) => at!(argument)),
+            Term::Pair { first, second } => term!(Pair => at!(first) => at!(second)),
             Term::Fst { pair } => Term::Fst { pair: at!(pair) },
             Term::Snd { pair } => Term::Snd { pair: at!(pair) },
             Term::Id { ty, left, right } => Term::Id {
@@ -667,10 +655,7 @@ pub(super) fn abstract_parameters(
                 left: at!(left),
                 right: at!(right),
             },
-            Term::Refl { ty, value } => Term::Refl {
-                ty: at!(ty),
-                value: at!(value),
-            },
+            Term::Refl { ty, value } => term!(Refl => at!(ty) => at!(value)),
             Term::IdElim {
                 motive,
                 base,
@@ -759,10 +744,7 @@ pub(super) fn abstract_parameters(
         // binder is formed under that prefix, not under the full body scope.
         let domain = go(arena, domain, &parameters[..ordinal], 0)?;
         body = arena.insert(Term::Lambda { domain, body });
-        statement = arena.insert(Term::Pi {
-            domain,
-            codomain: statement,
-        });
+        statement = arena.insert(term!(Pi => domain => statement));
     }
     Ok((body, statement))
 }
@@ -951,16 +933,10 @@ pub(super) fn intern_invariant(
     invariant: TermHandle,
 ) -> TermHandle {
     let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
-    let ty = arena.insert(Term::Pi {
-        domain: family.index,
-        codomain: sort,
-    });
+    let ty = arena.insert(term!(Pi => family.index => sort));
     let declaration = declarations.len() as u32;
     declarations.push(proof_admission::Declaration::definition(0, ty, invariant));
-    arena.insert(Term::Constant {
-        declaration,
-        levels: vec![],
-    })
+    arena.insert(term!(Constant => declaration => vec![]))
 }
 
 /// Abstract a checked closed proposition proof over unused index/evidence
@@ -975,27 +951,12 @@ pub(super) fn constant_invariant_theorem(
     let i = arena.insert(Term::Variable(0));
     let evidence_type = family.indexed_w(arena, i);
     let closed = proof_admission::shift(arena, proof, 0, 2);
-    let body = arena.insert(Term::Lambda {
-        domain: evidence_type,
-        body: closed,
-    });
-    let theorem = arena.insert(Term::Lambda {
-        domain: family.index,
-        body,
-    });
+    let body = arena.insert(term!(Lambda => evidence_type => closed));
+    let theorem = arena.insert(term!(Lambda => family.index => body));
     let i = arena.insert(Term::Variable(1));
-    let proposition = arena.insert(Term::Apply {
-        function: invariant,
-        argument: i,
-    });
-    let result = arena.insert(Term::Pi {
-        domain: evidence_type,
-        codomain: proposition,
-    });
-    let ty = arena.insert(Term::Pi {
-        domain: family.index,
-        codomain: result,
-    });
+    let proposition = arena.insert(term!(Apply => invariant => i));
+    let result = arena.insert(term!(Pi => evidence_type => proposition));
+    let ty = arena.insert(term!(Pi => family.index => result));
     (theorem, ty)
 }
 
@@ -1024,10 +985,7 @@ pub(super) fn induction(
     ) -> TermHandle {
         let declaration = declarations.len() as u32;
         declarations.push(proof_admission::Declaration::definition(0, ty, body));
-        arena.insert(Term::Constant {
-            declaration,
-            levels: vec![],
-        })
+        arena.insert(term!(Constant => declaration => vec![]))
     }
     let w_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
         family
@@ -1037,21 +995,12 @@ pub(super) fn induction(
             .reduce(|left, right| left.maximum(right))
             .expect("three W levels"),
     )));
-    let function_type = arena.insert(Term::Pi {
-        domain: family.index,
-        codomain: w_sort,
-    });
+    let function_type = arena.insert(term!(Pi => family.index => w_sort));
     let i = arena.insert(Term::Variable(0));
     let iw_body = family.indexed_w(arena, i);
-    let iw_function = arena.insert(Term::Lambda {
-        domain: family.index,
-        body: iw_body,
-    });
+    let iw_function = arena.insert(term!(Lambda => family.index => iw_body));
     let iw = retain(arena, declarations, function_type, iw_function);
-    let iw_body = arena.insert(Term::Apply {
-        function: iw,
-        argument: i,
-    });
+    let iw_body = arena.insert(term!(Apply => iw => i));
     let mut builder = Builder {
         terms: SourceTerms::default(),
         common,
@@ -1083,51 +1032,21 @@ pub(super) fn induction(
     // telescope in every motive and every expected-sort query. The recursive
     // tree argument still keeps its full IW level outside this Type0 result.
     let a = arena.insert(Term::Variable(0));
-    let positions = arena.insert(Term::Apply {
-        function: family.children,
-        argument: a,
-    });
-    let next = arena.insert(Term::Apply {
-        function: family.next,
-        argument: a,
-    });
+    let positions = arena.insert(term!(Apply => family.children => a));
+    let next = arena.insert(term!(Apply => family.next => a));
     let position = arena.insert(Term::Variable(0));
     let next = proof_admission::shift(arena, next, 0, 1);
-    let next = arena.insert(Term::Apply {
-        function: next,
-        argument: position,
-    });
-    let hypothesis = arena.insert(Term::Apply {
-        function: invariant,
-        argument: next,
-    });
-    let hypotheses = arena.insert(Term::Pi {
-        domain: positions,
-        codomain: hypothesis,
-    });
-    let out = arena.insert(Term::Apply {
-        function: family.out,
-        argument: a,
-    });
-    let goal = arena.insert(Term::Apply {
-        function: invariant,
-        argument: out,
-    });
+    let next = arena.insert(term!(Apply => next => position));
+    let hypothesis = arena.insert(term!(Apply => invariant => next));
+    let hypotheses = arena.insert(term!(Pi => positions => hypothesis));
+    let out = arena.insert(term!(Apply => family.out => a));
+    let goal = arena.insert(term!(Apply => invariant => out));
     let goal = proof_admission::shift(arena, goal, 0, 1);
-    let result = arena.insert(Term::Pi {
-        domain: hypotheses,
-        codomain: goal,
-    });
-    let result = arena.insert(Term::Lambda {
-        domain: family.carrier,
-        body: result,
-    });
+    let result = arena.insert(term!(Pi => hypotheses => goal));
+    let result = arena.insert(term!(Lambda => family.carrier => result));
     let proposition_sort =
         arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
-    let result_type = arena.insert(Term::Pi {
-        domain: family.carrier,
-        codomain: proposition_sort,
-    });
+    let result_type = arena.insert(term!(Pi => family.carrier => proposition_sort));
     let logical_result = retain(arena, declarations, result_type, result);
     let mut producer = InductionBuilder {
         b: Builder {
@@ -1178,41 +1097,17 @@ pub(super) fn induction(
     declarations.push(proof_admission::Declaration::definition(
         0, step_type, step_body,
     ));
-    let step = arena.insert(Term::Constant {
-        declaration,
-        levels: vec![],
-    });
+    let step = arena.insert(term!(Constant => declaration => vec![]));
     let i = arena.insert(Term::Variable(1));
-    let proposition = arena.insert(Term::Apply {
-        function: invariant,
-        argument: i,
-    });
-    let motive_body = arena.insert(Term::Lambda {
-        domain: iw_body,
-        body: proposition,
-    });
-    let motive = arena.insert(Term::Lambda {
-        domain: family.index,
-        body: motive_body,
-    });
+    let proposition = arena.insert(term!(Apply => invariant => i));
+    let motive_body = arena.insert(term!(Lambda => iw_body => proposition));
+    let motive = arena.insert(term!(Lambda => family.index => motive_body));
     let tree = arena.insert(Term::Variable(0));
     let body = family.ind(arena, Level::Constant(0), motive, step, i, tree);
-    let body = arena.insert(Term::Lambda {
-        domain: iw_body,
-        body,
-    });
-    let theorem = arena.insert(Term::Lambda {
-        domain: family.index,
-        body,
-    });
-    let result = arena.insert(Term::Pi {
-        domain: iw_body,
-        codomain: proposition,
-    });
-    let ty = arena.insert(Term::Pi {
-        domain: family.index,
-        codomain: result,
-    });
+    let body = arena.insert(term!(Lambda => iw_body => body));
+    let theorem = arena.insert(term!(Lambda => family.index => body));
+    let result = arena.insert(term!(Pi => iw_body => proposition));
+    let ty = arena.insert(term!(Pi => family.index => result));
     Ok((theorem, ty, step_body, step_type))
 }
 
@@ -1225,19 +1120,13 @@ mod induction_tests {
     fn constructor_abstraction_binds_dependent_child_and_premise_domains() {
         let mut arena = TermArena::new();
         let two = arena.insert(Term::Two);
-        let value = arena.insert(Term::Constant {
-            declaration: 0,
-            levels: vec![],
-        });
+        let value = arena.insert(term!(Constant => 0 => vec![]));
         let predicate = arena.insert(Term::Id {
             ty: two,
             left: value,
             right: value,
         });
-        let evidence = arena.insert(Term::Constant {
-            declaration: 1,
-            levels: vec![],
-        });
+        let evidence = arena.insert(term!(Constant => 1 => vec![]));
         let declarations = vec![
             proof_admission::Declaration::assumption(0, two),
             proof_admission::Declaration::assumption(0, predicate),
@@ -1268,18 +1157,9 @@ mod induction_tests {
         // endpoint cannot establish a different receiving equality.
         let zero = arena.insert(Term::TwoZero);
         let one = arena.insert(Term::TwoOne);
-        let supplied = arena.insert(Term::Apply {
-            function: proof,
-            argument: zero,
-        });
-        let reflexivity = arena.insert(Term::Refl {
-            ty: two,
-            value: zero,
-        });
-        let supplied = arena.insert(Term::Apply {
-            function: supplied,
-            argument: reflexivity,
-        });
+        let supplied = arena.insert(term!(Apply => proof => zero));
+        let reflexivity = arena.insert(term!(Refl => two => zero));
+        let supplied = arena.insert(term!(Apply => supplied => reflexivity));
         let false_result = arena.insert(Term::Id {
             ty: two,
             left: zero,
@@ -1306,24 +1186,15 @@ mod induction_tests {
             ty: two,
             body: None,
         }];
-        let value = arena.insert(Term::Constant {
-            declaration: 0,
-            levels: vec![],
-        });
+        let value = arena.insert(term!(Constant => 0 => vec![]));
         let predicate = arena.insert(Term::Id {
             ty: two,
             left: value,
             right: value,
         });
         let bound = arena.insert(Term::Variable(0));
-        let proof = arena.insert(Term::Lambda {
-            domain: predicate,
-            body: bound,
-        });
-        let ty = arena.insert(Term::Pi {
-            domain: predicate,
-            codomain: predicate,
-        });
+        let proof = arena.insert(term!(Lambda => predicate => bound));
+        let ty = arena.insert(term!(Pi => predicate => predicate));
         let parameters = [(0, SymbolHandle::from_arena_index(31), two)];
         assert!(!excludes_parameters(
             &arena,
@@ -1353,10 +1224,7 @@ mod induction_tests {
             ty: two,
             body: Some(value),
         });
-        let hidden = arena.insert(Term::Constant {
-            declaration: 1,
-            levels: vec![],
-        });
+        let hidden = arena.insert(term!(Constant => 1 => vec![]));
         assert!(!excludes_parameters(
             &arena,
             &declarations,
@@ -1373,10 +1241,7 @@ mod induction_tests {
         let field = SymbolHandle::from_arena_index(2);
         let x = Key::Source(field);
         let empty = arena.insert(Term::Empty);
-        let strict_unit = arena.insert(Term::Pi {
-            domain: empty,
-            codomain: empty,
-        });
+        let strict_unit = arena.insert(term!(Pi => empty => empty));
         let unit = arena.insert(Term::Box { ty: strict_unit });
         let constraints = lam(x, S::Closed(two), S::Closed(unit))
             .term(&mut arena, &mut Vec::new())
@@ -1400,18 +1265,12 @@ mod induction_tests {
             left: index,
             right: index,
         });
-        let invariant = arena.insert(Term::Lambda {
-            domain: two,
-            body: reflexive,
-        });
+        let invariant = arena.insert(term!(Lambda => two => reflexive));
         let invariant = intern_invariant(&mut arena, &mut declarations, &family, invariant);
         let mut lemmas = Vec::new();
         for case in &cases {
             let constant = arena.insert(Term::Variable((case.child_indices.len() + 1) as u32));
-            let mut body = arena.insert(Term::Refl {
-                ty: two,
-                value: constant,
-            });
+            let mut body = arena.insert(term!(Refl => two => constant));
             for ordinal in (0..case.child_indices.len()).rev() {
                 let value = arena.insert(Term::Variable((ordinal + 1) as u32));
                 let domain = arena.insert(Term::Id {
@@ -1434,10 +1293,7 @@ mod induction_tests {
             .unwrap();
             let declaration = declarations.len() as u32;
             declarations.push(proof_admission::Declaration::definition(0, ty, body));
-            lemmas.push(arena.insert(Term::Constant {
-                declaration,
-                levels: vec![],
-            }));
+            lemmas.push(arena.insert(term!(Constant => declaration => vec![])));
         }
         let (theorem, ty, step, step_type) = induction(
             &mut arena,
@@ -1607,10 +1463,7 @@ mod indexed_vector_budget_tests {
     }
     fn and(arena: &mut TermArena, left: TermHandle, right: TermHandle) -> TermHandle {
         let codomain = proof_admission::shift(arena, right, 0, 1);
-        arena.insert(Term::Sigma {
-            domain: left,
-            codomain,
-        })
+        arena.insert(term!(Sigma => left => codomain))
     }
     fn close(
         arena: &mut TermArena,
@@ -1619,10 +1472,7 @@ mod indexed_vector_budget_tests {
         mut body: TermHandle,
     ) -> TermHandle {
         for _ in 0..count {
-            body = arena.insert(Term::Lambda {
-                domain: integer,
-                body,
-            });
+            body = arena.insert(term!(Lambda => integer => body));
         }
         body
     }
@@ -1698,10 +1548,7 @@ mod indexed_vector_budget_tests {
         result.unwrap_or_else(|error| panic!("indexed vector {role}: {error:?}"));
     }
     fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
-        arena.insert(Term::Constant {
-            declaration,
-            levels: vec![],
-        })
+        arena.insert(term!(Constant => declaration => vec![]))
     }
 
     /// Exact structural/arithmetic obligation of the frozen source vector:
@@ -1736,15 +1583,9 @@ mod indexed_vector_budget_tests {
                 if !source_like {
                     return value;
                 }
-                let ty = arena.insert(Term::Pi {
-                    domain: integer,
-                    codomain: integer,
-                });
+                let ty = arena.insert(term!(Pi => integer => integer));
                 let variable = arena.insert(Term::Variable(0));
-                let body = arena.insert(Term::Lambda {
-                    domain: integer,
-                    body: variable,
-                });
+                let body = arena.insert(term!(Lambda => integer => variable));
                 let declaration = *embedding_declaration.get_or_insert_with(|| {
                     let declaration = declarations.len() as u32;
                     declarations.push(Declaration::definition(0, ty, body));
@@ -1821,10 +1662,7 @@ mod indexed_vector_budget_tests {
             cons_predicate,
         );
         let previous = arena.insert(Term::Variable(2));
-        let index = arena.insert(Term::Pair {
-            first: previous,
-            second: previous_total,
-        });
+        let index = arena.insert(term!(Pair => previous => previous_total));
         let child_index =
             close_source_telescope(&mut arena, &declarations, scalar, integer, 5, index);
         let cases = vec![
@@ -1897,10 +1735,7 @@ mod indexed_vector_budget_tests {
         } else {
             goal
         };
-        let invariant = arena.insert(Term::Lambda {
-            domain: family.index,
-            body: goal,
-        });
+        let invariant = arena.insert(term!(Lambda => family.index => goal));
         let invariant = intern_invariant(&mut arena, &mut declarations, &family, invariant);
         let mut lemmas = Vec::new();
         for (ordinal, case) in cases.iter().enumerate() {
@@ -1925,10 +1760,7 @@ mod indexed_vector_budget_tests {
             for &value in &values {
                 predicate = apply(&mut arena, predicate, value);
             }
-            let index = arena.insert(Term::Pair {
-                first: values[0],
-                second: values[1],
-            });
+            let index = arena.insert(term!(Pair => values[0] => values[1]));
             let goal = apply(&mut arena, invariant, index);
             let mut assumptions = vec![predicate];
             for &function in &case.child_indices {
@@ -1996,10 +1828,7 @@ mod indexed_vector_budget_tests {
             .closed_predicate(&mut arena, &mut declarations, closed_goal)
             .unwrap()
             .unwrap();
-        let closed_invariant = arena.insert(Term::Lambda {
-            domain: family.index,
-            body: closed_goal,
-        });
+        let closed_invariant = arena.insert(term!(Lambda => family.index => closed_goal));
         let (theorem, ty) =
             constant_invariant_theorem(&mut arena, &family, closed_invariant, closed_proof);
         checked(
@@ -2010,10 +1839,7 @@ mod indexed_vector_budget_tests {
             "closed specialization",
         );
         let false_goal = binary(&mut arena, less_or_equal, eighty, ten);
-        let false_invariant = arena.insert(Term::Lambda {
-            domain: family.index,
-            body: false_goal,
-        });
+        let false_invariant = arena.insert(term!(Lambda => family.index => false_goal));
         let (_, false_type) =
             constant_invariant_theorem(&mut arena, &family, false_invariant, closed_proof);
         let context = Context::empty().with_signature(Signature::from_declarations(declarations));

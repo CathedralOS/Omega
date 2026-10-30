@@ -1,7 +1,7 @@
 """Validate all numerical cells, convergence reports, failures and refinement.
 
 Native execution uses the public CLI. Terminal captures come from the normal
-native report's exact retained artifact, executed by validation/terminal.rs.
+native report's exact retained artifact, executed by the shared sample runner.
 The --captured route checks both execution engines against one frozen oracle.
 """
 import argparse

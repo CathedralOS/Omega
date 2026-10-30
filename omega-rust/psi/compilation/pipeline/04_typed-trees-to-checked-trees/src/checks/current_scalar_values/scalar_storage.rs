@@ -46,7 +46,6 @@ impl CurrentScalarValues<'_> {
         Some(CapturedScalarField {
             path: Vec::new(),
             carrier,
-            sources: Vec::new(),
             read_dependencies: self
                 .fields
                 .iter()
@@ -227,6 +226,7 @@ impl CurrentScalarValues<'_> {
             state: self.state,
             lengths: &self.lengths,
             hypotheses: &self.hypotheses,
+            result_fields: None,
         };
         for field in &mut self.fields {
             if let Some(alias) = aliases.iter().find(|alias| {

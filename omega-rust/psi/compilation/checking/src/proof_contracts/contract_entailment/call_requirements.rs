@@ -597,7 +597,13 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 Some(Vec::new())
             };
             let subjects = subjects.unwrap_or_default();
-            let Some(arguments) = observed_arguments.get(self.leading_operands..) else {
+            // Statement entries already evaluate the public data-only telescope.
+            let leading_operands = if self.call_expression.is_valid() {
+                self.leading_operands
+            } else {
+                0
+            };
+            let Some(arguments) = observed_arguments.get(leading_operands..) else {
                 self.proven = false;
                 return;
             };

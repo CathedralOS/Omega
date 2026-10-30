@@ -1,0 +1,25 @@
+// A specification result without ensures still owes its selected precondition.
+// Expected exit: 0
+machine restricted(value: i16) -> i16
+requires value >= 0i16
+{
+    value
+}
+
+machine checked(value: i16) -> i16
+requires value >= 0i16
+ensures restricted(value) == result
+{
+    value
+}
+
+machine main() crashes Trap {
+    let positive: i16 = checked(2i16);
+    let boundary: i16 = checked(0i16);
+    transition positive == 2i16 && boundary == 0i16 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

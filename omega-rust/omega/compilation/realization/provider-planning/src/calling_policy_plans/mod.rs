@@ -32,7 +32,6 @@ pub use boundary_signatures::{
 pub(crate) use boundary_signatures::{BoundaryDirectCallbackParameter, BoundaryNativeParameter};
 pub use callback_bindings::{
     BoundaryCallingPlanRealization, close_outbound_callback_materializations,
-    select_nominal_callback_roots,
 };
 pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
 pub use opaque_representations::{

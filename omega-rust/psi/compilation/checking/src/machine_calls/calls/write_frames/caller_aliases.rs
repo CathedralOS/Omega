@@ -46,30 +46,48 @@ pub(super) fn caller_name_root_type(
     if !root.is_valid() || (members.len() == 1 && root != name.symbol) {
         return None;
     }
-    let (state, _, index) = caller_statement_owner(
-        program,
-        current_machine,
-        CallerWriteSite::Expression(argument),
-    )?;
-    let declaration = program.symbols.get(root);
-    if declaration.parent != state.symbol || program.symbols.name(root) != member.as_str() {
-        return None;
+    // A declaration's type is independent of the observation epoch. Generated
+    // syntax may be shared by several statements; authenticate every use's
+    // lexical scope instead of arbitrarily selecting one as a value capture.
+    let mut reference = None;
+    for state in program.machine_states(current_machine) {
+        for (index, statement) in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
+            if !statement_value_expression_roots(program, statement)
+                .into_iter()
+                .any(|expression| contains_expression(program, expression, argument))
+            {
+                continue;
+            }
+            let declaration = program.symbols.get(root);
+            if declaration.parent != state.symbol || program.symbols.name(root) != member.as_str() {
+                return None;
+            }
+            let selected = match declaration.kind {
+                symbols::SymbolKind::Parameter => {
+                    program
+                        .state_parameter_by_symbol(state, root)?
+                        .type_reference
+                }
+                symbols::SymbolKind::Local => {
+                    let (_, local) = program
+                        .state_local_declaration(state, root)
+                        .filter(|&(ordinal, _)| ordinal < index)?;
+                    local.type_reference
+                }
+                _ => return None,
+            };
+            if !selected.is_valid() || reference.is_some_and(|known| known != selected) {
+                return None;
+            }
+            reference = Some(selected);
+        }
     }
-    let reference = match declaration.kind {
-        symbols::SymbolKind::Parameter => {
-            program
-                .state_parameter_by_symbol(state, root)?
-                .type_reference
-        }
-        symbols::SymbolKind::Local => {
-            let (_, local) = program
-                .state_local_declaration(state, root)
-                .filter(|&(ordinal, _)| ordinal < index)?;
-            local.type_reference
-        }
-        _ => return None,
-    };
-    reference.is_valid().then_some(reference)
+    reference
 }
 
 #[derive(Clone, Copy)]
@@ -99,6 +117,25 @@ pub struct LocalWriteOrigin {
 pub struct AssignmentStorageOrigins {
     pub destinations: Vec<LocalWriteSource>,
     pub references: Option<Vec<LocalWriteOrigin>>,
+}
+
+/// Current standalone slot rows supersede the older alias-entry inventory.
+/// An unknown current row still shadows its old initializer; omitting it would
+/// silently restore the retired pointer. Nested slots keep their own selectors.
+pub(super) fn current_reference_aliases(
+    program: &dyn crate::CheckingInput,
+    current: &[LocalWriteOrigin],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> Vec<(String, FramePlaceOrigin)> {
+    aliases
+        .iter()
+        .filter(|(name, _)| {
+            !current.iter().any(|row| {
+                row.local_segments.is_empty() && program.symbols.name(row.local_symbol) == name
+            })
+        })
+        .cloned()
+        .collect()
 }
 
 /// Storage captured by one exact invocation. Each operand keeps all possible

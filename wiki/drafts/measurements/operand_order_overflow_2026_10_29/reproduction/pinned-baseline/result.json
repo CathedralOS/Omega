@@ -1,0 +1,12 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+    "--check",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\operand-order-overflow\\cases\\pinned-baseline\\main.omg"
+  ],
+  "exit": 3221225725,
+  "seconds": 88.88856210000085,
+  "stack_overflow": true,
+  "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+  "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+}

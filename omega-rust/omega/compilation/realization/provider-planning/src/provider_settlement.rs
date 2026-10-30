@@ -624,6 +624,7 @@ pub fn settle_checked_providers(
                 provider: crate::ProviderPlanProvenance {
                     schema: crate::ProviderSchemaDeclaration::BoundaryTrait(minted.trait_symbol),
                     provider_type: None,
+                    named_application: None,
                     row_requirements: minted.requirement_symbols,
                     row_realizations: vec![
                         crate::ProviderRowRealization::Toolchain;

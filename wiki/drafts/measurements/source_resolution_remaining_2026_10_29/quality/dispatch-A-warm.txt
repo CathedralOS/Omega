@@ -1,0 +1,119 @@
+compiler source record: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\source-resolution-remaining\quality\dispatch-A\cache\CathedralOS\Omega\source\v1\external-local-sources\compiled-review-cache\source-graphs\9851ce443f07c812c6b942504473bcce896f7249d0bd662f7da268144afd8fbb.rec
+    27.312 ms  prepare: project -> prepared sources
+   143.995 ms  compile: sources -> requested product
+     4.106 ms  publish: retained product -> published product
+     1.881 ms  Stage 05: TypedTrees -> CheckedTrees
+    30.951 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+    78.952 ms  Step: settle: CheckedTrees -> SelectedExecution
+     8.321 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+     7.858 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     0.275 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     0.029 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+     0.087 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+   631.172 ms  total elapsed
+     1.861 ms         2 x  05
+     6.818 ms         2 x  05.01.a_discover_call_catalog
+     0.090 ms         2 x  05.01.b_admit_bodies
+     0.412 ms         2 x  05.01.c_lower_structural_types
+     1.237 ms         4 x  05.01.d_lower_domains_and_services
+     0.124 ms         2 x  05.01.e_prepare_qualifications
+     1.147 ms         4 x  05.01.f_lower_signatures
+     0.212 ms         3 x  05.01.g1.1_setup
+     2.150 ms         3 x  05.01.g1.2_emit_states
+     0.763 ms         3 x  05.01.g1.3_finish
+     0.006 ms         3 x  05.01.g1.3a_requires
+     0.070 ms         3 x  05.01.g1.3b_places
+     0.006 ms         3 x  05.01.g1.3c_loans
+     0.514 ms         3 x  05.01.g1.3d_continuations
+     0.003 ms        65 x  05.01.g1.3e.1_owned_extractions
+     0.383 ms        65 x  05.01.g1.3e.2_complete_carriers
+     0.017 ms        65 x  05.01.g1.3e.3_projected_transfers
+     0.006 ms        65 x  05.01.g1.3e.4_retire_borrowed
+     0.154 ms         3 x  05.01.g1.3e_affine_cleanup
+     0.003 ms         3 x  05.01.g1.3f_crash_and_ranking
+     3.198 ms         3 x  05.01.g1_emit_composed_body
+     4.600 ms        62 x  05.01.g2_emit_ordinary_body
+     0.002 ms         2 x  05.01.h_provider_conformances
+    18.057 ms         2 x  05.01_lower_selected_machine
+     0.825 ms         2 x  05.02_declarations_retain
+     0.011 ms         2 x  05.03_nominal_cleanup_roles
+     0.006 ms         2 x  05.04_closed_reach_applications
+     0.003 ms         2 x  05.05_reborrow_restored_call_use
+     0.014 ms         2 x  05.06_placed_and_suspension
+     0.023 ms         2 x  05.07_operation_crash_contracts
+     0.032 ms         2 x  05.08_conformance_and_dyn
+     0.003 ms         2 x  05.09_build_providers
+     0.036 ms         2 x  05.10_reconcile_and_residences
+     0.045 ms         2 x  05.11_evidence_artifacts
+     0.004 ms         2 x  05.a.source_completion
+     0.996 ms         2 x  05.b.retained_match
+           2 n  05.b.retained_match.hit
+     0.007 ms         2 x  05.boundary_applications
+     0.002 ms         2 x  05.callback_applications
+     0.000 ms         2 x  05.debug_map
+     0.297 ms         2 x  05.e.declaration_authority
+     0.002 ms         2 x  05.identities_build
+    19.066 ms         2 x  05.lower_terminal_selection
+     0.006 ms         2 x  05.validate_runtime_evidence_inputs
+     0.557 ms         1 x  06.0.b_admit_permissions_and_trust
+     0.011 ms         1 x  06.0.c_report_prepare
+     0.190 ms         1 x  06.0.d_finish_terminal_application
+     9.805 ms         1 x  06.0.e_produce_native_product
+     0.013 ms         1 x  06.0.f_settlement_finish_native
+     0.003 ms         1 x  06.1.a_prepare_terminal
+     0.003 ms         1 x  06.1.b_admit_target_layouts
+     0.209 ms         1 x  06.1.c1_prepare_native_execution
+     0.010 ms         1 x  06.1.c2_prepare_native_providers
+     0.078 ms         1 x  06.1.c3_admit_prepared_native_realization
+     0.063 ms         1 x  06.1.c4_admit_executable_entry
+     0.006 ms         1 x  06.1.c5_capture_native_admission
+     2.056 ms         1 x  06.1.d.01_lower_to_target
+     0.610 ms         1 x  06.1.d.04_stage_instruction_selection
+     0.460 ms         1 x  06.1.d.04b_optimize_selected_instructions
+     0.039 ms         7 x  06.1.d.05.j.1_build_domains
+     0.019 ms         7 x  06.1.d.05.j.2_prepared_conflicts
+     0.018 ms         7 x  06.1.d.05.j.3_compute_bitmask
+     0.345 ms         1 x  06.1.d.05_stage_register_allocation
+     2.896 ms         1 x  06.1.d.06.a_post_allocation_machine
+     0.157 ms         1 x  06.1.d.06.b_stage_function_frame
+     0.167 ms         1 x  06.1.d.06.c_selected_form_encoding
+     0.206 ms         1 x  06.1.d.06.d_resolved_selected_form_layout
+     0.001 ms         1 x  06.1.d.06.e_resolved_layout_opt
+     0.245 ms         1 x  06.1.d.06.f_assemble_fixed_frame
+     0.408 ms         1 x  06.1.d.06.g_emit_fragment_object
+     4.155 ms         1 x  06.1.d.06_stage_frame_realization
+     9.168 ms         1 x  06.1.d_emit_realization_object
+     0.197 ms         1 x  06.1.e_emit_admitted_image
+     3.105 ms         1 x  build.admit_outputs
+   115.636 ms         1 x  build.create_session
+   336.341 ms         1 x  build.resolve_sources
+     0.528 ms         1 x  evaluate_or_defer.check_defer
+     0.122 ms         1 x  evaluate_or_defer.check_defer.const_applications
+     0.141 ms         1 x  evaluate_or_defer.check_defer.endpoint_calls
+     0.139 ms         1 x  evaluate_or_defer.check_defer.independent_lengths
+     0.004 ms         1 x  evaluate_or_defer.check_defer.memberships
+     0.442 ms         1 x  evaluate_or_defer.evaluate_work
+     0.113 ms         1 x  evaluate_or_defer.evaluate_work.const_applications
+     0.111 ms         1 x  evaluate_or_defer.evaluate_work.const_array_lengths
+     0.001 ms         1 x  evaluate_or_defer.evaluate_work.domain_facts
+     0.084 ms         1 x  evaluate_or_defer.evaluate_work.dynamic_call_targets
+     0.002 ms         1 x  evaluate_or_defer.evaluate_work.placed_view_plans
+     0.003 ms         1 x  evaluate_or_defer.evaluate_work.plan_laid_layouts
+     0.122 ms         1 x  evaluate_or_defer.evaluate_work.range_endpoints
+     0.003 ms         1 x  evaluate_or_defer.evaluate_work.wire_plans
+     0.045 ms         1 x  evaluate_or_defer.finish
+     0.004 ms         1 x  evaluate_or_defer.finish.settle_target_observations
+     0.041 ms         1 x  evaluate_or_defer.finish.validate_retained_invocations
+     0.068 ms         1 x  psi.source.complete_authored
+     1.901 ms         1 x  psi.source.finish
+   147.316 ms         1 x  source.graph.load.decode
+    17.162 ms         1 x  source.graph.load.digest
+    14.764 ms         1 x  source.graph.load.read
+    15.956 ms         1 x  source.graph.load.require_after
+    18.376 ms         1 x  source.graph.load.require_before
+           1 n  source.graph.loaded
+           1 n  source.graph.prepared_hits
+     5.129 ms        20 x  typed_trees::collect_program_references
+     0.017 ms         2 x  typed_trees::program_scoped_proof_facts
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\source-resolution-remaining\quality\dispatch-A-warm\build\omega-program.exe

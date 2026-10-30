@@ -545,50 +545,77 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     return None;
                 }
                 let (definition, scope) = scopes.definition(program, reference, scope)?;
-                let mut fields = Vec::new();
-                let mut local_segments = local_segments;
-                if let Some(case) = literal.case_name.as_ref() {
+                // Common storage belongs to the sum independently of its tag.
+                // Only selected payload storage receives a Case path segment.
+                let mut fields = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| {
+                        let DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        Some((
+                            field.name.as_str(),
+                            field.symbol,
+                            field.type_reference,
+                            None,
+                        ))
+                    })
+                    .collect::<Vec<_>>();
+                if literal.case_name.is_some() {
+                    let authored =
+                        crate::value_custody::struct_literals::selected_construction_definition(
+                            program, expression, literal,
+                        )?;
+                    let selected =
+                        crate::value_custody::struct_literals::selected_construction_case(
+                            program, expression, literal, authored,
+                        )?;
+                    // The declaration scope supplies substituted field types;
+                    // the completed construction supplies exact case selection.
                     let mut variants =
                         program
                             .data_members(definition)
                             .iter()
                             .filter_map(|member| match member {
-                                DataMember::Variant(variant) if variant.name == *case => {
+                                DataMember::Variant(variant)
+                                    if variant.path_identity() == selected.path_identity() =>
+                                {
                                     Some(variant)
                                 }
                                 _ => None,
                             });
                     let variant = variants.next()?;
-                    if !variant.symbol.is_valid()
-                        || variants.next().is_some()
-                        || literal.case_symbol.is_some_and(|symbol| {
-                            symbol.is_valid()
-                                && !program.variant_owner(symbol).is_some_and(|(_, authored)| {
-                                    authored.path_identity() == variant.path_identity()
-                                })
-                        })
-                    {
+                    if !variant.symbol.is_valid() || variants.next().is_some() {
                         return None;
                     }
-                    local_segments.push(PlaceSegment::Case {
+                    let mut case_path = local_segments.clone();
+                    case_path.push(PlaceSegment::Case {
                         variant: variant.symbol,
                     });
-                    leaves.cases.push(local_segments.clone());
+                    leaves.cases.push(case_path);
                     for field in program.data_payload_fields(variant) {
-                        fields.push((field.name.as_str(), field.symbol, field.type_reference));
+                        fields.push((
+                            field.name.as_str(),
+                            field.symbol,
+                            field.type_reference,
+                            Some(variant.symbol),
+                        ));
                     }
-                } else {
-                    for member in program.data_members(definition) {
-                        let field = member.as_field()?;
-                        fields.push((field.name.as_str(), field.symbol, field.type_reference));
-                    }
+                } else if program
+                    .data_members(definition)
+                    .iter()
+                    .any(|member| matches!(member, DataMember::Variant(_)))
+                {
+                    // A record literal cannot manufacture a sum's selected case.
+                    return None;
                 }
                 let actuals = program.expression_table.struct_fields(literal.fields);
                 for (index, field) in actuals.iter().enumerate() {
                     if actuals[..index]
                         .iter()
                         .any(|previous| previous.name == field.name)
-                        || !fields.iter().any(|(name, symbol, _)| {
+                        || !fields.iter().any(|(name, symbol, _, _)| {
                             *name == field.name.as_str()
                                 && (!field.field_symbol.is_valid()
                                     || program
@@ -609,11 +636,11 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     Some((field, rest))
                 };
                 if selected.is_some_and(|(selected, _)| {
-                    !fields.iter().any(|(name, _, _)| *name == selected)
+                    !fields.iter().any(|(name, _, _, _)| *name == selected)
                 }) {
                     return None;
                 }
-                for (name, symbol, field_type) in fields {
+                for (name, symbol, field_type, variant) in fields {
                     if !symbol.is_valid() {
                         return None;
                     }
@@ -628,6 +655,9 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     // Missing reference initializers cannot create a complete
                     // empty footprint; omitted owned scalar defaults can.
                     let mut segments = local_segments.clone();
+                    if let Some(variant) = variant {
+                        segments.push(PlaceSegment::Case { variant });
+                    }
                     segments.push(PlaceSegment::Field { symbol });
                     let field_suffix = if local_coarse {
                         local_suffix.clone()

@@ -1,0 +1,742 @@
+RUN ['cargo', 'fmt', '-p', 'compiler-storage', '-p', 'syntax-trees']
+RUN ['mbx', 'nextest', 'run', '-p', 'compiler-storage', '-p', 'arena', '-p', 'syntax-trees', '--test-threads', '1']
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:172:13
+    |
+172 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:183:13
+    |
+183 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `diagnostics` (lib) generated 2 warnings
+   Compiling syntax-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\syntax-trees)
+    Finished `test` profile [optimized] target(s) in 10.24s
+────────────
+ Nextest run ID 05c6f281-0427-4ff6-95f6-8136b9ce774c with nextest profile: default
+    Starting 110 tests across 3 binaries
+        PASS [   0.042s] (  1/110) arena arena::tests::clear_invalidates_existing_handles
+        PASS [   0.076s] (  2/110) arena arena::tests::clone_from_payload_panic_after_partial_growth_preserves_arena_structure
+        PASS [   0.049s] (  3/110) arena arena::tests::clone_from_payload_panic_after_shrinking_preserves_arena_structure
+        PASS [   0.080s] (  4/110) arena arena::tests::clone_from_preserves_free_slots_generations_and_later_operations
+        PASS [   0.039s] (  5/110) arena arena::tests::clone_from_reuses_storage_and_nested_payload_capacity_when_source_fits
+        PASS [   0.039s] (  6/110) arena arena::tests::copies_two_spans_into_one_contiguous_span
+        PASS [   0.040s] (  7/110) arena arena::tests::failed_first_retirement_preserves_logical_equality
+        PASS [   0.043s] (  8/110) arena arena::tests::fallible_direct_span_insert_returns_contiguous_span_on_success
+        PASS [   0.042s] (  9/110) arena arena::tests::fallible_direct_span_insert_rolls_back_partial_appends
+        PASS [   0.041s] ( 10/110) arena arena::tests::fallible_span_insert_returns_contiguous_span_on_success
+        PASS [   0.040s] ( 11/110) arena arena::tests::fallible_span_insert_rolls_back_partial_appends
+        PASS [   0.040s] ( 12/110) arena arena::tests::invalidates_freed_handles
+        PASS [   0.041s] ( 13/110) arena arena::tests::panics_when_extending_a_span_with_freed_rows
+        PASS [   0.039s] ( 14/110) arena arena::tests::recovered_storage_preserves_retirement_and_next_allocation
+        PASS [   0.038s] ( 15/110) arena arena::tests::recovered_storage_refuses_a_false_uniform_generation_claim
+        PASS [   0.037s] ( 16/110) arena arena::tests::recovered_storage_rejects_incomplete_or_repeated_free_roster
+        PASS [   0.037s] ( 17/110) arena arena::tests::rejects_spans_with_freed_slots
+        PASS [   0.038s] ( 18/110) arena arena::tests::rejects_spans_with_reused_slots
+        PASS [   0.040s] ( 19/110) arena arena::tests::relocates_stale_spans_to_the_tail_before_appending
+        PASS [   0.043s] ( 20/110) arena arena::tests::resolves_zero_to_dummy_slot
+        PASS [   0.037s] ( 21/110) arena arena::tests::span_resolution_rechecks_rows_once_a_slot_was_freed
+        PASS [   0.037s] ( 22/110) arena arena::tests::stores_contiguous_handle_spans
+        PASS [   0.038s] ( 23/110) arena arena::tests::uniform_page_retirement_preserves_unretired_handles_and_rejects_stale_slot
+        PASS [   0.038s] ( 24/110) arena arena::tests::uniform_source_clone_unwind_keeps_the_initialized_prefix_usable
+        PASS [   0.039s] ( 25/110) arena concurrent_paged_arena::tests::dropped_reservation_refuses_sealing
+        PASS [   0.037s] ( 26/110) arena concurrent_paged_arena::tests::invalid_and_foreign_page_handles_resolve_to_dummy
+        PASS [   0.038s] ( 27/110) arena concurrent_paged_arena::tests::large_page_bound_allocates_only_the_top_level_directory
+        PASS [   0.038s] ( 28/110) arena concurrent_paged_arena::tests::later_concurrent_epoch_preserves_existing_pages_and_handles
+        PASS [   0.038s] ( 29/110) arena concurrent_paged_arena::tests::private_pages_allow_rewrites_before_publication
+        PASS [   0.037s] ( 30/110) arena concurrent_paged_arena::tests::publication_preserves_the_worker_vector_allocation
+        PASS [   0.037s] ( 31/110) arena concurrent_paged_arena::tests::sealed_page_extraction_preserves_page_order_and_allocations
+        PASS [   0.038s] ( 32/110) arena concurrent_paged_arena::tests::sealed_pages_allow_exclusive_later_stage_rewrites
+        PASS [   0.038s] ( 33/110) arena concurrent_paged_arena::tests::workers_publish_disjoint_pages_under_contention
+        PASS [   0.038s] ( 34/110) arena generational_paged_arena::tests::allocates_default_slots_and_tracks_active_handles
+        PASS [   0.038s] ( 35/110) arena generational_paged_arena::tests::frees_and_reuses_slots_with_new_generation
+        PASS [   0.038s] ( 36/110) arena generational_paged_arena::tests::grows_pages_on_demand_without_allocating_all_pages
+        PASS [   0.038s] ( 37/110) arena generational_paged_arena::tests::page_reclamation_is_disabled_until_quiescence_exists
+        PASS [   0.052s] ( 38/110) arena generational_paged_arena::tests::resolves_invalid_handles_to_dummy
+        PASS [   0.037s] ( 39/110) arena generational_paged_arena::tests::returns_invalid_handle_when_full
+        PASS [   0.038s] ( 40/110) arena handle::handle_span::tests::panics_on_mixed_generation_handles
+        PASS [   0.037s] ( 41/110) arena handle::handle_span::tests::panics_on_non_contiguous_handles
+        PASS [   0.038s] ( 42/110) arena handle::handle_span::tests::pushes_contiguous_handles
+        PASS [   0.037s] ( 43/110) arena handle::tests::hash_uses_the_complete_untyped_handle_identity
+        PASS [   0.038s] ( 44/110) arena handle::tests::unique_handles_preserve_generations_and_first_appearance
+        PASS [   0.039s] ( 45/110) arena hierarchy_arena::tests::bulk_child_range_resolves_as_one_slice
+        PASS [   0.041s] ( 46/110) arena hierarchy_arena::tests::child_handles_skip_by_index_and_stay_exhausted
+        PASS [   0.037s] ( 47/110) arena hierarchy_arena::tests::construction_sets_parent_and_exact_child_range
+        PASS [   0.038s] ( 48/110) arena hierarchy_arena::tests::extends_a_retained_hierarchy_without_rebinding_authored_handles
+        PASS [   0.038s] ( 49/110) arena hierarchy_arena::tests::finds_child_by_local_sibling_scan
+        PASS [   0.038s] ( 50/110) arena hierarchy_arena::tests::rejects_duplicate_child_ranges
+        PASS [   0.039s] ( 51/110) arena hierarchy_arena::tests::walks_child_handles
+        PASS [   0.037s] ( 52/110) arena ordered_root_arena::tests::mutates_roots_in_order
+        PASS [   0.038s] ( 53/110) arena ordered_root_arena::tests::preserves_insertion_order_over_stable_handles
+        PASS [   0.037s] ( 54/110) arena ordered_root_arena::tests::selecting_roots_preserves_backing_handles_and_moves_freshness
+        PASS [   0.037s] ( 55/110) arena ordered_root_arena::tests::selecting_roots_preserves_retained_identity_and_changes_revision
+        PASS [   0.044s] ( 56/110) arena owned_interner::tests::interned_keys_survive_clone_and_later_interning
+        PASS [   0.038s] ( 57/110) arena paged_arena_set::tests::additional_pages_store_high_generations_without_empty_prefix
+        PASS [   0.037s] ( 58/110) arena paged_arena_set::tests::adopts_dense_pages_without_remapping_handles
+        PASS [   0.037s] ( 59/110) arena paged_arena_set::tests::checkpoint_shares_payloads_and_detaches_only_edited_pages
+        PASS [   0.038s] ( 60/110) arena paged_arena_set::tests::high_generation_page_has_no_empty_prefix
+        PASS [   0.037s] ( 61/110) arena paged_arena_set::tests::relocating_a_span_moves_only_that_small_roster_to_the_extension_page
+        PASS [   0.039s] ( 62/110) arena paged_arena_set::tests::relocating_a_stale_tail_span_counts_every_copied_row
+        PASS [   0.039s] ( 63/110) arena paged_arena_set::tests::reset_returns_to_an_empty_first_page
+        PASS [   0.034s] ( 64/110) arena paged_arena_set::tests::retained_pages_refuse_inconsistent_generation_and_live_row_metadata
+        PASS [   0.051s] ( 65/110) arena paged_arena_set::tests::retained_sparse_pages_preserve_holes_and_a_lazy_append_frontier
+        PASS [   0.058s] ( 66/110) arena paged_arena_set::tests::revision_grows_with_every_mutation_and_page
+        PASS [   0.039s] ( 67/110) arena paged_arena_set::tests::span_since_names_rows_appended_after_a_frontier_on_any_page
+        PASS [   0.039s] ( 68/110) compiler-storage tests::bounds_both_encoding_and_decoding_depth
+        PASS [   0.040s] ( 69/110) compiler-storage tests::failed_generation_publication_does_not_register_or_publish_a_domain
+        PASS [   0.042s] ( 70/110) compiler-storage tests::fixed_width_sequences_keep_little_endian_bits_and_shared_array_identity
+        PASS [   0.048s] ( 71/110) compiler-storage tests::fixed_width_sequences_keep_size_budget_and_value_refusals
+        PASS [   0.042s] ( 72/110) compiler-storage tests::generation_domains_preserve_semantic_handles_and_separate_equal_old_tags
+        PASS [   0.046s] ( 73/110) compiler-storage tests::rejects_allocation_abuse_and_unpublished_shared_references
+        PASS [   0.079s] ( 74/110) compiler-storage tests::rejects_every_truncation_trailing_data_and_foreign_variants
+        PASS [   0.050s] ( 75/110) compiler-storage tests::shares_one_graph_object_and_rebuilds_derived_state
+        PASS [   0.051s] ( 76/110) syntax-trees syntax_trees::control_flow::statement::tests::statement_table_stores_transition_payloads_as_handles
+        PASS [   0.066s] ( 77/110) syntax-trees syntax_trees::inspection::snapshot::tests::numbered_data_snapshot_retains_erased_field_relevance
+        PASS [   0.046s] ( 78/110) syntax-trees syntax_trees::inspection::snapshot::tests::snapshots_materialize_handle_backed_syntax_shape
+        PASS [   0.093s] ( 79/110) syntax-trees syntax_trees::inspection::snapshot::tests::variant_snapshot_retains_payload_only_erased_field
+        PASS [   0.085s] ( 80/110) syntax-trees syntax_trees::names::text_owner::storage_tests::duplicate_page_identity_cannot_change_its_retained_text
+        PASS [   0.060s] ( 81/110) syntax-trees syntax_trees::names::text_owner::storage_tests::restored_forests_keep_shared_pages_without_colliding_with_live_names
+        PASS [   0.074s] ( 82/110) syntax-trees syntax_trees::names::text_owner::tests::adoption_keeps_independent_page_identities_and_moves_source_ownership
+        PASS [   0.059s] ( 83/110) syntax-trees syntax_trees::names::text_owner::tests::unrelated_forest_cannot_resolve_a_name_page
+        PASS [   0.040s] ( 84/110) syntax-trees syntax_trees::tests::adopts_parser_pages_without_remapping_roots
+        PASS [   0.040s] ( 85/110) syntax-trees syntax_trees::tests::constant_argument_origin_survives_deep_copy_and_root_extension
+        PASS [   0.037s] ( 86/110) syntax-trees syntax_trees::tests::constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_inputs
+        PASS [   0.041s] ( 87/110) syntax-trees syntax_trees::tests::constant_initializer_normalization_survives_copy_and_clone
+        PASS [   0.054s] ( 88/110) syntax-trees syntax_trees::tests::contextual_syntax_equality_includes_detached_nodes_and_logical_name_text
+        PASS [   0.052s] ( 89/110) syntax-trees syntax_trees::tests::copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens
+        PASS [   0.049s] ( 90/110) syntax-trees syntax_trees::tests::duplicate_constant_argument_origin_cannot_overwrite_custody
+        PASS [   0.049s] ( 91/110) syntax-trees syntax_trees::tests::expression_copy_preserves_shared_subject_and_isolates_transactions
+        PASS [   0.048s] ( 92/110) syntax-trees syntax_trees::tests::integer_range_normalization_copies_with_remapped_constraint_expressions
+        PASS [   0.048s] ( 93/110) syntax-trees syntax_trees::tests::integer_range_normalization_rejects_nonrange_owners_and_stale_constraint_spans
+        PASS [   0.046s] ( 94/110) syntax-trees syntax_trees::tests::item_copy_preserves_shared_body_subject_and_isolates_instances
+        PASS [   0.044s] ( 95/110) syntax-trees syntax_trees::tests::normalized_structural_expression_copy_remaps_children_and_preserves_source
+        PASS [   0.043s] ( 96/110) syntax-trees syntax_trees::tests::retained_name_pages_survive_clone_copy_and_owner_retirement
+        PASS [   0.044s] ( 97/110) syntax-trees syntax_trees::tests::semantic_nan_declaration_survives_copy_without_encoding
+        PASS [   0.045s] ( 98/110) syntax-trees syntax_trees::tests::syntax_copy_and_snapshot_preserve_generic_instance_origin
+        PASS [   0.058s] ( 99/110) syntax-trees syntax_trees::tests::syntax_signature_copy_preserves_operational_keyword_sources
+        PASS [   0.044s] (100/110) syntax-trees syntax_trees::tests::syntax_trees_extend_from_preserves_nested_expression_argument_spans
+        PASS [   0.043s] (101/110) syntax-trees syntax_trees::tests::syntax_trees_extend_from_preserves_root_payload_handles
+        PASS [   0.041s] (102/110) syntax-trees syntax_trees::tests::syntax_trees_extend_from_preserves_statement_call_arguments
+        PASS [   0.039s] (103/110) syntax-trees syntax_trees::tests::syntax_trees_extend_from_preserves_trait_and_data_visibility
+        PASS [   0.038s] (104/110) syntax-trees syntax_trees::type_system::types::tests::substitution_watermark_excludes_existing_type_nodes
+        PASS [   0.038s] (105/110) syntax-trees syntax_trees::values::expression::tests::call_acknowledgement_preserves_shared_forest_and_call_payload
+        PASS [   0.054s] (106/110) syntax-trees syntax_trees::values::expression::tests::match_arms_preserve_order_source_and_nonnumeric_values
+        PASS [   0.038s] (107/110) syntax-trees syntax_trees::values::expression::tests::rejected_call_acknowledgement_leaves_shared_page_untouched
+        PASS [   0.045s] (108/110) syntax-trees syntax_trees::values::expression::tests::subtree_copy_rejoins_saved_subject_aliases_without_merging_dispatches
+        PASS [   0.040s] (109/110) syntax-trees syntax_trees::values::float_spelling::tests::another_owner_cannot_resolve_a_float_source_handle
+        PASS [   0.048s] (110/110) syntax-trees syntax_trees::values::float_spelling::tests::equality_uses_exact_spelling_across_owners_and_generated_provenance
+────────────
+     Summary [   4.853s] 110 tests run: 110 passed, 0 skipped
+mbx[cache]: 0 hits, 0 misses, 1 not looked up, 1 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 915.6 GiB logical of abandoned target directories removed
+RUN ['mbx', 'clippy', '-p', 'compiler-storage', '--all-targets', '--no-deps', '--', '-D', 'warnings']
+    Checking compiler-storage v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\compiler-storage)
+    Finished `dev` profile [optimized] target(s) in 0.91s
+mbx[cache]: 0 hits, 0 misses, 2 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 59612 compilations served from cache to date
+RUN ['mbx', 'build', '-p', 'omega']
+   Compiling extents v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\extents)
+warning: method `is_consistent` is never used
+  --> omega-rust\omega\foundation\optimization-core\src\optimization_core\rollback\receipt.rs:55:19
+   |
+20 | impl OptimizationRollbackReceipt {
+   | -------------------------------- method in this implementation
+...
+55 |     pub(crate) fn is_consistent(&self) -> bool {
+   |                   ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `optimization-core` (lib) generated 1 warning
+   Compiling build-time-values v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\build-time-values)
+   Compiling layout-plans v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\layout-plans)
+   Compiling evaluation-accounting v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\evaluation-accounting)
+   Compiling symbols v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\symbols)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:172:13
+    |
+172 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:183:13
+    |
+183 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `diagnostics` (lib) generated 2 warnings
+   Compiling target v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\target)
+warning: method `matches_exact_uefi_x64_entry_stack_application` is never used
+  --> omega-rust\omega\compilation\backend\target\src\target_semantics\mod.rs:88:19
+   |
+60 | impl SymbolicTargetObservationApplication {
+   | ----------------------------------------- method in this implementation
+...
+88 |     pub(crate) fn matches_exact_uefi_x64_entry_stack_application(&self) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches_exact_uefi_x64_entry_stack_guarantee` is never used
+   --> omega-rust\omega\compilation\backend\target\src\target_semantics\mod.rs:147:19
+    |
+109 | impl TargetEntryStackGuarantee {
+    | ------------------------------ method in this implementation
+...
+147 |     pub(crate) fn matches_exact_uefi_x64_entry_stack_guarantee(&self) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling runtime-abi v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\runtime\runtime-abi)
+   Compiling register-model v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\register-model)
+warning: `target` (lib) generated 2 warnings
+   Compiling post-handoff-writer-plan v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\plans\post-handoff-writer-plan)
+   Compiling language-semantics v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\language-semantics)
+   Compiling access-plans v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\access-plans)
+   Compiling filesystem-authority v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\filesystem-authority)
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+   Compiling tokens v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\tokens)
+warning: method `into_model` is never used
+  --> omega-rust\omega\compilation\backend\register-model\src\register_model.rs:98:19
+   |
+89 | impl ValidatedPhysicalRegisterModel {
+   | ----------------------------------- method in this implementation
+...
+98 |     pub(crate) fn into_model(self) -> PhysicalRegisterModel {
+   |                   ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `register-model` (lib) generated 1 warning
+   Compiling package-source v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\packages\source-acquisition)
+   Compiling source-files-to-tokens v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\00_source-files-to-tokens)
+   Compiling tokens-to-syntax-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\01_tokens-to-syntax-trees)
+   Compiling build-output v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\packages\build-output)
+warning: `optimization-core` (lib) generated 1 warning (1 duplicate)
+   Compiling compiler v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\driver)
+warning: unused import: `verify_macos_cache_ancestor_acl_custody`
+ --> omega-rust\omega\packages\source-acquisition\src\custody\tree.rs:8:50
+  |
+8 |     verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
+  |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `retained_symlink_target` is never used
+   --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:220:4
+    |
+220 | fn retained_symlink_target(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `verify_macos_cache_ancestor_acl_custody` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\custody\platform.rs:358:15
+    |
+358 | pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `resolve_git_source` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\mod.rs:65:15
+   |
+65 | pub(crate) fn resolve_git_source(
+   |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_git_workspace_member` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\workspace_member.rs:29:15
+   |
+29 | pub(crate) fn resolve_git_workspace_member<Planner>(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_local_source_snapshot` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\local\operations.rs:175:15
+    |
+175 | pub(crate) fn resolve_local_source_snapshot(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `custody_identity` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\local\resolution_observations.rs:58:19
+   |
+49 | impl LocalSourceResolutionObservation {
+   | ------------------------------------- method in this implementation
+...
+58 |     pub(crate) fn custody_identity(&self) -> &str {
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: associated function `for_hardened_base` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\source_resolver.rs:54:19
+   |
+39 | impl SourceResolver {
+   | ------------------- associated function in this implementation
+...
+54 |     pub(crate) fn for_hardened_base(
+   |                   ^^^^^^^^^^^^^^^^^
+
+warning: `build-output` (lib) generated 1 warning
+   Compiling terminal-psi v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\terminal-psi)
+   Compiling flow-effects v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\foundation\flow-effects)
+warning: `package-source` (lib) generated 7 warnings (run `cargo fix --lib -p package-source` to apply 1 suggestion)
+   Compiling symbol-resolved-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\symbol-resolved-trees)
+   Compiling typed-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\typed-trees)
+   Compiling proof-admission v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\proof\admission)
+   Compiling calling-conventions v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\calling-conventions)
+   Compiling function-identity v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\foundation\function-identity)
+   Compiling installation-evidence v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\runtime\installation-evidence)
+   Compiling terminal-fuel v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\terminal-psi\fuel)
+   Compiling syntax-trees-to-symbol-resolved-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\02_syntax-trees-to-symbol-resolved-trees)
+   Compiling terminal-semantics v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\terminal-psi\semantics)
+   Compiling facts v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\checked-trees\facts)
+   Compiling representation-selections v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\checking\representation-planning\selections)
+   Compiling layout v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\layout)
+   Compiling terminal-codec v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\terminal-psi\codec)
+   Compiling checked-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\checked-trees)
+warning: unused doc comment
+   --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\facts\contract_plans.rs:231:1
+    |
+231 | / /// Domain-separated commitment to one machine's complete canonical public
+232 | | /// contract, declared through `typed_trees`'s shared digest carrier.
+    | |_--------------------------------------------------------------------^
+    |   |
+    |   rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+  --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\operators.rs:30:1
+   |
+30 | / /// Collision-resistant commitment to the exact selected ProviderPlan.
+31 | | ///
+32 | | /// Psi owns this opaque byte carrier so checked operator evidence can retain
+33 | | /// Omega's plan digest without introducing an upward dependency on
+34 | | /// `effects`. The provider-planning boundary is responsible for copying
+35 | | /// the digest from the exact selected plan.
+   | |_-------------------------------------------^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+   Compiling terminal-installation v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\checking\terminal-installation)
+   Compiling abstract-operations v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\abstract-operations)
+   Compiling optimization-unit v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\abstract-operations\optimization-unit)
+   Compiling effects v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\plans\provider-evidence)
+   Compiling terminal-interpreter v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\interpreter\terminal-interpreter)
+mbx[progress]: 15s elapsed; 0 hits, 0 misses, 0 bypassed, 38 not looked up; ~0s compiler work saved
+warning: method `execution_scope` is never used
+    --> omega-rust\omega\compilation\backend\plans\provider-evidence\src\provider_evidence.rs:1316:8
+     |
+1304 | impl SelectedProviderClosureDigestEncoder {
+     | ----------------------------------------- method in this implementation
+...
+1316 |     fn execution_scope(&mut self, scope: crate::ExecutionScope) {
+     |        ^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling task-plans v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\runtime\task-plans)
+warning: `effects` (lib) generated 1 warning
+   Compiling backend-plan v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\plans\backend-plan)
+   Compiling target-operations v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\target-operations)
+   Compiling component-description v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\artifacts\component-description)
+   Compiling boundary-applications v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\artifacts\boundary-applications)
+   Compiling optimization-unit-semantics v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\abstract-operations\optimization-unit\semantics)
+   Compiling legalized-operations v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\target-operations\legalized-operations)
+   Compiling selected-instructions v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\selected-instructions)
+   Compiling validation v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\checking)
+   Compiling lowered-psi v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\representations\lowered-psi)
+   Compiling trust-model v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\realization\trust-model)
+   Compiling lowered-psi-to-lowered-psi v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\06_lowered-psi-to-lowered-psi)
+   Compiling normalized-foreign-call-plan v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\instruction-set-architectures\normalized-foreign-call-plan)
+   Compiling isa-x86_64 v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\instruction-set-architectures\isa-x86_64)
+   Compiling isa-aarch64 v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\instruction-set-architectures\isa-aarch64)
+   Compiling register-homes v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\register-homes)
+   Compiling physical-instructions v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\post-allocation-machine)
+   Compiling program-entry-plan v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\plans\program-entry-plan)
+   Compiling register-environment v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\register-environment)
+   Compiling machine-code v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\representations\machine-code)
+   Compiling terminal-psi-to-abstract-operations v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\00_terminal-psi-to-abstract-operations)
+warning: method `scalar_call_constraint` is never used
+   --> omega-rust\omega\compilation\backend\register-environment\src\lib.rs:171:19
+    |
+106 | impl ValidatedTargetRegisterEnvironment {
+    | --------------------------------------- method in this implementation
+...
+171 |     pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `scalar_call_constraint_key` is never used
+   --> omega-rust\omega\compilation\backend\register-environment\src\catalog.rs:207:21
+    |
+207 | pub(super) const fn scalar_call_constraint_key(
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `register-environment` (lib) generated 2 warnings
+   Compiling abstract-operations-to-abstract-operations v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\01_abstract-operations-to-abstract-operations)
+warning: method `snapshot` is never used
+  --> omega-rust\omega\compilation\pipeline\01_abstract-operations-to-abstract-operations\src\validation\context\ranked_cycles\mod.rs:62:18
+   |
+46 | impl ValidatedOptimizerCycleComponents {
+   | -------------------------------------- method in this implementation
+...
+62 |     pub const fn snapshot(&self) -> &OptimizerCycleComponentSnapshot {
+   |                  ^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `paths_overlap` is never used
+    --> omega-rust\psi\compilation\checking\src\machine_calls\reference_result_custody\captured_returns.rs:1196:15
+     |
+1196 | pub(super) fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {
+     |               ^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `CompletedCall` is never constructed
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:65:5
+   |
+43 | pub(crate) enum Operand {
+   |                 ------- variant in this enum
+...
+65 |     CompletedCall {
+   |     ^^^^^^^^^^^^^
+   |
+   = note: `Operand` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+mbx[progress]: 30s elapsed; 0 hits, 0 misses, 0 bypassed, 60 not looked up; ~0s compiler work saved
+   Compiling abstract-operations-to-target-operations v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations)
+warning: unused import: `LiveDefinitions`
+ --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:7:13
+  |
+7 | use super::{LiveDefinitions, RowSite};
+  |             ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::lowering::structural_type_lookup::StructuralTypeLookup`
+ --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:9:5
+  |
+9 | use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `AbstractFunction`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:10:48
+   |
+10 | use abstract_operations::{AbstractAtomicEvent, AbstractFunction};
+   |                                                ^^^^^^^^^^^^^^^^
+
+warning: unused import: `TerminalPsiProvenance`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:12:46
+   |
+12 | use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+   |                                              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `semantic_vocabulary::IeeeFloatFormat`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\structural_layout.rs:27:5
+   |
+27 | use semantic_vocabulary::IeeeFloatFormat;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `pure_byte_qualifications` is never used
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\structural_type_lookup.rs:52:19
+   |
+16 | impl<'a> StructuralTypeLookup<'a> {
+   | --------------------------------- method in this implementation
+...
+52 |     pub(super) fn pure_byte_qualifications(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `abstract-operations-to-abstract-operations` (lib) generated 1 warning
+   Compiling target-operations-to-selected-instructions v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions)
+warning: `abstract-operations-to-target-operations` (lib) generated 6 warnings (run `cargo fix --lib -p abstract-operations-to-target-operations` to apply 5 suggestions)
+   Compiling selected-instructions-to-selected-instructions v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions)
+   Compiling proof v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\proof)
+warning: `checked-trees` (lib) generated 2 warnings
+   Compiling checked-trees-to-lowered-psi v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi)
+warning: unused imports: `AllocatorAvailabilityValidationReceipt`, `RecoveryClassificationValidationReceipt`, and `SpillChoiceValidationReceipt`
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\lib.rs:265:5
+    |
+265 |     AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+266 |     FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementValidationReceipt,
+267 |     LiveRangeValidationReceipt, LivenessValidationReceipt, RecoveryClassificationValidationReceipt,
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+268 |     SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PairOperandShape`
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\lib.rs:294:24
+    |
+294 |     LiteralFoldPolicy, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
+    |                        ^^^^^^^^^^^^^^^^
+
+   Compiling lowered-psi-to-terminal-psi v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\07_lowered-psi-to-terminal-psi)
+warning: field `target` is never read
+  --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\rewrites\pre_allocation\catalog.rs:21:5
+   |
+20 | pub(crate) struct PreAllocationRuleCatalogPayload {
+   |                   ------------------------------- field in this struct
+21 |     target: RegisterAllocationRuleTargetApplicability,
+   |     ^^^^^^
+   |
+   = note: `PreAllocationRuleCatalogPayload` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `has_loads` is never read
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\rewrites\runtime_spill\slot.rs:194:5
+    |
+186 | struct CandidateAccesses {
+    |        ----------------- field in this struct
+...
+194 |     has_loads: Vec<bool>,
+    |     ^^^^^^^^^
+
+   Compiling typed-trees-to-typed-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\03b_typed-trees-to-typed-trees)
+   Compiling selected-instructions-to-register-homes v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\05_selected-instructions-to-register-homes)
+warning: `selected-instructions-to-selected-instructions` (lib) generated 4 warnings (run `cargo fix --lib -p selected-instructions-to-selected-instructions` to apply 2 suggestions)
+   Compiling symbol-resolved-trees-to-typed-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\03_symbol-resolved-trees-to-typed-trees)
+   Compiling register-homes-to-post-allocation-machine v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\06_register-homes-to-post-allocation-machine)
+   Compiling typed-trees-to-checked-trees v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees)
+   Compiling post-allocation-machine-to-selected-form-encoding v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\07_post-allocation-machine-to-selected-form-encoding)
+   Compiling checked-interpreter v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\interpreter\checked-interpreter)
+   Compiling selected-form-encoding-to-resolved-layout v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\08_selected-form-encoding-to-resolved-layout)
+   Compiling resolved-layout-to-resolved-layout v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\pipeline\09_resolved-layout-to-resolved-layout)
+   Compiling machine-emission v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\machine-emission)
+   Compiling psi-terminal-production v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\driver\terminal-production)
+   Compiling representation-planning v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\checking\representation-planning)
+   Compiling object-file v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\object\object-file)
+warning: function `symbol_section_name` is never used
+   --> omega-rust\omega\compilation\backend\object\object-file\src\names\mod.rs:146:15
+    |
+146 | pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
+    |               ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `object-file` (lib) generated 1 warning
+   Compiling image v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\images\image)
+mbx[progress]: 45s elapsed; 0 hits, 0 misses, 0 bypassed, 80 not looked up; ~0s compiler work saved
+   Compiling image-elf v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\images\image-elf)
+   Compiling image-pe v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\images\image-pe)
+   Compiling image-macho v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\images\image-macho)
+   Compiling image-emission v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\images\image-emission)
+   Compiling native-artifact v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\backend\artifacts\native-artifact)
+warning: associated function `from_validated_fragment_publication` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\native_artifact.rs:611:19
+    |
+606 | impl NativePhysicalEvidenceScope {
+    | -------------------------------- associated function in this implementation
+...
+611 |     pub(crate) fn from_validated_fragment_publication(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `validated_optimized_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1114:4
+     |
+1114 | fn validated_optimized_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_fragment_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1131:4
+     |
+1131 | fn validated_fragment_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `identity` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:45:25
+   |
+35 | impl FragmentPublicationBinding {
+   | ------------------------------- method in this implementation
+...
+45 |     pub(super) const fn identity(&self) -> &[u8; 32] {
+   |                         ^^^^^^^^
+
+warning: function `derive_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:67:15
+   |
+67 | pub(crate) fn derive_scope(
+   |               ^^^^^^^^^^^^
+
+warning: function `validate_final_plan` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:145:4
+    |
+145 | fn validate_final_plan(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `OPTIMIZED_SCOPE_IDENTITY_DOMAIN` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:19:7
+   |
+19 | const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ValidatedProjectionCoordinates` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:23:8
+   |
+23 | struct ValidatedProjectionCoordinates {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `D29ReferenceCoordinate` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:30:8
+   |
+30 | struct D29ReferenceCoordinate {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_validated_optimization_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:35:15
+   |
+35 | pub(crate) fn derive_validated_optimization_scope(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_optimized_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:66:4
+   |
+66 | fn derive_optimized_scope(
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_projection_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:193:4
+    |
+193 | fn optimized_projection_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_scope_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:214:4
+    |
+214 | fn optimized_scope_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_operator_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:227:4
+    |
+227 | fn optimized_operator_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_boundary_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:243:4
+    |
+243 | fn optimized_boundary_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_authority_bytes` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:261:4
+    |
+261 | fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u8> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `terminal_identity_bytes` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:269:4
+    |
+269 | fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling build-time-evaluation v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\compile-time)
+   Compiling native-production v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\native-production)
+warning: `native-artifact` (lib) generated 17 warnings
+   Compiling native-provider-runtime v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\application\native-provider-runtime)
+warning: variable does not need to be mutable
+   --> omega-rust\omega\application\native-provider-runtime\src\native_provider_runtime.rs:109:13
+    |
+109 |         let mut builder = std::fs::DirBuilder::new();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling terminal-runtime v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\application\terminal-runtime)
+warning: `native-provider-runtime` (lib) generated 1 warning (run `cargo fix --lib -p native-provider-runtime` to apply 1 suggestion)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\compile-time\src\build_time_evaluation.rs:889:13
+    |
+889 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `validation` (lib) generated 2 warnings
+   Compiling psi-compiler v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\psi\compilation\driver)
+warning: `build-time-evaluation` (lib) generated 1 warning
+   Compiling build-declarations v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\packages\build-declarations)
+   Compiling package-compilation v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\packages\compilation-inputs)
+warning: constant `CANONICAL_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:31:18
+   |
+31 | pub(crate) const CANONICAL_FILE_MODE: u32 = 0o444;
+   |                  ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `CANONICAL_EXECUTABLE_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:32:18
+   |
+32 | pub(crate) const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling provider-planning v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\realization\provider-planning)
+   Compiling selected-dispatch v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\realization\selected-dispatch)
+mbx[progress]: 1m elapsed; 0 hits, 0 misses, 0 bypassed, 93 not looked up; ~0s compiler work saved
+   Compiling compilation-products v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\products)
+warning: `package-compilation` (lib) generated 2 warnings
+   Compiling build-evaluation v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\compilation\build-evaluation)
+   Compiling package-evidence v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\packages\review-evidence)
+mbx[progress]: 1m 15s elapsed; 0 hits, 0 misses, 0 bypassed, 97 not looked up; ~0s compiler work saved
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\omega\compilation\driver\src\checked\compilation_session.rs:434:13
+    |
+434 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling package-manager v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\packages\package-manager)
+warning: field `request` is never read
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\reconcile\mod.rs:116:9
+    |
+112 |     Adapter {
+    |     ------- field in this variant
+...
+116 |         request: DependencySourceRequest,
+    |         ^^^^^^^
+    |
+    = note: `PackageSourceClosureResolutionError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+mbx[progress]: 1m 30s elapsed; 0 hits, 0 misses, 0 bypassed, 99 not looked up; ~0s compiler work saved
+   Compiling omega-build v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\application\build)
+   Compiling omega v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\omega-rust\omega\application\cli)
+warning: `package-manager` (lib) generated 1 warning
+mbx[progress]: 1m 45s elapsed; 0 hits, 0 misses, 0 bypassed, 101 not looked up; ~0s compiler work saved
+mbx[progress]: 2m elapsed; 0 hits, 0 misses, 0 bypassed, 101 not looked up; ~0s compiler work saved
+warning: `compiler` (lib) generated 1 warning
+    Finished `dev` profile [optimized] target(s) in 2m 53s
+mbx[cache]: 0 hits, 0 misses, 102 not looked up, 102 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 1.8 TiB logical of files removed by collection so far

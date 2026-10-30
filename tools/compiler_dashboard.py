@@ -12,6 +12,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -121,18 +122,48 @@ def collect_facts(repository, records):
     return facts
 
 
+def execution_revision_dates(repository):
+    return {revision: instant(date) for revision, date in
+            (line.split(" ", 1) for line in git(repository, "log", "--exclude=refs/coordination/*", "--all", "--format=%H %cI").splitlines())}
+
+
+def merge_execution_records(repository, sources, dates):
+    """One observation per fixture; file updates never restamp carried rows."""
+    latest = {}
+    for path, records in sources:
+        for row in records:
+            stamp = (row.get("recorded_at") or "").removesuffix("+wt")
+            if stamp not in dates:
+                matches = [date for revision, date in dates.items()
+                           if len(revision) == 40 and revision.startswith(stamp)] \
+                    if re.fullmatch(r"[0-9a-f]{7,40}", stamp) else []
+                dates[stamp] = matches[0] if len(matches) == 1 else datetime.min.replace(tzinfo=timezone.utc)
+            priority = (dates[stamp], "corpus_both_" in path)
+            previous = latest.get(row["fixture"])
+            if previous is None or priority > previous[0]:
+                latest[row["fixture"]] = (priority, dict(row, golden_path=path))
+    return [entry[1] for entry in latest.values()]
+
+
 def collect_native(repository, warnings):
     hosts = []
+    dates = execution_revision_dates(repository)
     for target in TARGETS:
         relative = f"tests/omega/corpus_native_{target}.txt"
-        golden = repository / relative
-        host = {"target": target, "path": relative, "available": golden.is_file()}
+        paths = [f"tests/omega/corpus_{mode}_{target}.txt" for mode in ("native", "both")
+                 if (repository / f"tests/omega/corpus_{mode}_{target}.txt").is_file()]
+        host = {"target": target, "path": relative, "available": bool(paths), "golden_paths": paths}
         if host["available"]:
             try:
-                records = [row for row in corpus_records.read(golden) if row["tier"] in ("pass", "run")]
+                sources = [(path, corpus_records.read(repository / path)) for path in paths]
+                records = [row for row in merge_execution_records(repository, sources, dates)
+                           if row["tier"] in ("pass", "run")]
+                golden = repository / paths[0]
+                host["path"] = paths[0]
                 host["counts"] = native_scoreboard(records, oracle_lookup(repository, golden, None, target))
                 host["stamps"] = dict(Counter(row.get("recorded_at") or "unstamped" for row in records))
-                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--", relative)
+                host["source_counts"] = dict(Counter(row["golden_path"] for row in records))
+                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--", *paths)
                 host["cohort"] = collect_cohort(repository, target, records)
                 if target in COHORT_BASELINES and not host["cohort"]["available"]:
                     warnings.append(f"Cohort baseline unavailable for {target}: {host['cohort']['error']}")
@@ -191,10 +222,12 @@ def collect_cohort(repository, target, current):
 
 def native_history(repository, relative, warnings=None):
     """Last committed golden per recorded day; never invent observations in gaps."""
+    paths = [relative] if isinstance(relative, str) else relative
     history = []
+    dates = execution_revision_dates(repository)
     anchor = instant(git(repository, "show", "-s", "--format=%cI", "HEAD"))
     since = (anchor - timedelta(days=30)).isoformat()
-    commits = git(repository, "log", f"--since={since}", "--format=%H %cI", "--", relative)
+    commits = git(repository, "log", f"--since={since}", "--format=%H %cI", "--", *paths)
     days = {}
     for line in commits.splitlines():
         revision, committed = line.split(" ", 1)
@@ -202,15 +235,23 @@ def native_history(repository, relative, warnings=None):
         if day not in days or instant(committed) > instant(days[day][1]):
             days[day] = (revision, committed)
     for revision, committed in sorted(days.values(), key=lambda entry: instant(entry[1])):
-        try:
-            records = corpus_records.parse(git(repository, "show", f"{revision}:{relative}"))
-        except (OSError, ValueError) as error:
-            if warnings is not None:
-                warnings.append(f"Skipped historical golden {relative} at {revision[:11]}: {error}")
+        sources = []
+        malformed = False
+        for path in paths:
+            try:
+                sources.append((path, corpus_records.parse(git(repository, "show", f"{revision}:{path}"))))
+            except (OSError, ValueError) as error:
+                if "does not exist in" in str(error) or "exists on disk, but not in" in str(error):
+                    continue
+                malformed = True
+                if warnings is not None:
+                    warnings.append(f"Skipped historical golden {path} at {revision[:11]}: {error}")
+        if malformed or not sources:
             continue
+        records = merge_execution_records(repository, sources, dates)
         valid = [row for row in records if row["tier"] in ("pass", "run")]
         counts = native_scoreboard(valid)
-        history.append({"revision": revision, "date": committed,
+        history.append({"revision": revision, "date": committed, "paths": [path for path, _ in sources],
                         "executed": counts["executed"], "fixtures": counts["fixtures"]})
     return history
 
@@ -253,7 +294,7 @@ def collect(repository, evidence_root):
         host["history"] = []
         if host["available"]:
             try:
-                host["history"] = native_history(repository, host["path"], warnings)
+                host["history"] = native_history(repository, host["golden_paths"], warnings)
             except (OSError, ValueError) as error:
                 warnings.append(f"Cannot read native history {host['target']}: {error}")
     if git(repository, "rev-parse", "HEAD") != revision:

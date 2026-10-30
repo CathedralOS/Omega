@@ -352,17 +352,7 @@ pub(super) fn root_type(
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
     let signature = function.structural.as_ref()?;
-    let mut parameters = signature
-        .parameters
-        .iter()
-        .map(|parameter| &parameter.semantic)
-        .chain(
-            function
-                .blocks
-                .iter()
-                .filter(|block| block.id != function.entry_block)
-                .flat_map(|block| &block.structural_parameters),
-        )
+    let mut parameters = super::record_input::declared_parameters(function)?
         .filter(|parameter| parameter.place == place);
     if let Some(parameter) = parameters.next() {
         return parameters

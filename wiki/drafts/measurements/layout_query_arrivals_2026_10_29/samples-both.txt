@@ -1,0 +1,36 @@
+
+== pass: 12
+   samples/cli/facts/size_align_layout_geometry         
+   samples/cli/facts/size_align_layout_geometry/call_result 
+   samples/cli/facts/size_align_layout_geometry/compositions/private_arrival_calls 
+   samples/cli/facts/size_align_layout_geometry/compositions/terminal_returns 
+   samples/cli/facts/size_align_layout_geometry/const_name 
+   samples/cli/facts/size_align_layout_geometry/field   
+   samples/cli/facts/size_align_layout_geometry/local   
+   samples/cli/facts/size_align_layout_geometry/match_join 
+   samples/cli/facts/size_align_layout_geometry/other_machine 
+   samples/cli/facts/size_align_layout_geometry/other_state 
+   samples/cli/facts/size_align_layout_geometry/parameter 
+   samples/cli/facts/size_align_layout_geometry/target_body 
+
+== rejected: 11
+   samples/cli/facts/size_align_layout_geometry/call_result/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/compositions/private_arrival_calls/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/compositions/terminal_returns/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/const_name/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/field/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/local/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/match_join/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/other_machine/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/other_state/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/parameter/invalid intended rejection matched
+   samples/cli/facts/size_align_layout_geometry/target_body/invalid intended rejection matched
+
+sample_native_gate: 12/12 samples meet their documented oracle on macos_arm64 (0 unscored: no oracle or not host-runnable)
+sample_native_gate: 11/11 intended-invalid controls match their authored rejection
+sample_native_gate: 47s wall with 2 jobs, 47s across samples (check 13s, review 17s, run 17s); slowest:
+       3.2s  samples/cli/facts/size_align_layout_geometry  (pass)
+       3.0s  samples/cli/facts/size_align_layout_geometry/target_body  (pass)
+       2.9s  samples/cli/facts/size_align_layout_geometry/other_machine  (pass)
+       2.9s  samples/cli/facts/size_align_layout_geometry/compositions/private_arrival_calls  (pass)
+       2.9s  samples/cli/facts/size_align_layout_geometry/other_state  (pass)

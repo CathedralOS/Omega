@@ -3,12 +3,13 @@
 //! The native producer retains its admitted entry and provider provisions.
 //! Reference execution consumes those exact records without rebuilding source
 //! or rerunning Build. They identify what to establish; this owner creates the
-//! actual zero backing and pure buffered host bindings. Containing-domain exit
+//! actual zero backing and explicitly supplied host bindings. Containing-domain exit
 //! requires a separate explicit host delegation; its default is absent even
 //! when entry or provider provisions are present. Guest storage never escapes,
 //! no placed host loans are admitted, and host output is copied into an
-//! observation rather than performed on a
-//! surviving process. Those are the domain-death premises of this runtime, not
+//! observation. A separate filesystem delegation can perform persistent effects
+//! in the host namespace; private domain death does not undo those effects.
+//! These are explicit receiving choices, not
 //! permissions inferred from a provider name or from a reach declaration.
 //! Selected numeric imports reuse exact shared IEEE semantics, including directed
 //! rounding and integer conversion. Their trapping responses still require the
@@ -23,15 +24,15 @@
 //! raw kernel errors are not guessed from libc or host replay errors.
 //! Slots share finite input and independent ordered stdout/stderr captures;
 //! checked Console wrappers still run in Psi.
-//! Exact Darwin imports and Linux clock syscalls consume a supplied private time
-//! model shared across slots. Guest calibration/retry code remains executable;
-//! simulated waits neither sleep the host nor establish native latency evidence.
+//! Exact Darwin imports and Linux clock syscalls consume an explicit clock
+//! environment shared across slots. Snapshots retain private simulated waits;
+//! live host observations remain coherent with real filesystem timestamps.
 
 mod components;
 mod entry;
 mod host_imports;
 
-pub use host_imports::clock::TerminalClockSnapshot;
+pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
 
 /// A trusted embedding choice, not a permission inferred from guest metadata.
 /// The default supplies no exit authority. A standalone sponsor may explicitly
@@ -43,6 +44,15 @@ pub enum TerminalDomainExitDelegation {
     #[default]
     Unprovided,
     IsolatedContainingDomain,
+}
+
+/// Explicit access to this host's filesystem namespace. Naming filesystem
+/// effects or selecting a native provider does not supply this authority.
+#[derive(Clone, Copy, Default)]
+pub enum TerminalFilesystemDelegation {
+    #[default]
+    Unprovided,
+    HostNamespace,
 }
 
 use native_artifact::TerminalRuntimeProvisions;
@@ -60,8 +70,10 @@ pub struct TerminalRuntimeRequest<'program> {
     pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>,
     /// Explicit private native sponsor. Its executable must dispatch the
     /// runtime worker hook before normal arguments. None admits no native C
-    /// execution. This worker supplies no standard stream or external service.
+    /// execution. This worker supplies no standard stream or external service
+    /// authority on its own; filesystem access needs the separate delegation.
     pub native_provider: Option<std::process::Command>,
+    pub filesystem: TerminalFilesystemDelegation,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     pub memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
@@ -81,9 +93,9 @@ pub struct TerminalRuntimeRequest<'program> {
     /// this snapshot, never a temporarily empty live pipe. Absence supplies no
     /// stdin capability; input-demanding imports reject before guest effects.
     pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>,
-    /// Explicit clock model for this isolated invocation. Absence supplies no
-    /// clock capability. Modeled time is not evidence of native timing behavior.
-    pub clock: Option<TerminalClockSnapshot>,
+    /// Explicit clock supply. Absence supplies no clock capability. A snapshot
+    /// remains private modeled time; Host observes the actual matching host.
+    pub clock: Option<TerminalClockEnvironment>,
 }
 
 /// The exact semantic outcome and preceding buffered output. An external exit
@@ -374,6 +386,7 @@ pub fn execute_sliced(
         request.standard_input,
         request.clock,
         request.native_provider,
+        request.filesystem,
     );
     let component_slots = request
         .provisions

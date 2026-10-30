@@ -1,0 +1,68 @@
+{
+  "schema": "cathedral-full-boot-observation-v1",
+  "compiler": {
+    "base_revision": "d86988a8204c48884b9e6bcab2631fe8930f73c3",
+    "source_patch": "compiler-source.patch.gz",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-full-67358c0345be.exe",
+    "sha256": "67358c0345be22e6831c005dd92eb2ee03b21b77809a1a1eedcd15b639409c27",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "cathedral": {
+    "revision": "9a856bc16d2b8338a13b3b8d488c54c526138b2f",
+    "workspace": "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation",
+    "desktop_source_manifest": "desktop-source-manifest.json",
+    "uncommitted_kernel_migration": "kernel-migration-incomplete.patch.gz"
+  },
+  "desktop": {
+    "status": "passed",
+    "composition": "default mixed Rust/Omega desktop",
+    "command": [
+      "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+      "tools/boot-harness-rs/desktop_test.py"
+    ],
+    "build_and_test_seconds": 170.6391764,
+    "cache_state": "retained Cargo and compiler caches; dependencies reviewed before measured command; Omega component receipts rebuilt for new compiler digest",
+    "artifact": {
+      "path": "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\build\\boot-harness-rs\\desktop\\20261028T213302183316Z\\esp\\EFI\\BOOT\\BOOTX64.EFI",
+      "sha256": "887bf272dd52b21b1bb66c7ac29be0cd7617c62d3071ba0c52fe303a39da86d8",
+      "bytes": 14110720
+    },
+    "boot_1": {
+      "qemu_launch_to_qmp_ms": 1189.3,
+      "qmp_to_ready_marker_ms": 2595.7,
+      "ready_marker": "Cathedral desktop: ready; choose a user"
+    },
+    "boot_2": {
+      "qemu_launch_to_qmp_ms": 181.7,
+      "qmp_to_ready_marker_ms": 4341.7,
+      "ready_marker": "Cathedral desktop: ready; choose a user"
+    },
+    "run_directory": "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\build\\boot-harness-rs\\desktop\\20261028T213302183316Z",
+    "exit_code": 0
+  },
+  "omega_kernel": {
+    "status": "failed_before_image_emission",
+    "log": "omega-boot-06.log.gz",
+    "image_produced": false,
+    "qemu_started": false,
+    "dependency_revision": "608307c1ee2e9d6aa20c71d0fc3afcf1210050e5",
+    "diagnostic": "placed_write generic specialization tuple cannot be derived in BootHandoff::publish::header",
+    "fixture_reproductions": [
+      "placed_primitive_generic_concrete",
+      "extent_view_external_write",
+      "resident_array_field_access"
+    ]
+  },
+  "checks": {
+    "package_source_git_tests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "source_layout": "passed",
+    "desktop_component_receipts_verified": 6
+  },
+  "sub_second_compilation_demonstrated": false
+}

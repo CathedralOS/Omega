@@ -83,6 +83,21 @@ impl<'program> ShapeCollector<'program> {
         self.unselected_opaque.take()
     }
 
+    /// One shape per identity. An equal row is the same registration; a
+    /// different one contradicts the identity already established.
+    fn register_type(
+        &mut self,
+        identity: typed_trees::type_identity::TypeIdentityId,
+        plan: CheckedUnitStructuralTypePlan,
+    ) -> Option<()> {
+        let known = self.types.get(&identity);
+        if known.is_some_and(|known| known != &plan) {
+            return None;
+        }
+        self.types.insert(identity, plan);
+        Some(())
+    }
+
     pub(in crate::execution::terminal_unit) fn add_domain(
         &mut self,
         domain: SemanticDomainId,
@@ -414,32 +429,10 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
-    /// Read a const actual bound through a substitution as a usize array
-    /// length. Literal spellings are `Named` rows whose identity is the
-    /// decimal text; const-evaluated applications keep a `ConstExpression`.
-    fn const_length_reference_value(&self, reference: TypeReferenceHandle) -> Option<usize> {
-        match self.program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { name, .. } => name.as_str().parse::<usize>().ok(),
-            TypeReferenceNode::ConstExpression(expression) => usize::try_from(
-                self.program
-                    .expression_table
-                    .constant_integer_value(*expression)?,
-            )
-            .ok(),
-            _ => None,
-        }
-    }
-
     /// A const actual's extent: its literal, or the recipe a still-pending
     /// const-generic argument retains for the target closure.
     fn const_length_extent(&self, reference: TypeReferenceHandle) -> Option<CheckedExtent> {
-        if let Some(value) = self.const_length_reference_value(reference) {
-            return u64::try_from(value).ok().map(CheckedExtent::Literal);
-        }
-        let recipe = self
-            .program
-            .constant_recipe_for_const_application(reference);
-        recipe.is_valid().then_some(CheckedExtent::Recipe(recipe))
+        self.program.declared_constant_extent(reference)
     }
 
     /// Register an admitted reference carrier with its declared access.
@@ -555,14 +548,7 @@ impl<'program> ShapeCollector<'program> {
                 access,
             },
         };
-        if self
-            .types
-            .get(&identity)
-            .is_some_and(|existing| existing != &plan)
-        {
-            return None;
-        }
-        self.types.insert(identity, plan);
+        self.register_type(identity, plan)?;
         Some(identity)
     }
 
@@ -818,14 +804,7 @@ impl<'program> ShapeCollector<'program> {
                 // second registration conflict with the first.
                 shape: CheckedUnitStructuralTypeShape::ByteSequence(carrier.without_access()),
             };
-            if self
-                .types
-                .get(&identity)
-                .is_some_and(|existing| existing != &plan)
-            {
-                return None;
-            }
-            self.types.insert(identity, plan);
+            self.register_type(identity, plan)?;
             return Some(identity);
         }
         if let Some(element) =
@@ -852,14 +831,7 @@ impl<'program> ShapeCollector<'program> {
                     access: None,
                 },
             };
-            if self
-                .types
-                .get(&identity)
-                .is_some_and(|existing| existing != &plan)
-            {
-                return None;
-            }
-            self.types.insert(identity, plan);
+            self.register_type(identity, plan)?;
             return Some(identity);
         }
         // Every other carrier names the shared semantic identity beneath its
@@ -929,7 +901,9 @@ impl<'program> ShapeCollector<'program> {
                     substitution_for(substitutions, *symbol)
                         .and_then(|replacement| self.const_length_extent(replacement))
                 }
-                typed_trees::types::FixedArrayLength::Expression(_) => None,
+                typed_trees::types::FixedArrayLength::Expression(argument) => {
+                    self.const_length_extent(*argument)
+                }
                 typed_trees::types::FixedArrayLength::ConstCall { .. } => {
                     let recipe = self
                         .program
@@ -1578,14 +1552,7 @@ impl<'program> ShapeCollector<'program> {
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::BindingCarrier,
         };
-        if self
-            .types
-            .get(&identity)
-            .is_some_and(|existing| existing != &plan)
-        {
-            return None;
-        }
-        self.types.insert(identity, plan);
+        self.register_type(identity, plan)?;
         Some(identity)
     }
 

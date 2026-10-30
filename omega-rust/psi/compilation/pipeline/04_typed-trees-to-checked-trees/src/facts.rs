@@ -190,7 +190,8 @@ pub(crate) fn build_check_facts(
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::proof::bind_outcome_specific_arm_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
-    let semantic = build_semantic_facts(program, &proof, &operators);
+    let semantic =
+        build_semantic_facts(program, &proof, &operators).map_err(|diagnostic| vec![diagnostic])?;
     let domains = build_domain_facts(program, &semantic);
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.
@@ -345,11 +346,16 @@ pub(crate) fn build_check_facts(
         || -> Result<_, Vec<diagnostics::Diagnostic>> {
             let dependencies =
                 crate::flow::derive_cleanup_effect_dependencies(program, &operational, &prepared)?;
-            if dependencies.is_empty() {
+            let dynamic_dependencies =
+                crate::flow::dynamic_effect_dependencies::derive(program, &prepared)?;
+            if dependencies.is_empty() && dynamic_dependencies.calls.is_empty() {
                 return Ok((operational, service_reach_inference));
             }
-            let operational =
-                validation::infer_operational_may_for_cleanup_dependencies(program, &dependencies);
+            let operational = validation::infer_operational_may_for_dependencies(
+                program,
+                &dependencies,
+                &dynamic_dependencies,
+            );
             let service_reach_inference = validation::infer_service_reaches(program, &operational);
             Ok((operational, service_reach_inference))
         },

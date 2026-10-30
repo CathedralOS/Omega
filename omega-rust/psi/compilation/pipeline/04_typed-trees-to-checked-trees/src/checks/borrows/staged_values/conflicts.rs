@@ -48,6 +48,7 @@ pub(super) fn check<'program>(
         }
         let moved = CapturedPlace {
             incoming_reference: Handle::invalid(),
+            incoming_owner_path: Default::default(),
             root: event.root,
             segments: segments.to_vec(),
         };

@@ -1,0 +1,704 @@
+[
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\pass\\arithmetic\\nested_clamp_resolution_exit",
+    "source_sha256": "817d63696291dbc47bae10fa6ca0fbe9df9134384a757f9610617df3b2b74915",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\nested_clamp_resolution_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.9251318000024185,
+        "transcript": "quality-observations\\baseline\\nested_clamp_resolution_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\nested_clamp_resolution_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.16887370000040391,
+        "transcript": "quality-observations\\baseline\\nested_clamp_resolution_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\nested_clamp_resolution_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.705926200003887,
+        "transcript": "quality-observations\\baseline\\nested_clamp_resolution_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\pass\\core\\scoped_integer_call_guarantees_composed_exit",
+    "source_sha256": "e9cdedc03f76638864dc2759175ec8fb0c2128ea902bfc6a4a6ed2e2c026def3",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_guarantees_composed_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.9144856999992044,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_guarantees_composed_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_guarantees_composed_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.17980199999874458,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_guarantees_composed_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_guarantees_composed_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.7528632000030484,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_guarantees_composed_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\pass\\core\\scoped_integer_call_exact_actual_requires_formation",
+    "source_sha256": "baa8e189b95c019b2b47e05fc40e8541dfe973a222ba834ede2d5de8d3a337da",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_exact_actual_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.8928191000013612,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_exact_actual_requires_formation\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_exact_actual_requires_formation"
+        ],
+        "exit_code": 1,
+        "seconds": 0.17513309999776538,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_exact_actual_requires_formation\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_exact_actual_requires_formation\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.7967376000015065,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_exact_actual_requires_formation\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\pass\\proofs\\constant_boolean_return_join_exit",
+    "source_sha256": "5a786bdbe881dd5029447466d4ec27231e795e1defef98a5df9a377b1045f666",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\constant_boolean_return_join_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.919546100005391,
+        "transcript": "quality-observations\\baseline\\constant_boolean_return_join_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\constant_boolean_return_join_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.17220620000443887,
+        "transcript": "quality-observations\\baseline\\constant_boolean_return_join_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\constant_boolean_return_join_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.7646386999986134,
+        "transcript": "quality-observations\\baseline\\constant_boolean_return_join_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\pass\\proofs\\indexed_boolean_normal_guarantee_exit",
+    "source_sha256": "044261d4ddf5fe7759b28173b7d5cfcaf52ac8e3b9eb45b08558190635035ff0",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\indexed_boolean_normal_guarantee_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.8714222999988124,
+        "transcript": "quality-observations\\baseline\\indexed_boolean_normal_guarantee_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\indexed_boolean_normal_guarantee_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.17057829999976093,
+        "transcript": "quality-observations\\baseline\\indexed_boolean_normal_guarantee_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\indexed_boolean_normal_guarantee_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.805150299995148,
+        "transcript": "quality-observations\\baseline\\indexed_boolean_normal_guarantee_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation",
+    "source_sha256": "4e2880bafe2806d94aec93de8baeaa89c21faee0073d0dba132e067ef2ad937d",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_wrapping_actual_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.939511600001424,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_wrapping_actual_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_primitive_operator_requires_formation",
+    "source_sha256": "001a19ac422298f2b3898b198aa7ff9220e4c660f7f69bd4542259df16243313",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_primitive_operator_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.0878570999993826,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_primitive_operator_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_guarantee_requires_formation",
+    "source_sha256": "14c7bdfae032d36fd9226bd98c658687e6107d340b0826a96d2cade3dab77b0d",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_guarantee_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 0.973769700001867,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_guarantee_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_abstract_trait_operator_requires_formation",
+    "source_sha256": "869caa667f11334e59ecfdd0eee51ac763ada8729158296a4a71b27b5de756b5",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_abstract_trait_operator_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.4695707999999286,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_abstract_trait_operator_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_inherited_trait_operator_requires_formation",
+    "source_sha256": "dc48547be4ca00ca21e18b586278d317d867bf8f6606fba3922966ce2e6aae16",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\scoped_integer_call_inherited_trait_operator_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.1206288000030327,
+        "transcript": "quality-observations\\baseline\\scoped_integer_call_inherited_trait_operator_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "baseline",
+    "fixture": "tests\\omega\\fail\\proofs\\conditional_boolean_return_is_not_first_arm",
+    "source_sha256": "57472379afaa98414035cd0cb98b43a6363f71b47fc72df4271d5082b19b3e64",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\baseline\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\baseline\\conditional_boolean_return_is_not_first_arm",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 0.9911721000025864,
+        "transcript": "quality-observations\\baseline\\conditional_boolean_return_is_not_first_arm\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\pass\\arithmetic\\nested_clamp_resolution_exit",
+    "source_sha256": "817d63696291dbc47bae10fa6ca0fbe9df9134384a757f9610617df3b2b74915",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\nested_clamp_resolution_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 2.144375999996555,
+        "transcript": "quality-observations\\candidate\\nested_clamp_resolution_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\nested_clamp_resolution_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.5511103000026196,
+        "transcript": "quality-observations\\candidate\\nested_clamp_resolution_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\nested_clamp_resolution_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 2.5240618999960134,
+        "transcript": "quality-observations\\candidate\\nested_clamp_resolution_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\pass\\core\\scoped_integer_call_guarantees_composed_exit",
+    "source_sha256": "e9cdedc03f76638864dc2759175ec8fb0c2128ea902bfc6a4a6ed2e2c026def3",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_guarantees_composed_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 2.7019642000013846,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_guarantees_composed_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_guarantees_composed_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.3709092999997665,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_guarantees_composed_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_guarantees_composed_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 2.129747300001327,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_guarantees_composed_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\pass\\core\\scoped_integer_call_exact_actual_requires_formation",
+    "source_sha256": "baa8e189b95c019b2b47e05fc40e8541dfe973a222ba834ede2d5de8d3a337da",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_exact_actual_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 2.23088049999933,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_exact_actual_requires_formation\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_exact_actual_requires_formation"
+        ],
+        "exit_code": 1,
+        "seconds": 0.33076509999955306,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_exact_actual_requires_formation\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_exact_actual_requires_formation\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.7908982999942964,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_exact_actual_requires_formation\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\pass\\proofs\\constant_boolean_return_join_exit",
+    "source_sha256": "5a786bdbe881dd5029447466d4ec27231e795e1defef98a5df9a377b1045f666",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\constant_boolean_return_join_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 1.9799162999988766,
+        "transcript": "quality-observations\\candidate\\constant_boolean_return_join_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\constant_boolean_return_join_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.22525540000060573,
+        "transcript": "quality-observations\\candidate\\constant_boolean_return_join_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\constant_boolean_return_join_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 1.968102300001192,
+        "transcript": "quality-observations\\candidate\\constant_boolean_return_join_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\pass\\proofs\\indexed_boolean_normal_guarantee_exit",
+    "source_sha256": "044261d4ddf5fe7759b28173b7d5cfcaf52ac8e3b9eb45b08558190635035ff0",
+    "outcome": "pass",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\indexed_boolean_normal_guarantee_exit",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 0,
+        "seconds": 2.3385981999963406,
+        "transcript": "quality-observations\\candidate\\indexed_boolean_normal_guarantee_exit\\command-0.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--resume",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\indexed_boolean_normal_guarantee_exit"
+        ],
+        "exit_code": 1,
+        "seconds": 0.2403199999971548,
+        "transcript": "quality-observations\\candidate\\indexed_boolean_normal_guarantee_exit\\command-1.txt"
+      },
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "run",
+          "--both",
+          "--keep",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\indexed_boolean_normal_guarantee_exit\\main.omg"
+        ],
+        "exit_code": 0,
+        "seconds": 2.067659599997569,
+        "transcript": "quality-observations\\candidate\\indexed_boolean_normal_guarantee_exit\\command-2.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_wrapping_actual_requires_formation",
+    "source_sha256": "4e2880bafe2806d94aec93de8baeaa89c21faee0073d0dba132e067ef2ad937d",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_wrapping_actual_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.1439022999984445,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_wrapping_actual_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_primitive_operator_requires_formation",
+    "source_sha256": "001a19ac422298f2b3898b198aa7ff9220e4c660f7f69bd4542259df16243313",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_primitive_operator_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.1463798999975552,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_primitive_operator_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_guarantee_requires_formation",
+    "source_sha256": "14c7bdfae032d36fd9226bd98c658687e6107d340b0826a96d2cade3dab77b0d",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_guarantee_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.0489678000012645,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_guarantee_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_abstract_trait_operator_requires_formation",
+    "source_sha256": "869caa667f11334e59ecfdd0eee51ac763ada8729158296a4a71b27b5de756b5",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_abstract_trait_operator_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.1636198999985936,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_abstract_trait_operator_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\fail\\core\\scoped_integer_call_inherited_trait_operator_requires_formation",
+    "source_sha256": "dc48547be4ca00ca21e18b586278d317d867bf8f6606fba3922966ce2e6aae16",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\scoped_integer_call_inherited_trait_operator_requires_formation",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.1014568000027793,
+        "transcript": "quality-observations\\candidate\\scoped_integer_call_inherited_trait_operator_requires_formation\\command-0.txt"
+      }
+    ]
+  },
+  {
+    "producer": "candidate",
+    "fixture": "tests\\omega\\fail\\proofs\\conditional_boolean_return_is_not_first_arm",
+    "source_sha256": "57472379afaa98414035cd0cb98b43a6363f71b47fc72df4271d5082b19b3e64",
+    "outcome": "fail",
+    "observations": [
+      {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\candidate\\omega.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\compiler-dashboard\\build\\prime-preparation-2\\quality2\\candidate\\conditional_boolean_return_is_not_first_arm",
+          "--target",
+          "windows_x86_64"
+        ],
+        "exit_code": 1,
+        "seconds": 1.343241800001124,
+        "transcript": "quality-observations\\candidate\\conditional_boolean_return_is_not_first_arm\\command-0.txt"
+      }
+    ]
+  }
+]

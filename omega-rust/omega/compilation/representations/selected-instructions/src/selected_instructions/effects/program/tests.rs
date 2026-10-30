@@ -27,6 +27,24 @@ use target::NativeTarget;
 
 use super::encoding::*;
 
+macro_rules! round_trip {
+    ($plan:expr) => {
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&$plan.encode()),
+            Ok($plan.clone())
+        );
+    };
+}
+
+macro_rules! differs {
+    ($plan:expr, $source:expr) => {
+        assert_ne!(
+            pre_allocation_machine_effect_identity(&$plan),
+            $source.identity
+        );
+    };
+}
+
 #[test]
 fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects() {
     let mut source = plan();
@@ -64,10 +82,7 @@ fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects(
         MachineCallEffect::ExternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
         };
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&forged),
-        source.identity
-    );
+    differs!(forged, source);
     // The same family tag must round-trip ordinary imports as well. Its
     // producer already wrote tag 87; a missing alternative decoder arm
     // previously rejected both mechanisms before reaching their effects.
@@ -78,18 +93,12 @@ fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects(
     };
     instruction.alternatives[0].encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
     forged.identity = pre_allocation_machine_effect_identity(&forged);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&forged.encode()),
-        Ok(forged.clone())
-    );
+    round_trip!(forged);
     forged = source.clone();
     forged.functions[0].blocks[0].instructions[0].alternatives[0]
         .encoded
         .control = MachineEncodedControlEffect::DirectRelativeCallV1;
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&forged),
-        source.identity
-    );
+    differs!(forged, source);
 }
 
 #[test]
@@ -191,10 +200,7 @@ fn atomic_codec_retains_operation_width_ordering_effect_and_observed_result() {
         }
         instruction.alternatives[0].encoded = encoded;
         source.identity = pre_allocation_machine_effect_identity(&source);
-        assert_eq!(
-            PreAllocationMachineEffectPlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
+        round_trip!(source);
         for mutation in 0..4 {
             let mut changed = source.clone();
             let instruction = &mut changed.functions[0].blocks[0].instructions[0];
@@ -207,10 +213,7 @@ fn atomic_codec_retains_operation_width_ordering_effect_and_observed_result() {
                     .external_operand_reads
                     .clear(),
             }
-            assert_ne!(
-                pre_allocation_machine_effect_identity(&changed),
-                source.identity
-            );
+            differs!(changed, source);
             assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
         }
     }
@@ -234,10 +237,7 @@ fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {
     encoded.external_operand_reads = vec![0, 1, 2];
     encoded.external_operand_writes = vec![3, 4];
     source.identity = pre_allocation_machine_effect_identity(&source);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    round_trip!(source);
     for mutation in 0..6 {
         let mut changed = source.clone();
         let instruction = &mut changed.functions[0].blocks[0].instructions[0];
@@ -266,10 +266,7 @@ fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {
                 .external_operand_writes
                 .clear(),
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -296,10 +293,7 @@ fn byte_sequence_scan_and_compare_codecs_round_trip() {
     encoded.external_operand_reads = vec![0, 1];
     encoded.external_operand_writes = vec![2, 3, 4];
     scan.identity = pre_allocation_machine_effect_identity(&scan);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&scan.encode()),
-        Ok(scan.clone())
-    );
+    round_trip!(scan);
 
     let mut compare = plan();
     let instruction = &mut compare.functions[0].blocks[0].instructions[0];
@@ -318,10 +312,7 @@ fn byte_sequence_scan_and_compare_codecs_round_trip() {
     encoded.external_operand_reads = vec![0, 1, 2, 3];
     encoded.external_operand_writes = vec![4, 5, 6, 7];
     compare.identity = pre_allocation_machine_effect_identity(&compare);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&compare.encode()),
-        Ok(compare.clone())
-    );
+    round_trip!(compare);
     assert_ne!(scan.identity, compare.identity);
 }
 
@@ -342,10 +333,7 @@ fn zero_fill_effect_codec_binds_dynamic_span_and_cursor_effect() {
     encoded.external_operand_reads = vec![0, 1];
     encoded.external_operand_writes = vec![2];
     source.identity = pre_allocation_machine_effect_identity(&source);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    round_trip!(source);
     for mutation in 0..6 {
         let mut changed = source.clone();
         let instruction = &mut changed.functions[0].blocks[0].instructions[0];
@@ -372,10 +360,7 @@ fn zero_fill_effect_codec_binds_dynamic_span_and_cursor_effect() {
                 .external_operand_writes
                 .clear(),
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -389,10 +374,7 @@ fn wrapping_add_codec_is_proof_free_and_distinct_from_exact_add() {
     instruction.alternatives.truncate(1);
     instruction.alternatives[0].key.family = MachineAlternativeFamily::WrappingAddI64;
     source.identity = pre_allocation_machine_effect_identity(&source);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    round_trip!(source);
     let mut changed = source.clone();
     changed.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::ExactAddI64 {
         obligation: ObligationId::new(41).unwrap(),
@@ -406,10 +388,7 @@ fn wrapping_add_codec_is_proof_free_and_distinct_from_exact_add() {
     changed.functions[0].blocks[0].instructions[0].alternatives[0]
         .key
         .family = MachineAlternativeFamily::ExactAddI64;
-    assert_ne!(
-        source.identity,
-        pre_allocation_machine_effect_identity(&changed)
-    );
+    differs!(changed, source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&changed.encode()),
         Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -431,10 +410,7 @@ fn wrapping_remainder_codec_preserves_proof_and_distinguishes_unsigned_division(
     instruction.alternatives.truncate(1);
     instruction.alternatives[0].key.family = MachineAlternativeFamily::WrappingRemainderI64;
     source.identity = pre_allocation_machine_effect_identity(&source);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    round_trip!(source);
 
     for replacement in [
         SelectedInstructionKind::WrappingRemainderI64 {
@@ -452,10 +428,7 @@ fn wrapping_remainder_codec_preserves_proof_and_distinguishes_unsigned_division(
     ] {
         let mut changed = source.clone();
         changed.functions[0].blocks[0].instructions[0].kind = replacement;
-        assert_ne!(
-            source.identity,
-            pre_allocation_machine_effect_identity(&changed)
-        );
+        differs!(changed, source);
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&changed.encode()),
             Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -465,10 +438,7 @@ fn wrapping_remainder_codec_preserves_proof_and_distinguishes_unsigned_division(
     changed.functions[0].blocks[0].instructions[0].alternatives[0]
         .key
         .family = MachineAlternativeFamily::ExactDivideU64;
-    assert_ne!(
-        source.identity,
-        pre_allocation_machine_effect_identity(&changed)
-    );
+    differs!(changed, source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&changed.encode()),
         Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -501,10 +471,7 @@ fn outgoing_frame_roles_round_trip_and_cannot_substitute_under_a_retained_identi
             let mut source = plan();
             source.functions[0].blocks[0].instructions[0].kind = kind;
             source.identity = pre_allocation_machine_effect_identity(&source);
-            assert_eq!(
-                PreAllocationMachineEffectPlan::decode(&source.encode()),
-                Ok(source.clone())
-            );
+            round_trip!(source);
             let changed_slot = OutgoingArgumentSlotId {
                 role: match role {
                     OutgoingArgumentSlotRole::Argument => OutgoingArgumentSlotRole::ValueCopy,
@@ -527,10 +494,7 @@ fn outgoing_frame_roles_round_trip_and_cannot_substitute_under_a_retained_identi
                 }
                 _ => unreachable!(),
             };
-            assert_ne!(
-                source.identity,
-                pre_allocation_machine_effect_identity(&source)
-            );
+            differs!(source, source);
             assert_eq!(
                 PreAllocationMachineEffectPlan::decode(&source.encode()),
                 Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -781,10 +745,7 @@ fn codec_keeps_linux_output_pointer_store_and_address_offset_distinct() {
         rows.push(row);
     }
     source.identity = pre_allocation_machine_effect_identity(&source);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    round_trip!(source);
     let mut substituted = source;
     substituted.functions[0].blocks[0].instructions[1].memory =
         MachineMemoryEffect::HostedWriteByteV1;
@@ -906,10 +867,7 @@ fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
             2 => row.trap = MachineTrapBehavior::NeverV1,
             _ => row.barrier = MachineBarrier::None,
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -940,10 +898,7 @@ fn narrow_load_effect_codec_binds_width_offset_and_pointer_footprint() {
             byte_count,
         };
         source.identity = pre_allocation_machine_effect_identity(&source);
-        assert_eq!(
-            PreAllocationMachineEffectPlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
+        round_trip!(source);
         for mutation in 0..4 {
             let mut changed = source.clone();
             let instruction = &mut changed.functions[0].blocks[0].instructions[0];
@@ -966,10 +921,7 @@ fn narrow_load_effect_codec_binds_width_offset_and_pointer_footprint() {
                         }
                 }
             }
-            assert_ne!(
-                source.identity,
-                pre_allocation_machine_effect_identity(&changed)
-            );
+            differs!(changed, source);
             assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
         }
     }
@@ -1017,10 +969,7 @@ fn linux_byte_input_codec_binds_structural_home_and_distinct_effects() {
             3 => row.kind = SelectedInstructionKind::HostedWriteByteI32 { slot },
             _ => row.barrier = MachineBarrier::None,
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -1042,28 +991,19 @@ fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
     changed.functions[0].blocks[0].instructions[0]
         .provenance
         .operations[0] = OperationId::new(317).unwrap();
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&changed),
-        source.identity
-    );
+    differs!(changed, source);
     changed = source.clone();
     changed.functions[0].blocks[0].instructions[0].alternatives[0]
         .key
         .family = MachineAlternativeFamily::ExactAddI64;
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&changed),
-        source.identity
-    );
+    differs!(changed, source);
 }
 
 #[test]
 fn codec_rejects_fuel_settled_against_unclaimed_or_reused_sites() {
     // The fixture settles one claimed operation and one claimed edge.
     let source = plan();
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    round_trip!(source);
 
     for corruption in 0..4 {
         let mut changed = source.clone();
@@ -1238,10 +1178,7 @@ fn pointer_store_effect_codec_binds_width_offset_and_write_effect() {
         instruction.alternatives[0].encoded.memory =
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 };
         source.identity = pre_allocation_machine_effect_identity(&source);
-        assert_eq!(
-            PreAllocationMachineEffectPlan::decode(&source.encode()),
-            Ok(source.clone())
-        );
+        round_trip!(source);
         let mut changed = source.clone();
         changed.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::Store {
             byte_offset: 24,
@@ -1346,10 +1283,7 @@ fn structural_call_content_is_authenticated_and_closed() {
     substituted.functions[1].blocks[0].instructions[0].kind = SelectedInstructionKind::CallUnit {
         target: crate::SelectedCallTarget::Machine(MachineId::new(99).unwrap()),
     };
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&substituted),
-        source.identity
-    );
+    differs!(substituted, source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&substituted.encode()),
         Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -1395,10 +1329,7 @@ fn hosted_exit_codec_retains_nonreturning_effect_without_scratch() {
             2 => row.barrier = MachineBarrier::None,
             _ => row.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1,
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -1413,10 +1344,7 @@ fn scalar_result_buffer_identity_cannot_alias_saved_boundary_controls() {
         byte_offset: 0,
     };
     source.identity = pre_allocation_machine_effect_identity(&source);
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&source.encode()),
-        Ok(source.clone())
-    );
+    round_trip!(source);
     for slot in [
         LocalStorageSlotId::Boundary { operation },
         LocalStorageSlotId::BoundaryResult {
@@ -1429,10 +1357,7 @@ fn scalar_result_buffer_identity_cannot_alias_saved_boundary_controls() {
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             };
-        assert_ne!(
-            source.identity,
-            pre_allocation_machine_effect_identity(&changed)
-        );
+        differs!(changed, source);
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&changed.encode()),
             Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)

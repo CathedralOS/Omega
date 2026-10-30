@@ -86,6 +86,7 @@ use checked_trees::{
 // The two steps: `admission` checks the graph against its authored source;
 // `emission` writes the admitted graph.
 mod admission;
+mod custody_frontiers;
 mod emission;
 
 // Whole-graph records: reachable states, claim transport across edges,
@@ -114,6 +115,7 @@ mod subslices;
 
 pub(in crate::unit::attached_unit) use admission::AdmittedGraph;
 pub(in crate::unit::attached_unit) use admission::admit;
+pub(super) use custody_frontiers::prepare;
 pub(super) use edges::successors;
 pub(super) use emission::emit;
 pub(crate) use topology::live;

@@ -4,22 +4,34 @@
 //! nominal text before comparing independent projections or Terminal artifacts.
 
 use checked_trees::CheckedTrees;
+use std::sync::Arc;
 use symbols::SymbolHandle;
 use terminal_psi::{
     ExternalProviderConformance, NominalDeclarationIdentity, TerminalIdentityTable,
 };
 
+mod boundary_review;
+mod callbacks;
+pub use callbacks::PreparedCallbackDeclarations;
 mod prepared;
 pub use prepared::PreparedExternalProviderDeclarations;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalProviderDeclarations {
-    pub identities: TerminalIdentityTable,
+    pub identities: Arc<TerminalIdentityTable>,
     pub conformances: Vec<ExternalProviderConformance>,
+    pub callbacks: PreparedCallbackDeclarations,
     declarations: Vec<(SymbolHandle, NominalDeclarationIdentity)>,
 }
 
 impl ExternalProviderDeclarations {
+    /// Borrow this producer's exact source-to-nominal correspondence. Source
+    /// consumers may join it to the canonical catalog without reopening typed
+    /// declarations or inventing identities from normalized signatures.
+    pub fn correspondence(&self) -> &[(SymbolHandle, NominalDeclarationIdentity)] {
+        &self.declarations
+    }
+
     /// Eligible shape is retained independently of supported numeric meaning.
     /// Missing candidate facts cannot change the dispatch category selected by
     /// immutable custody.
@@ -70,9 +82,11 @@ pub fn project_external_provider_declarations(
         )
     });
     declarations.dedup();
+    let callbacks = PreparedCallbackDeclarations::prepare(checked, sources, &mut identities);
     Ok(ExternalProviderDeclarations {
-        identities: identities.build(),
+        identities: Arc::new(identities.build()),
         conformances,
+        callbacks,
         declarations,
     })
 }

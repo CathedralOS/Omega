@@ -58,9 +58,5 @@ pub(super) fn validate_normal_output_completions(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }

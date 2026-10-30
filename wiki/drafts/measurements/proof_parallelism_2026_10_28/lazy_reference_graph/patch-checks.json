@@ -1,0 +1,14 @@
+[
+  {
+    "patch": "candidate.patch",
+    "base": "d9c92de878a42e495f45fdf49ba228d64294f4aa",
+    "applies_independently": true,
+    "patched_source_sha256": "74077c5efa605a5219e5abda4cf975dab17079ea461e24e3bcbea233974febeb"
+  },
+  {
+    "patch": "diagnostic.patch",
+    "base": "d9c92de878a42e495f45fdf49ba228d64294f4aa",
+    "applies_independently": true,
+    "patched_source_sha256": "aa1723b3ca85da144b51ad45015d0d92f6a40c8293b5a71e8086d3019e4a0ad6"
+  }
+]

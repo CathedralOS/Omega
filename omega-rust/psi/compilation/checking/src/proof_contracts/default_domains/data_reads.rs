@@ -165,6 +165,38 @@ fn scan_expression_use(
     consumes_value: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    macro_rules! read_child {
+        ($expression:expr $(,)?) => {
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                $expression,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            )
+        };
+    }
+    macro_rules! validate_read {
+        ($definition:expr, $receiver:expr, $member:expr, $root:expr $(,)?) => {
+            validate_data_read(
+                program,
+                state,
+                $definition,
+                $receiver,
+                $member,
+                $root,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            )
+        };
+    }
     if !expression.is_valid() {
         return;
     }
@@ -204,18 +236,11 @@ fn scan_expression_use(
             {
                 // Passing or borrowing the whole nominal value cannot bypass the
                 // same establishment gate a projected observation must satisfy.
-                validate_data_read(
-                    program,
-                    state,
+                validate_read!(
                     definition,
                     &spelling,
                     "<whole value>",
                     expression_root_symbol(program, expression),
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
                 );
             }
             if has_open_window {
@@ -254,18 +279,11 @@ fn scan_expression_use(
                     .iter()
                     .find(|place| place_spelling_covers(&place.spelling, &receiver_spelling))
                 {
-                    validate_data_read(
-                        program,
-                        state,
+                    validate_read!(
                         place.definition,
                         &receiver_spelling,
                         members.last().expect("non-empty path").as_str(),
                         path.head_symbol,
-                        tracked,
-                        entry_established,
-                        call_established,
-                        inherited_windows,
-                        diagnostics,
                     );
                 }
             }
@@ -281,19 +299,7 @@ fn scan_expression_use(
                     .as_ref()
                     .and_then(|attached| program.data_definition_by_name(attached))
             {
-                validate_data_read(
-                    program,
-                    state,
-                    definition,
-                    "self",
-                    members[1].as_str(),
-                    path.head_symbol,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                validate_read!(definition, "self", members[1].as_str(), path.head_symbol);
             }
         }
         ExpressionNode::Member(member) => {
@@ -332,18 +338,11 @@ fn scan_expression_use(
                     && let Some(definition) = definition
                     && crate::value_custody::data::data_requires_establishment(program, definition)
                 {
-                    validate_data_read(
-                        program,
-                        state,
+                    validate_read!(
                         definition,
                         &receiver_spelling,
                         member.member.as_str(),
                         expression_root_symbol(program, member.receiver),
-                        tracked,
-                        entry_established,
-                        call_established,
-                        inherited_windows,
-                        diagnostics,
                     );
                 }
             }
@@ -377,41 +376,11 @@ fn scan_expression_use(
                 false,
                 diagnostics,
             );
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                indexed.index,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
+            read_child!(indexed.index);
         }
         ExpressionNode::Binary(binary) => {
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                binary.left,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                binary.right,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
+            read_child!(binary.left);
+            read_child!(binary.right);
         }
         ExpressionNode::Borrow(inner) => {
             if inner.access == language_core::ReferenceAccess::WriteOnly {
@@ -419,17 +388,7 @@ fn scan_expression_use(
                 // Its formation/forwarding checker owns exact write authority.
                 // Runtime selectors still observe their ordinary operands.
                 for index in write_target_index_expressions(program, inner.target) {
-                    scan_expression_reads(
-                        program,
-                        machine,
-                        state,
-                        index,
-                        tracked,
-                        entry_established,
-                        call_established,
-                        inherited_windows,
-                        diagnostics,
-                    );
+                    read_child!(index);
                 }
                 return;
             }
@@ -441,112 +400,35 @@ fn scan_expression_use(
                         && place.any_window_open()
                 })
             {
-                validate_data_read(
-                    program,
-                    state,
+                validate_read!(
                     place.definition,
                     &receiver_spelling,
                     member.member.as_str(),
                     expression_root_symbol(program, member.receiver),
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
                 );
             }
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                inner.target,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
+            read_child!(inner.target);
         }
         ExpressionNode::Call(call) => {
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                call.receiver,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
+            read_child!(call.receiver);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression_reads(
-                    program,
-                    machine,
-                    state,
-                    *argument,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                read_child!(*argument);
             }
         }
         ExpressionNode::Cast(cast) => {
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                cast.value,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
+            read_child!(cast.value);
         }
         ExpressionNode::Unary(unary) => {
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                unary.operand,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
+            read_child!(unary.operand);
         }
         ExpressionNode::Atomic(atomic) => {
             for operand in [atomic.value, atomic.result] {
-                scan_expression_reads(
-                    program,
-                    machine,
-                    state,
-                    operand,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                read_child!(operand);
             }
         }
         ExpressionNode::Range(range) => {
             for bound in [range.start, range.end] {
-                scan_expression_reads(
-                    program,
-                    machine,
-                    state,
-                    bound,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                read_child!(bound);
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
@@ -556,70 +438,20 @@ fn scan_expression_use(
                 .iter()
                 .copied()
             {
-                scan_expression_reads(
-                    program,
-                    machine,
-                    state,
-                    element,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                read_child!(element);
             }
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                scan_expression_reads(
-                    program,
-                    machine,
-                    state,
-                    field.value,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                read_child!(field.value);
             }
         }
         ExpressionNode::Match(matched) => {
-            scan_expression_reads(
-                program,
-                machine,
-                state,
-                matched.subject,
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
+            read_child!(matched.subject);
             for arm in program.expression_table.match_arms(matched.arms) {
-                scan_expression_reads(
-                    program,
-                    machine,
-                    state,
-                    arm.value,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                read_child!(arm.value);
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    scan_expression_reads(
-                        program,
-                        machine,
-                        state,
-                        pattern,
-                        tracked,
-                        entry_established,
-                        call_established,
-                        inherited_windows,
-                        diagnostics,
-                    );
+                    read_child!(pattern);
                 }
             }
         }

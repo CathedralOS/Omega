@@ -111,23 +111,12 @@ struct Candidate {
 pub(crate) fn serialize_elf_dynamic_table(
     plan: ValidatedElfDynamicTagPlan,
 ) -> Result<ValidatedElfDynamicTablePayload, Box<ElfDynamicTableSerializationError>> {
-    checked::plan_candidate(
-        plan,
-        encode_contents,
-        |plan, contents| non_authoritative_payload_compatibility_fingerprint(&plan, &contents),
-        |plan, contents, fingerprint| Candidate {
-            plan: plan,
-            contents: contents,
-            non_authoritative_payload_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.plan,
-        |plan, diagnostic| {
-            Box::new(ElfDynamicTableSerializationError {
-                plan: plan,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: plan,
+        derive: encode_contents,
+        contents: contents,
+        fingerprint: non_authoritative_payload_compatibility_fingerprint,
+        error: ElfDynamicTableSerializationError,
     )
 }
 
@@ -303,6 +292,20 @@ mod tests {
     use crate::dynamic_executable::checked::read_i64;
     use target::TargetProfile;
 
+    fn address_fixup(
+        row_ordinal: u32,
+        byte_offset: usize,
+        target: ElfDynamicAddressTarget,
+    ) -> ElfDynamicPayloadAddressFixup {
+        ElfDynamicPayloadAddressFixup {
+            row_ordinal,
+            byte_offset,
+            byte_width: 8,
+            kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
+            target,
+        }
+    }
+
     const IMPORTS: [crate::test_support::DynamicImportFixture; 2] =
         crate::test_support::PAIR_IMPORTS;
 
@@ -376,69 +379,15 @@ mod tests {
             assert_eq!(
                 payload.contents.address_fixups,
                 [
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 3,
-                        byte_offset: 56,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::ProcedureGot,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 4,
-                        byte_offset: 72,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::SystemVHash,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 5,
-                        byte_offset: 88,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::GnuHash,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 6,
-                        byte_offset: 104,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::DynamicString,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 7,
-                        byte_offset: 120,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::DynamicSymbol,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 11,
-                        byte_offset: 184,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::ProcedureRelocation,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 12,
-                        byte_offset: 200,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::GeneralRelocation,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 15,
-                        byte_offset: 248,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::GnuSymbolVersion,
-                    },
-                    ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 16,
-                        byte_offset: 264,
-                        byte_width: 8,
-                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::GnuVersionRequirement,
-                    },
+                    address_fixup(3, 56, ElfDynamicAddressTarget::ProcedureGot),
+                    address_fixup(4, 72, ElfDynamicAddressTarget::SystemVHash),
+                    address_fixup(5, 88, ElfDynamicAddressTarget::GnuHash),
+                    address_fixup(6, 104, ElfDynamicAddressTarget::DynamicString),
+                    address_fixup(7, 120, ElfDynamicAddressTarget::DynamicSymbol),
+                    address_fixup(11, 184, ElfDynamicAddressTarget::ProcedureRelocation),
+                    address_fixup(12, 200, ElfDynamicAddressTarget::GeneralRelocation),
+                    address_fixup(15, 248, ElfDynamicAddressTarget::GnuSymbolVersion),
+                    address_fixup(16, 264, ElfDynamicAddressTarget::GnuVersionRequirement),
                 ],
             );
             validate_contents(payload.plan(), &payload.contents)
@@ -585,13 +534,7 @@ mod tests {
         assert!(read_i64(&[], usize::MAX, "tag").is_err());
         assert!(read_u64(&[0; 7], 0, "value").is_err());
 
-        let overflow = ElfDynamicPayloadAddressFixup {
-            row_ordinal: u32::MAX,
-            byte_offset: usize::MAX,
-            byte_width: 8,
-            kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-            target: ElfDynamicAddressTarget::ProcedureGot,
-        };
+        let overflow = address_fixup(u32::MAX, usize::MAX, ElfDynamicAddressTarget::ProcedureGot);
         assert!(validate_fixup_coverage(&[overflow, overflow]).is_err());
     }
 }

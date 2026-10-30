@@ -290,6 +290,34 @@ fn tied_components<'a>(
     Ok(grouped)
 }
 
+fn reject_tied_interference(
+    function: usize,
+    ranges: &FunctionLiveRanges,
+    has_member: impl Fn(VirtualRegisterId) -> bool,
+    left: VirtualRegisterId,
+    right: VirtualRegisterId,
+) -> Result<(), RegisterHomeError> {
+    if !registers_interfere(left, right, &ranges.interference) {
+        return Ok(());
+    }
+    let (lower, higher) = ordered_pair(left, right);
+    if let Some(edge) = ranges
+        .edge_transfers
+        .iter()
+        .find(|edge| has_member(edge.parameter))
+    {
+        return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+            function,
+            edge: edge.psi_edge.get(),
+        });
+    }
+    Err(RegisterHomeError::TiedRegistersInterfere {
+        function,
+        lower: lower.0,
+        higher: higher.0,
+    })
+}
+
 fn build_domain<'a>(
     function: usize,
     leader: &mut &'a VirtualRegisterAllocationLegality,
@@ -381,17 +409,26 @@ fn mask_to_vec(mut mask: u128) -> Vec<RegisterViewId> {
     out
 }
 
-fn interval_bounds(
+/// The first span that makes a register live, or the stage's own refusal: every
+/// domain builder reads the same lead span, so the absence is named once.
+fn first_span(
     function: usize,
     register: &VirtualRegisterAllocationLegality,
-) -> Result<(LiveRangePoint, LiveRangePoint), RegisterHomeError> {
-    let first = register
+) -> Result<&register_homes::VirtualLegalitySpan, RegisterHomeError> {
+    register
         .spans
         .first()
         .ok_or(RegisterHomeError::NoLivePoints {
             function,
             register: register.virtual_register.0,
-        })?;
+        })
+}
+
+fn interval_bounds(
+    function: usize,
+    register: &VirtualRegisterAllocationLegality,
+) -> Result<(LiveRangePoint, LiveRangePoint), RegisterHomeError> {
+    let first = first_span(function, register)?;
     let last = register.spans.last().expect("nonempty spans established");
     Ok((first.start, last.end))
 }
@@ -400,13 +437,7 @@ fn common_candidates_repr(
     function: usize,
     register: &VirtualRegisterAllocationLegality,
 ) -> Result<DomainCandidates, RegisterHomeError> {
-    let first = register
-        .spans
-        .first()
-        .ok_or(RegisterHomeError::NoLivePoints {
-            function,
-            register: register.virtual_register.0,
-        })?;
+    let first = first_span(function, register)?;
     if register.spans.len() == 1 && register.early_clobber_points.is_empty() {
         if first.candidates.is_empty() {
             return Err(RegisterHomeError::NoCommonCandidate {

@@ -226,14 +226,7 @@ pub(super) fn append_element_replacement_predicates(
         .place_segments
         .span_or_empty(semantic.places.get(carrier).segments)
         .iter()
-        .all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-            )
-        })
+        .all(|segment| crate::flow::fixed_selection_segment(segment))
     {
         return;
     }

@@ -1,0 +1,46 @@
+{
+  "compiler": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-ui-shared-fce1b143fc4c.exe",
+    "sha256": "fce1b143fc4c21f5090d93c7eae117fd691d5fc1663e619b4df00d5695d685d7",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "command": [
+    "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\tools\\omega-ui\\build.py",
+    "--compiler",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-ui-shared-fce1b143fc4c.exe"
+  ],
+  "exit_code": 0,
+  "builder_wall_ms": 20261.879300000146,
+  "builder_peak_bytes": 4962017280,
+  "scope": "Includes update, compile, extraction and receipt; profiling enabled, not the A/B metric.",
+  "runtime_command": [
+    "mbx",
+    "nextest",
+    "run",
+    "--locked",
+    "-p",
+    "cathedral-omega-ui",
+    "--lib"
+  ],
+  "runtime_exit_code": 0,
+  "warm_profile": {
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-ui-shared-fce1b143fc4c.exe",
+      "--offline",
+      "--timings",
+      "--target",
+      "linux_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\qualified-profile\\product",
+      "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\exports\\main.omg"
+    ],
+    "exit_code": 0,
+    "wall_ms": 7974.438699995517,
+    "peak_bytes": 2187190272,
+    "artifacts_identical_to_runtime_tested_builder": true
+  }
+}

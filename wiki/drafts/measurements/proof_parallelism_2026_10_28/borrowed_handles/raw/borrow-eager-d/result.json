@@ -1,0 +1,108 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\unchanged-sharing\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\borrow-eager-d\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 28.867410099999688,
+  "exit_code": 0,
+  "cpu_seconds": 36.28125,
+  "peak_working_set_bytes": 2009702400,
+  "peak_commit_bytes": 3418296320,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.07160120000480674,
+  "producer": "unchanged-sharing",
+  "compiler_sha256": "34a307a9798729b75c17cc9bd52c658dd4d20e9f74743575bfd48ecda32e16db",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "6b2eddb8223c932fe5a7f53a2167da845796cc8ae6fcbd6f0b322a42aa95753f",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "timing",
+  "reconciliation": [
+    {
+      "operation": "places",
+      "machines": 7,
+      "wall_ns": 14400,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 7,
+      "wall_ns": 16300,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 7,
+      "wall_ns": 1300,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 2,
+      "wall_ns": 2400,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 2,
+      "wall_ns": 3700,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 2,
+      "wall_ns": 200,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 202,
+      "wall_ns": 280900,
+      "metrics": {}
+    },
+    {
+      "operation": "residences",
+      "machines": 202,
+      "wall_ns": 103100,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 202,
+      "wall_ns": 3433568500,
+      "metrics": {
+        "analysis_drop_ns": 6498100,
+        "discovery_ns": 122700,
+        "graph_drop_ns": 4836700,
+        "graph_preparation_ns": 256921400,
+        "history_creation_ns": 47100,
+        "history_drop_ns": 28563500,
+        "leaf_query_formation_ns": 107400,
+        "leaf_root_lookup_ns": 741100,
+        "merge_ns": 2711500,
+        "operand_queries_ns": 57119200,
+        "payload_contract_queries_ns": 9150200,
+        "payload_target_queries_ns": 7137400,
+        "reachability_drop_ns": 400,
+        "reference_context_drop_ns": 17380900,
+        "reference_queries_ns": 731415900,
+        "source_contract_queries_ns": 2301706500,
+        "types_drop_ns": 29900,
+        "view_queries_ns": 7297700
+      }
+    }
+  ],
+  "borrowing_counts": false,
+  "borrowing": {
+    "windows": 0,
+    "hot": {},
+    "global_counts": {}
+  }
+}

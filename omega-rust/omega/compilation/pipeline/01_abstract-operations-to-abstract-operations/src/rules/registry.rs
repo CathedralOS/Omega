@@ -75,8 +75,6 @@ pub enum RuleProposalError {
 
 failed_display!(RuleProposalError, "Psi optimizer rule proposal failed");
 
-impl std::error::Error for RuleProposalError {}
-
 /// Immutable executable rule declaration. Candidate enumeration is added by
 /// the rule-engine layer; the registry itself depends only on stable contracts
 /// and cannot mutate a compilation or another registry.
@@ -116,16 +114,7 @@ pub enum RuleRegistryError {
     },
 }
 
-impl std::fmt::Display for RuleRegistryError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid ordered Psi optimizer registry: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for RuleRegistryError {}
+failed_display!(RuleRegistryError, "invalid ordered Psi optimizer registry");
 
 /// Exact immutable rule schedule owned by one compilation. Construction
 /// preserves the pass manager's caller-supplied canonical order instead of

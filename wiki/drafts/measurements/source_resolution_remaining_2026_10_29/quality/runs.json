@@ -1,0 +1,544 @@
+[
+  {
+    "label": "stack32-A-first",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-A-first\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "exit": 0,
+    "wall_ms": 3416.1049999966053,
+    "peak_job_memory_bytes": 1084162048,
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "stack32-A-warm",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-A-warm\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "exit": 0,
+    "wall_ms": 1083.6081000015838,
+    "peak_job_memory_bytes": 257040384,
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "length-A-first",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A-first\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 1908.7187999975868,
+    "peak_job_memory_bytes": 1086779392,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "length-A-warm",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A-warm\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 683.7200999943889,
+    "peak_job_memory_bytes": 218628096,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "dispatch-A-first",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-A-first\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "exit": 0,
+    "wall_ms": 3833.4625999996206,
+    "peak_job_memory_bytes": 1053868032,
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "dispatch-A-warm",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-A-warm\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "exit": 0,
+    "wall_ms": 712.5109999979031,
+    "peak_job_memory_bytes": 212070400,
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "stack32-B-first",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-B-first\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "exit": 0,
+    "wall_ms": 2383.5209000026225,
+    "peak_job_memory_bytes": 1073930240,
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "stack32-B-warm",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-B-warm\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\stack32-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "exit": 0,
+    "wall_ms": 931.9579000002705,
+    "peak_job_memory_bytes": 256978944,
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "length-B-first",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B-first\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 1766.211399997701,
+    "peak_job_memory_bytes": 1077403648,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "length-B-warm",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B-warm\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 483.45939999853726,
+    "peak_job_memory_bytes": 219119616,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "dispatch-B-first",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-B-first\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "exit": 0,
+    "wall_ms": 1789.4665999992867,
+    "peak_job_memory_bytes": 1065844736,
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "dispatch-B-warm",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-B-warm\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\dispatch-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "exit": 0,
+    "wall_ms": 466.6259000005084,
+    "peak_job_memory_bytes": 220454912,
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "length-A-truncated",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A-truncated\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 1815.5337999996846,
+    "peak_job_memory_bytes": 1049722880,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "truncated",
+      "original_sha256": "477fcc28550dbac7021577fc8a6a4ba3eaa0972387b52ebfb47e20ec8abfe095",
+      "bytes": 64
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-A-foreign-compiler",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A-foreign-compiler\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 1946.9354000029853,
+    "peak_job_memory_bytes": 1063944192,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "foreign-compiler",
+      "original_sha256": "477fcc28550dbac7021577fc8a6a4ba3eaa0972387b52ebfb47e20ec8abfe095",
+      "bytes": 44405638
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-A-checksum",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A-checksum\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 2948.1403000027058,
+    "peak_job_memory_bytes": 1024000000,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "checksum",
+      "original_sha256": "477fcc28550dbac7021577fc8a6a4ba3eaa0972387b52ebfb47e20ec8abfe095",
+      "bytes": 44405638
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-A-oversized",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A-oversized\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 2201.863399997819,
+    "peak_job_memory_bytes": 1119576064,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "oversized",
+      "original_sha256": "477fcc28550dbac7021577fc8a6a4ba3eaa0972387b52ebfb47e20ec8abfe095",
+      "bytes": 536870993
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-A-edited",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A-edited\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input\\main.omg"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "7010e8244badb5c93ad5788b674d9362a46ed9c7dd12640a965cfac1a85942e8",
+    "exit": 0,
+    "wall_ms": 2741.9436999989557,
+    "peak_job_memory_bytes": 1202475008,
+    "native_exit": 0,
+    "artifact_sha256": "e57ae6dae13cf981f57fc2ae219b303731e65d0aa1c396cd870e150715d2ef7c",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "length-A-invalid",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-A\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "3bdae1fe39d3ddad50d8be6d504039075ccddd4c78b7973b9d9de57747a5f5fc",
+    "exit": 1,
+    "required_diagnostic": "count > 0",
+    "matched": true
+  },
+  {
+    "label": "length-B-truncated",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B-truncated\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 2507.2000000000116,
+    "peak_job_memory_bytes": 1096232960,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "truncated",
+      "original_sha256": "2419f22bb6875e40db0db6f9b9045b3b63174c23ffc584a12118b989b7a8f63b",
+      "bytes": 64
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-B-foreign-compiler",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B-foreign-compiler\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 1839.091499998176,
+    "peak_job_memory_bytes": 1035247616,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "foreign-compiler",
+      "original_sha256": "2419f22bb6875e40db0db6f9b9045b3b63174c23ffc584a12118b989b7a8f63b",
+      "bytes": 44405638
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-B-checksum",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B-checksum\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 2089.978500000143,
+    "peak_job_memory_bytes": 1083695104,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "checksum",
+      "original_sha256": "2419f22bb6875e40db0db6f9b9045b3b63174c23ffc584a12118b989b7a8f63b",
+      "bytes": 44405638
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-B-oversized",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B-oversized\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "exit": 0,
+    "wall_ms": 2158.358500004397,
+    "peak_job_memory_bytes": 1080266752,
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "mutation": {
+      "kind": "oversized",
+      "original_sha256": "2419f22bb6875e40db0db6f9b9045b3b63174c23ffc584a12118b989b7a8f63b",
+      "bytes": 536870993
+    },
+    "record_refused": true
+  },
+  {
+    "label": "length-B-edited",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B-edited\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input\\main.omg"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "7010e8244badb5c93ad5788b674d9362a46ed9c7dd12640a965cfac1a85942e8",
+    "exit": 0,
+    "wall_ms": 2569.0285000018775,
+    "peak_job_memory_bytes": 1250488320,
+    "native_exit": 0,
+    "artifact_sha256": "e57ae6dae13cf981f57fc2ae219b303731e65d0aa1c396cd870e150715d2ef7c",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "label": "length-B-invalid",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\quality\\length-B\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "3bdae1fe39d3ddad50d8be6d504039075ccddd4c78b7973b9d9de57747a5f5fc",
+    "exit": 1,
+    "required_diagnostic": "count > 0",
+    "matched": true
+  }
+]

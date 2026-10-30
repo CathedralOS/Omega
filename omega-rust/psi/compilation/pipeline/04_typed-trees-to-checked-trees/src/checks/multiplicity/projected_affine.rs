@@ -32,14 +32,9 @@ pub(super) fn append_transfer(
     // Payload binders retain their exact selected Case/Field coordinates.
     // Their affine storage moves even when only a sibling has a linear claim.
     if path.is_empty()
-        || !path.iter().all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-            )
-        })
+        || !path
+            .iter()
+            .all(|segment| crate::flow::fixed_selection_segment(segment))
         || program.state_by_symbol(state).is_none()
     {
         return Ok(());
@@ -155,7 +150,7 @@ pub(super) fn transfers_value_custody(
     path: &[facts::PlaceSegment],
 ) -> bool {
     selected_value_type(program, state, statement_index, event, path).is_some_and(|reference| {
-        type_multiplicity(program, reference) != Multiplicity::Unrestricted
+        program.stored_value_multiplicity(reference) != Multiplicity::Unrestricted
     })
 }
 

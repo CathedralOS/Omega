@@ -1,0 +1,15 @@
+dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore
+###########################
+#     Dungeon Crawler     #
+###########################
+
+A tiny generated crawl for compiler stress.
+Type help if you need a command reminder.
+
+== Gate ==
+A bottomless dark room near the dungeon heart.
+The room is quiet.
+[Paths] north
+[Commands] look | help | inv | char | use | fight | exit
+> the crawl has ended -- goodbye (exit 0)
+[press Enter to close]

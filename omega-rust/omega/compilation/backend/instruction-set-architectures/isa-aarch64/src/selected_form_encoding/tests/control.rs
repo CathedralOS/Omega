@@ -424,6 +424,16 @@ fn widened_branch_forms_decode_and_reject_corruption() {
     for (family, inverted_condition) in cases {
         let alternative = alternative(family);
         let row_displacement = 2_000_000;
+        let check = |displacement, bytes: &[u8]| {
+            validate_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                family,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                displacement,
+                bytes,
+            )
+        };
         let encoded = encode_aarch64_selected_conditional_branch_form(
             &physical,
             alternative,
@@ -432,26 +442,11 @@ fn widened_branch_forms_decode_and_reject_corruption() {
             row_displacement,
         )
         .unwrap();
-        let round_trip = validate_aarch64_selected_conditional_branch_form(
-            &physical,
-            alternative,
-            family,
-            Aarch64ConditionalBranchForm::WidenedPairV1,
-            row_displacement,
-            encoded.bytes(),
-        )
-        .unwrap();
+        let round_trip = check(row_displacement, encoded.bytes()).unwrap();
         assert_eq!(round_trip.bytes(), encoded.bytes());
         // The canonical four-byte form is not a widened row.
         assert_eq!(
-            validate_aarch64_selected_conditional_branch_form(
-                &physical,
-                alternative,
-                family,
-                Aarch64ConditionalBranchForm::WidenedPairV1,
-                0,
-                &encoded.bytes()[0..4],
-            ),
+            check(0, &encoded.bytes()[0..4]),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
         // A skip word carrying the non-inverted condition is not this form.
@@ -459,28 +454,14 @@ fn widened_branch_forms_decode_and_reject_corruption() {
         let mut corrupt = encoded.bytes().to_vec();
         crate::codec_bytes::patch_encoded(&mut corrupt, 0, wrong_skip.to_le_bytes());
         assert_eq!(
-            validate_aarch64_selected_conditional_branch_form(
-                &physical,
-                alternative,
-                family,
-                Aarch64ConditionalBranchForm::WidenedPairV1,
-                row_displacement,
-                &corrupt,
-            ),
+            check(row_displacement, &corrupt),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
         // A second word that is not an unconditional `B` rejects.
         let mut corrupt = encoded.bytes().to_vec();
         crate::codec_bytes::patch_encoded(&mut corrupt, 4, 0x5400_000b_u32.to_le_bytes());
         assert_eq!(
-            validate_aarch64_selected_conditional_branch_form(
-                &physical,
-                alternative,
-                family,
-                Aarch64ConditionalBranchForm::WidenedPairV1,
-                row_displacement,
-                &corrupt,
-            ),
+            check(row_displacement, &corrupt),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
         // Valid words encoding a different displacement reject.
@@ -493,14 +474,7 @@ fn widened_branch_forms_decode_and_reject_corruption() {
         )
         .unwrap();
         assert_eq!(
-            validate_aarch64_selected_conditional_branch_form(
-                &physical,
-                alternative,
-                family,
-                Aarch64ConditionalBranchForm::WidenedPairV1,
-                row_displacement,
-                other.bytes(),
-            ),
+            check(row_displacement, other.bytes()),
             Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
         );
         // A foreign alternative key rejects.

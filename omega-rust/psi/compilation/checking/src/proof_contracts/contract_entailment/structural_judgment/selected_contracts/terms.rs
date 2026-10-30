@@ -79,6 +79,32 @@ impl StructuralJudge<'_> {
                 None
             }
             ExpressionNode::Member(member) => {
+                // A formal/result substitutes an exact completed value. Only
+                // its live authenticated scalar cell may observe a returned
+                // reference; the ordinary projection walker stays descriptor-only.
+                let completed = if let Some(place) =
+                    crate::reserved_result_place(program, expression)
+                {
+                    (place.machine_symbol == callable)
+                        .then(|| {
+                            result.and_then(|result| {
+                                self.completed_result_read(result, &place.segments)
+                            })
+                        })
+                        .flatten()
+                } else {
+                    crate::canonical_place_from_expression(program, expression).and_then(|place| {
+                        let symbol = place.root.as_symbol()?;
+                        parameters
+                            .iter()
+                            .find(|parameter| parameter.symbol == symbol)?;
+                        let (_, value) = bindings.iter().find(|(bound, _)| *bound == symbol)?;
+                        self.completed_result_read(value, &place.segments)
+                    })
+                };
+                if completed.is_some() {
+                    return completed;
+                }
                 let reference = crate::parameter_expression_result_type_reference(
                     program,
                     scope,

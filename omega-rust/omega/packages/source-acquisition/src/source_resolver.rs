@@ -93,8 +93,15 @@ impl SourceResolver {
             &self.workspace_members,
             &self.external_local_sources,
         ] {
+            #[cfg(windows)]
+            lane.verify_direct_child_identity(&self.root)?;
+            #[cfg(not(windows))]
             lane.verify_path_identity()?;
         }
+        // The siblings share this fresh parent walk, not a check from a prior
+        // operation. Reconcile its pathname again after all child observations.
+        #[cfg(windows)]
+        self.root.verify_path_identity()?;
         Ok(())
     }
 
@@ -161,6 +168,60 @@ mod tests {
             "omega-private-resolver-{name}-{}-{stamp}",
             std::process::id()
         ))
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn sibling_walk_accepts_deep_retained_roots_on_each_fresh_operation() {
+        let base = isolated_base("sibling-deep");
+        let nested = base.join("one/two/three/four/five");
+        std::fs::create_dir_all(&nested).unwrap();
+        let storage =
+            SourceResolver::for_hardened_base(&nested, PrimaryGitChoices::default()).unwrap();
+        storage.verify_path_identity().unwrap();
+        storage.verify_path_identity().unwrap();
+        drop(storage);
+        assert!(base.starts_with(std::env::temp_dir()));
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn sibling_walk_checks_all_three_lane_roots() {
+        for lane_index in 0..3 {
+            let base = isolated_base("sibling-foreign-lane");
+            let foreign_base = isolated_base("sibling-other-parent");
+            std::fs::create_dir_all(&base).unwrap();
+            std::fs::create_dir_all(&foreign_base).unwrap();
+            let mut storage =
+                SourceResolver::for_hardened_base(&base, PrimaryGitChoices::default()).unwrap();
+            let mut foreign =
+                SourceResolver::for_hardened_base(&foreign_base, PrimaryGitChoices::default())
+                    .unwrap();
+            let (lane, other) = match lane_index {
+                0 => (&mut storage.git_sources, &mut foreign.git_sources),
+                1 => (
+                    &mut storage.workspace_members,
+                    &mut foreign.workspace_members,
+                ),
+                _ => (
+                    &mut storage.external_local_sources,
+                    &mut foreign.external_local_sources,
+                ),
+            };
+            std::mem::swap(lane, other);
+            let error = storage.verify_path_identity().unwrap_err();
+            assert!(
+                error.to_string().contains("outside its retained parent"),
+                "{lane_index}: {error}"
+            );
+            drop(storage);
+            drop(foreign);
+            assert!(base.starts_with(std::env::temp_dir()));
+            assert!(foreign_base.starts_with(std::env::temp_dir()));
+            std::fs::remove_dir_all(base).unwrap();
+            std::fs::remove_dir_all(foreign_base).unwrap();
+        }
     }
 
     #[test]

@@ -1,5 +1,17 @@
 # Benchmark harness
 
+For new paired compiler and runtime experiments, use the Rust
+[`omega-bench` tooling](comparison.md). It runs paired comparisons and explicit
+suites, validates retained evidence, checks regression budgets, compares compatible
+histories, and captures separate phase, allocation, WPR or Linux perf profiles.
+It retains warmups, alternates baseline/candidate order, checks authored results,
+and records uncertainty, CPU, memory and every observation. Build it with
+`mbx build -p omega-bench`.
+
+The Python workflow below retains the existing optimizer-selection records and
+host matrix. Its record schema is separate from the Rust comparison journal;
+historical measurements are not silently converted into paired experiments.
+
 `benchmark.py` measures the reference compiler on a chosen subject and
 writes one versioned JSON record per (subject, target, exact rule
 selection) row under `records/`. It exists so optimizer work can cite
@@ -16,6 +28,21 @@ status rather than disappearing when a host cannot provide them (see
 `metrics.peak_memory_bytes` in Record schema).
 
 ## Measuring
+
+The fixed Cathedral composition is in [cathedral.json](cathedral.json).
+Run `python tools/benchmark/cathedral.py --compiler <optimized-omega>
+--snapshot <frozen-Cathedral> --source-manifest <file-hashes.json>
+--output <new-results-directory>` after ordinary dependency preparation.
+The source manifest maps snapshot-relative names to `sha256` and `bytes`.
+Use the preparation ceremony below when the snapshot needs package acceptance.
+The runner verifies input and compiler hashes, uses fresh output directories,
+and emits a full compile metric only when all seven entries compile and their
+expected artifacts pass structural checks. UI layout and frame share one export
+probe; both components are still required. Older records retain their original
+eight-entry composition. Runtime validation is separate.
+Preparation is excluded; persistent caches are retained, so this is not a
+cache-empty build measurement. The [first Cathedral investigation](../../wiki/drafts/measurements/cathedral_2026_10_28/README.md)
+records its exact scope, source migrations and remaining failures.
 
 ```text
 python3 tools/benchmark/benchmark.py measure \

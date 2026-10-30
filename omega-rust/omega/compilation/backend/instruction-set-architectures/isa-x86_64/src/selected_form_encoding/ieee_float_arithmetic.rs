@@ -192,10 +192,10 @@ pub(crate) fn footprint(
 /// Encoded bytes: the shortest form uses only `rax`..`rdi`, the longest only
 /// `r8`..`r15`, which adds one REX byte per general-register field.
 fn size(form: IeeeFloatArithmeticForm) -> Result<MachineSizeKnowledge, Error> {
-    Ok(MachineSizeKnowledge::EncoderResolved {
-        minimum_bytes: canonical(form, &[0, 0, 0, 0])?.len() as u16,
-        maximum_bytes: Some(canonical(form, &[8, 8, 8, 8])?.len() as u16),
-    })
+    Ok(crate::encoder_resolved(
+        canonical(form, &[0, 0, 0, 0])?.len() as u16,
+        Some(canonical(form, &[8, 8, 8, 8])?.len() as u16),
+    ))
 }
 
 pub(crate) fn declaration(

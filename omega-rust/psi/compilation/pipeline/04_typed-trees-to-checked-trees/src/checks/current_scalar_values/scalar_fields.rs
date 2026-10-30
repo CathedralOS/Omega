@@ -29,7 +29,6 @@ pub(super) struct CapturedScalarField {
     pub(super) carrier: PrimitiveType,
     pub(super) value: ScopedArithmeticValue,
     pub(super) read_dependencies: Vec<String>,
-    pub(super) sources: Vec<String>,
 }
 
 impl ScalarField {
@@ -350,8 +349,7 @@ impl CurrentScalarValues<'_> {
                             path,
                             carrier: observation.primitive_type,
                             value: observation.value,
-                            read_dependencies: Vec::new(),
-                            sources: Vec::new(),
+                            read_dependencies: observation.read_dependencies,
                         });
                     }
                 }
@@ -430,7 +428,6 @@ impl CurrentScalarValues<'_> {
                             carrier,
                             value,
                             read_dependencies: Vec::new(),
-                            sources: Vec::new(),
                         });
                     }
                 }
@@ -454,7 +451,6 @@ impl CurrentScalarValues<'_> {
                             carrier: field.carrier,
                             value: field.value.clone()?,
                             read_dependencies: field.read_dependencies.clone(),
-                            sources: vec![field.name.clone()],
                         })
                     })
                     .collect()
@@ -473,16 +469,46 @@ impl CurrentScalarValues<'_> {
         .and_then(|reference| validation::reference_shell(self.program, reference))
         .is_some();
         if borrowed {
-            for field in &mut captured {
-                // Copies of owned values become independent snapshots; a
-                // descriptor only copies a binding to live backing. Retain
-                // that original coordinate before window paths are rebased.
-                for source in &field.sources {
-                    crate::collections::push_unique(&mut field.read_dependencies, source.clone());
-                }
-            }
+            // A descriptor copy keeps its captured supplier rather than a
+            // dependency on the source descriptor's replaceable home. Resolve
+            // at this expression's actual cut, not the later proof frontier.
+            let Some(frames) = validation::CallFrameResolver::new(self.program) else {
+                return Vec::new();
+            };
+            let paths = captured
+                .iter()
+                .map(|field| self.scalar_dependency_path(&field.path))
+                .collect::<Vec<_>>();
+            let dependencies =
+                frames.captured_reference_read_paths(self.machine, self.state, expression, &paths);
+            captured = captured
+                .into_iter()
+                .zip(dependencies)
+                .filter_map(|(mut field, paths)| {
+                    field.read_dependencies = paths?;
+                    Some(field)
+                })
+                .collect();
         }
         captured
+    }
+
+    /// A dependency follows the saved selector, not a later value of its source
+    /// binding. Unknown selectors remain conservative collection demands; only
+    /// an independently exact captured integer can select a stored pointer slot.
+    fn scalar_dependency_path(&self, path: &[ScalarProjection]) -> Vec<facts::PlaceSegment> {
+        let mut source = source_path(path);
+        for (step, projection) in source.iter_mut().zip(path) {
+            if let ScalarProjection::Element { selector, .. } = projection
+                && let Some(index) = self
+                    .exact_length(selector)
+                    .and_then(|value| value.to_u64())
+                    .and_then(|value| usize::try_from(value).ok())
+            {
+                *step = facts::PlaceSegment::FixedIndex { index };
+            }
+        }
+        source
     }
 
     pub(super) fn replace_scalar_fields(
@@ -497,6 +523,7 @@ impl CurrentScalarValues<'_> {
             state: self.state,
             lengths: &self.lengths,
             hypotheses: &self.hypotheses,
+            result_fields: None,
         };
         self.fields.retain(|field| {
             field.owner != owner

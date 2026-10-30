@@ -106,21 +106,12 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
         .range_recipe(program, expression)
         .cloned()
         .or_else(|| {
-            let typed_trees::expression::ExpressionNode::Name(path) =
-                program.expression_table.expression(expression)
-            else {
-                return None;
-            };
-            let declaration = program.const_declaration_by_symbol(path.symbol)?;
-            if declaration.evaluated_value.is_some()
-                || !declaration.materialized_initializer.is_valid()
-            {
-                return None;
-            }
-            Some(checked_trees::IntegerRangeRecipe::observation(
-                expression,
+            super::super::deferred_integer_observation(
+                program,
                 walk.lexical_owner,
-            ))
+                expression,
+                primitive,
+            )
         });
     Analysis {
         recipe,

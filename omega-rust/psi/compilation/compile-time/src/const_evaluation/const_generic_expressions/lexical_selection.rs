@@ -8,6 +8,37 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::types::ConstArgumentOrigin;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::ConstArgumentSelection;
 
+fn enqueue_expression_children(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    pending: &mut Vec<ExpressionHandle>,
+) {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
+                pending.push(arm.value);
+                if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    pending.push(pattern);
+                }
+            }
+            pending.push(dispatch.subject);
+        }
+        ExpressionNode::Unary(unary) => pending.push(unary.operand),
+        ExpressionNode::Cast(cast) => pending.push(cast.value),
+        ExpressionNode::Member(member) => pending.push(member.receiver),
+        ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+        ExpressionNode::Indexed(indexed) => {
+            pending.push(indexed.index);
+            pending.push(indexed.collection);
+        }
+        ExpressionNode::Binary(binary) => {
+            pending.push(binary.right);
+            pending.push(binary.left);
+        }
+        _ => {}
+    }
+}
+
 pub(crate) fn needs_resolution(syntax: &SyntaxTrees, root: ExpressionHandle) -> bool {
     let mut pending = vec![root];
     let mut visited = Vec::new();
@@ -16,31 +47,13 @@ pub(crate) fn needs_resolution(syntax: &SyntaxTrees, root: ExpressionHandle) -> 
             continue;
         }
         visited.push(expression);
-        match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(_) | ExpressionNode::Call(_) => return true,
-            ExpressionNode::Match(dispatch) => {
-                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
-                    pending.push(arm.value);
-                    if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                }
-                pending.push(dispatch.subject);
-            }
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Indexed(indexed) => {
-                pending.push(indexed.index);
-                pending.push(indexed.collection);
-            }
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
-            _ => {}
+        if matches!(
+            syntax.expressions.expression(expression),
+            ExpressionNode::Name(_) | ExpressionNode::Call(_)
+        ) {
+            return true;
         }
+        enqueue_expression_children(syntax, expression, &mut pending);
     }
     false
 }
@@ -59,15 +72,6 @@ pub(crate) fn retain(
         }
         visited.push(expression);
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
-                    pending.push(arm.value);
-                    if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                }
-                pending.push(dispatch.subject);
-            }
             ExpressionNode::Name(path) => {
                 let members = syntax.expressions.identifier_path_members(*path);
                 let (Some(first), Some(last)) = (members.first(), members.last()) else {
@@ -96,23 +100,12 @@ pub(crate) fn retain(
                     origins.push(origin);
                 }
             }
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Indexed(indexed) => {
-                pending.push(indexed.index);
-                pending.push(indexed.collection);
-            }
             ExpressionNode::Call(call) => {
                 push_selected_call_children(&mut pending, syntax, resolved, call)?;
             }
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
             _ => {}
         }
+        enqueue_expression_children(syntax, expression, &mut pending);
     }
     Ok(origins)
 }
@@ -184,29 +177,9 @@ pub(crate) fn retain_calls(
                 }
                 push_selected_call_children(&mut pending, syntax, resolved, call)?;
             }
-            ExpressionNode::Match(dispatch) => {
-                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
-                    pending.push(arm.value);
-                    if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                }
-                pending.push(dispatch.subject);
-            }
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Indexed(indexed) => {
-                pending.push(indexed.index);
-                pending.push(indexed.collection);
-            }
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
             _ => {}
         }
+        enqueue_expression_children(syntax, expression, &mut pending);
     }
     Ok(calls)
 }

@@ -5,6 +5,16 @@
 //! any source-shaped Psi representation.
 
 pub(crate) use optimization_core::codec_bytes;
+
+pub(crate) fn encoder_resolved(
+    minimum_bytes: u16,
+    maximum_bytes: Option<u16>,
+) -> selected_instructions::MachineSizeKnowledge {
+    selected_instructions::MachineSizeKnowledge::EncoderResolved {
+        minimum_bytes,
+        maximum_bytes,
+    }
+}
 mod cursor;
 mod fma;
 mod frame_protocol;

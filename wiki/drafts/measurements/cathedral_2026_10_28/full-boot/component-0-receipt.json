@@ -1,0 +1,70 @@
+{
+  "inputs": {
+    "compiler": "67358c0345be22e6831c005dd92eb2ee03b21b77809a1a1eedcd15b639409c27",
+    "adapter/build.py": "ba2b5c1bac91f95428f977b7a97ea7b5bf277211fae0de8e3468fd4359ff5947",
+    "adapter/../omega-component/elf.py": "a15dd57a27556ef4014b355e3e381d46c688f131b5f41ad487ddc336ea049d11",
+    "src/build.omg": "5e8c7bb93d3a7d400facb2a5047c84e3885335832672ac2bda6fa9b6f9771016",
+    "src/context.omg": "6e252a3918cd891840608faf8bc4178e21b0a070e3f59f9e6c01c3030be95053",
+    "src/dock.omg": "b62cc498215a646f3ddacfdc6b16fff7b8b464379c11d9e6444da09c34ce2cae",
+    "src/edit.omg": "a6ae438e87dde86c5ed61b2db3213bc38ae3aa48eaa7235c81937fe493e7cdce",
+    "src/frame.omg": "71a57f71947335aa14dd0f7fdb5ced01567168e0bc8c0969256dac0d7c67e6bc",
+    "src/list.omg": "8e6589482050551a7d73904ba130915574343eb9bffd3a805f5722a698e60850",
+    "src/main.omg": "df9d8202be4dc45098ddb784690cb61bfb32618bccfcb09088e2c428a8dd3d52",
+    "src/motion.omg": "5f53a8696d2023dcf7fb823d28a1927e78289c56b67a4d0bdc1d58ec75c3bb39",
+    "src/paint_boxes.omg": "1cf4225e52a710204b7d74ba66f2ac597ba47490002adfc46c3d530ed2b9c25c",
+    "src/palette.omg": "9a7dd9fe4a296c59088f76dbcbe7af305d046d6347d7c61ef7c45429ddffb713",
+    "src/raster.omg": "9b25b301ce185a50245494d87305b8490d033976b8516cda7c53338d602e3266",
+    "src/scene.omg": "dab9ffb8ce72b105a1002506ac63b27b7b2042b71cd5c25cd8296b40106b2588",
+    "src/tester.omg": "324ac502be5d82f6c49837cd162855cc8d7b5274027f49f778d5c5ae1a1d68c8",
+    "src/text.omg": "88d2080c5b50ed9b5c0219a0149d53469539fa718f015c55c0acd181c5128171",
+    "src/text_field.omg": "1700bf1a8fa82a05dbdfb5a00dca386d6a71e90d300dcac0ac53c5494ca9df38",
+    "src/types.omg": "e63b296ad0e88dc74427c36e4a51d31f403fbde4c2db19179e69f6fcce277d23",
+    "src/utf16.omg": "840de7e9270e1026231dde0ed6037437d583fc742a5daec0d0d3803443f727a5",
+    "src/viewport.omg": "12bc16097902b26edbb77224a74d92ba3811da68faeffa035e51edc71f434d09",
+    "src/widgets.omg": "64acd52e85a7d994ecf21d2113ff2a6b46271c092ce6d66995bfa4afe7809cfe",
+    "platform/native/build.omg": "9551dfe949760809abf26d0baed36e969a159e7d0b6ea76c44ce70e2cf9ff273",
+    "platform/native/commands.omg": "b7bf91724bd56aabd55d8677d2a0f572c4000012ad4a98dd39b99a15359c392b",
+    "platform/native/editor.omg": "6a09d8456faab0febed590341bb801dc1fa80718f45f69e1a1397363e0fec87c",
+    "platform/native/font.omg": "befcbfec05e4bc5b964e0df9d35fc90e0ae167d375485ae760427e0673915119",
+    "platform/native/font_atlas.omg": "dd9264cc2c5e62e236c79c505b21296b928ebf0f1fa42ef8e1921e536ea2fcfa",
+    "platform/native/main.omg": "6aee91acfd41a8b03c8639df6e13931450cfc5152c891b6856cdb93ee2dab7d1",
+    "platform/native/native_state.omg": "8f13b2d382d9bb298fadce6a136a26ccb657f9fcf799615140852aa49e9d3645",
+    "platform/native/paint.omg": "fa92d461539fb0a52fd1badc04df73bc62e9c9aa7175d267e13fea27b73eb659",
+    "tests/native_component/exports/build.omg": "504afabffd68077379889155bef5840512313166a3b1c583bf9dc3cc53acdde9",
+    "tests/native_component/exports/main.omg": "aacd3369d24645cc2cf841f5dbe126d70eec8d14abbc52a420a06037a0fd0cf0",
+    "tests/native_component/frame/build.omg": "12bc9b5637710bf988b18abc277e25ef0fcbc3743c994b5cfe934d16a3cad39d",
+    "tests/native_component/frame/main.omg": "73e467e438d0822acf5834db0ae44a23267973a0ea6cca0f59d6f97807d81633",
+    "tests/native_component/layout/build.omg": "b4a3813d996d3f82b3b8aace2f90c7f773ff1f96f507e20aae71a82551124e18",
+    "tests/native_component/layout/main.omg": "216486dd4205a7981b7d312dd0ab121a37935d69d6a6515ea25c8906381d7476"
+  },
+  "library": "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\libraries\\omega-ui",
+  "compiler": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-full-67358c0345be.exe",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "3"
+  },
+  "exports": {
+    "frame": {
+      "entry": 0,
+      "symbol": "__omega_slot_cb325d0fa9e9da6895c0a4c581b51818d7b9ef245bfc5038601fa3f5b1adc62d",
+      "bytes": 516864,
+      "component": "libomega-component-e80e9778193af0831d48ae4076717a0a0147fbe4be57346ee4236afc98340c99.so",
+      "component_sha256": "7b9e58f5eb583aa8e8270c96349b1e416efff9e6774c933a523ad8b690d6a18b",
+      "description_sha256": "e55396f323a1aa370a6ae7d5881e4d6f87087c1cce31da223ab8b40034638c63"
+    },
+    "layout": {
+      "entry": 0,
+      "symbol": "__omega_slot_8d49c5376aa5386dfccf085d8a9f3e0bac6e62d1c8b21e2df2935464e7dfb596",
+      "bytes": 272,
+      "component": "libomega-component-feb80c67423399e4886c8c2d1e7528308707efa102bbe2fb67fa8bb630245e3d.so",
+      "component_sha256": "168f32813da99efc88ba2f8a16eeab08a782cf6c16fd6287deaffcde56b04ffb",
+      "description_sha256": "1edfdb6202727ccbb40a6ff83d730da814f59b1fcd0c11daae41d442ae205599"
+    }
+  },
+  "outputs": {
+    "frame.bin": "f8b2b951355482c8a36b281d97c64a611ee3c66a01cf4727e714361676bfc1ca",
+    "layout.bin": "564d15f1534ec8ca5a7e64d2c3a9c56de68dddc592a62c151ced8f785e1ce1f2",
+    "component.S": "582debfdc9fedbc4c109230a290077f9887b2f4cd00c28aaecc8503ad38333c9",
+    "component.rs": "29b27bb821be95c220f9c09ed658d0531bacdaf6a01431d0f374f21aa794d994"
+  }
+}

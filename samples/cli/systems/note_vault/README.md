@@ -10,7 +10,13 @@ after the complete filesystem/time workflow.
 
 The POSIX portable provider supplies macOS ARM64 and both Linux targets.
 Windows selects its portable provider over the retained Windows raw-family
-closure. On windows_x86_64, `omega run` exits 14. macOS and Linux execution
-remain separate evidence under **FILESYSTEM-PLATFORM-SERVICES**.
-Terminal execution still declines the selected foreign bindings until trusted
-host adapters supply them.
+closure. Matching-host Windows and Linux evidence remains separate under
+**FILESYSTEM-PLATFORM-SERVICES**.
+
+On macOS ARM64, the CLI explicitly supplies the host filesystem namespace and
+live host clock to Terminal execution. `omega run --both` must observe exit 14
+from both engines, including readback, bounded copying, directory enumeration
+and recursive removal. The clock reads the executing host; an embedding may
+instead explicitly supply a private snapshot. Filesystem supply is unprovided
+by default in other embeddings. This witness does not close the parent task's
+Windows/Linux acceptance or its occurrence-bound release proofs.

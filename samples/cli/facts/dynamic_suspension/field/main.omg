@@ -1,0 +1,43 @@
+// Fact: a suspension-capable dyn call preserves its selector, explicit operand, and public result bound when subtracting 100u64.
+// Expected exit: 0
+
+public boundary trait Scheduler {
+    machine identity(value: u64) -> u64
+    ensures result == value
+    suspends; reaches;
+}
+
+InlineScheduler satisfies Scheduler {
+    machine identity(value: u64) -> u64 ensures result == value { value }
+}
+
+trait DeferredValue {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result == 100u64
+    suspends;
+}
+
+InlineValue satisfies DeferredValue {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result == 100u64
+    suspends;
+    {
+        let returned: u64 = suspend Scheduler::identity(value);
+        returned
+    }
+}
+
+data Holder [copy] { selected: dyn DeferredValue; }
+machine main() crashes Trap {
+    let holder: Holder = Holder { selected: InlineValue as dyn DeferredValue };
+    let observed: u64 = suspend DeferredValue::get(holder.selected, 100u64);
+    let difference: u64 = observed - 100u64;
+    transition difference == 0u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

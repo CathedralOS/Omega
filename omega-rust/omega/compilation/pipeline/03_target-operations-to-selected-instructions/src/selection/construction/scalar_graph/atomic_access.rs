@@ -130,10 +130,7 @@ pub(super) fn emit(
                 normalization,
                 builder.constraints.keys.copy_i64,
                 &[raw, output],
-                SelectedInstructionProvenance {
-                    values: vec![result.value],
-                    ..Default::default()
-                },
+                super::value_provenance(result.value),
             )?;
             output
         };

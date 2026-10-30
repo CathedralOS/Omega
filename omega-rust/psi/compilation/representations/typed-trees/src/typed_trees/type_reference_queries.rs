@@ -343,7 +343,7 @@ impl TypedTrees {
             | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
             TypeReferenceNode::Constrained { base_type, .. } => self.type_multiplicity(*base_type),
             TypeReferenceNode::FixedArray { element_type, .. } => {
-                self.stored_element_multiplicity(*element_type)
+                self.stored_value_multiplicity(*element_type)
             }
             TypeReferenceNode::Named { symbol, name } => {
                 if let Some(parameter) = self
@@ -397,13 +397,13 @@ impl TypedTrees {
         }
     }
 
-    /// A reference binding can be reborrowed repeatedly, but putting that
-    /// permission in owned array storage does not make it copyable. Derive the
-    /// array's use discipline from its stored element, retaining the existing
-    /// direct-reference usage rule for ordinary borrowed formals and locals.
-    /// Nested arrays recurse through `type_multiplicity`; constraints neither
-    /// remove an exclusive permission nor grant additional ownership.
-    fn stored_element_multiplicity(
+    /// Transfer discipline of a value in an owned storage slot. An exclusive
+    /// reference transfers its descriptor, while shared references and declared
+    /// copyable aggregates copy. Source reference use remains independently
+    /// reusable under loan checking; this grants no ownership of the referent.
+    /// Arrays compose the same rule for their elements, and constraints retain
+    /// the underlying carrier's discipline.
+    pub fn stored_value_multiplicity(
         &self,
         type_reference: types::TypeReferenceHandle,
     ) -> language_semantics::Multiplicity {
@@ -414,7 +414,7 @@ impl TypedTrees {
                 language_semantics::Multiplicity::Affine
             }
             types::TypeReferenceNode::Constrained { base_type, .. } => {
-                self.stored_element_multiplicity(*base_type)
+                self.stored_value_multiplicity(*base_type)
             }
             _ => self.type_multiplicity(type_reference),
         }

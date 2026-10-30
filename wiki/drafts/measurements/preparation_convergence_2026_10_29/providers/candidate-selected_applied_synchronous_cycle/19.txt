@@ -1,0 +1,2 @@
+package candidate checking failed: checked compilation failed for package `selected_applied_synchronous_cycle` with 1 diagnostic(s)
+  error: selected providers realize a cyclic synchronous `invokes` graph: Stage -> Stage -> Stage; break one edge with a mailbox, queue, scheduler handoff, or other new activation

@@ -121,20 +121,21 @@ pub(crate) fn capture_child(
     }
     drop(sender);
 
+    macro_rules! fail {
+        ($error:expr) => {
+            fail_after_cleanup(&mut child, deadline, limits, $error)
+        };
+    }
+
     let mut status_complete = false;
     let mut stdout = None;
     let mut stderr = None;
     let mut input_complete = !input_is_piped;
     loop {
         if Instant::now() >= deadline {
-            return fail_after_cleanup(
-                &mut child,
-                deadline,
-                limits,
-                BoundedProcessRunError::TimedOut {
-                    timeout: limits.timeout,
-                },
-            );
+            return fail!(BoundedProcessRunError::TimedOut {
+                timeout: limits.timeout,
+            });
         }
         if !status_complete {
             status_complete = match child.try_wait() {
@@ -144,12 +145,7 @@ pub(crate) fn capture_child(
                 }
                 Ok(None) => false,
                 Err(error) => {
-                    return fail_after_cleanup(
-                        &mut child,
-                        deadline,
-                        limits,
-                        BoundedProcessRunError::Wait(error.to_string()),
-                    );
+                    return fail!(BoundedProcessRunError::Wait(error.to_string()));
                 }
             };
         }
@@ -168,6 +164,7 @@ pub(crate) fn capture_child(
                 .map_err(|error| BoundedProcessRunError::Finalize(error.to_string()))?;
             return Ok(BoundedProcessOutput {
                 status: completion.status(),
+                resource_usage: completion.resource_usage().cloned(),
                 stdout,
                 stderr,
             });
@@ -175,14 +172,9 @@ pub(crate) fn capture_child(
 
         let now = Instant::now();
         if now >= execution_deadline {
-            return fail_after_cleanup(
-                &mut child,
-                deadline,
-                limits,
-                BoundedProcessRunError::TimedOut {
-                    timeout: limits.timeout,
-                },
-            );
+            return fail!(BoundedProcessRunError::TimedOut {
+                timeout: limits.timeout,
+            });
         }
         let wait = limits
             .poll_interval
@@ -196,37 +188,22 @@ pub(crate) fn capture_child(
                             BoundedProcessStream::Stdout => limits.stdout_bytes,
                             BoundedProcessStream::Stderr => limits.stderr_bytes,
                         };
-                        return fail_after_cleanup(
-                            &mut child,
-                            deadline,
-                            limits,
-                            BoundedProcessRunError::OutputOverflow {
-                                stream: capture.stream,
-                                limit,
-                            },
-                        );
+                        return fail!(BoundedProcessRunError::OutputOverflow {
+                            stream: capture.stream,
+                            limit,
+                        });
                     }
                     StreamCaptureResult::AggregateOverflow(exceeded) => {
-                        return fail_after_cleanup(
-                            &mut child,
-                            deadline,
-                            limits,
-                            BoundedProcessRunError::AggregateOutputOverflow {
-                                ceiling: exceeded.ceiling(),
-                                attempted: exceeded.attempted(),
-                            },
-                        );
+                        return fail!(BoundedProcessRunError::AggregateOutputOverflow {
+                            ceiling: exceeded.ceiling(),
+                            attempted: exceeded.attempted(),
+                        });
                     }
                     StreamCaptureResult::Failed(message) => {
-                        return fail_after_cleanup(
-                            &mut child,
-                            deadline,
-                            limits,
-                            BoundedProcessRunError::StreamCapture {
-                                stream: capture.stream,
-                                message,
-                            },
-                        );
+                        return fail!(BoundedProcessRunError::StreamCapture {
+                            stream: capture.stream,
+                            message,
+                        });
                     }
                 };
                 match capture.stream {
@@ -237,23 +214,13 @@ pub(crate) fn capture_child(
             Ok(WorkerResult::Input(result)) => match result {
                 Ok(()) => input_complete = true,
                 Err(message) => {
-                    return fail_after_cleanup(
-                        &mut child,
-                        deadline,
-                        limits,
-                        BoundedProcessRunError::InputTransfer(message),
-                    );
+                    return fail!(BoundedProcessRunError::InputTransfer(message));
                 }
             },
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 if stdout.is_none() || stderr.is_none() || !input_complete {
-                    return fail_after_cleanup(
-                        &mut child,
-                        deadline,
-                        limits,
-                        BoundedProcessRunError::WorkersEndedEarly,
-                    );
+                    return fail!(BoundedProcessRunError::WorkersEndedEarly);
                 }
                 std::thread::sleep(wait);
             }

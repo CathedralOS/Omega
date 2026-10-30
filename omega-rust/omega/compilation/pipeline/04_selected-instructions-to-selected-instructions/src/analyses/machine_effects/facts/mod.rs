@@ -45,21 +45,14 @@ pub(crate) fn analyze_pre_allocation_machine_effects<S: ValidatedSelectedAnalysi
     validate::seal_pre_allocation_machine_effects(plan)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PreAllocationMachineEffectReceipt {
-    identity: PreAllocationMachineEffectIdentity,
-    selected: SelectedInstructionPlanIdentity,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    machine_effect_catalog: MachineEffectCatalogIdentity,
-}
-
-impl PreAllocationMachineEffectReceipt {
-    receipt_accessor_rows!(PreAllocationMachineEffectReceipt {
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct PreAllocationMachineEffectReceipt {
         identity: PreAllocationMachineEffectIdentity,
         selected: SelectedInstructionPlanIdentity,
-        machine_effect_catalog: MachineEffectCatalogIdentity,
         register_environment: TargetRegisterEnvironmentIdentity,
-    });
+        machine_effect_catalog: MachineEffectCatalogIdentity,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

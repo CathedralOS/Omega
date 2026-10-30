@@ -14,6 +14,9 @@ use checked_trees::{
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
 
+#[cfg(test)]
+mod tests;
+
 /// Explain only the failed lifetime query using its completed capture graph.
 /// Unavailable graph rows remain unavailable; diagnostic traversal decides no
 /// custody, formation, lifetime coverage or cleanup disposition.
@@ -638,6 +641,69 @@ fn install_value_call(
     }
 }
 
+struct ValueCallContext<'plans> {
+    parameters: &'plans [checked_trees::CheckedUnitStructuralParameterPlan],
+    release_owned: Vec<arena::Handle<checked_trees::ContextualCleanupDisposition>>,
+}
+
+/// A fused graph's entry machine is not the source owner of every body it
+/// contains. The exact state identity selects the operand namespace. If several
+/// surviving graphs contain that body, their published parameter and release
+/// rosters must agree before the shared value-call schedule can use either.
+fn value_call_context<'plans>(
+    facts: &'plans CheckFacts,
+    control: &checked_trees::CheckedCleanupControlPlans,
+    state: SymbolHandle,
+) -> Result<ValueCallContext<'plans>, &'static str> {
+    let unit = &facts.flow.terminal_unit_effects;
+    let bodies = unit
+        .machines
+        .iter()
+        .chain(
+            facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .machines
+                .iter()
+                .map(|plan| &plan.machine),
+        )
+        .filter(|plan| plan.state == state)
+        .map(|plan| {
+            (
+                plan.structural_parameters.as_slice(),
+                plan.operations.as_slice(),
+            )
+        })
+        .chain(
+            unit.composed_machines
+                .iter()
+                .flat_map(|plan| &plan.states)
+                .filter(|plan| plan.state == state)
+                .map(|plan| {
+                    (
+                        plan.structural_parameters.as_slice(),
+                        plan.operations.as_slice(),
+                    )
+                }),
+        );
+    let mut context: Option<ValueCallContext<'plans>> = None;
+    for (parameters, operations) in bodies {
+        let release_owned = release_owned_dispositions(operations, control)
+            .ok_or("invalid retained owner release schedule")?;
+        if let Some(existing) = &context {
+            if existing.parameters != parameters || existing.release_owned != release_owned {
+                return Err("surviving bodies disagree on the value-call operand namespace");
+            }
+        } else {
+            context = Some(ValueCallContext {
+                parameters,
+                release_owned,
+            });
+        }
+    }
+    context.ok_or("missing executable parameter catalog")
+}
+
 /// Complete reads, computed calls and retained value calls from their checked
 /// contextual dispositions.
 /// Action storage is rebuilt once: scratch geometry never remains as a second
@@ -678,52 +744,29 @@ pub(crate) fn finalize_completion_actions(
                     ),
             )
             .collect::<Vec<_>>();
-        finalize_value_completions(program, facts, &targets, &mut shapes)?;
+        if let Err(reason) = finalize_value_completions(program, facts, &targets, &mut shapes) {
+            refusal = reason;
+            return None;
+        }
         let mut value_calls = Vec::new();
         for (handle, call) in facts.values.structural_values.scheduled_calls() {
             let value = facts.values.structural_values.nodes.get(call.value);
-            let parameters = facts
-                .flow
-                .terminal_unit_effects
-                .machines
-                .iter()
-                .chain(
-                    facts
-                        .flow
-                        .terminal_partial_affine_unit_cleanups
-                        .machines
-                        .iter()
-                        .map(|plan| &plan.machine),
-                )
-                .find(|plan| plan.machine == value.machine && plan.state == value.state)
-                .map(|plan| plan.structural_parameters.as_slice())
-                .or_else(|| {
-                    facts
-                        .flow
-                        .terminal_unit_effects
-                        .composed_machines
-                        .iter()
-                        .filter(|plan| plan.machine == value.machine)
-                        .flat_map(|plan| &plan.states)
-                        .find(|state| state.state == value.state)
-                        .map(|state| state.structural_parameters.as_slice())
-                })?;
-            let unit = &facts.flow.terminal_unit_effects;
-            let release_owned = release_owned_dispositions(
-                unit.machines
-                    .iter()
-                    .filter(|plan| plan.machine == value.machine && plan.state == value.state)
-                    .flat_map(|plan| &plan.operations)
-                    .chain(
-                        unit.composed_machines
-                            .iter()
-                            .filter(|plan| plan.machine == value.machine)
-                            .flat_map(|plan| &plan.states)
-                            .filter(|state| state.state == value.state)
-                            .flat_map(|state| &state.operations),
-                    ),
-                &shapes.cleanup_control,
-            )?;
+            let context = match value_call_context(facts, &shapes.cleanup_control, value.state) {
+                Ok(context) => context,
+                Err(reason) => {
+                    refusal = format!(
+                        "value call in machine `{}`, state `{}`: {reason}",
+                        program.symbols.name(value.machine),
+                        program.symbols.name(value.state),
+                    );
+                    return None;
+                }
+            };
+            refusal = format!(
+                "value call in machine `{}`, state `{}`: missing operand or completion cleanup correspondence",
+                program.symbols.name(value.machine),
+                program.symbols.name(value.state),
+            );
             let selected = value_call_actions(
                 program,
                 facts,
@@ -731,9 +774,9 @@ pub(crate) fn finalize_completion_actions(
                 &mut shapes,
                 value.machine,
                 value.state,
-                parameters,
+                context.parameters,
                 call,
-                &release_owned,
+                &context.release_owned,
             )?;
             if !selected.is_empty() {
                 value_calls.push((handle, selected));
@@ -1125,7 +1168,7 @@ fn finalize_value_completions(
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
-) -> Option<()> {
+) -> Result<(), String> {
     struct Completion {
         plan: checked_trees::CheckedValueCompletionPlan,
         actions: Vec<CheckedNormalCleanupAction>,
@@ -1136,11 +1179,21 @@ fn finalize_value_completions(
         if !disposition.completion.is_valid() {
             continue;
         }
+        let site = format!(
+            "value completion in machine `{}`, state `{}`, root {:?}",
+            program.symbols.name(disposition.machine),
+            program.symbols.name(disposition.state),
+            disposition.root,
+        );
         let PermissionEventSource::Statement { statement_index } = disposition.source else {
-            return None;
+            return Err(format!("{site}: completion is not attached to a statement"));
         };
-        let statement_index = u32::try_from(statement_index).ok()?;
-        let expression = disposition.root.as_expression()?;
+        let statement_index = u32::try_from(statement_index)
+            .map_err(|_| format!("{site}: statement index exceeds the executable coordinate"))?;
+        let expression = disposition
+            .root
+            .as_expression()
+            .ok_or_else(|| format!("{site}: completed root is not an expression"))?;
         let source = CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression };
         let selected = disposition_actions(
             program,
@@ -1151,8 +1204,9 @@ fn finalize_value_completions(
             source.clone(),
             None,
         )
-        .ok()?;
-        let retirement = super::actions::home_retirement(program, shapes, disposition, source)?;
+        .map_err(|reason| format!("{site}: {reason}"))?;
+        let retirement = super::actions::home_retirement(program, shapes, disposition, source)
+            .ok_or_else(|| format!("{site}: cannot resolve the retained home for retirement"))?;
         let position = completions
             .iter()
             .position(|completion| {
@@ -1191,7 +1245,7 @@ fn finalize_value_completions(
             super::actions::finish_home(&mut completion.actions, retirement);
         }
         if completion.actions.is_empty() {
-            return None;
+            return Err("value completion has no disposition or retirement actions".into());
         }
         completion.plan.actions = shapes
             .cleanup_control
@@ -1202,5 +1256,5 @@ fn finalize_value_completions(
             .value_completions
             .append(completion.plan);
     }
-    Some(())
+    Ok(())
 }

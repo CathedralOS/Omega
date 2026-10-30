@@ -61,32 +61,9 @@ pub fn prepare_selected_execution(
             &settlement.selected_provider_plan_facts,
         )?;
     }
-    let binding = provider_planning::bind_selected_provider_plan_facts(
-        &program,
-        &program.facts,
-        &provider_plans,
-        settlement.selected_provider_plan_facts,
-        &settlement.selected_provider_provenance,
-        settlement.root_grants,
-        settlement.authored_root_grants,
-    )?;
-    let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let callback_roots = provider_planning::calling_policy_plans::select_nominal_callback_roots(
-        &program.typed,
-        &selected_provider_plan_facts,
-        &program.facts,
-        settlement.boundary_calling_plan_realizations,
-    )?;
-    let service_declarations = Arc::new(
-        provider_planning::service_declarations::ServiceDeclarations::prepare(
-            provider_planning::ProviderPlanningContext::new(
-                &program.typed,
-                source::DependencyScope::Product,
-            ),
-            settlement.boundary_calling_plan_realizations,
-            settlement.exact_toolchain_sources,
-        ),
-    );
+    // Numeric plan admission consumes this exact checked owner's declaration
+    // facts. Prepare once before binding; malformed declarations can now refuse
+    // before plan/qualification errors, but neither path executes effects.
     let external_providers = settlement
         .external_declarations
         .get_or_init(|| {
@@ -109,6 +86,51 @@ pub fn prepare_selected_execution(
                 "external provider declarations: {error:?}"
             ))]
         })?;
+    let declarations = provider_planning::prepare_selected_plan_declarations(
+        &program,
+        &settlement.selected_provider_plan_facts,
+        &settlement.selected_provider_provenance,
+    );
+    let binding = provider_selection::bind_selected_provider_plan_facts(
+        provider_selection::BoundaryProviderAdmission {
+            review: &external_providers.boundary_provider_review(),
+            identities: &external_providers.identities,
+            external_providers: &external_providers.conformances,
+        },
+        program.facts.semantic.admitted_qualification_issuers(),
+        &provider_plans,
+        settlement.selected_provider_plan_facts,
+        declarations,
+        settlement.root_grants,
+        settlement.authored_root_grants,
+    )?;
+    let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
+    // Close the existing exact source association once. Native ABI publication
+    // is not needed to count calling declarations and must not add early errors.
+    let calling_requirements = external_providers.callbacks.calling_requirements(
+        settlement
+            .boundary_calling_plan_realizations
+            .iter()
+            .filter(|realization| realization.boundary_arguments.is_empty())
+            .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
+    );
+    let callback_roots = provider_planning::callback_roots::prepare(
+        &program,
+        &selected_provider_plan_facts,
+        &external_providers.callbacks.declarations,
+        &calling_requirements,
+    )?;
+    let callback_roots = external_providers.selected_callback_roots(callback_roots);
+    let service_declarations = Arc::new(
+        provider_planning::service_declarations::ServiceDeclarations::prepare(
+            provider_planning::ProviderPlanningContext::new(
+                &program.typed,
+                source::DependencyScope::Product,
+            ),
+            settlement.boundary_calling_plan_realizations,
+            settlement.exact_toolchain_sources,
+        ),
+    );
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         provider_planning::ProviderPlanningContext::new(
             &program.typed,

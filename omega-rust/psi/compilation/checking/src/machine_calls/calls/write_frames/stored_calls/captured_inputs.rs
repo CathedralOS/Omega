@@ -263,6 +263,38 @@ struct Inputs<'request, 'symbols> {
     entry: &'request super::CollectedStatementPrefix,
 }
 
+/// Reuse the same completed-actual substitution as normal slot handback. This
+/// query exports descriptor provenance only, never a private scalar guarantee.
+pub(super) fn completed_result(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    captured: &SlotArgumentCapture,
+    expected: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+) -> Option<AggregateOrigins> {
+    let inputs = Inputs {
+        program,
+        machine,
+        captured,
+        symbols,
+        entry: &captured.context,
+    };
+    // Dispatch on the completed value's declared shape before asking for
+    // stored aggregate projections. A reference owns its captured descriptor;
+    // treating it as the aggregate behind it loses that boundary and its cut.
+    reference_leaves(
+        program,
+        machine,
+        captured.expression,
+        expected,
+        "",
+        symbols,
+        &mut captured.inference.clone(),
+        true,
+        &inputs,
+    )
+}
+
 impl ArgumentOrigins for Inputs<'_, '_> {
     fn reference(
         &self,
@@ -332,11 +364,19 @@ impl ArgumentOrigins for Inputs<'_, '_> {
             }
             return Some(sources);
         }
-        let (state, _, index) = caller_aliases::caller_statement_owner(
+        let owner = caller_aliases::caller_statement_owner(
             self.program,
             self.machine,
             caller_aliases::CallerWriteSite::Expression(expression),
-        )?;
+        );
+        if owner.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-input-refused machine={} expression={expression:?} node={:?} phase=owner",
+                self.program.symbols.name(self.machine.symbol),
+                self.program.expression_table.expression(expression)
+            );
+        }
+        let (state, _, index) = owner?;
         // Frozen local evidence and active body guards have different
         // lifetimes. Restore the observation's locals without removing any
         // recursion guard required by the enclosing result query.
@@ -350,7 +390,15 @@ impl ArgumentOrigins for Inputs<'_, '_> {
             reference,
             self.symbols,
             &mut observed_inference,
-        )?;
+        );
+        if returned.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-input-refused machine={} expression={expression:?} node={:?} phase=relation",
+                self.program.symbols.name(self.machine.symbol),
+                self.program.expression_table.expression(expression)
+            );
+        }
+        let returned = returned?;
         let mut sources = Vec::new();
         for leaf in returned.references {
             for dependency in leaf.lifetime_dependencies {
@@ -358,7 +406,15 @@ impl ArgumentOrigins for Inputs<'_, '_> {
                     sources.push(completed_dependency(dependency));
                 }
             }
-            for source in self.capture_source(captured, leaf.origin?)? {
+            let origin = leaf.origin?;
+            let observed = self.capture_source(captured, origin.clone());
+            if observed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT captured-input-refused machine={} expression={expression:?} origin={origin:?} phase=source",
+                    self.program.symbols.name(self.machine.symbol)
+                );
+            }
+            for source in observed? {
                 if !sources.contains(&source) {
                     sources.push(source);
                 }

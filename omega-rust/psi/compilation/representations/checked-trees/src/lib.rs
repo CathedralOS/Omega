@@ -3,7 +3,9 @@
 //! Begin at [`checked_trees`]; validation adds facts to typed trees without
 //! replacing them with a second copy of the same source vocabulary.
 
+mod callback_declarations;
 pub mod checked_trees;
+pub mod provider_declarations;
 pub use checked_trees::facts::ConstantPredicateObligation;
 pub use checked_trees::facts::{IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe};
 pub use checked_trees::*;

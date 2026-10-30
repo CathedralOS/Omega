@@ -1480,50 +1480,26 @@ fn pre_allocation_completion_identity(
     ] {
         encode_count(&mut canonical, count);
     }
+    // Each family records the same two bytes: its stable tag, then the
+    // identity the family receipt already sealed.
+    macro_rules! encode_transformations {
+        ($canonical:ident, $transformation:expr; $($variant:ident, $tag:literal),* $(,)?) => {
+            match $transformation {
+                $(
+                    crate::PreAllocationTransformationIdentity::$variant(identity) => {
+                        $canonical.push($tag);
+                        $canonical.extend_from_slice(&identity.bytes());
+                    }
+                )*
+            }
+        };
+    }
     for iteration in &receipt.iterations {
         canonical.extend_from_slice(&iteration.source_selected().bytes());
-        match iteration.transformation() {
-            crate::PreAllocationTransformationIdentity::CopyRemoval(identity) => {
-                canonical.push(1);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::RedundantExtension(identity) => {
-                canonical.push(2);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::AddressFold(identity) => {
-                canonical.push(3);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
-                canonical.push(4);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::ConstantBranch(identity) => {
-                canonical.push(5);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::DeadCompare(identity) => {
-                canonical.push(6);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::RedundantCompare(identity) => {
-                canonical.push(7);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::EquivalentCompare(identity) => {
-                canonical.push(8);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::CopiedCallOperand(identity) => {
-                canonical.push(9);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-            crate::PreAllocationTransformationIdentity::StoredLoadForwarding(identity) => {
-                canonical.push(10);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-        }
+        encode_transformations!(canonical, iteration.transformation();
+            CopyRemoval, 1, RedundantExtension, 2, AddressFold, 3, ConstantBoolean, 4,
+            ConstantBranch, 5, DeadCompare, 6, RedundantCompare, 7, EquivalentCompare, 8,
+            CopiedCallOperand, 9, StoredLoadForwarding, 10);
         encode_count(&mut canonical, iteration.function_index());
         crate::codec_bytes::push_encoded(&mut canonical, iteration.instruction().0.to_le_bytes());
         canonical.extend_from_slice(&iteration.transformed_selected().bytes());

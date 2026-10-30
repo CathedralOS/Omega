@@ -128,15 +128,30 @@ pub(super) fn actions(
             })
             .flatten();
         let retirement_path = captured_path.as_deref().unwrap_or(&destination.path);
-        let carrier_death = validation::reference_result_custody::replaced_reference_carrier(
-            program,
-            facts,
-            machine,
-            program.state_by_symbol(state)?,
-            root,
-            *statement_index,
-            retirement_path,
-        );
+        let transferred = replaced_place.as_ref().is_some_and(|place| {
+            facts.contextual_cleanup.replaces_transferred_storage(
+                machine,
+                state,
+                PermissionEventSource::Statement {
+                    statement_index: *statement_index as usize,
+                },
+                place.root,
+                &place.segments,
+            )
+        });
+        let carrier_death = (!transferred)
+            .then(|| {
+                validation::reference_result_custody::replaced_reference_carrier(
+                    program,
+                    facts,
+                    machine,
+                    program.state_by_symbol(state)?,
+                    root,
+                    *statement_index,
+                    retirement_path,
+                )
+            })
+            .flatten();
         let carrier_discard = if let Some(carrier) = carrier_death {
             let declaration = shapes.types.get(&destination.type_identity)?;
             let reference = validation::canonical_place_type_reference(

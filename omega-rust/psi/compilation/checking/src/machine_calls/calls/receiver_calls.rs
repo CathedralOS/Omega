@@ -2,8 +2,8 @@
 //! requirements. Data values never select attached machines or supply arguments.
 
 use super::{
-    CallScope, boundary_trait_call_signature, call_gates, declared_receiver_type_reference,
-    machine_state_by_symbol, validate_call_arguments,
+    CallScope, boundary_trait_call_signature, call_carrier_matcher, call_gates,
+    declared_receiver_type_reference, machine_state_by_symbol, validate_call_arguments,
     validate_resolved_target_type_parameter_bounds, validate_result_use,
 };
 use diagnostics::Diagnostic;
@@ -126,15 +126,7 @@ fn validate_signature_result_and_arguments(
         writable_roots.statements,
         false,
         &[],
-        |argument, required| {
-            crate::value_custody::expression_types::argument_matches_call_carrier(
-                program,
-                current_machine.symbol,
-                argument,
-                required,
-                &[],
-            )
-        },
+        call_carrier_matcher(program, current_machine.symbol, &[]),
         diagnostics,
         formation_obligations,
     );

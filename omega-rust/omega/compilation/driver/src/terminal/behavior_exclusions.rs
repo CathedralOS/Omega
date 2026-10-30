@@ -49,13 +49,24 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
     fn admit(
         &self,
         module: &terminal_psi::TerminalModule,
-        entry: semantic_vocabulary::MachineId,
-        provenance: &terminal_psi::TerminalMachineProvenance,
+        roots: &mut dyn Iterator<
+            Item = Result<psi_compiler::TerminalAdmissionRoot, Vec<Diagnostic>>,
+        >,
     ) -> Result<(), Vec<Diagnostic>> {
+        // Projection errors precede policy setup for the first root, but a
+        // later projection must not hide an earlier root's behavior refusal.
+        let Some(first) = roots.next() else {
+            return Ok(());
+        };
+        let first = first?;
         let exclusions = authored_behavior_exclusion_set_in(self.authored, module);
         if exclusions.is_empty() {
             // Every authored row named a service this composition never
-            // declares: nothing in it can invoke that service.
+            // declares. Still consume the exact body correspondences: an
+            // empty exclusion set does not excuse a missing admission root.
+            for root in roots {
+                root?;
+            }
             return Ok(());
         }
         // Read the associations in this actual unoptimized composition, not a
@@ -69,25 +80,28 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
             module,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        // Admit this selected execution, not every retained target sibling.
-        // Prohibited possible behavior and incomplete evidence both refuse;
-        // neither is a claim that a runtime execution was observed.
-        let report = establish_behavior_exclusions(
-            module,
-            &[entry],
-            &exclusions,
-            &providers,
-            self.profile.target_name(),
-        );
-        match report.verdict() {
-            BehaviorExclusionVerdict::Satisfied => Ok(()),
-            _ => Err(behavior_exclusion_diagnostics(
-                self.authored,
+        // One application owns this provider/exclusion context. Judge its
+        // entry, callbacks and physical adapter in order, not as one union:
+        // the first failing root owns the report and its caller attribution.
+        for root in std::iter::once(Ok(first)).chain(roots) {
+            let root = root?;
+            let report = establish_behavior_exclusions(
                 module,
-                provenance,
-                &report,
-            )),
+                &[root.machine],
+                &exclusions,
+                &providers,
+                self.profile.target_name(),
+            );
+            if report.verdict() != BehaviorExclusionVerdict::Satisfied {
+                return Err(behavior_exclusion_diagnostics(
+                    self.authored,
+                    module,
+                    &root.provenance,
+                    &report,
+                ));
+            }
         }
+        Ok(())
     }
 }
 

@@ -185,25 +185,12 @@ struct Candidate {
 pub(crate) fn assemble_elf_dynamic_file(
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
 ) -> Result<ValidatedElfAssembledDynamicFile, Box<ElfDynamicFileAssemblyError>> {
-    checked::plan_candidate(
-        resolved_linkage,
-        derive_contents,
-        |resolved_linkage, contents| {
-            non_authoritative_assembled_file_compatibility_fingerprint(&resolved_linkage, &contents)
-        },
-        |resolved_linkage, contents, fingerprint| Candidate {
-            resolved_linkage: resolved_linkage,
-            contents: contents,
-            non_authoritative_assembled_file_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.resolved_linkage,
-        |resolved_linkage, diagnostic| {
-            Box::new(ElfDynamicFileAssemblyError {
-                resolved_linkage: resolved_linkage,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: resolved_linkage,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_assembled_file_compatibility_fingerprint,
+        error: ElfDynamicFileAssemblyError,
     )
 }
 

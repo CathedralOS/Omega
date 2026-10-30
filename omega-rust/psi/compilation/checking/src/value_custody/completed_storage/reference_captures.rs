@@ -91,6 +91,7 @@ fn stored_selection(selection: Selection) -> StoredOperand {
         capture: value.capture,
         reference: value.reference,
         projection: value.projection,
+        slot: value.slot,
     }));
     match alternatives.len() {
         0 => StoredOperand::Unavailable,
@@ -208,6 +209,7 @@ impl Resolver<'_> {
                     capture: value,
                     reference: capture.type_reference,
                     projection: Vec::new(),
+                    slot: None,
                 }],
             };
         }
@@ -590,8 +592,18 @@ impl Resolver<'_> {
                 capture: value,
                 reference: capture.type_reference,
                 projection: path.to_vec(),
+                slot: None,
             }],
         }
+    }
+
+    fn program_owned_descriptor(
+        &self,
+        reference: typed_trees::types::TypeReferenceHandle,
+        projection: &[PlaceSegment],
+    ) -> bool {
+        crate::owned_projection_type_reference(self.program, reference, projection)
+            .is_some_and(|selected| crate::reference_shell(self.program, selected).is_some())
     }
 
     fn stored(&mut self, stored: StoredOperand, suffix: &[PlaceSegment]) -> Selection {
@@ -606,10 +618,33 @@ impl Resolver<'_> {
             StoredOperand::Value {
                 capture,
                 mut projection,
+                slot,
                 ..
             } => {
                 projection.extend_from_slice(suffix);
-                self.select(capture, &projection)
+                let selected = self.select(capture, &projection);
+                if matches!(selected, Selection::Unavailable) {
+                    return selected;
+                }
+                // Keep the completed installation owner for an inline
+                // descriptor. Flattening it to constructor children or match
+                // arms loses the current descriptor's formation identity.
+                // A pointer crossing is different: its stored leaves belong
+                // to the consumer's current cut and keep the selected sources.
+                let reference = self.control.operands.get(capture).type_reference;
+                if self.program_owned_descriptor(reference, &projection) {
+                    Selection::Sources {
+                        incoming: Vec::new(),
+                        values: vec![StoredCapture {
+                            capture,
+                            reference,
+                            projection,
+                            slot,
+                        }],
+                    }
+                } else {
+                    selected
+                }
             }
             StoredOperand::Alternatives(alternatives) => {
                 let selections = alternatives
@@ -638,10 +673,11 @@ fn join(selections: Vec<Selection>) -> Selection {
             }
         }
         for value in selected {
-            if !values
-                .iter()
-                .any(|prior| prior.capture == value.capture && prior.projection == value.projection)
-            {
+            if !values.iter().any(|prior| {
+                prior.capture == value.capture
+                    && prior.projection == value.projection
+                    && prior.slot == value.slot
+            }) {
                 values.push(value);
             }
         }

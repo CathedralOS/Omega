@@ -8,6 +8,27 @@ use terminal_psi::{
     find_structural_type,
 };
 
+/// Entry parameters plus parameters of every non-entry block, in declaration
+/// order. Callers still decide which place and access they accept.
+pub(super) fn declared_parameters<'source>(
+    source: &'source LegalizedScalarFunction,
+) -> Option<impl Iterator<Item = &'source terminal_psi::StructuralParameterDeclaration> + 'source> {
+    let signature = source.structural.as_ref()?;
+    Some(
+        signature
+            .parameters
+            .iter()
+            .map(|parameter| &parameter.semantic)
+            .chain(
+                source
+                    .blocks
+                    .iter()
+                    .filter(|block| block.id != source.entry_block)
+                    .flat_map(|block| &block.structural_parameters),
+            ),
+    )
+}
+
 pub(super) fn fields(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,

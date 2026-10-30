@@ -30,12 +30,12 @@ impl TerminalExecution<'_> {
         }
         self.validate_descriptor_borrow(source, terminal_psi::StructuralAccess::SharedBorrow)?;
         let snapshot = self.scalar_array_snapshot(source, selected.id)?;
-        let values = snapshot
-            .elements()
+        let observed = snapshot.elements();
+        let values = observed
             .iter()
             .map(crate::structural_inputs::byte_arrays::storage::scalar_byte);
         let bytes = super::storage::ByteSequenceStorage::from_values(
-            snapshot.elements().len(),
+            snapshot.len(),
             values,
             self.account.as_ref(),
         )?;

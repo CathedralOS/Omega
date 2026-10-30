@@ -37,7 +37,6 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod boolean_completions;
 mod call_storage;
-mod constructed_values;
 mod dispatch;
 mod dispatch_copies;
 mod live_memberships;
@@ -50,6 +49,7 @@ mod returned_regions;
 mod selected_call_stores;
 mod stored_call_values;
 mod transitions;
+mod value_observations;
 mod view_footprints;
 mod view_referents;
 mod view_retention;
@@ -872,6 +872,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
         );
+        if !binds_view {
+            let mut evaluated = EvaluatedOperand {
+                boolean,
+                boolean_completion: completed.boolean_completion,
+                capture,
+            };
+            self.publish_completed_owned_value(&mut evaluated, contexts, constraints);
+            capture = evaluated.capture;
+        }
         if carries_borrows
             && matches!(
                 capture.completion,
@@ -1780,7 +1789,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // this call expression. The binding transport then keeps the
                 // tag; the call is not replayed at the payload projection.
                 if let Some(variant) = returned_constructor_case(self.program, call) {
-                    self.append_constructed_observation(
+                    self.append_value_observation(
                         expression,
                         &[],
                         facts::FactPayload::CaseValue {
@@ -1851,7 +1860,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let child_type = self.constructed_child_type(expression, destination, &path);
                     let evaluated =
                         self.evaluated_operand_as(*value, child_type, contexts, constraints);
-                    self.append_constructed_values(
+                    self.append_owned_value_observations(
                         expression,
                         &path,
                         child_type,
@@ -1902,7 +1911,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let child_type = self.constructed_child_type(expression, destination, &path);
                     let evaluated =
                         self.evaluated_operand_as(field.value, child_type, contexts, constraints);
-                    self.append_constructed_values(
+                    self.append_owned_value_observations(
                         expression,
                         &path,
                         child_type,
@@ -1922,7 +1931,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     && self.program.symbols.get(variant).kind == symbols::SymbolKind::Variant
                     && self.program.symbols.get(variant).parent == value.type_symbol
                 {
-                    self.append_constructed_observation(
+                    self.append_value_observation(
                         expression,
                         &[],
                         facts::FactPayload::CaseValue {
@@ -2222,7 +2231,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .span_or_empty(places)
             .iter()
             .any(|place| place.formation.is_valid());
-        if source_has_case || observed_has_case || formed_reference {
+        // A descriptor read needs its own observation namespace even when
+        // its home is not itself a case payload. A later tag read selects
+        // this one descriptor, not every candidate backing it may point to.
+        let descriptor_read = !places.is_empty()
+            && expression != self.reference_slot_target
+            && self
+                .context
+                .expression_result_type_at(self.program, self.machine, self.state, expression)
+                .is_some_and(|reference| self.is_view_type(reference));
+        if source_has_case || observed_has_case || formed_reference || descriptor_read {
             return self
                 .context
                 .control

@@ -20,6 +20,7 @@ use super::conditional_regions::{
     collect_conditional_tree_regions, division_branches_in_region, validate_division_branch_regions,
 };
 use super::division_stack::replay_x86_scalar_division_region;
+use super::invalid_conditional_evidence as rejected;
 use super::stack_mutation::{
     ScalarReplay, aarch64_control_flow_instruction, aarch64_unsupported_sp_write,
     replay_scalar_mutation, validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
@@ -52,10 +53,7 @@ fn replay_scalar_conditional_region_with_divisions(
         );
     }
     if architecture != Architecture::X86_64 || !allow_calls {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: start,
-        });
+        return Err(rejected(machine, start));
     }
     replay_x86_scalar_division_region(
         machine,
@@ -93,26 +91,17 @@ fn replay_scalar_conditional_terminal_region(
         );
     }
     if !division_branches.is_empty() {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: start,
-        });
+        return Err(rejected(machine, start));
     }
     let crash_bytes: &[u8] = match architecture {
         Architecture::X86_64 => &[0x0f, 0x0b],
         Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4],
     };
-    let crash_offset = end.checked_sub(crash_bytes.len()).ok_or(
-        ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: start,
-        },
-    )?;
+    let crash_offset = end
+        .checked_sub(crash_bytes.len())
+        .ok_or(rejected(machine, start))?;
     if crash_offset < start || bytes.get(crash_offset..end) != Some(crash_bytes) {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: crash_offset,
-        });
+        return Err(rejected(machine, crash_offset));
     }
     replay_scalar_conditional_region(
         architecture,
@@ -148,10 +137,10 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
         || !strictly_increasing(&decisions, |row| row.branch_offset)
         || !strictly_increasing(&evidence.mutations, |row| row.offset)
     {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
+        return Err(rejected(
             machine,
-            offset: decisions.first().map_or(0, |branch| branch.branch_offset),
-        });
+            decisions.first().map_or(0, |branch| branch.branch_offset),
+        ));
     }
     let mut prefixes = Vec::with_capacity(decisions.len());
     let mut leaves = Vec::with_capacity(crash_leaves.len());
@@ -166,10 +155,7 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
         &mut leaves,
     )?;
     if leaves.len() != crash_leaves.len() {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: decisions[0].branch_offset,
-        });
+        return Err(rejected(machine, decisions[0].branch_offset));
     }
     let mut division_regions = prefixes
         .iter()
@@ -193,10 +179,7 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
             &mut walk,
         )?;
         if condition == ScalarConditionalCondition::Parameter && prefix_peak != 0 {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: end,
-            });
+            return Err(rejected(machine, end));
         }
         peak = peak.max(prefix_peak);
     }
@@ -242,10 +225,7 @@ pub(crate) fn replay_scalar_conditional_region(
     scalar_affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
 ) -> Result<u32, ObjectError> {
     if start > end || end > bytes.len() {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: start,
-        });
+        return Err(rejected(machine, start));
     }
     let mut depth = 0_u32;
     let mut peak = 0_u32;
@@ -306,10 +286,7 @@ pub(crate) fn replay_scalar_conditional_region(
         }
         Architecture::Aarch64 => {
             if !start.is_multiple_of(4) || !end.is_multiple_of(4) {
-                return Err(ObjectError::InvalidScalarConditionalEvidence {
-                    machine,
-                    offset: start,
-                });
+                return Err(rejected(machine, start));
             }
             for offset in (start..end).step_by(4) {
                 let encoded = u32::from_le_bytes(

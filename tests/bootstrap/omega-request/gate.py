@@ -47,7 +47,7 @@ def main():
 
     # These are whole source closures and an unchanged ordinary Delta adapter.
     # The host frames and compares bytes; the lower chain checks and runs D.
-    compiler = require_rung_identities(directory, adapter)
+    compiler, epsilon = require_rung_identities(directory, adapter)
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("request entry", entry, ENTRY_SIZE, ENTRY_SHA256)
     fixture = (gate / "request.bin").read_bytes()

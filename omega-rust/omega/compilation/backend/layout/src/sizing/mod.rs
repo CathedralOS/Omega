@@ -8,10 +8,7 @@ use typed_trees::types::PrimitiveType;
 /// `runtime-abi` rather than re-deriving `2 * pointer_size` locally.
 pub(super) fn fat_descriptor_layout(target: NativeTarget) -> TypeLayout {
     let descriptor = runtime_abi::fat_descriptor_layout(target);
-    TypeLayout {
-        size: descriptor.byte_size,
-        alignment: descriptor.alignment,
-    }
+    crate::type_layout(descriptor.byte_size, descriptor.alignment)
 }
 
 /// The canonical `TypeLayout` of one target pointer word.
@@ -20,10 +17,7 @@ pub(super) fn fat_descriptor_layout(target: NativeTarget) -> TypeLayout {
 /// read the target's pointer geometry here instead of re-spelling
 /// `{ target.pointer_size, target.pointer_alignment }` at the carrier arms.
 pub(super) fn pointer_layout(target: NativeTarget) -> TypeLayout {
-    TypeLayout {
-        size: target.pointer_size,
-        alignment: target.pointer_alignment,
-    }
+    crate::type_layout(target.pointer_size, target.pointer_alignment)
 }
 
 /// The canonical `TypeLayout` of a scalar primitive, given the target's pointer
@@ -40,26 +34,13 @@ pub(crate) fn primitive_layout(
     primitive_type: PrimitiveType,
 ) -> TypeLayout {
     match primitive_type {
-        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => TypeLayout {
-            size: 1,
-            alignment: 1,
-        },
-        PrimitiveType::I16 | PrimitiveType::U16 => TypeLayout {
-            size: 2,
-            alignment: 2,
-        },
-        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
-            size: 4,
-            alignment: 4,
-        },
-        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 => TypeLayout {
-            size: 8,
-            alignment: 8,
-        },
-        PrimitiveType::Addr | PrimitiveType::Selector => TypeLayout {
-            size: pointer_size,
-            alignment: pointer_alignment,
-        },
+        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => crate::type_layout(1, 1),
+        PrimitiveType::I16 | PrimitiveType::U16 => crate::type_layout(2, 2),
+        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => crate::type_layout(4, 4),
+        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 => crate::type_layout(8, 8),
+        PrimitiveType::Addr | PrimitiveType::Selector => {
+            crate::type_layout(pointer_size, pointer_alignment)
+        }
     }
 }
 

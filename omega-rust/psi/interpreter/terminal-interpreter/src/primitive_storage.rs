@@ -130,6 +130,17 @@ pub(crate) enum PrimitiveStorageEndpoint {
     },
 }
 
+pub(crate) enum ArrayCell {
+    Frame {
+        home: crate::primitive_storage::PrimitiveStorageHome,
+        index: usize,
+    },
+    Structural {
+        array: StructuralRuntimePlace,
+        index: usize,
+    },
+}
+
 /// Encoding is retained with the endpoint, not reconstructed from a later
 /// formal's semantic scalar type. Canonical storage has no explicit codec.
 #[derive(Clone, PartialEq, Eq)]
@@ -228,7 +239,7 @@ impl PrimitiveStorageWrites {
                 let stored = arrays
                     .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements().get(*index))
+                    .and_then(|array| array.cell(*index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         destination,
                     ))?;
@@ -333,6 +344,70 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
 }
 
 impl TerminalExecution<'_> {
+    /// Resolve packed endpoints through their captured frame, including a byte
+    /// window within a nested array. The descriptor supplies no new allocation.
+    pub(crate) fn array_cell(
+        &self,
+        storage: &PrimitiveStorage,
+    ) -> Result<Option<ArrayCell>, TerminalInterpretError> {
+        use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
+        let (home, index) = match &storage.endpoint {
+            PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => (*home, *index),
+            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
+                let (depth, place, structural_type) = match array.home {
+                    ArrayStorageHome::Frame {
+                        depth,
+                        place,
+                        structural_type,
+                    } => (depth, place, structural_type),
+                    ArrayStorageHome::Runtime => {
+                        let payload = self
+                            .structural_byte_storage
+                            .get(&array.referent)
+                            .ok_or_else(malformed)?;
+                        if *index >= payload.len() {
+                            return Err(malformed());
+                        }
+                        return Ok(Some(ArrayCell::Structural {
+                            array: array.referent.clone(),
+                            index: *index,
+                        }));
+                    }
+                };
+                let (start, end) = self.frame_byte_array_window(array)?;
+                let index = start
+                    .checked_add(*index)
+                    .filter(|index| *index < end)
+                    .ok_or_else(malformed)?;
+                let machine = if depth == self.call_stack.len() {
+                    self.current_machine
+                } else {
+                    self.call_stack
+                        .get(depth)
+                        .ok_or_else(malformed)?
+                        .current_machine
+                };
+                (
+                    crate::primitive_storage::PrimitiveStorageHome::captured_frame(
+                        depth,
+                        machine,
+                        place,
+                        structural_type,
+                    ),
+                    index,
+                )
+            }
+            _ => return Ok(None),
+        };
+        self.owned_array_home(&home)?;
+        let (depth, place, structural_type) = home.scalar_array_frame();
+        let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+        if array.structural_type != structural_type || index >= array.len() {
+            return Err(malformed());
+        }
+        Ok(Some(ArrayCell::Frame { home, index }))
+    }
+
     /// Native completion already changed these original bytes. Commit only
     /// their ordinary provenance invalidation; replaying a staged snapshot
     /// would overwrite the provider's actual result.
@@ -341,11 +416,70 @@ impl TerminalExecution<'_> {
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
         let changed = match &storage.endpoint {
-            PrimitiveStorageEndpoint::Scalar(home) => home,
-            PrimitiveStorageEndpoint::ScalarField(field) => &field.parent,
-            _ => return Err(malformed()),
+            PrimitiveStorageEndpoint::Scalar(home) => {
+                self.invalidate_stored_provenance(home);
+                return Ok(());
+            }
+            PrimitiveStorageEndpoint::ScalarField(field) => {
+                self.invalidate_stored_provenance(&field.parent);
+                return Ok(());
+            }
+            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
+                if *index >= self.stored_byte_array_length(array)? {
+                    return Err(malformed());
+                }
+                let mut selected = array.referent.clone();
+                selected.path.push(StructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).map_err(|_| malformed())?,
+                ));
+                Some(selected)
+            }
+            PrimitiveStorageEndpoint::OwnedArrayElement { .. } => None,
+            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
         };
-        self.invalidate_stored_provenance(changed);
+        let physical = match self.array_cell(storage)? {
+            Some(ArrayCell::Frame { home, index }) => {
+                self.owned_array_home(&home)?;
+                let (depth, place, structural_type) = home.scalar_array_frame();
+                let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+                if !matches!(
+                    array.cell(index),
+                    Some(crate::scalar_storage::ScalarCell::Resident { .. })
+                ) {
+                    return Err(malformed()
+                        .in_argument_preparation("original frame write lost its resident cell"));
+                }
+                let path = terminal_semantics::scalar_array_leaf_path(
+                    self.program.structural_types().values(),
+                    structural_type,
+                    u64::try_from(index).map_err(|_| malformed())?,
+                )
+                .ok_or_else(malformed)?;
+                Some(StructuralRuntimePlace {
+                    opaque_identity: array.storage_identity.ok_or_else(malformed)?,
+                    path,
+                })
+            }
+            Some(ArrayCell::Structural { array, index }) => {
+                if self
+                    .structural_byte_storage
+                    .get(&array)
+                    .ok_or_else(malformed)?
+                    .capture_scalar(index)?
+                    .1
+                    .is_none()
+                {
+                    return Err(malformed().in_argument_preparation(
+                        "original structural write lost its resident cell",
+                    ));
+                }
+                None
+            }
+            None => return Err(malformed()),
+        };
+        for owner in changed.into_iter().chain(physical) {
+            self.invalidate_stored_provenance(&owner);
+        }
         Ok(())
     }
     /// Prepare the same original endpoint for ordinary calls and host staging.
@@ -1092,7 +1226,7 @@ impl TerminalExecution<'_> {
                 types.values(),
                 array.structural_type,
             )
-            .is_some_and(|(_, count)| count == 0 && array.elements().is_empty()));
+            .is_some_and(|(_, count)| count == 0 && array.is_empty()));
         }
         let value = values.get(&home.place).ok_or_else(malformed)?;
         if value.structural_type != home.structural_type {
@@ -1338,8 +1472,7 @@ impl TerminalExecution<'_> {
             }
             let index = usize::try_from(leaf_offset).map_err(|_| malformed())?;
             if array
-                .elements()
-                .get(index)
+                .cell(index)
                 .is_none_or(|value| value.scalar_type() != scalar_type)
             {
                 return Err(malformed());
@@ -1565,7 +1698,7 @@ impl TerminalExecution<'_> {
                     IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
                 let index = usize::try_from(*index).map_err(|_| malformed())?;
                 if scalar_type != ScalarType::Integer(byte_type)
-                    || bytes.get(index).is_none()
+                    || index >= bytes.len()
                     || self
                         .structural_primitive_storage
                         .contains_key(&StructuralRuntimePlace::from(view))
@@ -2065,8 +2198,8 @@ impl TerminalExecution<'_> {
                 arrays
                     .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements().get(index))
-                    .copied()
+                    .ok_or_else(malformed)?
+                    .element(index)?
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         source,
                     ))
@@ -2317,10 +2450,7 @@ impl TerminalExecution<'_> {
                 let array = arrays.backing_mut(&home.place).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
                 )?;
-                let stored = array.elements_mut()?.get_mut(index).ok_or(
-                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
-                )?;
-                *stored = scalar;
+                array.set_element(index, scalar)?;
             }
             PrimitiveStorageEndpoint::Scalar(storage) => {
                 // The resolved live owner and exact leaf carrier authorize a
@@ -2427,7 +2557,7 @@ impl TerminalExecution<'_> {
 
     /// Resolve the machine owning a suspended home frame, rejecting homes
     /// recorded against a different machine.
-    fn owned_array_home(
+    pub(crate) fn owned_array_home(
         &self,
         home: &PrimitiveStorageHome,
     ) -> Result<MachineId, TerminalInterpretError> {

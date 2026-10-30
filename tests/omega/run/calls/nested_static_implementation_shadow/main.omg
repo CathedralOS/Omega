@@ -1,0 +1,34 @@
+// Expected exit: 0.
+// The inner Callbacks shadows the outer binder. Replacement, Other, and
+// inner Callbacks deliberately select the same implementation through three
+// distinct evidence slots; both plain and captured map bodies must dispatch.
+trait Reader<Value> { machine read(value: &Value) -> u64; }
+data Item { number: u64; }
+Selected satisfies Reader<Item> {
+    machine read(value: &Item) -> u64 { value.number }
+}
+Alternate satisfies Reader<Item> {
+    machine read(value: &Item) -> u64 { 7u64 }
+}
+GenericAlternate<Value> satisfies Reader<Value> {
+    machine read(value: &Value) -> u64 { 7u64 }
+}
+machine outer<Value, Callbacks satisfies Reader<Value>, Replacement satisfies Reader<Value>>(value: &Value) -> bool {
+    middle<bool, Replacement>(value, true)
+    machine middle<Marker, Other satisfies Reader<Value>>(value: &Value, marker: Marker) -> bool {
+        let inherited: u64 = Callbacks::read(value);
+        let shadowed: u64 = leaf<Other>(value, marker);
+        inherited == 42u64 && shadowed == 7u64
+        machine leaf<Callbacks satisfies Reader<Value>>(value: &Value, marker: Marker) -> u64 {
+            Callbacks::read(value)
+        }
+    }
+}
+machine main() crashes Trap {
+    let item: Item = Item { number: 42u64 };
+    let observed: bool = outer<Item, Selected, Alternate>(&item);
+    let captured: bool = outer<Item, Selected, GenericAlternate<Item>>(&item);
+    transition observed && captured { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

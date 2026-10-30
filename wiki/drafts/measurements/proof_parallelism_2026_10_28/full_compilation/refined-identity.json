@@ -1,0 +1,9 @@
+{
+  "producer": "full-profile-detail",
+  "compiler_sha256": "4d41227e58f0be09bf4b76cb15d758c9d10d4c8ecad69bbe5f81f3e4e20744dd",
+  "accepted_lock_sha256": "6fe47ee90e5233f9d2503d91b3e1b701c7d13917509dffb26d39e1f36dd10fa4",
+  "build_profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  }
+}

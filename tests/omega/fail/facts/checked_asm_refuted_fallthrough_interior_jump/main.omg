@@ -1,0 +1,20 @@
+// Expected exit: 0.
+// `loop` is also reached by an interior `jmp` with ZF clear. The entry
+// dispatch's refuted arm says nothing about that arrival: the label still owes
+// its own requirement where a jump delivers it.
+machine main() crashes Trap {
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, 3;
+        cmp eax, eax;
+        jnz loop;
+    middle:
+        add eax, 1;
+        jmp loop;
+    loop requires eax == 0:
+        nop;
+    }
+    transition true { true -> finished() false -> failed() }
+    machine finished() {}
+    machine failed() crashes Trap { crash Trap; }
+}

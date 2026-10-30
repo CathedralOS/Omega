@@ -9,6 +9,31 @@ use typed_trees::expression::TableCallExpression;
 use typed_trees::{TypedTrees, static_applications::StaticMachineBindingValue};
 use validation::CallSite;
 
+macro_rules! selected_requirement {
+    ($program:ident, $call:ident, $authored:ident, $requirement_trait:ident, $conformance:ident) => {
+        let authored_symbol = $program.symbols.get($authored);
+        if authored_symbol.kind != SymbolKind::State
+            || $program.symbols.get(authored_symbol.parent).kind != SymbolKind::Trait
+        {
+            return None;
+        }
+        let $requirement_trait = authored_symbol.parent;
+        let implementation = if let Some(path) =
+            $program.expression_table.name_path_node($call.receiver)
+            && $program.symbols.get(path.symbol).kind == SymbolKind::Conformance
+        {
+            path.symbol
+        } else {
+            let argument = $call.machine_arguments.last()?;
+            if !argument.names_implementation(&$program.symbols) {
+                return None;
+            }
+            argument.symbol
+        };
+        let $conformance = $program.conformance_by_symbol(implementation)?;
+    };
+}
+
 /// The owned entry of a trait-requirement call that names one supplying
 /// implementation. The requirement itself has no body. A map that does not
 /// supply the trait returns nothing, leaving the requirement in place.
@@ -17,25 +42,7 @@ pub(super) fn owned_realization_entry(
     call: &TableCallExpression,
     authored: SymbolHandle,
 ) -> Option<SymbolHandle> {
-    let authored_symbol = program.symbols.get(authored);
-    if authored_symbol.kind != SymbolKind::State
-        || program.symbols.get(authored_symbol.parent).kind != SymbolKind::Trait
-    {
-        return None;
-    }
-    let requirement_trait = authored_symbol.parent;
-    let implementation = if let Some(path) = program.expression_table.name_path_node(call.receiver)
-        && program.symbols.get(path.symbol).kind == SymbolKind::Conformance
-    {
-        path.symbol
-    } else {
-        let argument = call.machine_arguments.last()?;
-        if !argument.names_implementation(&program.symbols) {
-            return None;
-        }
-        argument.symbol
-    };
-    let conformance = program.conformance_by_symbol(implementation)?;
+    selected_requirement!(program, call, authored, requirement_trait, conformance);
     if !trait_supplies_requirement(program, conformance.trait_symbol, requirement_trait) {
         return None;
     }
@@ -58,25 +65,7 @@ pub(super) fn unsupplied_requirement(
     call: &TableCallExpression,
     authored: SymbolHandle,
 ) -> Option<String> {
-    let authored_symbol = program.symbols.get(authored);
-    if authored_symbol.kind != SymbolKind::State
-        || program.symbols.get(authored_symbol.parent).kind != SymbolKind::Trait
-    {
-        return None;
-    }
-    let requirement_trait = authored_symbol.parent;
-    let implementation = if let Some(path) = program.expression_table.name_path_node(call.receiver)
-        && program.symbols.get(path.symbol).kind == SymbolKind::Conformance
-    {
-        path.symbol
-    } else {
-        let argument = call.machine_arguments.last()?;
-        if !argument.names_implementation(&program.symbols) {
-            return None;
-        }
-        argument.symbol
-    };
-    let conformance = program.conformance_by_symbol(implementation)?;
+    selected_requirement!(program, call, authored, requirement_trait, conformance);
     if trait_supplies_requirement(program, conformance.trait_symbol, requirement_trait) {
         return None;
     }
@@ -91,7 +80,7 @@ pub(super) fn unsupplied_requirement(
             .collect::<Vec<_>>()
             .join(", ")
     );
-    let name = program.symbols.name(implementation);
+    let name = program.symbols.name(conformance.symbol);
     Some(format!(
         "`{name}` implements `{implemented}`, which neither is nor inherits `{}`, the trait that declares `{}`",
         program.symbols.display_path(requirement_trait, "::"),
@@ -324,6 +313,7 @@ pub(super) fn logical_requirement_matches(
         let applications = program.selected_conformance_applications(
             owner,
             dispatch.selection_application,
+            dispatch.evidence_parameter,
             dispatch.requirement,
             dispatch.application_report_fingerprint,
             dispatch.application_commitment,

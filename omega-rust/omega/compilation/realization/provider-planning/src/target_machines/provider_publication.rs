@@ -75,6 +75,8 @@ pub struct TargetProviderPreparationRequest<'program> {
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     pub overrides: &'program [ProviderSelection],
     pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
+    pub independent_components:
+        &'program [std::sync::Arc<component_description::VerifiedComponent>],
     pub targets: &'program [(
         String,
         Result<std::sync::Arc<super::AuthoredTargetProviders>, Vec<Diagnostic>>,
@@ -170,6 +172,7 @@ impl TargetProviderPreparationRequest<'_> {
         }
         Ok(PreparedTargetChoices {
             profile,
+            independent_components: self.independent_components.to_vec(),
             candidates: prepared,
             defaults: inventory
                 .defaults()

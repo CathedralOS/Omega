@@ -1,38 +1,14 @@
 use super::IDENTITY_WIDTH;
 use std::collections::BTreeSet;
-canonical_identity!(
-    OptimizationRuleIdentity,
-    b"omega.optimization-rule-identity.v1\0"
-);
-canonical_identity!(
-    OptimizationPassIdentity,
-    b"omega.optimization-pass-identity.v1\0"
-);
-canonical_identity!(
-    OptimizationCandidateIdentity,
-    b"omega.optimization-candidate-identity.v1\0"
-);
-canonical_identity!(
-    ScalarConstantFactIdentity,
-    b"omega.scalar-constant-fact-identity.v1\0"
-);
-canonical_identity!(
-    ValueRangeFactIdentity,
-    b"omega.value-range-fact-identity.v1\0"
-);
-canonical_identity!(
-    AcceptedObligationFactIdentity,
-    b"omega.accepted-obligation-fact-identity.v1\0"
-);
+s!(OptimizationRuleIdentity => b"omega.optimization-rule-identity.v1\0");
+s!(OptimizationPassIdentity => b"omega.optimization-pass-identity.v1\0");
+s!(OptimizationCandidateIdentity => b"omega.optimization-candidate-identity.v1\0");
+s!(ScalarConstantFactIdentity => b"omega.scalar-constant-fact-identity.v1\0");
+s!(ValueRangeFactIdentity => b"omega.value-range-fact-identity.v1\0");
+s!(AcceptedObligationFactIdentity => b"omega.accepted-obligation-fact-identity.v1\0");
 canonical_identity!(ProofQuestionIdentity, b"omega.proof-question-identity.v1\0");
-canonical_identity!(
-    OwnershipFrontierFactIdentity,
-    b"omega.ownership-frontier-fact-identity.v1\0"
-);
-canonical_identity!(
-    OptimizationRuleSetIdentity,
-    b"omega.optimization-rule-set-identity.v1\0"
-);
+s!(OwnershipFrontierFactIdentity => b"omega.ownership-frontier-fact-identity.v1\0");
+s!(OptimizationRuleSetIdentity => b"omega.optimization-rule-set-identity.v1\0");
 impl OptimizationRuleSetIdentity {
     /// Bind the complete normalized execution order. Order is meaningful and
     /// therefore is not sorted here; callers must supply the pass manager's

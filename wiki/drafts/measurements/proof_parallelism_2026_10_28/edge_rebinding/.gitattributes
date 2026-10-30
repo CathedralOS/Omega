@@ -1,0 +1,5 @@
+# Preserve exact recorded bytes and replay patches.
+* -text
+raw/** -whitespace
+*.patch -whitespace
+*.gz -diff

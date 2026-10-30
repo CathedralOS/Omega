@@ -438,7 +438,6 @@ pub(crate) enum FieldRepresentationBound {
         field: symbols::SymbolHandle,
         minimum: Option<i64>,
         maximum: Option<i64>,
-        conjunct: ExpressionHandle,
     },
     FloatLiteral(FieldLiteralBound),
 }
@@ -448,13 +447,6 @@ impl FieldRepresentationBound {
         match self {
             Self::Integer { field, .. } => field,
             Self::FloatLiteral(bound) => bound.field,
-        }
-    }
-
-    pub(crate) fn conjunct(self) -> ExpressionHandle {
-        match self {
-            Self::Integer { conjunct, .. } => conjunct,
-            Self::FloatLiteral(bound) => bound.conjunct,
         }
     }
 }
@@ -517,7 +509,6 @@ pub(crate) fn data_where_field_representation_bounds(
                 field,
                 minimum: interval.low,
                 maximum: interval.high,
-                conjunct,
             });
         }
     }

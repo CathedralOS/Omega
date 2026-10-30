@@ -1,0 +1,224 @@
+{
+  "hot_counts": {
+    "global_query_rows": 182,
+    "global_query_metrics": {
+      "append_cow": 789,
+      "appended_output_rows": 1464095,
+      "changed_allocation_misses": 6146,
+      "cold_entries": 1572,
+      "cold_input_rows": 990421,
+      "contained_output_rows": 1683730,
+      "contained_requests": 6941,
+      "cow_row_handles": 1495380,
+      "different_contents_misses": 6104,
+      "equal_contents_misses": 42,
+      "replaced_output_rows": 2250605,
+      "requested_input_rows": 3142008,
+      "requests": 7742,
+      "retire_ambient_cow": 12,
+      "retire_shared_cow": 12,
+      "returned_output_rows": 3147825,
+      "same_allocation_checks": 1596,
+      "same_allocation_input_rows": 990519,
+      "transform_calls": 7718,
+      "wrapped_output_rows": 3147711
+    },
+    "global_cleanup_metrics": {
+      "entries": 1572,
+      "binding_capacity_bytes_inline": 88848,
+      "input_rows_referenced": 894963,
+      "output_capacity_bytes": 7176848,
+      "output_rows_retained": 897106
+    },
+    "source_windows": 418,
+    "query_rows": 173,
+    "cleanup_rows": 176,
+    "query_metrics": {
+      "append_cow": 756,
+      "appended_output_rows": 1462923,
+      "cold_entries": 1537,
+      "cold_input_rows": 989722,
+      "cow_row_handles": 1493955,
+      "requested_input_rows": 3140756,
+      "requests": 7683,
+      "returned_output_rows": 3146452,
+      "same_allocation_checks": 1561,
+      "same_allocation_input_rows": 989820,
+      "transform_calls": 7659,
+      "wrapped_output_rows": 3146338,
+      "contained_output_rows": 1683529,
+      "contained_requests": 6921,
+      "changed_allocation_misses": 6122,
+      "different_contents_misses": 6080,
+      "equal_contents_misses": 42,
+      "replaced_output_rows": 2249858,
+      "retire_ambient_cow": 6,
+      "retire_shared_cow": 6
+    },
+    "cleanup_metrics": {
+      "entries": 1572,
+      "binding_capacity_bytes_inline": 88848,
+      "input_rows_referenced": 894963,
+      "output_capacity_bytes": 7176848,
+      "output_rows_retained": 897106
+    },
+    "global_true_hits": 24,
+    "global_hit_rate": 0.003099974166881943,
+    "true_hits": 24,
+    "misses": 7659,
+    "hit_rate": 0.0031237797735259665,
+    "avoided_input_rows": 98
+  },
+  "bypass_counts": {
+    "global_query_rows": 182,
+    "global_query_metrics": {
+      "append_cow": 789,
+      "appended_output_rows": 1464095,
+      "contained_output_rows": 1683730,
+      "contained_requests": 6941,
+      "cow_row_handles": 1495380,
+      "requested_input_rows": 3142008,
+      "requests": 7742,
+      "retire_ambient_cow": 12,
+      "retire_shared_cow": 12,
+      "returned_output_rows": 3147825,
+      "transform_calls": 7742
+    },
+    "global_cleanup_metrics": {
+      "entries": 0
+    },
+    "source_windows": 418,
+    "query_rows": 173,
+    "cleanup_rows": 176,
+    "query_metrics": {
+      "append_cow": 756,
+      "appended_output_rows": 1462923,
+      "cow_row_handles": 1493955,
+      "requested_input_rows": 3140756,
+      "requests": 7683,
+      "returned_output_rows": 3146452,
+      "transform_calls": 7683,
+      "contained_output_rows": 1683529,
+      "contained_requests": 6921,
+      "retire_ambient_cow": 6,
+      "retire_shared_cow": 6
+    },
+    "cleanup_metrics": {
+      "entries": 0
+    }
+  },
+  "extra_arc_allocations": 1683415,
+  "arc_allocation_ratio": 2.150720167773697,
+  "avoided_input_fraction": 3.120267859075968e-05,
+  "primary_pairs": [
+    {
+      "pair": "a",
+      "off": {
+        "wall_seconds": 17.21134280000001,
+        "cpu_seconds": 23.75,
+        "source_replay_ms": 1331.7048,
+        "peak_commit_bytes": 3482148864,
+        "peak_working_set_bytes": 2152763392
+      },
+      "on": {
+        "wall_seconds": 17.647917199999938,
+        "cpu_seconds": 23.171875,
+        "source_replay_ms": 1395.8035,
+        "peak_commit_bytes": 3536871424,
+        "peak_working_set_bytes": 2151821312
+      }
+    },
+    {
+      "pair": "b",
+      "off": {
+        "wall_seconds": 17.655133400000068,
+        "cpu_seconds": 23.75,
+        "source_replay_ms": 1379.8121,
+        "peak_commit_bytes": 3532017664,
+        "peak_working_set_bytes": 2147446784
+      },
+      "on": {
+        "wall_seconds": 17.405320599999982,
+        "cpu_seconds": 23.34375,
+        "source_replay_ms": 1376.3933,
+        "peak_commit_bytes": 3510419456,
+        "peak_working_set_bytes": 2128900096
+      }
+    },
+    {
+      "pair": "c",
+      "off": {
+        "wall_seconds": 29.71396070000003,
+        "cpu_seconds": 37.53125,
+        "source_replay_ms": 3158.7155,
+        "peak_commit_bytes": 3515293696,
+        "peak_working_set_bytes": 2125709312
+      },
+      "on": {
+        "wall_seconds": 26.08944500000007,
+        "cpu_seconds": 32.6875,
+        "source_replay_ms": 2116.4589,
+        "peak_commit_bytes": 3442360320,
+        "peak_working_set_bytes": 2068078592
+      }
+    }
+  ],
+  "final_timing_runs": {
+    "cache-cost-on-a": {
+      "query_ms": {
+        "append_ns": 9.6996,
+        "canonical_ns": 95.8297,
+        "capture_ns": 0.1563,
+        "containment_ns": 72.1455,
+        "edge_retirement_ns": 102.4594,
+        "identity_ns": 0.4369,
+        "lookup_ns": 0.856,
+        "transform_ns": 214.6027,
+        "wrap_ns": 106.1731,
+        "operation_retirement_ns": 156.3676,
+        "replace_ns": 48.3059
+      },
+      "cleanup_ms": 19.9735
+    },
+    "cache-cost-on-b": {
+      "query_ms": {
+        "append_ns": 8.8692,
+        "canonical_ns": 94.7831,
+        "capture_ns": 0.1433,
+        "containment_ns": 71.4985,
+        "edge_retirement_ns": 104.2981,
+        "identity_ns": 0.4213,
+        "lookup_ns": 0.8548,
+        "transform_ns": 210.4924,
+        "wrap_ns": 97.6676,
+        "operation_retirement_ns": 149.166,
+        "replace_ns": 45.7935
+      },
+      "cleanup_ms": 19.0774
+    },
+    "cache-cost-off-a": {
+      "query_ms": {
+        "append_ns": 67.8838,
+        "canonical_ns": 182.2444,
+        "containment_ns": 86.2303,
+        "edge_retirement_ns": 129.9622,
+        "transform_ns": 287.9782,
+        "temporary_result_drop_ns": 8.6873,
+        "operation_retirement_ns": 208.4626
+      },
+      "cleanup_ms": 0.0118
+    },
+    "cache-cost-off-b": {
+      "query_ms": {
+        "append_ns": 42.4955,
+        "canonical_ns": 121.9389,
+        "containment_ns": 75.0391,
+        "edge_retirement_ns": 100.5385,
+        "transform_ns": 220.7885,
+        "temporary_result_drop_ns": 8.1556,
+        "operation_retirement_ns": 162.3355
+      },
+      "cleanup_ms": 0.0118
+    }
+  }
+}

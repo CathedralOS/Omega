@@ -29,6 +29,12 @@ mod control;
 mod saturating;
 mod scalar;
 
+macro_rules! r {
+    ($kind:expr => $family:ident => $count:expr) => {
+        ($kind, MachineAlternativeFamily::$family, $count)
+    };
+}
+
 fn alternative(family: MachineAlternativeFamily) -> MachineAlternativeKey {
     MachineAlternativeKey { family, variant: 0 }
 }
@@ -39,26 +45,10 @@ fn scalar_operand_effects_cover_remainder_wrapping_and_bitwise_forms() {
     let obligation = ObligationId::new(1).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([3; 32]);
     for (kind, family, count) in [
-        (
-            SelectedInstructionKind::WrappingSubtractI64,
-            MachineAlternativeFamily::WrappingSubtractI64,
-            3,
-        ),
-        (
-            SelectedInstructionKind::WrappingMultiplyI64,
-            MachineAlternativeFamily::WrappingMultiplyI64,
-            3,
-        ),
-        (
-            SelectedInstructionKind::BitwiseOrI64,
-            MachineAlternativeFamily::BitwiseOrI64,
-            3,
-        ),
-        (
-            SelectedInstructionKind::BitwiseNotI64,
-            MachineAlternativeFamily::BitwiseNotI64,
-            2,
-        ),
+        r!(SelectedInstructionKind::WrappingSubtractI64 => WrappingSubtractI64 => 3),
+        r!(SelectedInstructionKind::WrappingMultiplyI64 => WrappingMultiplyI64 => 3),
+        r!(SelectedInstructionKind::BitwiseOrI64 => BitwiseOrI64 => 3),
+        r!(SelectedInstructionKind::BitwiseNotI64 => BitwiseNotI64 => 2),
         (
             SelectedInstructionKind::ExactRemainderU64 {
                 obligation,
@@ -75,21 +65,9 @@ fn scalar_operand_effects_cover_remainder_wrapping_and_bitwise_forms() {
             MachineAlternativeFamily::WrappingDivideI64,
             3,
         ),
-        (
-            SelectedInstructionKind::WrappingShiftLeftI64,
-            MachineAlternativeFamily::WrappingShiftLeftI64,
-            3,
-        ),
-        (
-            SelectedInstructionKind::WrappingShiftRightI64,
-            MachineAlternativeFamily::WrappingShiftRightI64,
-            3,
-        ),
-        (
-            SelectedInstructionKind::WrappingShiftRightU64,
-            MachineAlternativeFamily::WrappingShiftRightU64,
-            3,
-        ),
+        r!(SelectedInstructionKind::WrappingShiftLeftI64 => WrappingShiftLeftI64 => 3),
+        r!(SelectedInstructionKind::WrappingShiftRightI64 => WrappingShiftRightI64 => 3),
+        r!(SelectedInstructionKind::WrappingShiftRightU64 => WrappingShiftRightU64 => 3),
         (
             SelectedInstructionKind::ExactShiftLeftI64 {
                 obligation,

@@ -411,10 +411,7 @@ fn parameter_projection(
             Some((position, element))
         }
         ExpressionNode::Name(name) => {
-            if program.symbols.get(name.symbol).kind == symbols::SymbolKind::Machine
-                || matches!(program.expression_table.name_path_members(name.members),
-                    [spelling] if spelling.is_self_receiver())
-            {
+            if program.symbols.get(name.symbol).kind == symbols::SymbolKind::Machine {
                 return None;
             }
             // A parameter owns its place root by symbol. Resolution retains
@@ -427,6 +424,10 @@ fn parameter_projection(
                     .copied()
                     .find(|symbol| symbol.is_valid())
             })?;
+            // A `self` spelling names a machine receiver, which is not a
+            // structural parameter. A domain subject also spells `self` but
+            // resolves to a Parameter-kind symbol rostered in the telescope,
+            // so roster membership — not the spelling — refuses receivers.
             let position = parameters.iter().position(|parameter| {
                 crate::execution::terminal_unit::types::parameter_is_root(parameter, root)
             })?;
@@ -990,7 +991,14 @@ pub(crate) fn structural_storage_place(
     // symbols cannot acquire a formal's authority from that fallback.
     let name = program.expression_table.name_path_node(authored)?;
     let names = program.expression_table.name_path_members(name.members);
+    // A `self` spelling names a machine receiver, which is not a storage
+    // parameter. A domain subject also spells `self` but resolves to a
+    // Parameter-kind symbol rostered in the telescope; only an unrostered
+    // `self` is a receiver and must refuse.
     let (storage_root, declared_type, is_mutable) = if matches!(names, [spelling] if spelling.is_self_receiver())
+        && !parameters
+            .iter()
+            .any(|parameter| parameter.symbol == name.head_symbol)
     {
         return None;
     } else {

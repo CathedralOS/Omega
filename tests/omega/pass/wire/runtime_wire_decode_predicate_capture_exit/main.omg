@@ -1,0 +1,80 @@
+// Expected exit: 70
+// Generated decoder bindings preserve grouped field reads, stable siblings,
+// exact nonconvex predicates, and authored constants with colliding names.
+use omega_language_std::console;
+data Msg {
+    #0 payload: u32;
+    #1 delta: i32;
+}
+const at: u64 = 0;
+const candidate: u32 = 100;
+const __omega_wire_0_at: u64 = 0;
+data Retained
+requires
+    ((self).payload) <= candidate
+    && 0 - 10 <= self.delta && self.delta <= 10
+    && (self.delta == 0 - 5 || self.delta == 7)
+    && at == 0 && __omega_wire_0_at == 0;
+{
+    delta: i32;
+    payload: u32;
+}
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    buffer: [u8; 32];
+    bad_read: u64;
+    bad_verdict: WireVerdict;
+    good_read: u64;
+    good_verdict: WireVerdict;
+}
+machine Main::main(main: &mut Main) reaches Console {
+    // era 0, tag 0, value 200 (varint C8 01), tag 1, delta 3
+    // (zigzag 6). The value is inside the numeric envelope, but outside
+    // the declared alternatives; both rejected fields must remain unchanged.
+    main.buffer[0] = 0;
+    main.buffer[1] = 0;
+    main.buffer[2] = 200;
+    main.buffer[3] = 1;
+    main.buffer[4] = 1;
+    main.buffer[5] = 6;
+    let bad: Retained = Retained { payload: 42, delta: 7 };
+    Msg::decode(
+        &mut bad,
+        &main.buffer,
+        &mut main.bad_read,
+        &mut main.bad_verdict,
+    );
+
+    // Same envelope, now value 50 and delta -5 (zigzag 9).
+    main.buffer[2] = 50;
+    main.buffer[3] = 1;
+    main.buffer[4] = 9;
+    let good: Retained = Retained { payload: 42, delta: 7 };
+    Msg::decode(
+        &mut good,
+        &main.buffer,
+        &mut main.good_read,
+        &mut main.good_verdict,
+    );
+
+    transition {
+        main.bad_verdict == WireVerdict::Sound -> accepted_hostile(main)
+        bad.payload != 42 || bad.delta != 7 -> corrupted_on_reject(main)
+        main.good_verdict == WireVerdict::Sound && good.payload == 50 && good.delta == 0 - 5 -> proven(main)
+        _ -> broken(main)
+    }
+    machine accepted_hostile(main: &mut Main)    { Console::exit_process(66); }
+    machine corrupted_on_reject(main: &mut Main) { Console::exit_process(67); }
+    machine proven(main: &mut Main)              { Console::exit_process(70); }
+    machine broken(main: &mut Main)              { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

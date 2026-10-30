@@ -69,6 +69,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     if paths.is_empty() {
         return;
     }
+    let mut result_memberships = crate::flow::CapturedResultMemberships::new(facts);
     let returned = exit_return_expression(program, exit);
     if !returned.is_valid() {
         return;
@@ -257,9 +258,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                     !values.is_empty()
                         && values.iter().all(|value| {
                             facts.flow.control.operands.is_valid(exit.returned_value)
-                                && crate::flow::captured_result_membership(
+                                && result_memberships.contains(
                                     program,
-                                    facts,
                                     value,
                                     facts.flow.control.operands.get(exit.returned_value),
                                     domain_symbol,

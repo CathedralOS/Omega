@@ -118,105 +118,50 @@ pub(crate) fn validate_struct_literal_fields(
                         ) {
                             continue;
                         }
+                        macro_rules! scan_child {
+                            ($expression:expr $(,)?) => {
+                                scan_expression(
+                                    program,
+                                    machine,
+                                    state,
+                                    observations,
+                                    $expression,
+                                    &mut machine_diagnostics,
+                                    &mut machine_writes,
+                                    statement_index,
+                                    &mut machine_obligations,
+                                )
+                            };
+                        }
                         match statement {
                             StatementNode::Assembly(_) => {}
                             StatementNode::AssemblyFact(fact) => {
                                 for expression in
                                     program.tables.proof_fact_expression_roots(fact.fact)
                                 {
-                                    scan_expression(
-                                        program,
-                                        machine,
-                                        state,
-                                        observations,
-                                        expression,
-                                        &mut machine_diagnostics,
-                                        &mut machine_writes,
-                                        statement_index,
-                                        &mut machine_obligations,
-                                    );
+                                    scan_child!(expression);
                                 }
                             }
                             StatementNode::Assignment(assignment) => {
-                                scan_expression(
-                                    program,
-                                    machine,
-                                    state,
-                                    observations,
-                                    assignment.target,
-                                    &mut machine_diagnostics,
-                                    &mut machine_writes,
-                                    statement_index,
-                                    &mut machine_obligations,
-                                );
-                                scan_expression(
-                                    program,
-                                    machine,
-                                    state,
-                                    observations,
-                                    assignment.value,
-                                    &mut machine_diagnostics,
-                                    &mut machine_writes,
-                                    statement_index,
-                                    &mut machine_obligations,
-                                );
+                                scan_child!(assignment.target);
+                                scan_child!(assignment.value);
                             }
                             StatementNode::Call(call) => {
                                 for argument in
                                     program.statement_table.expression_handles(call.arguments)
                                 {
-                                    scan_expression(
-                                        program,
-                                        machine,
-                                        state,
-                                        observations,
-                                        *argument,
-                                        &mut machine_diagnostics,
-                                        &mut machine_writes,
-                                        statement_index,
-                                        &mut machine_obligations,
-                                    );
+                                    scan_child!(*argument);
                                 }
                             }
                             StatementNode::Expression(expression) => {
-                                scan_expression(
-                                    program,
-                                    machine,
-                                    state,
-                                    observations,
-                                    *expression,
-                                    &mut machine_diagnostics,
-                                    &mut machine_writes,
-                                    statement_index,
-                                    &mut machine_obligations,
-                                );
+                                scan_child!(*expression);
                             }
                             StatementNode::LocalData(local_data) => {
-                                scan_expression(
-                                    program,
-                                    machine,
-                                    state,
-                                    observations,
-                                    local_data.initial_value,
-                                    &mut machine_diagnostics,
-                                    &mut machine_writes,
-                                    statement_index,
-                                    &mut machine_obligations,
-                                );
+                                scan_child!(local_data.initial_value);
                             }
                             StatementNode::Transition(transition) => {
                                 if let TransitionGuardNode::When(guard) = &transition.guard {
-                                    scan_expression(
-                                        program,
-                                        machine,
-                                        state,
-                                        observations,
-                                        *guard,
-                                        &mut machine_diagnostics,
-                                        &mut machine_writes,
-                                        statement_index,
-                                        &mut machine_obligations,
-                                    );
+                                    scan_child!(*guard);
                                 }
                                 for target in transition.targets() {
                                     scan_transition_target(
@@ -308,6 +253,22 @@ fn scan_expression(
         return;
     }
 
+    macro_rules! scan_operand {
+        ($expression:expr $(,)?) => {
+            scan_expression(
+                program,
+                machine,
+                state,
+                observations,
+                $expression,
+                diagnostics,
+                stored_integer_writes,
+                statement_index,
+                formation_obligations,
+            )
+        };
+    }
+
     // The child roster is the shared expression traversal's, so this scan
     // cannot drift from the checks that walk the same tree. Only three node
     // kinds keep an arm of their own, because their judgment rather than their
@@ -341,17 +302,7 @@ fn scan_expression(
             );
         }
         ExpressionNode::Binary(binary) => {
-            scan_expression(
-                program,
-                machine,
-                state,
-                observations,
-                binary.left,
-                diagnostics,
-                stored_integer_writes,
-                statement_index,
-                formation_obligations,
-            );
+            scan_operand!(binary.left);
             let membership = matches!(
                 binary.operator,
                 typed_trees::expression::BinaryOperator::Equal
@@ -389,32 +340,12 @@ fn scan_expression(
                         machine.name, state.name,
                     )));
                 }
-                scan_expression(
-                    program,
-                    machine,
-                    state,
-                    observations,
-                    binary.right,
-                    diagnostics,
-                    stored_integer_writes,
-                    statement_index,
-                    formation_obligations,
-                );
+                scan_operand!(binary.right);
             }
             return;
         }
         ExpressionNode::Atomic(atomic) => {
-            scan_expression(
-                program,
-                machine,
-                state,
-                observations,
-                atomic.value,
-                diagnostics,
-                stored_integer_writes,
-                statement_index,
-                formation_obligations,
-            );
+            scan_operand!(atomic.value);
             return;
         }
         ExpressionNode::Name(path) => {
@@ -468,17 +399,7 @@ fn scan_expression(
         _ => {}
     }
     crate::expression_traversal::children(program, node, |child| {
-        scan_expression(
-            program,
-            machine,
-            state,
-            observations,
-            child,
-            diagnostics,
-            stored_integer_writes,
-            statement_index,
-            formation_obligations,
-        );
+        scan_operand!(child);
     });
 }
 

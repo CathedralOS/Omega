@@ -116,12 +116,7 @@ impl Builder<'_, '_> {
         }
 
         if self.uses_captured_dispatch_value(expression) {
-            let reference = validation::expression_type_reference_in_state(
-                self.program,
-                self.state,
-                self.statement_index,
-                expression,
-            )?;
+            let reference = self.expression_type(expression)?;
             let primitive = self.program.primitive_type_reference(reference)?;
             if !is_integer(primitive) || expected.is_some_and(|expected| expected != primitive) {
                 return None;

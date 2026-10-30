@@ -114,8 +114,10 @@ pub struct TerminalExecution<'artifact> {
     /// projected pieces cannot infer a new whole allocation from resident bits.
     pub(crate) original_storage_roots: RuntimeRows<
         StructuralRuntimePlace,
-        crate::effects::original_storage::TerminalOriginalStorageRoot,
+        crate::effects::original_storage::OriginalStorageAllocation,
     >,
+    pub(crate) original_byte_cells:
+        RuntimeRows<(u64, usize), crate::effects::original_storage::OriginalByteCell>,
     pub(crate) reference_referents:
         RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Homes whose bindings have retired may still supply a live descriptor's
@@ -153,7 +155,10 @@ pub struct TerminalExecution<'artifact> {
     /// Completed byte payloads addressed by exact typed storage home. Fixed
     /// byte arrays and stored shared descriptors reuse the backing representation;
     /// each observing operation separately authenticates its declared carrier.
-    pub(crate) structural_byte_storage: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+    pub(crate) structural_byte_storage: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage,
+    >,
     pub(crate) empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
@@ -616,6 +621,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_values,
             aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
             original_storage_roots: RuntimeRows::new(account.as_ref()),
+            original_byte_cells: RuntimeRows::new(account.as_ref()),
             reference_referents: RuntimeRows::new(account.as_ref()),
             structural_element_view_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_descriptors: RuntimeRows::new(account.as_ref()),

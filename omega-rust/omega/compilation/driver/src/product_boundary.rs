@@ -594,11 +594,27 @@ fn terminal_cohorts_retain_admitted_products() {
 #[test]
 fn installation_reach_settlement_consumes_prepared_rows() {
     let projection = include_str!(
-        "../../realization/provider-planning/src/provider_planning/installation_reach.rs"
+        "../../realization/provider-planning/src/provider_planning/selected_declarations.rs"
     );
     assert!(projection.contains("provider.row_requirements"));
     assert!(projection.contains("provider.row_realizations"));
-    assert!(projection.contains("provider_selection::resolve_installation_reach(rows)"));
+    assert!(projection.contains("checked.provider_declarations("));
+    let binding = include_str!("../../realization/provider-selection/src/selected_binding.rs");
+    assert!(binding.contains("crate::resolve_installation_reach(reaches)"));
+    assert!(binding.contains("with_specialized_requirement_rows("));
+    assert!(binding.contains("with_external_requirement_applications("));
+    assert!(binding.contains("with_installation_reach_resolutions("));
+    for forbidden in ["CheckFacts", "TypedTrees", "checked_trees", "SymbolHandle"] {
+        assert!(
+            !binding.contains(forbidden),
+            "selected binding reopens {forbidden}"
+        );
+    }
+    let source = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_declarations.rs"
+    );
+    assert!(source.contains("capture.conformance_application.trait_scope.scope(typed)"));
+    assert!(!source.contains("realized_row_machine("));
     for forbidden in [
         "typed.machines()",
         "typed.traits()",
@@ -623,6 +639,81 @@ fn installation_reach_settlement_consumes_prepared_rows() {
             "reach settlement reopens {forbidden}"
         );
     }
+}
+
+#[test]
+fn checked_operator_choice_consumes_retained_candidates() {
+    let admission = include_str!(
+        "../../realization/provider-planning/src/provider_planning/source_provider_selections.rs"
+    );
+    let dispatch = include_str!(
+        "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
+    );
+    for consumer in [admission, dispatch] {
+        assert!(consumer.contains("selected_checked_operator_body"));
+        for forbidden in [
+            "specialized_provider_machines",
+            "machine_specializations",
+            "machine_trait_conformances",
+            "resolve_satisfied_checked_operator",
+            "resolve_specialized_checked_operator",
+        ] {
+            assert!(
+                !consumer.contains(forbidden),
+                "operator body choice reconstructs {forbidden}"
+            );
+        }
+    }
+    assert!(admission.contains(".project_body_candidates(application,"));
+    let projection = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/checked_trees/operators.rs"
+    );
+    assert!(projection.contains("boundary_declarations"));
+    assert!(projection.contains("boundary_body_candidates"));
+    assert!(projection.contains(".span(application.body_candidates)"));
+    let policy = include_str!("../../realization/provider-selection/src/checked_bodies.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "checked-body policy reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn qualification_grants_consume_prepared_issuer_evidence() {
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains(".admitted_qualification_issuers()"));
+    let policy = include_str!("../../realization/provider-selection/src/qualification_grants.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "grant policy reopens {forbidden}"
+        );
+    }
+    let preparation = include_str!(
+        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts.rs"
+    );
+    let issuers = preparation
+        .find("qualification_evidence::prepare_issuers(")
+        .unwrap();
+    let occurrences = preparation
+        .find("append_contract_semantic_facts(program")
+        .unwrap();
+    assert!(
+        issuers < occurrences,
+        "issuer identities must precede occurrence production"
+    );
 }
 
 #[test]
@@ -801,7 +892,7 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     assert!(publication.contains("candidate.explicitly_selected"));
     assert!(publication.contains("module.boundary_machines"));
     assert!(publication.contains("crate::choose("));
-    assert!(publication.contains("crate::admit(selected, &[])?"));
+    assert!(publication.contains("crate::admit("));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
     let production = include_str!("terminal/terminal_artifact.rs");
     assert!(production.contains("provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication"));
@@ -968,6 +1059,70 @@ fn selected_execution_does_not_copy_checked_programs() {
 }
 
 #[test]
+fn selected_numeric_admission_consumes_retained_declarations() {
+    let evidence = include_str!("../../realization/provider-selection/src/boundary_review.rs");
+    assert!(evidence.contains("requirement.numeric_requirement?"));
+    assert!(evidence.contains("selected_execution_for_identity("));
+    assert!(!evidence.contains(".execution_identity(typed)"));
+    assert!(!evidence.contains(".intrinsic_realization_matches(typed,"));
+    let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(preparation.contains("review: &external_providers.boundary_provider_review()"));
+    assert!(
+        preparation.find(".require_owner(").unwrap()
+            < preparation
+                .find("bind_selected_provider_plan_facts(")
+                .unwrap()
+    );
+}
+
+#[test]
+fn boundary_application_policy_has_one_source_free_owner() {
+    let settlement = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/boundary_application_settlement.rs"
+    );
+    assert!(settlement.contains("provider_selection::select_boundary_applications("));
+    assert!(settlement.contains("TerminalBoundaryApplicationCoverage::new("));
+    assert!(!settlement.contains("ProviderBinding::"));
+    assert!(!settlement.contains("boundary_application_candidates"));
+    let source = include_str!("../../realization/provider-selection/src/boundary_review.rs");
+    assert!(source.contains("selected_execution_for_identity("));
+    assert!(!source.contains("effects::external_providers::selected_numeric_provider("));
+}
+
+#[test]
+fn selected_boundary_admission_reads_checked_classification() {
+    let admission = include_str!("../../realization/provider-selection/src/boundary_review.rs");
+    for forbidden in [
+        "CheckFacts",
+        "SymbolHandle",
+        "checked_trees",
+        "typed:",
+        "typed.",
+        "IntrinsicRequirement::",
+        "schema_binds_exact_",
+        "use_site_is_generic_template(",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "Product admission reconstructs {forbidden}"
+        );
+    }
+    assert!(admission.contains("BoundaryOperatorApplication::GenericTemplate"));
+    assert!(admission.contains("crate::select_checked_body(plan,"));
+    let projection = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/boundary_review.rs"
+    );
+    assert!(projection.contains("provider_requirements"));
+    assert!(projection.contains("usage.is_generic_template"));
+    assert!(projection.contains("operators.project_body_candidates(application,"));
+    let adapters = include_str!(
+        "../../realization/provider-planning/src/provider_planning/source_provider_selections.rs"
+    );
+    assert!(!adapters.contains("validate_selected_operator_provider_evidence"));
+    assert!(!adapters.contains("validate_selected_requirement_provider_evidence"));
+}
+
+#[test]
 fn terminal_consumers_call_psi_without_a_product_wrapper() {
     let manifest = include_str!("../Cargo.toml");
     assert!(!manifest.contains("terminal-production ="));
@@ -1029,6 +1184,46 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
             "{unrelated_owner} returned to grant reconstruction"
         );
     }
+}
+
+#[test]
+fn terminal_composition_admission_owns_the_application_root_loop() {
+    let producer = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/terminal_production.rs"
+    );
+    assert_eq!(producer.matches("application.admit(").count(), 1);
+    assert!(!producer.contains("retained_source_machine("));
+    let composition = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/composition_admission.rs"
+    );
+    assert_eq!(composition.matches("admission.admit(").count(), 1);
+    assert!(composition.contains("admission.admit(&lowered.semantic_module, &mut roots)"));
+    assert!(!composition.contains("for machine in std::iter::once(selection.machine)"));
+    let policy = include_str!("terminal/behavior_exclusions.rs");
+    assert_eq!(
+        policy
+            .matches("close_checked_provider_specializations(")
+            .count(),
+        1
+    );
+    assert_eq!(
+        policy
+            .matches("authored_behavior_exclusion_set_in(")
+            .count(),
+        1
+    );
+    let projection = policy
+        .find("let first = first?;")
+        .expect("first body projection");
+    let preparation = policy
+        .find("close_checked_provider_specializations(")
+        .expect("provider closure");
+    let root_loop = policy
+        .find("for root in std::iter::once(Ok(first)).chain(roots)")
+        .expect("ordered root admission");
+    assert!(projection < preparation && preparation < root_loop);
+    assert!(policy.contains("&root.provenance"));
+    assert!(policy.contains("for root in roots {\n                root?;"));
 }
 
 #[test]
@@ -1182,11 +1377,84 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
         "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec.rs"
     );
     assert!(selection.contains("callback_roots"));
-    assert!(source.contains("select_nominal_callback_roots"));
+    let roots = include_str!("../../realization/provider-planning/src/callback_roots.rs");
+    assert!(roots.contains("provider_selection::select_callback_roots(candidates)"));
     for source in [selection, source, persisted] {
         assert!(!source.contains("NativeCallbackPlacement"));
         assert!(!source.contains("SelectedCallbackPlacement"));
     }
     assert!(!request.contains("pub callback_placements:"));
     assert!(request.contains("callback_settlement::place_callbacks"));
+}
+
+#[test]
+fn callback_root_policy_consumes_prepared_source_correspondence() {
+    let preparation = include_str!("../../realization/provider-planning/src/callback_roots.rs");
+    assert!(preparation.contains("project_checked_provider_instances("));
+    assert!(!preparation.contains("program.callback_declaration(usage)"));
+    assert!(!preparation.contains("program.facts.nominal_machine_uses"));
+    assert!(preparation.contains("declarations.declaration(usage)"));
+    assert!(preparation.contains("selected_instances.selected_requirement_row(identity)"));
+    assert!(preparation.contains("crate::exact_checked_adapter(context, plan, row)"));
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("realization.boundary_arguments.is_empty()"));
+    assert!(binding.contains("external_providers.callbacks.calling_requirements("));
+    let policy = include_str!("../../realization/provider-selection/src/callback_roots.rs");
+    for forbidden in [
+        "TypedTrees",
+        "CheckFacts",
+        "SymbolHandle",
+        "provider_planning",
+        "checked_trees",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "callback root policy reopens {forbidden}"
+        );
+    }
+    let source = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/callback_declarations.rs"
+    );
+    for forbidden in [
+        "ProviderPlan",
+        "selected_requirement_row",
+        "calling_plan_matches",
+        "realized_row_machine",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "callback source facts decide {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn selected_callback_custody_carries_declarations_not_source_symbols() {
+    let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
+    assert!(
+        selection.contains("pub callback_roots: psi_terminal_production::PreparedTerminalRoots")
+    );
+    let custody =
+        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+    assert!(custody.contains("pub callback_roots: Option<&'a crate::PreparedTerminalRoots>"));
+    assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
+    let preparation = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/prepared_terminal_roots.rs"
+    );
+    assert!(!preparation.contains("symbols::SymbolHandle"));
+    assert!(preparation.contains("declaration.same_identity_as("));
+    let declarations = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
+    );
+    assert!(declarations.contains("checked.callback_declaration(usage)"));
+    assert!(declarations.contains("declarations::identity("));
+    assert!(declarations.contains("RootDeclaration::Unavailable(reason.clone())"));
+    assert!(declarations.contains("usage.published_requirement_envelope"));
+    assert!(declarations.contains("usage.selected_actual_envelope"));
+    assert!(declarations.contains("usage.callback_entry.map("));
+    let admission = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/composition_admission.rs"
+    );
+    assert!(admission.contains("entry.chain(callbacks).chain(adapter)"));
+    assert!(admission.contains("roots.retained_roots(&lowered.semantic_module)"));
 }

@@ -157,8 +157,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and private helper coordinates for
-    case projections beyond independently classified inline payloads, further
-    independently captured reference loads, and declared-view or
+    case projections behind additional independently captured index
+    loads, and declared-view or
     dependent-distance joint SCC measures without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -189,10 +189,7 @@ retired-syntax deletions to completion.
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
-    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)
-    and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
-    on Linux/Windows without rebuilding `proven_predicates_grant_domain`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
+    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
@@ -289,6 +286,45 @@ retired-syntax deletions to completion.
   `self`/`Self`, data-subject satisfaction, implicit receiver arguments,
   data-owned machine declarations, conformance reference-row assignments, or
   source-visible `Binding<R>`.
+
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (also covers
+  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**)
+  Complete runtime selection of named implementations (`dyn`) with separated
+  selector and data lanes under
+  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md) end to end
+  across Psi checking/lowering/interpretation, package review, Omega 8-byte
+  dispatch-table realization, and `source/psi/` + `source/omega/` product parity.
+  - **Psi checking, contracts, and package review
+    (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
+    - Extend requirement-contract checking at selector calls beyond exact fact
+      correspondence to transparent proposition aliases, supported integer
+      arithmetic, and literal IEEE-bound weakening while preserving the
+      requirement's public contract independently of stronger implementation
+      guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
+      all nine places).
+    - Complete suspending requirements with borrowed values and remaining
+      operational envelope refinement, retaining the scalar/Unit-call,
+      live-value, and exact selector-envelope witnesses in
+      `samples/cli/facts/dynamic_suspension`; finish crash-refinement
+      rows when operands lead with the selector and ranked recursion cycles
+      crossing a dispatch edge
+      (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked` until ranked).
+    - Extend public slot metadata with returned-borrow origins and parameter
+      qualification preconditions, consume the new records in package review,
+      and implement `source/psi/` and `source/omega/` producer/consumer parity.
+  - **Omega realization and cross-host native execution:**
+    - Preserve complete 8-byte tables, zero trap slots, exact private callable
+      identities, and patched image targets across all supported hosts, including
+      matching-host Windows x86-64 execution.
+  Acceptance: `python3 tools/corpus_gate.py --both --filter traits/` (including
+  `runtime_dyn_rebound_selector_forwarded_exit`,
+  `runtime_dyn_two_impl_dispatch_exit`,
+  `runtime_dyn_{structural,nested,array,guarded,linear}_result_exit`,
+  `runtime_dyn_data_argument_counts_exit`, `runtime_dyn_joined_selector_exit`,
+  and `runtime_dyn_selector_record_field_exit`) passes with Terminal and native
+  agreement on all matching supported hosts (including Windows and macOS), and
+  copying or rebinding a selector neither captures data nor changes its borrow
+  lifetime.
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machine declarations
   and implicit same-path target-body families in favor of ordinary named

@@ -937,6 +937,18 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
         );
         for (key, semantic) in selected_arithmetic_rules(&environment) {
             let contract = arithmetic_contract(semantic, case.target.architecture);
+            macro_rules! reject_encoded {
+                ($corrupted:expr, $message:literal $(, $arg:expr)*) => {
+                    assert_eq!(
+                        validate_effects(case, environment.constraints(), $corrupted),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
+                        $message $(, $arg)*
+                    );
+                };
+            }
+
             let row = environment.constraint(key).unwrap();
             let alternatives = catalog
                 .declarations
@@ -965,11 +977,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .encoded
                         .control = control;
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
+                    reject_encoded!(
+                        corrupted,
                         "{key:?} foreign control shape {control:?} must reject"
                     );
                 }
@@ -983,13 +992,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     pointer_operand: 0,
                     byte_count: 8,
                 };
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} forged memory footprint must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} forged memory footprint must reject");
                 let mut corrupted = catalog.clone();
                 declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
@@ -997,13 +1000,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     stack_pointer: stack_pointer.id,
                     byte_count: 8,
                 };
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} forged stack lifecycle must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
                 // Trap drift stays inside the admitted fallthrough surface
                 // for both admitted values, so only canonical ISA replay
@@ -1025,13 +1022,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} hosted trap shape must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} hosted trap shape must reject");
 
                 // Encoded operand custody: losing a declared read or write
                 // understates the contracted surface and fails structural
@@ -1044,13 +1035,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .encoded
                         .external_operand_reads;
                     reads.retain(|read| *read != dropped);
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
-                        "{key:?} lost operand read must reject"
-                    );
+                    reject_encoded!(corrupted, "{key:?} lost operand read must reject");
                 }
                 if let Some(&dropped) = expected.writes.last() {
                     let mut corrupted = catalog.clone();
@@ -1059,13 +1044,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .encoded
                         .external_operand_writes;
                     writes.retain(|write| *write != dropped);
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
-                        "{key:?} lost operand write must reject"
-                    );
+                    reject_encoded!(corrupted, "{key:?} lost operand write must reject");
                 }
                 // A read the row does offer but the form does not take — the
                 // zeroing subtraction form — is just as contracted out: the
@@ -1084,26 +1063,14 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .external_operand_reads;
                     reads.push(unread.operand);
                     reads.sort_unstable();
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
-                        "{key:?} invented operand read must reject"
-                    );
+                    reject_encoded!(corrupted, "{key:?} invented operand read must reject");
                 }
                 let mut corrupted = catalog.clone();
                 let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .external_operand_reads;
                 reads.push(row.operands.len() as u16);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} out-of-row operand read must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} out-of-row operand read must reject");
                 if let Some(write_operand) = row
                     .operands
                     .iter()
@@ -1122,13 +1089,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .external_operand_reads;
                     reads.push(write_operand);
                     reads.sort_unstable();
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
-                        "{key:?} reading a defined operand must reject"
-                    );
+                    reject_encoded!(corrupted, "{key:?} reading a defined operand must reject");
                 }
                 let mut corrupted = catalog.clone();
                 let forged = row
@@ -1147,13 +1108,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     .external_operand_writes;
                 writes.push(forged);
                 writes.sort_unstable();
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} forged operand write must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} forged operand write must reject");
 
                 // Encoded implicit custody: a unit the row does not declare
                 // fails structural admission, and so does losing a declared
@@ -1163,50 +1118,26 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     .encoded
                     .implicit_unit_uses
                     .push(stack_pointer.units[0]);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} forged implicit use must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} forged implicit use must reject");
                 let mut corrupted = catalog.clone();
                 declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .implicit_unit_defs
                     .push(stack_pointer.units[0]);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} forged implicit definition must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} forged implicit definition must reject");
                 let mut corrupted = catalog.clone();
                 declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .implicit_unit_clobbers
                     .push(stack_pointer.units[0]);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} forged implicit clobber must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} forged implicit clobber must reject");
                 if contract.flags == FlagsCustody::Use {
                     let mut corrupted = catalog.clone();
                     declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .encoded
                         .implicit_unit_uses
                         .retain(|unit| !flags.units.contains(unit));
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
-                        "{key:?} lost condition-code use must reject"
-                    );
+                    reject_encoded!(corrupted, "{key:?} lost condition-code use must reject");
                 }
                 if contract.flags == FlagsCustody::Def {
                     let mut corrupted = catalog.clone();
@@ -1214,11 +1145,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .encoded
                         .implicit_unit_defs
                         .retain(|unit| !flags.units.contains(unit));
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
+                    reject_encoded!(
+                        corrupted,
                         "{key:?} lost condition-code definition must reject"
                     );
                 }
@@ -1228,13 +1156,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .encoded
                         .implicit_unit_clobbers
                         .remove(0);
-                    assert_eq!(
-                        validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::Structural(
-                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                        )),
-                        "{key:?} lost encoded clobber must reject"
-                    );
+                    reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");
                 }
 
                 // The alternative stays bound to its own family and admitted

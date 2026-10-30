@@ -191,8 +191,9 @@ chain slots.
 
 ## Submit once to the merge queue
 
-After focused validation and required review, push the source branch, open a PR,
-and follow [landing](../../../tools/landing.md). GitHub checks the integrated
+After focused validation and required review, push the source branch, open or
+update its draft PR, and follow [landing](../../../tools/landing.md). Mark it
+ready only at enqueue. GitHub checks the integrated
 candidate and serializes publication. Main advancing does not send the author
 back through a rebase/build/review loop. Resolve actual conflicts or failed
 checks, and verify the merged PR's source head and published squash commit.

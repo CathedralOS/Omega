@@ -191,6 +191,17 @@ impl DomainEstablishmentRoute {
     }
 }
 
+/// Source-independent issuer coordinates retained with checked qualification.
+/// These export identities describe the declaration, not an installed grant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BoundaryQualificationIssuer {
+    pub requirement_identity: String,
+    pub boundary_path: String,
+    pub boundary_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Build-only declarations cannot own a Product provider's grant.
+    pub is_product_owner: bool,
+}
+
 /// Why one checked membership fact may qualify its exact runtime subject.
 ///
 /// This is deliberately independent from the fact's program-point origin:

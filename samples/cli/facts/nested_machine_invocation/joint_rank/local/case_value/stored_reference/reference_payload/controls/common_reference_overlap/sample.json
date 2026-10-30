@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "borrows `guard` while local borrow `payload` is still active"
+  ]
+}

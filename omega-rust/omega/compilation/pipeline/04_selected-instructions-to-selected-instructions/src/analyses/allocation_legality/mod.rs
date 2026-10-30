@@ -72,29 +72,18 @@ pub fn analyze_allocation_legality_reusing(
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocationLegalityValidationReceipt {
-    pub(crate) identity: AllocationLegalityIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) virtual_register_count: usize,
-    pub(crate) point_count: usize,
-    pub(crate) candidate_count: usize,
-    pub(crate) entry_transition_count: usize,
-}
-
-impl AllocationLegalityValidationReceipt {
-    receipt_accessor_rows!(AllocationLegalityValidationReceipt {
-        identity: AllocationLegalityIdentity,
-        virtual_register_count: usize,
-        point_count: usize,
-        candidate_count: usize,
-        entry_transition_count: usize,
-        ranges: LiveRangeIdentity,
-        register_environment: TargetRegisterEnvironmentIdentity,
-        allocator_availability: AllocatorAvailabilityIdentity,
-    });
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct AllocationLegalityValidationReceipt {
+        pub(crate) identity: AllocationLegalityIdentity,
+        pub(crate) ranges: LiveRangeIdentity,
+        pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+        pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
+        pub(crate) virtual_register_count: usize,
+        pub(crate) point_count: usize,
+        pub(crate) candidate_count: usize,
+        pub(crate) entry_transition_count: usize,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

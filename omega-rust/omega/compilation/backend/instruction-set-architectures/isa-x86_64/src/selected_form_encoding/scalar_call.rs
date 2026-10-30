@@ -87,13 +87,10 @@ pub enum X86_64ScalarCallTemplateError {
     FixupMismatch,
 }
 
-impl std::fmt::Display for X86_64ScalarCallTemplateError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid x86-64 scalar-call template: {self:?}")
-    }
-}
-
-impl std::error::Error for X86_64ScalarCallTemplateError {}
+optimization_core::invalid_error_display!(
+    X86_64ScalarCallTemplateError,
+    "x86-64 scalar-call template"
+);
 
 /// Produce `E8 + zero rel32` with an explicit unresolved internal-call fixup.
 pub fn encode_x86_64_selected_scalar_call_template(

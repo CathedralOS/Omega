@@ -51,18 +51,18 @@ pub(crate) fn validate_proof_embeddings(
     let mut runtime_nodes = Vec::new();
     let mut proof_seen = HashSet::default();
     let mut runtime_seen = HashSet::default();
+    macro_rules! nodes {
+        ($a:expr => $b:expr => $c:expr => $d:expr) => {
+            collect_expression_nodes($a, $b, $c, $d)
+        };
+    }
     for (_, fact) in typed_trees::references::program_proof_facts(program) {
         match fact {
             ProofFact::Expression(expression) => {
                 collect_expression_nodes(program, *expression, &mut proof_nodes, &mut proof_seen);
             }
             ProofFact::Membership(membership) => {
-                collect_expression_nodes(
-                    program,
-                    membership.value,
-                    &mut proof_nodes,
-                    &mut proof_seen,
-                );
+                nodes!(program => membership.value => &mut proof_nodes => &mut proof_seen);
             }
             ProofFact::Proposition(application) => {
                 for argument in program
@@ -81,24 +81,14 @@ pub(crate) fn validate_proof_embeddings(
         if let PropositionBody::Transparent { proposition } = &proposition.body {
             match proposition {
                 PropositionFormula::BooleanExpression(expression) => {
-                    collect_expression_nodes(
-                        program,
-                        *expression,
-                        &mut proof_nodes,
-                        &mut proof_seen,
-                    );
+                    nodes!(program => *expression => &mut proof_nodes => &mut proof_seen);
                 }
                 PropositionFormula::Application(application) => {
                     for argument in program
                         .expression_table
                         .expression_handles(application.arguments)
                     {
-                        collect_expression_nodes(
-                            program,
-                            *argument,
-                            &mut proof_nodes,
-                            &mut proof_seen,
-                        );
+                        nodes!(program => *argument => &mut proof_nodes => &mut proof_seen);
                     }
                 }
             }
@@ -106,12 +96,7 @@ pub(crate) fn validate_proof_embeddings(
     }
     for machine in program.machines() {
         for data in program.machine_owned_data(machine) {
-            collect_expression_nodes(
-                program,
-                data.initial_value,
-                &mut runtime_nodes,
-                &mut runtime_seen,
-            );
+            nodes!(program => data.initial_value => &mut runtime_nodes => &mut runtime_seen);
         }
         if classification.is_proof_machine(program, machine)
             || crate::mathematical_applications::is_indexed_logical_machine(program, machine)
@@ -132,12 +117,7 @@ pub(crate) fn validate_proof_embeddings(
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     if let Some(fact) = statement.as_assembly_fact() {
                         for expression in program.tables.proof_fact_expression_roots(fact.fact) {
-                            collect_expression_nodes(
-                                program,
-                                expression,
-                                &mut proof_nodes,
-                                &mut proof_seen,
-                            );
+                            nodes!(program => expression => &mut proof_nodes => &mut proof_seen);
                         }
                     } else {
                         collect_statement_nodes(

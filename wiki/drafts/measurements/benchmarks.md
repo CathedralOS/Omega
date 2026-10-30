@@ -1,5 +1,9 @@
 # Benchmark records
 
+[Cathedral composition, 2026-10-28](cathedral_2026_10_28/README.md): frozen
+eight-entry customer workload, partial native compilation measurements and
+the compatibility failures preventing a full-build baseline.
+
 Versioned compile-time, peak-memory, code-size, and runtime
 measurements of the reference compiler, one JSON record per (subject,
 target, exact rule selection) row. The harness and schema live in
@@ -86,7 +90,7 @@ when this block drifts.
 | macos_x86_64 | darwin arm64 | structural_proofs | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | Intel macOS host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
-| windows_x86_64 | win32 AMD64 | prime_counter | default | measured 961.139 ms | measured 2429493248 B compile | measured 9728 B | measured 57.6845 ms |
+| windows_x86_64 | win32 AMD64 | prime_counter | default | measured 1862.88 ms | measured 2390020096 B compile | measured 9728 B | measured 110.461 ms |
 | windows_x86_64 | win32 AMD64 | segmented_packet_checksum | default | measured 483.861 ms | measured 972832768 B compile | measured 5120 B | measured 62.7086 ms |
 | windows_x86_64 | win32 AMD64 | standalone | default | measured 628.277 ms | measured 916328448 B compile | measured 1024 B | skipped (--no-run was passed) |
 | windows_x86_64 | darwin arm64 | structural_proofs | default | measured 21449.6 ms | measured 116834304 B compile | measured 1024 B | skipped (--no-run was passed) |

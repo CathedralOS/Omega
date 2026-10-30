@@ -1,0 +1,2 @@
+source adapter failed for product dependency row 4 of package `cathedral`: \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\workspace-members\catalog-0db00540737f09a6d64792cfe5fcba49f8a0689331ddf335b31332d26f080b56\849161c59ff74176dafc3f8de5ff66148581de22: captured entry path is not canonical: .agents/skills
+package-review settlement failed; omega.lock missing in C:\SoftwareDevelopmentKits\Omega\.agents\worktree\perf-spill-round\build\cathedral-baseline\Cathedral-syntax-migration\source\kernel\boot\uefi (update exit 1)

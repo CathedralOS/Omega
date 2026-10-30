@@ -36,6 +36,17 @@ pub(super) fn collect_call_summaries(
     if !expression.is_valid() {
         return;
     }
+    macro_rules! visit_child {
+        ($child:expr) => {
+            collect_call_summaries(
+                program,
+                $child,
+                state_to_machine,
+                summaries,
+                call_established,
+            );
+        };
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
             let target_machine = state_to_machine
@@ -46,169 +57,55 @@ pub(super) fn collect_call_summaries(
                 call_established.extend(established.iter().cloned());
             }
             // The receiver expression may itself carry a call (`f().m()`).
-            collect_call_summaries(
-                program,
-                call.receiver,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(call.receiver);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_call_summaries(
-                    program,
-                    *argument,
-                    state_to_machine,
-                    summaries,
-                    call_established,
-                );
+                visit_child!(*argument);
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_call_summaries(
-                program,
-                binary.left,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
-            collect_call_summaries(
-                program,
-                binary.right,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(binary.left);
+            visit_child!(binary.right);
         }
         ExpressionNode::Member(member) => {
-            collect_call_summaries(
-                program,
-                member.receiver,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(member.receiver);
         }
         ExpressionNode::Borrow(inner) => {
-            collect_call_summaries(
-                program,
-                inner.target,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(inner.target);
         }
         ExpressionNode::Indexed(indexed) => {
-            collect_call_summaries(
-                program,
-                indexed.collection,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
-            collect_call_summaries(
-                program,
-                indexed.index,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(indexed.collection);
+            visit_child!(indexed.index);
         }
         ExpressionNode::Cast(cast) => {
-            collect_call_summaries(
-                program,
-                cast.value,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(cast.value);
         }
         ExpressionNode::Unary(unary) => {
-            collect_call_summaries(
-                program,
-                unary.operand,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(unary.operand);
         }
         ExpressionNode::Atomic(atomic) => {
-            collect_call_summaries(
-                program,
-                atomic.value,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
-            collect_call_summaries(
-                program,
-                atomic.result,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(atomic.value);
+            visit_child!(atomic.result);
         }
         ExpressionNode::Range(range) => {
-            collect_call_summaries(
-                program,
-                range.start,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
-            collect_call_summaries(
-                program,
-                range.end,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(range.start);
+            visit_child!(range.end);
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
-                collect_call_summaries(
-                    program,
-                    *element,
-                    state_to_machine,
-                    summaries,
-                    call_established,
-                );
+                visit_child!(*element);
             }
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                collect_call_summaries(
-                    program,
-                    field.value,
-                    state_to_machine,
-                    summaries,
-                    call_established,
-                );
+                visit_child!(field.value);
             }
         }
         ExpressionNode::Match(matched) => {
-            collect_call_summaries(
-                program,
-                matched.subject,
-                state_to_machine,
-                summaries,
-                call_established,
-            );
+            visit_child!(matched.subject);
             for arm in program.expression_table.match_arms(matched.arms) {
-                collect_call_summaries(
-                    program,
-                    arm.value,
-                    state_to_machine,
-                    summaries,
-                    call_established,
-                );
+                visit_child!(arm.value);
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    collect_call_summaries(
-                        program,
-                        pattern,
-                        state_to_machine,
-                        summaries,
-                        call_established,
-                    );
+                    visit_child!(pattern);
                 }
             }
         }

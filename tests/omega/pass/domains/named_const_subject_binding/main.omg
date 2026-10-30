@@ -11,7 +11,7 @@ domain u64::Small::Explicit requires self < 4;
 domain u64::Nested requires self in Small;
 domain<const Bound: u64> u64::Below<Bound> requires self < Bound;
 domain<const Index: u64> [u64; 2]::SmallAt<Index>
-requires self[Index] in Small;
+requires Index < 2 && (self[Index] in Small);
 
 data Packet [copy] {
     count: u64;

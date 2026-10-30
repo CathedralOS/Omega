@@ -92,6 +92,7 @@ pub(crate) fn reference_places_at_snapshot(
                 capture,
                 reference,
                 projection,
+                ..
             } => {
                 if !control.operands.is_valid(capture) {
                     return Some(Vec::new());

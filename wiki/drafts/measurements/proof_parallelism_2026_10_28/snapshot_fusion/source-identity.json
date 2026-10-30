@@ -1,0 +1,9 @@
+{
+  "base": "918d31d10acb687b5d81bb827f8e7f3e6e78b146",
+  "semantic_base": "456c5e984452a45d977295e254b3ca9ae3cc7750",
+  "candidate_patch_sha256": "cf20fe35e15b5999760e9889053ac610ca04ca1e3762d790ab8fb820f800c5b0",
+  "extracted_candidate_sha256": "75b0268dbbe2a0975a67d0c8aa203bdbd02ef1f4f6455fa4a0d80c4adb578786",
+  "algorithm_test_model": "full candidate body, ordered root/version Proposition surrogate",
+  "timing_patch_sha256": "196545efc1d121f8c99bab19308bbd6dd6816265b0e8354c3200cb9949518467",
+  "counts_patch_sha256": "cf64325f0f48f14c23673f9e4c654efb675ea081022552f42365c0378ad2c6fa"
+}

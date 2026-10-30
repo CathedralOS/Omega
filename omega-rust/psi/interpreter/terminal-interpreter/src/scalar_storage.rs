@@ -30,6 +30,29 @@ pub(crate) enum ScalarCell {
     },
 }
 
+// Equality must not perform fallible host reads or treat a failed observation
+// as a value. Residents compare by their exact endpoint, locals by contents.
+impl PartialEq for ScalarCell {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Local(left), Self::Local(right)) => left == right,
+            (
+                Self::Resident {
+                    scalar_type: left_type,
+                    backing: left,
+                },
+                Self::Resident {
+                    scalar_type: right_type,
+                    backing: right,
+                },
+            ) => left_type == right_type && Rc::ptr_eq(left, right),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ScalarCell {}
+
 impl ScalarCell {
     pub(crate) fn resident(
         original: TerminalScalarValue,

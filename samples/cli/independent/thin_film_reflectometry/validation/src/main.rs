@@ -6,7 +6,9 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "thin-film-reflectometry-validation",
     review: true,
+    caps: None,
     evidence: Evidence::Adjacent,
+    frozen: None,
 };
 
 fn main() {
