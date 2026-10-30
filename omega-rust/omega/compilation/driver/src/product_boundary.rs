@@ -594,11 +594,27 @@ fn terminal_cohorts_retain_admitted_products() {
 #[test]
 fn installation_reach_settlement_consumes_prepared_rows() {
     let projection = include_str!(
-        "../../realization/provider-planning/src/provider_planning/installation_reach.rs"
+        "../../realization/provider-planning/src/provider_planning/selected_declarations.rs"
     );
     assert!(projection.contains("provider.row_requirements"));
     assert!(projection.contains("provider.row_realizations"));
-    assert!(projection.contains("provider_selection::resolve_installation_reach(rows)"));
+    assert!(projection.contains("checked.provider_declarations("));
+    let binding = include_str!("../../realization/provider-selection/src/selected_binding.rs");
+    assert!(binding.contains("crate::resolve_installation_reach(reaches)"));
+    assert!(binding.contains("with_specialized_requirement_rows("));
+    assert!(binding.contains("with_external_requirement_applications("));
+    assert!(binding.contains("with_installation_reach_resolutions("));
+    for forbidden in ["CheckFacts", "TypedTrees", "checked_trees", "SymbolHandle"] {
+        assert!(
+            !binding.contains(forbidden),
+            "selected binding reopens {forbidden}"
+        );
+    }
+    let source = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_declarations.rs"
+    );
+    assert!(source.contains("capture.conformance_application.trait_scope.scope(typed)"));
+    assert!(!source.contains("realized_row_machine("));
     for forbidden in [
         "typed.machines()",
         "typed.traits()",
@@ -671,7 +687,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
 
 #[test]
 fn qualification_grants_consume_prepared_issuer_evidence() {
-    let binding = include_str!("../../realization/provider-planning/src/provider_planning.rs");
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains(".admitted_qualification_issuers()"));
     let policy = include_str!("../../realization/provider-selection/src/qualification_grants.rs");
     for forbidden in [
