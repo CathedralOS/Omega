@@ -31,6 +31,7 @@ mod external_bindings;
 mod machine_termination;
 pub mod numeric_intrinsics;
 mod permissions;
+pub mod provider_declarations;
 pub mod quotient_correspondence;
 mod semantic_domains;
 mod semantic_identities;

@@ -1,12 +1,11 @@
-//! Provider-plan selection and binding to checked programs.
+//! Provider-plan derivation and selected source correspondence.
 //!
-//! Derive candidates from explicit satisfaction, select exact slots, then bind
-//! grants, qualification associations, operator evidence and installation reach.
-//! Subordinate modules own validation and projection; consumers use the selected
-//! immutable carrier rather than rediscovering declarations.
+//! Derive candidates from explicit satisfaction and prepare their exact source
+//! associations. Whole-plan selection and complete binding belong to the
+//! source-free provider-selection owner; Psi projects declaration evidence.
 //!
-//! This file binds, derives and selects provider plans.
-//! `selected_plan_bindings.rs` carries selected facts and grants;
+//! This file derives plans and adapts their source provenance.
+//! `selected_declarations.rs` projects selected source associations for source-free binding;
 //! `source_provider_selections.rs` supplies early/reference source adapters;
 //! `synchronous_cycles.rs` validates synchronous invocation
 //! cycles, and `selection_provenance.rs` projects exact source correspondence
@@ -17,11 +16,11 @@
 //! Early Build's source-only requirement queries remain separate.
 
 pub(crate) mod external_binding_rows;
-mod external_requirements;
-mod installation_reach;
+mod selected_declarations;
+pub use selected_declarations::prepare_selected_plan_declarations;
 mod provenance_replay;
 pub(crate) mod provider_rows;
-mod selected_plan_bindings;
+
 pub(crate) mod selection_declarations;
 mod selection_provenance;
 mod source_provider_selections;
@@ -40,7 +39,7 @@ pub use provenance_replay::{
     exact_checked_adapter, project_checked_provider_instances, same_semantic_name,
     satisfies_plan_name, selected_requirement_checked_adapter,
 };
-pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
+
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, selected_provider_plan_facts,
 };
@@ -53,68 +52,7 @@ pub use source_provider_selections::{
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
 use checked_trees::typed_trees::TypedTrees;
-use effects::provider_grants::AuthoredRootGrant;
-use effects::provider_grants::resolve_selected_provider_grants;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
-
-use installation_reach::derive_selected_installation_reach_resolutions;
-
-/// Build the exact Omega-owned selection sidecar without changing checked Psi.
-/// Provider execution and compiler-generated helpers consume this carrier; neither
-/// may reconstruct a plan by scanning authored `satisfies` rows.
-pub fn bind_selected_provider_plan_facts(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
-    boundary_admission: provider_selection::BoundaryProviderAdmission<'_>,
-    candidates: &[&ProviderPlan],
-    facts: effects::SelectedProviderPlanFacts,
-    provenance: &[SelectedProviderReviewProvenance],
-    root_grants: &[String],
-    authored_root_grants: &[AuthoredRootGrant],
-) -> Result<SelectedProviderPlanBinding, Vec<diagnostics::Diagnostic>> {
-    let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let authored_provider_grants =
-        effects::provider_grants::resolve_authored_selected_provider_grants(
-            candidates,
-            &facts,
-            authored_root_grants,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-    provider_selection::validate_qualification_grants(
-        check_facts
-            .semantic
-            .admitted_qualification_issuers()
-            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?,
-        &facts,
-        &provider_grants,
-    )?;
-    boundary_admission.admit(candidates, &facts)?;
-    let (installation_reach_resolutions, installation_reach_identities) =
-        derive_selected_installation_reach_resolutions(typed, check_facts, &facts, provenance)?;
-    let (specialized_requirement_rows, specialized_identities) =
-        provenance_replay::derive_leaf_requirement_specializations(typed, &facts)?;
-    let (external_applications, external_identities) =
-        external_requirements::derive(typed, &facts, provenance)
-            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    let selected = facts
-        .with_specialized_requirement_rows(specialized_requirement_rows, &specialized_identities)
-        .and_then(|facts| {
-            facts
-                .with_external_requirement_applications(external_applications, &external_identities)
-        })
-        .and_then(|facts| {
-            facts.with_installation_reach_resolutions(
-                installation_reach_resolutions,
-                &installation_reach_identities,
-            )
-        })
-        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    Ok(SelectedProviderPlanBinding {
-        selected,
-        grants: authored_provider_grants,
-    })
-}
 
 /// PRV4c: select one fully covering provider type per applicable boundary
 /// slot. An explicit build-root declaration wins over the selected target

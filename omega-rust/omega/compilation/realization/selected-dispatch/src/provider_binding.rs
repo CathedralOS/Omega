@@ -86,17 +86,21 @@ pub fn prepare_selected_execution(
                 "external provider declarations: {error:?}"
             ))]
         })?;
-    let binding = provider_planning::bind_selected_provider_plan_facts(
+    let declarations = provider_planning::prepare_selected_plan_declarations(
         &program,
-        &program.facts,
+        &settlement.selected_provider_plan_facts,
+        &settlement.selected_provider_provenance,
+    );
+    let binding = provider_selection::bind_selected_provider_plan_facts(
         provider_selection::BoundaryProviderAdmission {
             review: &external_providers.boundary_provider_review(),
             identities: &external_providers.identities,
             external_providers: &external_providers.conformances,
         },
+        program.facts.semantic.admitted_qualification_issuers(),
         &provider_plans,
         settlement.selected_provider_plan_facts,
-        &settlement.selected_provider_provenance,
+        declarations,
         settlement.root_grants,
         settlement.authored_root_grants,
     )?;

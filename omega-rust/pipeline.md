@@ -946,10 +946,21 @@ satisfaction and callable/package/target selection; source eligibility additiona
 checks Product, provider application and lifetime coordinates, while canonical
 admission checks nominal requirement and closed application. Neither fabricates
 the other's metadata. Unused invocation-local declarations are not forced into
-portable publication. The surrounding selected-execution coordinator still
-consumes source installation reach, leaf specialization, callback roots and
-service declarations; its complete source-to-Terminal facade migration remains
-unfinished. Early/reference source adapters remain distinct from Product policy.
+portable publication. Complete selected-plan binding now belongs to
+`provider-selection/selected_binding.rs`: grants, qualification, boundary
+admission, reach resolution, physical-leaf aliases and Import application
+attachment run in their original order without typed trees or check facts.
+Psi projects selected declaration evidence from the exact source associations;
+unavailable evidence remains deferred until its admission phase. Named-provider
+derivation retains the original declaration/capture scope and declaration-row
+order, so source projection never repeats target selection or substitutes an
+open declaration scope for a captured receiving application. The temporary view
+borrows the existing selected plan/provenance rather than creating a second
+candidate cache. Early/reference instance projection shares Psi's closed-leaf
+roster but remains separate from ordinary Product preparation.
+The surrounding selected-execution coordinator still consumes source callback
+roots and service declarations; its complete source-to-Terminal facade migration
+remains unfinished. Early/reference source adapters remain distinct from Product policy.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare
