@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    assert_storage_free, baseline_target_register_environment, declaration_mut, named_view,
-    produced_effects, scalar_abi_cases, validate_effects,
+    assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
+    declaration_mut, named_view, produced_effects, scalar_abi_cases, validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -269,11 +269,7 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
             assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
             assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
             assert_storage_free(encoded, *key);
-            assert_eq!(
-                encoded.trap,
-                MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                "{key:?}"
-            );
+            assert_faulting_trap(encoded, *key);
             assert_eq!(encoded.control, contract.control, "{key:?}");
         }
     }

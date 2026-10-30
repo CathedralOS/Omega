@@ -1,5 +1,5 @@
 use super::{
-    Architecture, BTreeSet, RegisterConstraintKey, assert_storage_free,
+    Architecture, BTreeSet, RegisterConstraintKey, assert_faulting_trap, assert_storage_free,
     baseline_target_register_environment, convention_for, declaration_mut, named_view,
     produced_effects, scalar_abi_cases, validated_effects,
 };
@@ -219,11 +219,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
                 assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
                 assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
-                assert_eq!(
-                    encoded.trap,
-                    MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                    "{key:?}"
-                );
+                assert_faulting_trap(encoded, *key);
                 assert_eq!(
                     encoded.control,
                     if supervisor {

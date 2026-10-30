@@ -26,7 +26,7 @@ use register_model::{
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineSemanticKind, ValidatedMachineEffectCatalog,
+    MachineEncodedTrapBehavior, MachineSemanticKind, ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
 
@@ -236,6 +236,16 @@ fn produced_effects(
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
         Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
     }
+}
+
+/// One encoded rule may take an architectural fault: its encoded trap surface
+/// admits a fault whatever trap policy its declaration states.
+fn assert_faulting_trap(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
+    assert_eq!(
+        encoded.trap,
+        MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        "{key:?}"
+    );
 }
 
 /// One encoded rule that touches no memory and leaves the stack alone: its

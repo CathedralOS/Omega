@@ -1,7 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
-    abi_case_context, assert_storage_free, baseline_target_register_environment, convention_for,
-    declaration_mut, produced_effects, scalar_abi_cases, units_for_names, validate_effects,
+    abi_case_context, assert_faulting_trap, assert_storage_free,
+    baseline_target_register_environment, convention_for, declaration_mut, produced_effects,
+    scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -199,11 +200,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                     .all(|unit| row.implicit_defs.contains(unit)),
                 "{key:?} encoded defs must stay inside the constraint row"
             );
-            assert_eq!(
-                encoded.trap,
-                MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                "{key:?}"
-            );
+            assert_faulting_trap(encoded, *key);
             match case.target.architecture {
                 Architecture::X86_64 => {
                     let stack_pointer = model.view_named("rsp").unwrap();

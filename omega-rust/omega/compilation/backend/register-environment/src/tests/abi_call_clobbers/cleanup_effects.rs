@@ -11,9 +11,9 @@
 //! stack pointer is and how wide a return address runs.
 
 use super::{
-    Architecture, EffectRejection, RegisterConstraintKey, baseline_target_register_environment,
-    declaration_mut, named_view, produced_effects, scalar_abi_cases, validate_effects,
-    validated_effects,
+    Architecture, EffectRejection, RegisterConstraintKey, assert_faulting_trap,
+    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
+    scalar_abi_cases, validate_effects, validated_effects,
 };
 use selected_instructions::{
     MachineCleanupEffect, MachineEffectCatalogValidationError, MachineEncodedControlEffect,
@@ -107,11 +107,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             },
                             "{key:?}"
                         );
-                        assert_eq!(
-                            encoded.trap,
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                            "{key:?}"
-                        );
+                        assert_faulting_trap(encoded, key);
                         assert_eq!(
                             encoded.control,
                             MachineEncodedControlEffect::DirectRelativeCallV1,
@@ -137,11 +133,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             },
                             "{key:?}"
                         );
-                        assert_eq!(
-                            encoded.trap,
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                            "{key:?}"
-                        );
+                        assert_faulting_trap(encoded, key);
                         assert_eq!(
                             encoded.control,
                             MachineEncodedControlEffect::ReturnFromActivationStackV1,
@@ -166,11 +158,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             },
                             "{key:?}"
                         );
-                        assert_eq!(
-                            encoded.trap,
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                            "{key:?}"
-                        );
+                        assert_faulting_trap(encoded, key);
                         let row = environment.constraint(key).unwrap();
                         assert!(
                             stack_pointer
