@@ -365,11 +365,15 @@ impl TypedTrees {
         &'a self,
         owner: symbols::SymbolHandle,
         selection_application: crate::static_applications::StaticMachineApplicationHandle,
+        evidence_parameter: symbols::SymbolHandle,
         requirement: symbols::SymbolHandle,
         report_fingerprint: u64,
         commitment: super::ClosedConformanceApplicationCommitment,
     ) -> Vec<&'a super::ClosedConformanceApplication> {
         if selection_application.is_valid() {
+            if evidence_parameter.is_valid() {
+                return Vec::new();
+            }
             let source = self
                 .expression_table
                 .static_machine_application(selection_application);
@@ -410,6 +414,44 @@ impl TypedTrees {
                 return Vec::new();
             }
             return vec![application];
+        }
+        if evidence_parameter.is_valid() {
+            // Instance evidence applications and the conformance bindings of
+            // its retained substitution have the same declaration order.
+            // Select the exact binder before checking the commitment; equal
+            // implementations in other slots cannot make this call ambiguous.
+            let mut selected = Vec::new();
+            for specialization in self
+                .machine_specializations
+                .iter()
+                .filter(|specialization| specialization.instance == owner)
+            {
+                let bindings = self
+                    .expression_table
+                    .static_machine_application_bindings(specialization.binding_application)
+                    .iter()
+                    .filter(|binding| {
+                        matches!(
+                            binding.value,
+                            crate::static_applications::StaticMachineBindingValue::Conformance(_)
+                        )
+                    });
+                if bindings.clone().count() != specialization.conformance_applications.len() {
+                    return Vec::new();
+                }
+                for (binding, application) in bindings.zip(&specialization.conformance_applications)
+                {
+                    if binding.parameter == evidence_parameter {
+                        if application.report_fingerprint != report_fingerprint
+                            || application.commitment != commitment
+                        {
+                            return Vec::new();
+                        }
+                        selected.push(application);
+                    }
+                }
+            }
+            return selected;
         }
         super::closed_conformance_applications_of(
             &self.machine_specializations,
@@ -648,6 +690,28 @@ impl TypedTrees {
         self.const_declarations()
             .iter()
             .find(|declaration| declaration.symbol == symbol)
+    }
+
+    /// The constant whose complete initializer is evaluated by this entry.
+    /// Generated spelling and source-span equality do not establish ownership.
+    /// Preparation may replace the machine row while retaining its symbol, so
+    /// the detached declaration handle identifies the entry, not its latest body.
+    pub fn const_declaration_for_evaluation_entry(
+        &self,
+        entry: symbols::SymbolHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        if !entry.is_valid() {
+            return None;
+        }
+        self.const_declarations().iter().find(|declaration| {
+            self.tables.machines.is_valid(declaration.evaluation_entry)
+                && self
+                    .tables
+                    .machines
+                    .get(declaration.evaluation_entry)
+                    .symbol
+                    == entry
+        })
     }
 
     /// The declaration selected by this substituted value occurrence. An alias

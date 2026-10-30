@@ -1,0 +1,3 @@
+// Expected exit: 0
+// Build must complete its selected helper's storage extent before calling it.
+machine main() {}

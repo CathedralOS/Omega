@@ -1,4 +1,4 @@
-//! Bounded receiving view of the current complete plan commitment input.
+//! Bounded receiving view of the existing complete v5 plan commitment input.
 //!
 //! This reader does not mint a ProviderPlan, evaluated binding receipt, or
 //! selection authority. It authenticates the original normalized bytes and
@@ -6,8 +6,9 @@
 //! checked realizations to verified bodies. Irreducible binding payloads remain
 //! committed bytes; receiving them never makes them executable.
 
-use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
 use sha2::{Digest, Sha256};
+
+use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
 
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
@@ -41,13 +42,13 @@ impl<'a> ProviderPlanInput<'a> {
         }
         reader.nonempty_string()?; // selection name
         let provider = reader.string()?;
-        reader.string()?; // exact provider application, retained in the commitment
+        reader.string()?; // complete applied provider identity, empty for a declaration
         let provider_package = reader.package()?;
         let target = reader.string()?;
         reader.nonempty_string()?; // schema identity
         reader.package()?;
         for _ in 0..reader.count()? {
-            reader.nonempty_string()?; // complete receiving application
+            reader.string()?; // complete receiving trait application identity
             reader.nonempty_string()?;
             reader.package()?;
             reader.strings()?;
@@ -78,7 +79,7 @@ impl<'a> ProviderPlanInput<'a> {
                     return Err("provider plan entry claims repeat or reorder");
                 }
                 previous_claim = Some(key);
-                reader.tag(1)?; // predicate presence
+                reader.tag(1)?; // predicate body
                 reader.carry()?;
                 reader.tag(0)?; // accepts authority flow
             }
@@ -301,7 +302,9 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+    use crate::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceReceiverApplication,
+    };
 
     fn selected_plan() -> ProviderPlan {
         let mut plan = ProviderPlan {
@@ -310,8 +313,21 @@ mod tests {
             target: "linux_x86_64".into(),
             ..ProviderPlan::default()
         };
+        plan.provider_application = plan.identities.intern("Provider<opaque>");
         plan.schema.trait_name = plan.schema.identities.intern("Boundary");
         let requirement = plan.schema.identities.intern("Boundary::consume(opaque)");
+        let application = plan.schema.identities.intern("Boundary<opaque>");
+        let argument = plan.schema.identities.intern("opaque");
+        plan.schema
+            .receiver_applications
+            .push(ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![argument],
+                lifetime_argument_identities: Vec::new(),
+                requirement_identities: vec![requirement],
+            });
         plan.schema.methods.push(ServiceMethod {
             name: "consume".into(),
             requirement_owner: "Boundary".into(),
@@ -354,6 +370,77 @@ mod tests {
     }
 
     #[test]
+    fn applied_provider_and_receiver_remain_in_the_complete_commitment() {
+        let mut plan = selected_plan();
+        plan.provider_application = plan.identities.intern("Provider<u64>");
+        let application = plan.schema.identities.intern("Boundary<u64>");
+        plan.schema
+            .receiver_applications
+            .push(super::super::ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![plan.schema.identities.intern("u64")],
+                lifetime_argument_identities: vec![],
+                requirement_identities: vec![plan.schema.methods[0].requirement_identity],
+            });
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let digest = Sha256::digest(&bytes).into();
+        assert!(ProviderPlanInput::read(&bytes, &digest).is_ok());
+        for spelling in [b"Provider<u64>".as_slice(), b"Boundary<u64>".as_slice()] {
+            let mut changed = bytes.clone();
+            let offset = changed
+                .windows(spelling.len())
+                .position(|part| part == spelling)
+                .unwrap();
+            changed[offset] ^= 1;
+            assert!(ProviderPlanInput::read(&changed, &digest).is_err());
+        }
+        for end in 0..bytes.len() {
+            assert!(
+                read(&bytes[..end]).is_err(),
+                "truncated application prefix {end}"
+            );
+        }
+        let mut old_schema = bytes;
+        old_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = b'4';
+        assert!(read(&old_schema).is_err());
+    }
+
+    #[test]
+    fn retained_plan_rejects_changed_commitment_and_malformed_complete_inputs() {
+        let plan = selected_plan();
+        let bytes = plan.identity_preimage();
+        assert!(ProviderPlanInput::read(&bytes, &[0; 32]).is_err());
+        for end in 0..bytes.len() {
+            assert!(read(&bytes[..end]).is_err(), "truncated prefix {end}");
+        }
+        let mut trailing = bytes.clone();
+        trailing.push(0);
+        assert!(read(&trailing).is_err());
+        let mut unknown_schema = bytes.clone();
+        unknown_schema[0] ^= 1;
+        assert!(read(&unknown_schema).is_err());
+        let mut retired_schema = bytes.clone();
+        retired_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = b'4';
+        assert!(read(&retired_schema).is_err());
+        let mut overflowing_string = bytes;
+        overflowing_string[PROVIDER_PLAN_DOMAIN.len()..PROVIDER_PLAN_DOMAIN.len() + 8]
+            .copy_from_slice(&u64::MAX.to_le_bytes());
+        assert!(read(&overflowing_string).is_err());
+        let mut repeated = plan.clone();
+        repeated.rows.push(repeated.rows[0].clone());
+        assert!(read(&repeated.identity_preimage()).is_err());
+        let mut outside_schema = plan.clone();
+        outside_schema.rows[0].requirement_identity =
+            outside_schema.identities.intern("Other::consume(opaque)");
+        assert!(read(&outside_schema.identity_preimage()).is_err());
+        let mut missing = plan;
+        missing.rows.clear();
+        assert!(read(&missing.identity_preimage()).is_err());
+    }
+    #[test]
     fn retained_plan_rejects_retired_schema_with_a_matching_commitment() {
         let mut bytes = selected_plan().identity_preimage();
         let retired_domain = b"omega.provider-plan.sha256.v4\0";
@@ -374,7 +461,7 @@ mod tests {
         let lifetime = plan.schema.identities.intern("'caller");
         plan.schema
             .receiver_applications
-            .push(crate::provider_plan::ServiceReceiverApplication {
+            .push(super::super::ServiceReceiverApplication {
                 application,
                 trait_name: plan.schema.trait_name,
                 trait_package_identity: plan.schema.trait_package_identity,
@@ -396,35 +483,5 @@ mod tests {
             ProviderPlanInput::read(&changed, plan.identity_digest().as_bytes()).unwrap_err(),
             "provider plan input differs from its complete commitment"
         );
-    }
-
-    #[test]
-    fn retained_plan_rejects_changed_commitment_and_malformed_complete_inputs() {
-        let plan = selected_plan();
-        let bytes = plan.identity_preimage();
-        assert!(ProviderPlanInput::read(&bytes, &[0; 32]).is_err());
-        for end in 0..bytes.len() {
-            assert!(read(&bytes[..end]).is_err(), "truncated prefix {end}");
-        }
-        let mut trailing = bytes.clone();
-        trailing.push(0);
-        assert!(read(&trailing).is_err());
-        let mut unknown_schema = bytes.clone();
-        unknown_schema[0] ^= 1;
-        assert!(read(&unknown_schema).is_err());
-        let mut overflowing_string = bytes;
-        overflowing_string[PROVIDER_PLAN_DOMAIN.len()..PROVIDER_PLAN_DOMAIN.len() + 8]
-            .copy_from_slice(&u64::MAX.to_le_bytes());
-        assert!(read(&overflowing_string).is_err());
-        let mut repeated = plan.clone();
-        repeated.rows.push(repeated.rows[0].clone());
-        assert!(read(&repeated.identity_preimage()).is_err());
-        let mut outside_schema = plan.clone();
-        outside_schema.rows[0].requirement_identity =
-            outside_schema.identities.intern("Other::consume(opaque)");
-        assert!(read(&outside_schema.identity_preimage()).is_err());
-        let mut missing = plan;
-        missing.rows.clear();
-        assert!(read(&missing.identity_preimage()).is_err());
     }
 }

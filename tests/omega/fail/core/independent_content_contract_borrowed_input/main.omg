@@ -1,0 +1,27 @@
+// Fact: Two independent routed interval claims on one owned region remain independently conserved by one checked split.
+// Expected exit: 0
+// Numeric custody model only; no physical backing or access is granted.
+use omega::language::core::content;
+use omega::language::core::drop;
+data Region [linear] { base: u64; length: u64; }
+domain Region::First established by issue;
+domain Region::Second established by issue;
+machine First::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine Second::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine issue() -> Region in First & Second
+ensures result.base == 10, result.length == 48
+{ Region { base: 10, length: 48 } }
+machine Region::drop(region: &mut Region) {}
+data Input<'input> { item: &'input Region in First & Second; }
+data IssuedBox { first: Region in First & Second; second: Region in First & Second; }
+boundary trait Factory { machine acquire(input: Input) -> IssuedBox reaches requires input.item in Region::First, input.item in Region::Second ensures First::content(old(input.item)) == separate(First::content(&result.first), First::content(&result.second)), Second::content(old(input.item)) == separate(Second::content(&result.first), Second::content(&result.second)); }
+
+machine main() {}

@@ -31,5 +31,8 @@ pub struct MachineSynchronousInvocationFact {
     /// rendering, not an identity source.
     pub published_targets: Vec<flow_effects::InvocationTarget>,
     pub checked_inferred_targets: Vec<flow_effects::InvocationTarget>,
+    /// Concrete call applications and explicitly abstract external edges.
+    /// These are not reconstructed from the public permission ceiling.
+    pub realized_targets: Vec<flow_effects::RealizedInvocationTarget>,
     pub plan: SynchronousInvocationPlan,
 }

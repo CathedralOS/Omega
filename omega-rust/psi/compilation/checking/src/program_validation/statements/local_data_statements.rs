@@ -282,30 +282,11 @@ pub(super) fn validate(
                 diagnostics,
             );
         }
-        expression_types::report_data_type_conflict(
-            program,
-            machine,
-            current_state,
-            local_data.initial_value,
-            local_data.type_reference,
-            &owner,
-            "local",
-            diagnostics,
-        );
-        // Shape guard: `let y: i32 = self.xs` (array -> scalar) or
-        // `let xs: [i32; 3] = 5` (scalar -> array) otherwise bind a
-        // wrong-shaped value silently (the array case read a ZII 0).
-        expression_types::report_array_scalar_shape_mismatch(
-            program,
-            machine,
-            current_state,
-            local_data.initial_value,
-            local_data.type_reference,
-            &owner,
-            "local",
-            diagnostics,
-        );
-        expression_types::report_scalar_data_shape_mismatch(
+        // Nominal conflict, then the shape guards: `let y: i32 = self.xs`
+        // (array -> scalar) or `let xs: [i32; 3] = 5` (scalar -> array)
+        // otherwise bind a wrong-shaped value silently (the array case read a
+        // ZII 0).
+        expression_types::report_place_value_mismatches(
             program,
             machine,
             current_state,

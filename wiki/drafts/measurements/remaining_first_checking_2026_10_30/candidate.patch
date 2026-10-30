@@ -1,0 +1,27 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
+index 9607759961f..b6cafaa38df 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs
+@@ -600,6 +600,22 @@ impl StructuralJudge<'_> {
+             return None;
+         }
+         let program = self.program;
++        // An equation query with no possible result need not re-prove entry premises.
++        if matches!(result, Some(StructuralTerm::Application { .. }))
++            && program.primitive_type_reference(owner_return_type(owner))
++                != Some(typed_trees::types::PrimitiveType::Bool)
++            && !owner_contracts(program, owner)
++                .filter(|contract| contract.kind == SignatureContractKind::Ensures)
++                .any(|contract| {
++                    program
++                        .proof_facts
++                        .span_or_empty(contract.facts)
++                        .iter()
++                        .any(|fact| matches!(fact, ProofFact::Expression(_)))
++                })
++        {
++            return None;
++        }
+         let parameters = owner_parameters(program, owner);
+         let callable = match owner {
+             SelectedCallContract::Concrete(machine, _) => machine.symbol,

@@ -41,7 +41,7 @@ pub fn zero_valid_record_storage(
         StructuralTypeShape::FixedArray { element, length } => {
             // An empty scalar array retains its schema without constructing a
             // fictional zero-valued element. Unknown and cyclic schemas fail.
-            if *length == 0
+            if length.literal() == Some(0)
                 && crate::scalar_array_leaf_declaration(declarations.iter(), structural_type)
                     .is_some()
             {

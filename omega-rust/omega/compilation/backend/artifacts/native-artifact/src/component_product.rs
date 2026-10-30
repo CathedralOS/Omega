@@ -95,7 +95,7 @@ impl NativeComponentProduct {
         Ok(Self {
             image,
             description,
-            artifact: Arc::new(call.component().artifact().clone()),
+            artifact: Arc::clone(call.component().shared_artifact()),
             selection: selection.clone(),
             application: application.clone(),
             runtime,

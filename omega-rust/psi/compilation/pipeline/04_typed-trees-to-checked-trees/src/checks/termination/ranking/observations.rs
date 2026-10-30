@@ -111,6 +111,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                         .insert(checked_trees::CheckedRankCoordinate {
                             parameter: destination.parameter,
                             path,
+                            entry_indexes: Default::default(),
                         });
                 CheckedNaturalRankMeasure::SequenceLength { coordinate }
             }
@@ -119,13 +120,26 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 if !primitive_type.is_fixed_integer() {
                     return None;
                 }
-                CheckedNaturalRankMeasure::IntegerParameter { primitive_type }
+                let path = admitted.path_segments.insert_many(destination.path.clone());
+                let coordinate =
+                    admitted
+                        .coordinates
+                        .insert(checked_trees::CheckedRankCoordinate {
+                            parameter: destination.parameter,
+                            path,
+                            entry_indexes: Default::default(),
+                        });
+                CheckedNaturalRankMeasure::IntegerValue {
+                    coordinate,
+                    primitive_type,
+                }
             }
             (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(primitive()?, *upper)?,
             (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
             _ => return None,
         };
         observations.push(CheckedStateNaturalRank {
+            function: checked_trees::CheckedNaturalRankFunction::Identity,
             state: state.symbol,
             parameter: destination.parameter,
             parameter_position: u32::try_from(parameter_position).ok()?,

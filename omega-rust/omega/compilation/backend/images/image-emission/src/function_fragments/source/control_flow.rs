@@ -376,6 +376,7 @@ fn edge_cleanup_calls_match<'a>(
 #[cfg(test)]
 mod cleanup_tests {
     use super::{retained, return_cleanup_calls_match};
+    use crate::object_artifact::test_support::structural_declaration;
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use semantic_vocabulary::{
         BlockId, EdgeId, IeeeFloatFormat, MachineId, OperationId, PlaceId, ScalarType,
@@ -385,23 +386,17 @@ mod cleanup_tests {
     use terminal_psi::{
         BindingRelevance, NominalAffineCleanup, StructuralAccess, StructuralAffineDiscard,
         StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+        StructuralTypeShape, TerminalAffineCleanupAction,
     };
 
     #[test]
     fn nominal_image_return_rejoins_every_action_and_original_receiver() {
         let edge = EdgeId::new(1).unwrap();
         let structural_type = StructuralTypeId::new(1).unwrap();
-        let structural_types = vec![StructuralTypeDeclaration {
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            scalar_restriction: None,
-            id: structural_type,
-            identity: terminal_psi::TerminalIdentityIndex(1),
-            shape: StructuralTypeShape::Record {
+        let structural_types = vec![structural_declaration(
+            structural_type,
+            terminal_psi::TerminalIdentityIndex(1),
+            StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
@@ -413,7 +408,7 @@ mod cleanup_tests {
                     )),
                 }],
             },
-        }];
+        )];
         let machine = MachineId::new(9).unwrap();
         let shape = ValueShape::borrowed_reference(4, 4);
         let plan = evaluate_call_plan(

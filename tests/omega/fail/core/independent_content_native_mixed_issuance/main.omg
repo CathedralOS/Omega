@@ -1,0 +1,49 @@
+// Compile-only refusal: opaque supply cannot mint these private routed claims.
+// The deliberately incompatible locator must never execute.
+// Fact: Two independent routed interval claims on one owned region remain independently conserved by one checked split.
+// Expected exit: 0
+// Numeric custody model only; no physical backing or access is granted.
+use omega::language::core::content;
+use omega::language::core::drop;
+data Region [linear] { base: u64; length: u64; }
+domain Region::First established by issue;
+domain Region::Second established by issue;
+machine First::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine Second::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine issue() -> Region in First & Second
+ensures result.base == 10, result.length == 48
+{ Region { base: 10, length: 48 } }
+machine Region::drop(region: &mut Region) {}
+data TokenUnit {}
+data Counter [linear] { remaining: u64; }
+domain Counter::Third established by counter_issue;
+machine Third::content(counter: &Counter) -> CountedQuantity<TokenUnit>
+satisfies Content<Counter, CountedQuantity<TokenUnit>>::project {
+    CountedQuantity { magnitude: embed(counter.remaining) as Nat }
+}
+machine counter_issue() -> Counter in Third { Counter { remaining: 9 } }
+machine Counter::drop(counter: &mut Counter) {}
+data IssuedBox { item: Region in First & Second; extra: Counter in Third; }
+boundary trait Factory { machine acquire(region: Region in First & Second) -> IssuedBox reaches; }
+
+machine inspect(boxed: IssuedBox) -> bool {
+    let correct: bool = boxed.item.base == 10 && boxed.item.length == 48 && boxed.extra.remaining == 9;
+    let { item, extra } = boxed;
+    drop(item);
+    drop(extra);
+    correct
+}
+machine main() reaches Factory crashes Trap {
+    let region: Region in First & Second = issue();
+    transition inspect(Factory::acquire(region)) { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

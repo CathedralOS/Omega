@@ -1,7 +1,7 @@
 //! The register constraint catalog of every AArch64 operation and its
 //! validation against the closed inventory.
 
-use crate::register_model::physical_model::{FLOAT64, GPR64, complement};
+use crate::register_model::physical_model::{FLOAT64, GPR64};
 use crate::register_model::{
     AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
     AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE,
@@ -38,6 +38,7 @@ use crate::{
     aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys,
     aarch64_indirect_aggregate_call_keys, aarch64_mixed_aggregate_call_keys,
 };
+use register_model::complement;
 use register_model::{
     PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
     RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,

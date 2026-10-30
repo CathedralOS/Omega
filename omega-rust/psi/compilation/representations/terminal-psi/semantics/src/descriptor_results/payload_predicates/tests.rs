@@ -30,7 +30,7 @@ fn byte_predicate_observations_require_complete_current_typed_contents() {
             array,
             StructuralTypeShape::FixedArray {
                 element: scalar,
-                length: 2,
+                length: 2.into(),
             },
         ),
     ];

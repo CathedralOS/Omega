@@ -162,7 +162,10 @@ impl ValueImageReader<'_, '_, '_> {
             ))?;
         let result = match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => self.scalar(*scalar),
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 let (stride, _) =
                     terminal_semantics::reference_storage_layout(types.values(), *element)
                         .ok_or_else(malformed)?;
@@ -236,7 +239,10 @@ fn field_schema(
             .field_type
             .as_structural()
             .and_then(|child| match types.get(&child)?.shape {
-                StructuralTypeShape::FixedArray { element, length } => {
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } => {
                     let (size, alignment) =
                         terminal_semantics::reference_storage_layout(types.values(), element)?;
                     Some((size, alignment, length))
@@ -327,7 +333,11 @@ fn record_layout(
                     .as_structural()
                     .and_then(|child| types.get(&child))
                     .ok_or_else(malformed)?;
-                let StructuralTypeShape::FixedArray { length, .. } = child.shape else {
+                let StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                    ..
+                } = child.shape
+                else {
                     return Err(malformed());
                 };
                 for index in 0..length {

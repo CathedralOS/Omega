@@ -123,8 +123,7 @@ fn terminal_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     {
-        let mut completed = SelectedConstraintKeys {
-            invoke_no_normal: Vec::new(),
+        let rows = TargetRegisterEnvironmentConstraintKeys {
             port_write: keys.port_write,
             system_register_read: keys.system_register_read,
             system_register_write: keys.system_register_write,
@@ -219,6 +218,10 @@ fn terminal_selected_keys(
             return_float: keys.return_float.clone(),
             return_i64: keys.return_i64,
             return_unit: keys.return_unit,
+        };
+        let mut completed = SelectedConstraintKeys {
+            rows,
+            invoke_no_normal: Vec::new(),
         };
         completed.invoke_no_normal = completed.ordinary_call_constraints();
         completed

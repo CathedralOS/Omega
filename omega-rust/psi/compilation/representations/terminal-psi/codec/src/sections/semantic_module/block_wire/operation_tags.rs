@@ -268,3 +268,6 @@ pub(super) const MERGE_ACTIVATION_CLAIM: u8 = 130;
 
 /// Atomic event with its distinct resident establishment obligation.
 pub(super) const RESTRICTED_ATOMIC_ACCESS: u8 = 131;
+
+/// Read one scalar application from the exact admitted target closure.
+pub(super) const READ_SCALAR_APPLICATION: u8 = 132;

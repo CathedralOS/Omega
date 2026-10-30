@@ -4,7 +4,7 @@ use crate::legalization::scalar_graph_input::target;
 
 use super::{
     AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralMultiplicity,
-    StructuralPlaceKind, TargetOperationPlan,
+    TargetOperationPlan,
 };
 use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
 use crate::legalization::scalar_graph_input::structural_case;
@@ -181,14 +181,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
                     declaration,
                 } => {
                     if !target::control_flow::sources::dominates(caller, block, after.0)
-                        || !caller.structural_places.iter().any(|place| {
-                            place.id == declaration.place
-                                && place.kind
-                                    == StructuralPlaceKind::BlockParameter {
-                                        block,
-                                        position: declaration.position,
-                                    }
-                        })
+                        || !structural_case::block_parameter_declared(caller, block, &declaration)
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -282,14 +275,7 @@ pub(super) fn view_arrival<'caller>(
         .map(|row| &row.shape)?;
     (arrivals.next().is_none()
         && block != caller.entry
-        && caller.structural_places.iter().any(|place| {
-            place.id == declaration.place
-                && place.kind
-                    == StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: declaration.position,
-                    }
-        })
+        && structural_case::block_parameter_declared(caller, block, declaration)
         // Carrier lifetime does not change the descriptor's pointer/extent
         // geometry. Reuse the arrival contract that admits affine borrowed
         // descriptors too; call custody still checks the actual live loan.

@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `numeric_operand_abs_unrepresentable` with 1 diagnostic(s)
+  error: machine `main` state `entry` value call to `abs_i32` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
+    in package `numeric_operand_abs_unrepresentable`, \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\first-checking\cases\candidate-numeric_operand_abs_unrepresentable\input\main.omg:10:25

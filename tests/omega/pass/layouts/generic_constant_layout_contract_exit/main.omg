@@ -1,0 +1,17 @@
+// Expected exit: 0.
+// Specialization retains the complete layout arithmetic contract in each
+// copied lexical owner. Sharing the source expression does not share binders.
+data Cell { code: u64; tag: u64; }
+
+machine require_geometry<T>()
+requires size_of<Cell>() + align_of<Cell>() == 24
+{}
+
+machine program() crashes Trap {
+    require_geometry<u8>();
+    require_geometry<u64>();
+    let measured: u64 = size_of<Cell>() + align_of<Cell>();
+    transition measured == 24 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

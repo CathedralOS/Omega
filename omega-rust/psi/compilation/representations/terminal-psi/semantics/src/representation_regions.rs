@@ -75,7 +75,10 @@ fn representation_shape_byte_extent<'a>(
     shape: &StructuralTypeShape,
 ) -> Option<u64> {
     match shape {
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             let mut elements = types.filter(|row| row.id == *element);
             let element = elements.next()?;
             if elements.next().is_some() {

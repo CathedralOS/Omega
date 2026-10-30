@@ -14,6 +14,7 @@ arena = { path = "../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../../foundation/language-semantics" }
 optimization = { path = "../../../../foundation/optimization-selections" }
+numerics = { path = "../../../../foundation/numerics" }
 proof-admission = { path = "../../../proof/admission" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }

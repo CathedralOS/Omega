@@ -79,9 +79,14 @@ pub fn lower_task_activation_demands(
     roots.sort();
     roots.dedup();
     let plans = UnitPlans::published(&checked.facts.flow);
-    let (structural_types, type_ids, structural_referents) =
-        lower_unit_structural_type_roots(identities, checked, plans, &roots)
-            .map_err(lowering_diagnostics)?;
+    let (structural_types, type_ids, structural_referents) = lower_unit_structural_type_roots(
+        identities,
+        checked,
+        &crate::unit::attached_unit::scalar_applications::SourceScalarApplications::EMPTY,
+        plans,
+        &roots,
+    )
+    .map_err(lowering_diagnostics)?;
     let target_layout_applications =
         target_layouts::project(checked, plans, &structural_types, &type_ids)?;
     let mut demands = Vec::new();

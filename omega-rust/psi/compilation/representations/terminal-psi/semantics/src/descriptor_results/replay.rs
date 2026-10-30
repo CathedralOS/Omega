@@ -720,10 +720,11 @@ fn slot_inventory(
                     active.remove(&ty);
                     return Some(());
                 }
-                if *length > 4096 {
+                let length = length.literal()?;
+                if length > 4096 {
                     return None;
                 }
-                for index in 0..*length {
+                for index in 0..length {
                     let mut child = location.clone();
                     child.path.push(DescriptorPathSegment::FixedIndex(index));
                     walk(kind, scope, types, *element, child, active, result)?;

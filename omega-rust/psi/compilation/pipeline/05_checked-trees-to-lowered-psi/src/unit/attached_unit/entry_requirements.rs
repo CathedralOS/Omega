@@ -17,6 +17,7 @@ pub(crate) struct EntryRequirements {
 pub(crate) fn lower(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     source: SymbolHandle,
     scalar_parameters: &[ValueDeclaration],
     erased_scalar_parameters: &[ValueDeclaration],
@@ -90,6 +91,7 @@ pub(crate) fn lower(
             .map(|parameter| (parameter.position, parameter.clone()))
             .collect();
         let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications,
             constant_values: &checked.typed.constant_recipe_closure.values,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             parameters: &view_roster,

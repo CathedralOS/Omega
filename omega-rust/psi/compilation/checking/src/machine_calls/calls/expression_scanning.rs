@@ -5,8 +5,8 @@
 //! diagnostics emitted at those scan sites.
 
 use super::{
-    free_machine_entry_state, machine_state_by_symbol, register_read_mnemonic,
-    selected_float_operation_retains_argument_policy, user_asm_contract,
+    call_carrier_matcher, free_machine_entry_state, machine_state_by_symbol,
+    register_read_mnemonic, selected_float_operation_retains_argument_policy, user_asm_contract,
     validate_asm_operand_constraint, validate_call_arguments,
     validate_machine_call_type_parameter_bounds, validate_value_call_arguments,
 };
@@ -501,15 +501,7 @@ fn validate_expression_call_bounds(
             writable_roots.statements,
             selected_float_operation_retains_argument_policy(program, operator.symbol),
             &[],
-            |argument, required| {
-                crate::value_custody::expression_types::argument_matches_call_carrier(
-                    program,
-                    current_machine.symbol,
-                    argument,
-                    required,
-                    &[],
-                )
-            },
+            call_carrier_matcher(program, current_machine.symbol, &[]),
             diagnostics,
             formation_obligations,
         );
@@ -612,15 +604,7 @@ fn validate_expression_call_bounds(
             writable_roots.statements,
             false,
             &[],
-            |argument, required| {
-                crate::value_custody::expression_types::argument_matches_call_carrier(
-                    program,
-                    current_machine.symbol,
-                    argument,
-                    required,
-                    &[],
-                )
-            },
+            call_carrier_matcher(program, current_machine.symbol, &[]),
             diagnostics,
             formation_obligations,
         );

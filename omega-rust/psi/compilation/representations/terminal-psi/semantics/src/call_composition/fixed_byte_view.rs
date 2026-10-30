@@ -94,7 +94,10 @@ pub fn fixed_byte_extent<'types>(
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
             capacity, ..
         }) => Some(capacity),
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             let element = types.clone().find(|row| row.id == element)?;
             matches!(element.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -239,7 +242,11 @@ pub fn fixed_element_array_extent<'types>(
     })?;
     let declaration =
         runtime_structural_path_tip(types.clone(), actual.structural_type, &argument.path)?;
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    else {
         return None;
     };
     // An empty backing still forms a typed view with extent zero. Its

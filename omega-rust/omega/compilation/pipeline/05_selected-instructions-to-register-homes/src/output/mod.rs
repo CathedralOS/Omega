@@ -160,10 +160,4 @@ pub enum AllocationAdmissionError {
     SelectionMismatch,
 }
 
-impl std::fmt::Display for AllocationAdmissionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "allocation admission failed: {self:?}")
-    }
-}
-
-impl std::error::Error for AllocationAdmissionError {}
+stage_error_display!(AllocationAdmissionError, "allocation admission failed");

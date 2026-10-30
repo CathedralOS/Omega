@@ -1,0 +1,520 @@
+diff --git a/omega-rust/omega/application/build/src/build.rs b/omega-rust/omega/application/build/src/build.rs
+index 540aae0b7c9..f055072d011 100644
+--- a/omega-rust/omega/application/build/src/build.rs
++++ b/omega-rust/omega/application/build/src/build.rs
+@@ -12,6 +12,7 @@ use target::TargetProfile;
+ /// locations and failed products retain their own ordered outcome; siblings
+ /// continue. A check uses a private workspace and publishes no product files.
+ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
++    let _full_build = compiler::full_profile_span("app.build");
+     let profiles = target_profiles(&request.targets)?;
+     if matches!(request.product, ProjectProduct::Check) {
+         compiler::RequestedCompileProduct::Check
+@@ -55,6 +56,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
+         .record_result(
+             StageMeta::new("prepare", "project", "prepared sources"),
+             || {
++                let _full_preparation = compiler::full_profile_span("app.prepare_project");
+                 packages::begin_local_project_preparation(
+                     &request.root_path,
+                     &profiles,
+@@ -80,6 +82,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
+     } else {
+         let prepared = match prepared {
+             Some(preparation) => {
++                let _full_discovery = compiler::full_profile_span("app.source_discovery");
+                 let host = TargetProfile::host_if_supported().ok_or_else(|| {
+                     BuildError::Diagnostics(vec![Diagnostic::error(
+                         "Build execution needs an admitted host profile",
+@@ -115,7 +118,10 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
+         };
+         timings.record_result(
+             StageMeta::new("compile", "sources", "requested product"),
+-            || products::compile(&request, prepared, &base_directory, &active),
++            || {
++                let _full_product = compiler::full_profile_span("app.requested_product");
++                products::compile(&request, prepared, &base_directory, &active)
++            },
+         )?
+     };
+ 
+diff --git a/omega-rust/omega/application/build/src/project_compilation.rs b/omega-rust/omega/application/build/src/project_compilation.rs
+index 17059cace4e..d2147dba77c 100644
+--- a/omega-rust/omega/application/build/src/project_compilation.rs
++++ b/omega-rust/omega/application/build/src/project_compilation.rs
+@@ -25,6 +25,7 @@ pub(crate) fn compile_returned(
+     mut session: BuildSession,
+     execution_profile: target::TargetProfile,
+ ) -> Vec<ProjectCompilationOutcome> {
++    let _full_lifetime = compiler::full_profile_span("app.package_product_lifetime");
+     let request = ProjectCompilationAdmissionRequest {
+         prepared: request.prepared,
+         target_profiles: request.target_profiles,
+@@ -34,35 +35,47 @@ pub(crate) fn compile_returned(
+         product: request.product,
+     };
+     let mut completed = Vec::with_capacity(builds.len());
+-    for build in builds {
+-        let inputs = build.package_inputs().clone();
+-        match build.settle(&mut session.compiler, execution_profile, inputs) {
+-            Ok(build) => completed.push(build),
+-            Err(error) => {
+-                let mut reason = error
+-                    .into_diagnostics()
+-                    .iter()
+-                    .map(|diagnostic| diagnostic.message.as_str())
+-                    .collect::<Vec<_>>()
+-                    .join("; ");
+-                if let Err(error) = session.close() {
+-                    reason.push_str(&format!("; session disposal: {error}"));
++    {
++        let _full = compiler::full_profile_span("orchestration.settle_returned_builds");
++        for build in builds {
++            let inputs = build.package_inputs().clone();
++            match build.settle(&mut session.compiler, execution_profile, inputs) {
++                Ok(build) => completed.push(build),
++                Err(error) => {
++                    let mut reason = error
++                        .into_diagnostics()
++                        .iter()
++                        .map(|diagnostic| diagnostic.message.as_str())
++                        .collect::<Vec<_>>()
++                        .join("; ");
++                    if let Err(error) = session.close() {
++                        reason.push_str(&format!("; session disposal: {error}"));
++                    }
++                    return request.refuse(reason);
+                 }
+-                return request.refuse(reason);
+             }
+         }
+     }
+-    let admitted = package_manager::operations::admit_project_products(
+-        request,
+-        &mut session.packages,
+-        execution_profile,
+-    );
+-    let products = crate::package_compilation::compile_packages(
+-        &mut session.compiler,
+-        admitted.requests,
+-        &mut completed,
+-    );
+-    admitted
+-        .completion
+-        .complete(products, &mut session.packages)
++    let admitted = {
++        let _full = compiler::full_profile_span("orchestration.admit_products");
++        package_manager::operations::admit_project_products(
++            request,
++            &mut session.packages,
++            execution_profile,
++        )
++    };
++    let products = {
++        let _full = compiler::full_profile_span("orchestration.compile_packages");
++        crate::package_compilation::compile_packages(
++            &mut session.compiler,
++            admitted.requests,
++            &mut completed,
++        )
++    };
++    {
++        let _full = compiler::full_profile_span("orchestration.complete_outcomes");
++        admitted
++            .completion
++            .complete(products, &mut session.packages)
++    }
+ }
+diff --git a/omega-rust/omega/application/build/src/publication.rs b/omega-rust/omega/application/build/src/publication.rs
+index 7dbe9288266..a99640d2972 100644
+--- a/omega-rust/omega/application/build/src/publication.rs
++++ b/omega-rust/omega/application/build/src/publication.rs
+@@ -16,6 +16,7 @@ pub(crate) fn publish_products(
+     product: &ProjectProduct,
+     timings: &mut CompileTimings,
+ ) -> Vec<TargetBuildOutcome> {
++    let _full_publication = compiler::full_profile_span("app.publication");
+     let mut outcomes = Vec::with_capacity(work.len());
+     for target in work {
+         let result = match target.directory {
+diff --git a/omega-rust/omega/application/cli/src/cli/compilation.rs b/omega-rust/omega/application/cli/src/cli/compilation.rs
+index b83973934cc..86ef7170169 100644
+--- a/omega-rust/omega/application/cli/src/cli/compilation.rs
++++ b/omega-rust/omega/application/cli/src/cli/compilation.rs
+@@ -8,6 +8,7 @@ use omega_build::{
+ };
+ 
+ pub(crate) fn compile_project_command(arguments: CompileArguments) {
++    let _full_cli = phase_profile::full_guard("cli.compile");
+     let started = arguments.timings.then(std::time::Instant::now);
+     let report_file = arguments.report_file.clone();
+     let target_names = arguments.target_names;
+diff --git a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+index d8ccc258ee9..75a1ad9d941 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+@@ -69,6 +69,7 @@ impl CompilationSession {
+     }
+ 
+     fn restore_source_graph(&mut self) {
++        let _full_load = phase_profile::full_guard("cache.source_graph.restore_request");
+         if self.source_graph_loaded {
+             return;
+         }
+@@ -413,6 +414,7 @@ fn refusal(failure: CompileFailure) -> SelectedCompileOutcome {
+ 
+ impl Drop for CompilationSession {
+     fn drop(&mut self) {
++        let _full_session = phase_profile::full_guard("cache.session_drop_hook");
+         if self.source_graph_changed
+             && let Some(cache) = &self.source_graph
+         {
+diff --git a/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs b/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
+index 060159593f1..ba8004fcf21 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
+@@ -151,14 +151,18 @@ impl SourceGraphCache {
+         sources: &[PreparedSource],
+         checks: &RetainedCompilationChecks,
+     ) -> Result<(), String> {
++        let _full_store = phase_profile::full_guard("cache.source_graph.store");
+         // Borrow the complete owner rather than cloning its source/checked
+         // arenas merely to encode. Field order is SourceGraph's record schema.
+         let mut output = RecordWriter::new(limits());
+         output
+             .record(|output| {
++                let encoding_preparation = phase_profile::full_guard("cache.encode.preparation");
+                 preparation.write(output)?;
++                drop(encoding_preparation);
+                 let preparation_bytes = output.bytes_written();
+                 phase_profile::count("source.graph.preparation.bytes", preparation_bytes as u64);
++                let encoding_sources = phase_profile::full_guard("cache.encode.sources");
+                 output.record(|output| {
+                     output.sequence(sources.len())?;
+                     for source in sources {
+@@ -166,12 +170,15 @@ impl SourceGraphCache {
+                     }
+                     Ok(())
+                 })?;
++                drop(encoding_sources);
+                 let source_bytes = output.bytes_written();
+                 phase_profile::count(
+                     "source.graph.sources.bytes",
+                     (source_bytes - preparation_bytes) as u64,
+                 );
++                let encoding_checks = phase_profile::full_guard("cache.encode.checks");
+                 checks.write(output)?;
++                drop(encoding_checks);
+                 phase_profile::count(
+                     "source.graph.checks.bytes",
+                     (output.bytes_written() - source_bytes) as u64,
+@@ -188,6 +195,7 @@ impl SourceGraphCache {
+         );
+         let directory = self.storage.directory();
+         let write = (|| {
++            let _full_write = phase_profile::full_guard("cache.stage_hash_and_write");
+             let mut options = cap_std::fs::OpenOptions::new();
+             options.write(true).create_new(true);
+             let mut file = directory
+@@ -195,7 +203,10 @@ impl SourceGraphCache {
+                 .map_err(|reason| format!("stage retained source graph: {reason}"))?;
+             file.write_all(MAGIC)
+                 .and_then(|_| file.write_all(&self.compiler))
+-                .and_then(|_| file.write_all(&content_identity(&payload)))
++                .and_then(|_| {
++                    let _full_hash = phase_profile::full_guard("cache.hash_and_write_digest");
++                    file.write_all(&content_identity(&payload))
++                })
+                 .and_then(|_| file.write_all(&(payload.len() as u64).to_le_bytes()))
+                 .and_then(|_| file.write_all(&payload))
+                 .map_err(|reason| format!("write retained source graph: {reason}"))?;
+@@ -220,7 +231,9 @@ impl SourceGraphCache {
+             report_miss(&format!("remove retained source graph temporary: {reason}"));
+         }
+         write?;
++        let pruning = phase_profile::full_guard("cache.prune");
+         self.prune()?;
++        drop(pruning);
+         phase_profile::count("source.graph.retained", 1);
+         Ok(())
+     }
+diff --git a/omega-rust/omega/compilation/driver/src/lib.rs b/omega-rust/omega/compilation/driver/src/lib.rs
+index d0ef638838d..5d36dacffae 100644
+--- a/omega-rust/omega/compilation/driver/src/lib.rs
++++ b/omega-rust/omega/compilation/driver/src/lib.rs
+@@ -16,6 +16,7 @@
+ //! choices through those phases. Finished products and publication belong to the independent
+ //! `compilation_products` owner; this crate only sequences their production.
+ 
++pub use phase_profile::full_guard as full_profile_span;
+ mod compiler;
+ mod execution_settlement;
+ mod identity;
+diff --git a/omega-rust/psi/compilation/driver/src/source_compilation.rs b/omega-rust/psi/compilation/driver/src/source_compilation.rs
+index e83c3f4170b..7b6275c9c26 100644
+--- a/omega-rust/psi/compilation/driver/src/source_compilation.rs
++++ b/omega-rust/psi/compilation/driver/src/source_compilation.rs
+@@ -85,45 +85,61 @@ impl SourceCompilationRequest {
+         observer: &mut impl PsiCompilationObserver,
+     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
+         let _profile = phase_profile::guard("psi.source.prepare");
+-        let context = SourceContext {
+-            declaration_syntax: Arc::new(self.syntax.clone()),
+-            bindings: self.top_level_bindings.clone(),
+-            authority: self.selection_authority.clone(),
+-            build_helper_identity: self.build_helper_identity.into(),
+-            recorded_authority: None,
++        let context = {
++            let _full = phase_profile::full_guard("frontend.capture_context");
++            SourceContext {
++                declaration_syntax: Arc::new(self.syntax.clone()),
++                bindings: self.top_level_bindings.clone(),
++                authority: self.selection_authority.clone(),
++                build_helper_identity: self.build_helper_identity.into(),
++                recorded_authority: None,
++            }
++        };
++        let activation = {
++            let _full = phase_profile::full_guard("frontend.select_activation");
++            activation::select_retained_source(&self, &context, observer)?
+         };
+-        let activation = activation::select_retained_source(&self, &context, observer)?;
+         if let Some(activation) = &activation {
+             activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
+         }
+-        let retained_program = activation
+-            .as_ref()
+-            .map(|activation| activation.typing.typed().clone());
++        let retained_program = {
++            let _full = phase_profile::full_guard("frontend.clone_retained_program");
++            activation
++                .as_ref()
++                .map(|activation| activation.typing.typed().clone())
++        };
+         let (mut retained, mut pending_pre_checks) = match activation {
+             Some(activation) => (Some(activation.typing), activation.pre_checks),
+             None => (None, Vec::new()),
+         };
+-        let resolved_base = retained
+-            .as_mut()
+-            .map(|typing| typing.resolved_base_for_extension())
+-            .transpose()?
+-            .map(Arc::new);
+-        let evaluated = build_time_evaluation::evaluate_pre_resolution(
+-            build_time_evaluation::BuildTimeEvaluationRequest {
+-                syntax_trees: self.syntax,
+-                source_context: build_time_evaluation::BuildTimeSources {
+-                    sources: Some(Arc::clone(&self.sources)),
+-                    source_scoped_top_level_bindings: &self.top_level_bindings,
+-                    selection_authority: self.selection_authority,
+-                    predecessor: retained.clone(),
+-                    declaration_syntax: Some(&context.declaration_syntax),
++        let resolved_base = {
++            let _full = phase_profile::full_guard("frontend.resolve_base_for_extension");
++            retained
++                .as_mut()
++                .map(|typing| typing.resolved_base_for_extension())
++                .transpose()?
++                .map(Arc::new)
++        };
++        let evaluated = {
++            let _full = phase_profile::full_guard("frontend.pre_resolution_evaluation");
++            build_time_evaluation::evaluate_pre_resolution(
++                build_time_evaluation::BuildTimeEvaluationRequest {
++                    syntax_trees: self.syntax,
++                    source_context: build_time_evaluation::BuildTimeSources {
++                        sources: Some(Arc::clone(&self.sources)),
++                        source_scoped_top_level_bindings: &self.top_level_bindings,
++                        selection_authority: self.selection_authority,
++                        predecessor: retained.clone(),
++                        declaration_syntax: Some(&context.declaration_syntax),
++                    },
+                 },
+-            },
+-        )?;
++            )?
++        };
+         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+         let (mut typing, mut pending_bodies) = if let (Some(typing), Some(base)) =
+             (retained, resolved_base)
+         {
++            let _full = phase_profile::full_guard("frontend.resolve_and_type_extension");
+             let _profile = phase_profile::guard("psi.source.prepare.resolve_extension");
+             let extension = observer.record_result(PsiCompilationStage::Resolution, || {
+                 syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
+@@ -140,6 +156,7 @@ impl SourceCompilationRequest {
+             })?
+         } else {
+             let mut frontier = {
++                let _full = phase_profile::full_guard("frontend.resolve_initial");
+                 let _profile = phase_profile::guard("psi.source.prepare.resolve_deferred");
+                 observer.record_result(PsiCompilationStage::Resolution, || {
+                     syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+@@ -165,6 +182,7 @@ impl SourceCompilationRequest {
+                     .into_resolved_frontier();
+             }
+             let typing = {
++                let _full = phase_profile::full_guard("frontend.seed_typing");
+                 let _profile = phase_profile::guard("psi.source.prepare.lower_seeded_base");
+                 observer.record_result(PsiCompilationStage::Typing, || {
+                         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+@@ -181,6 +199,7 @@ impl SourceCompilationRequest {
+             if build_bodies.is_empty() {
+                 break;
+             }
++            let _full = phase_profile::full_guard("frontend.complete_build_bodies");
+             let _profile = phase_profile::guard("psi.source.prepare.build_bodies_typed");
+             pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+             let completed = observer.record_result(PsiCompilationStage::Resolution, || {
+@@ -193,9 +212,12 @@ impl SourceCompilationRequest {
+             // Completion can append attached implementations. Those use the
+             // same scope test, not a second Product declaration selection.
+         }
+-        let pre_check = match retained_program {
+-            Some(previous) => pre_check.exclude_completed_work(typing.typed(), &previous)?,
+-            None => pre_check,
++        let pre_check = {
++            let _full = phase_profile::full_guard("frontend.exclude_completed_work");
++            match retained_program {
++                Some(previous) => pre_check.exclude_completed_work(typing.typed(), &previous)?,
++                None => pre_check,
++            }
+         };
+         pending_pre_checks.push(pre_check);
+         // Only the canonical pre-Build input is shared. A Build mutation forks
+@@ -206,7 +228,10 @@ impl SourceCompilationRequest {
+             pending_pre_checks,
+             context,
+         });
+-        self.frontends.retain(Arc::clone(&input))?;
++        {
++            let _full = phase_profile::full_guard("frontend.retain_frontend");
++            self.frontends.retain(Arc::clone(&input))?;
++        }
+         Ok(SourceContinuation {
+             input,
+             completions: Default::default(),
+diff --git a/omega-rust/psi/foundation/phase-profile/src/lib.rs b/omega-rust/psi/foundation/phase-profile/src/lib.rs
+index f51f7d29719..4bb388aba0a 100644
+--- a/omega-rust/psi/foundation/phase-profile/src/lib.rs
++++ b/omega-rust/psi/foundation/phase-profile/src/lib.rs
+@@ -54,6 +54,7 @@ fn initialize() -> bool {
+ /// Time `work` under `name` when collection is enabled.
+ #[inline]
+ pub fn scope<T>(name: &'static str, work: impl FnOnce() -> T) -> T {
++    let _full = selected_full_guard(name);
+     if !enabled() {
+         return work();
+     }
+@@ -68,6 +69,7 @@ pub fn scope<T>(name: &'static str, work: impl FnOnce() -> T) -> T {
+ pub struct Guard {
+     name: &'static str,
+     started: Option<Instant>,
++    _full: FullGuard,
+ }
+ 
+ #[inline]
+@@ -75,6 +77,7 @@ pub fn guard(name: &'static str) -> Guard {
+     Guard {
+         name,
+         started: enabled().then(Instant::now),
++        _full: selected_full_guard(name),
+     }
+ }
+ 
+@@ -89,6 +92,14 @@ impl Drop for Guard {
+ /// Add `amount` events to a counter.
+ #[inline]
+ pub fn count(name: &'static str, amount: u64) {
++    if full_enabled() && name.starts_with("source.graph.") {
++        eprintln!(
++            "FULL_COUNT\t{:?}\t{}\tamount={}",
++            std::thread::current().id(),
++            name,
++            amount
++        );
++    }
+     if enabled() {
+         add(name, amount, 0);
+     }
+@@ -163,3 +174,80 @@ mod tests {
+         );
+     }
+ }
++
++// Temporary coarse timeline. Existing fine counters remain disabled.
++fn full_enabled() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| std::env::var_os("OMEGA_FULL_COMPILE_PROFILE").is_some_and(|v| v != "0"))
++}
++fn full_epoch() -> &'static Instant {
++    static EPOCH: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
++    EPOCH.get_or_init(Instant::now)
++}
++pub struct FullGuard {
++    name: &'static str,
++    start: Option<(u128, std::thread::ThreadId)>,
++}
++pub fn full_guard(name: &'static str) -> FullGuard {
++    let start = full_enabled().then(|| {
++        let thread = std::thread::current().id();
++        (full_epoch().elapsed().as_nanos(), thread)
++    });
++    FullGuard { name, start }
++}
++fn selected_full_guard(name: &'static str) -> FullGuard {
++    let selected = full_enabled()
++        && ((name.starts_with("06.") && name.bytes().filter(|byte| *byte == b'.').count() <= 3)
++            || matches!(
++                name,
++                "psi.source.prepare"
++                    | "pre_resolution.constant_expressions"
++                    | "pre_resolution.constant_initializers"
++                    | "05"
++                    | "05.c.prepare_typed_trees"
++                    | "05.d.lower_typed_trees"
++                    | "05.d.2.prepare_typed_program"
++                    | "05.d.3.build_check_facts"
++                    | "05.d.3.a.pre_flow_facts"
++                    | "05.d.3.b.flow_fixed_point"
++                    | "05.d.3.b.flow_fixed_point.build_flow_facts"
++                    | "05.d.3.b.flow_fixed_point.prepare_permission_events"
++                    | "05.d.3.b.flow_fixed_point.bind_call_spans"
++                    | "05.d.3.b.flow_fixed_point.infer_entry_requirements"
++                    | "05.d.3.c.post_flow_facts"
++                    | "05.d.4_6.quotients_borrows_identities"
++                    | "05.d.7.check_checked_facts"
++                    | "05.d.7.3b.check_flow_call_contracts"
++                    | "05.d.8_10.finalize_execution_identities"
++                    | "05.d.8_10.a.finalize_execution"
++                    | "05.d.8_10.a.3.unit_effect_plans"
++                    | "05.d.8_10.a.3.2.candidate_bodies"
++                    | "05.d.11_13.selections_custody_types_boundaries"
++                    | "05.lower_terminal_selection"
++                    | "05.01_lower_selected_machine"
++                    | "05.01.a_discover_call_catalog"
++                    | "05.01.g1_emit_composed_body"
++                    | "05.10_reconcile_and_residences"
++            ));
++    if selected {
++        full_guard(name)
++    } else {
++        FullGuard { name, start: None }
++    }
++}
++impl Drop for FullGuard {
++    fn drop(&mut self) {
++        if let Some((start, thread)) = self.start {
++            let end = full_epoch().elapsed().as_nanos();
++            assert!(end >= start);
++            eprintln!(
++                "FULL\t{:?}\t{}\tstart_ns={}\tend_ns={}\tend_thread={:?}",
++                thread,
++                self.name,
++                start,
++                end,
++                std::thread::current().id()
++            );
++        }
++    }
++}

@@ -1,0 +1,16 @@
+// Expected rejection: the indexed entry observation cannot justify its own formation.
+machine count(view: &mut [u64], slot: u64)
+terminates;
+terminates by view[slot];
+requires view[slot] >= slot && view[slot] < view.len;
+{
+    transition view[slot] > slot { true -> decrement(view, slot) false -> done() }
+    machine decrement(pending: &mut [u64], selected: u64)
+    requires selected < pending.len && pending[selected] > selected && pending[selected] < pending.len;
+    {
+        pending[selected] = pending[selected] - 1;
+        transition { _ -> count(pending, selected) }
+    }
+    machine done() {}
+}
+machine main() { let mut values: [u64; 2] = [1, 1]; count(&mut values[..], 0); }

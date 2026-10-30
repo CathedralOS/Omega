@@ -1,0 +1,43 @@
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
+index a0e8aa1afae..f4f73b9af70 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/place/case_access.rs
+@@ -120,6 +120,7 @@ impl<'program> CaseEvidence<'program> {
+         let mut previous = None;
+         let mut previous_root = None;
+         let mut root_is_plain_without_cleanup = false;
++        let mut root_has_no_owned_cleanup = false;
+         let mut subject_cleanup_types = Vec::new();
+         for observation in &self.observations {
+             let subject = &observation.place;
+@@ -130,17 +131,27 @@ impl<'program> CaseEvidence<'program> {
+                     root: subject.root,
+                     segments: Vec::new(),
+                 };
+-                root_is_plain_without_cleanup = validation::canonical_owned_place_type_reference(
++                let root_type = validation::canonical_owned_place_type_reference(
+                     self.program,
+                     self.state.symbol,
+                     self.statement_index,
+                     &root,
+-                )
+-                .is_some_and(|reference| {
++                );
++                root_is_plain_without_cleanup = root_type.is_some_and(|reference| {
+                     validation::has_plain_contents_without_nominal_cleanup(self.program, reference)
+                 });
++                root_has_no_owned_cleanup = root_is_plain_without_cleanup
++                    && root_type.is_some_and(|reference| {
++                        validation::has_no_owned_cleanup_obligations(self.program, reference)
++                    });
+                 previous_root = Some(&subject.root);
+             }
++            // The complete original root has no owned claim, descriptor or
++            // nominal cleanup for any descendant case to exclude. Avoid
++            // resolving each observed path when its consumer needs no answer.
++            if root_has_no_owned_cleanup {
++                continue;
++            }
+             if previous == Some(subject) {
+                 continue;
+             }

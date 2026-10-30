@@ -53,6 +53,7 @@ impl Operand {
         }
         match self {
             Self::Integer(..) => true,
+            #[cfg(test)]
             Self::CompletedCall { .. } => false,
             Self::Call { arguments, .. }
             | Self::Binary {

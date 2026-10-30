@@ -14,6 +14,14 @@ pub(super) fn encode_binding(bytes: &mut CanonicalBytes, binding: &ValueBinding)
     encode_scalar_type(bytes, binding.scalar_type);
 }
 
+/// An optional semantic identity: its presence byte, then the identity.
+pub(super) fn encode_optional_id<T: PsiSemanticId>(bytes: &mut CanonicalBytes, value: Option<&T>) {
+    bytes.boolean(value.is_some());
+    if let Some(value) = value {
+        bytes.id(*value);
+    }
+}
+
 pub(super) fn encode_optional<T>(
     bytes: &mut CanonicalBytes,
     value: Option<&T>,
@@ -146,6 +154,14 @@ pub(super) fn encode_structural_path_segment(
                 encode_scalar_type(bytes, *scalar);
             }
         }
+    }
+}
+
+/// An optional access: the access tag itself, or the zero no access takes.
+pub(super) fn encode_optional_access(bytes: &mut CanonicalBytes, access: Option<StructuralAccess>) {
+    match access {
+        Some(access) => encode_access(bytes, access),
+        None => bytes.u8(0),
     }
 }
 

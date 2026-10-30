@@ -57,7 +57,7 @@ pub(super) use scalar_representation::{
 /// result exists. Plain domain qualification on the same owned carrier also
 /// preserves the value. Reference re-views and carrier-changing noninteger
 /// conversions retain their separate authority and denotation rules.
-pub(super) fn denotation_preserving_conversion(
+pub(crate) fn denotation_preserving_conversion(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
     source: typed_trees::types::TypeReferenceHandle,

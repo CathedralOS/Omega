@@ -1,0 +1,1 @@
+no exact private-coordinate assignment proves every edge and complete cycle

@@ -3,35 +3,76 @@
 // Numeric custody only; this does not supply physical backing.
 use borrowed_partition_support::main;
 
-macos_arm64 machine exercise(select: bool) -> bool {
-    let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-    let first: Region in Owned = carve(&mut strategy, 48, 16);
-    let second: Region in Owned = carve(&mut strategy, 32, 8);
-    finish(strategy, first, second)
-}
-linux_x86_64 machine exercise(select: bool) -> bool {
-    let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-    let first: Region in Owned = carve(&mut strategy, 48, 16);
-    let second: Region in Owned = carve(&mut strategy, 32, 8);
-    finish(strategy, first, second)
-}
-linux_arm64 machine exercise(select: bool) -> bool {
-    let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-    let first: Region in Owned = carve(&mut strategy, 48, 16);
-    let second: Region in Owned = carve(&mut strategy, 32, 8);
-    finish(strategy, first, second)
-}
-windows_x86_64 machine exercise(select: bool) -> bool {
-    let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-    let first: Region in Owned = carve(&mut strategy, 48, 16);
-    let second: Region in Owned = carve(&mut strategy, 32, 8);
-    finish(strategy, first, second)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-machine main() crashes Trap {
-    let first: bool = exercise(true);
-    let second: bool = exercise(false);
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine exercise(select: bool) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap;
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(select: bool) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
+        let first: Region in Owned = carve(&mut strategy, 48, 16);
+        let second: Region in Owned = carve(&mut strategy, 32, 8);
+        finish(strategy, first, second)
+    }
+}
+
+X86Probe satisfies SelectedProbe {
+    machine exercise(select: bool) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
+        let first: Region in Owned = carve(&mut strategy, 48, 16);
+        let second: Region in Owned = carve(&mut strategy, 32, 8);
+        finish(strategy, first, second)
+    }
+}
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let first: bool = SelectedProbe::exercise(true);
+    let second: bool = SelectedProbe::exercise(false);
     transition first && second { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

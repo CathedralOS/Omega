@@ -12,6 +12,7 @@ mod integer_constants_and_relations;
 mod integer_conversion;
 mod primitive_projection;
 mod routing;
+mod scalar_applications;
 mod shifts;
 mod structural_establishment;
 mod structural_leaf_copy;
@@ -47,6 +48,7 @@ pub(super) fn lower_operation(
     machine: &TerminalMachine,
     module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
     placed_view_plans: &[terminal_psi::TerminalPlacedViewPlan],
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -60,6 +62,7 @@ pub(super) fn lower_operation(
         machine,
         module,
         structural_types,
+        scalar_applications,
         placed_view_plans,
         value_types,
         byte_sequence_literals,

@@ -14,5 +14,7 @@ pub mod float_projection;
 pub mod float_representation;
 pub mod float_semantics;
 pub mod float_semantics_catalog;
+pub mod integer_bounds;
 pub mod integer_policy;
 pub mod literals;
+pub mod scalar_predicates;

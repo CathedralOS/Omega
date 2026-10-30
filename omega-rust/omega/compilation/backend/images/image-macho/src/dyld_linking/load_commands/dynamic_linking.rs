@@ -49,6 +49,18 @@ pub(crate) struct MachoDylib {
 }
 
 impl MachoDylib {
+    /// One loadable row at the deliberately weak 1.0.0 floor. These libraries
+    /// are loaded for symbol or class availability, so the version fields carry
+    /// only the floor that makes dyld's check pass.
+    const fn weak_floor(path: &'static [u8]) -> Self {
+        MachoDylib {
+            path: Cow::Borrowed(path),
+            timestamp: 2,
+            current_version: 1 << 16,
+            compatibility_version: 1 << 16,
+        }
+    }
+
     /// libSystem — ALWAYS ordinal 1. Exact fields preserved so images that import
     /// only libc/libm produce byte-identical load commands to before multi-dylib.
     pub(crate) const LIBSYSTEM: MachoDylib = MachoDylib {
@@ -59,43 +71,24 @@ impl MachoDylib {
     };
     /// The Objective-C runtime. compat_version 1.0.0 so the dyld version check
     /// passes against any installed libobjc.
-    pub(crate) const LIBOBJC: MachoDylib = MachoDylib {
-        path: Cow::Borrowed(b"/usr/lib/libobjc.A.dylib"),
-        timestamp: 2,
-        current_version: 1 << 16,
-        compatibility_version: 1 << 16,
-    };
+    pub(crate) const LIBOBJC: MachoDylib = MachoDylib::weak_floor(b"/usr/lib/libobjc.A.dylib");
     /// Foundation — loaded for its side effect of REGISTERING its classes
     /// (`NSString`, `NSNumber`, …) with the runtime, so `objc_getClass` can find
     /// them. libobjc alone provides only `NSObject` + the runtime. No symbol is
     /// imported from it; it is loaded purely for class registration. compat_version
     /// 1.0.0 so the dyld check passes against any installed Foundation.
-    pub(crate) const FOUNDATION: MachoDylib = MachoDylib {
-        path: Cow::Borrowed(
-            b"/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
-        ),
-        timestamp: 2,
-        current_version: 1 << 16,
-        compatibility_version: 1 << 16,
-    };
+    pub(crate) const FOUNDATION: MachoDylib = MachoDylib::weak_floor(
+        b"/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
+    );
     /// AppKit — registers the windowing classes (`NSApplication`, `NSWindow`,
     /// `NSImageView`, …). Transitively pulls Foundation + CoreGraphics, but we load
     /// them explicitly too. Loaded for class registration; no symbol imported.
-    pub(crate) const APPKIT: MachoDylib = MachoDylib {
-        path: Cow::Borrowed(b"/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"),
-        timestamp: 2,
-        current_version: 1 << 16,
-        compatibility_version: 1 << 16,
-    };
+    pub(crate) const APPKIT: MachoDylib =
+        MachoDylib::weak_floor(b"/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit");
     /// CoreGraphics — the `CGImage`/`CGColorSpace`/`CGContext` C API for the blit.
-    pub(crate) const COREGRAPHICS: MachoDylib = MachoDylib {
-        path: Cow::Borrowed(
-            b"/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics",
-        ),
-        timestamp: 2,
-        current_version: 1 << 16,
-        compatibility_version: 1 << 16,
-    };
+    pub(crate) const COREGRAPHICS: MachoDylib = MachoDylib::weak_floor(
+        b"/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics",
+    );
 
     /// The `LC_LOAD_DYLIB` command size: 24-byte header + NUL-terminated install
     /// name, padded up to an 8-byte multiple. (libSystem: 24 + 27 -> 56, matching

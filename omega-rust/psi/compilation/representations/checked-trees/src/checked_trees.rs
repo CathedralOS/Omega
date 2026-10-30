@@ -47,6 +47,10 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
+    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
+    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+};
+pub use facts::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
@@ -54,6 +58,10 @@ pub use facts::{
     CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
     CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
     CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+};
+pub use facts::{
+    ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
+    ProofDeclarationDependencies,
 };
 
 pub use facts::{
@@ -114,13 +122,13 @@ pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,
     CheckedBoundaryBodyCandidate, CheckedBoundaryOperatorApplicationArgument,
     CheckedBoundaryOperatorApplicationDemand, CheckedBoundaryOperatorApplicationUseSite,
-    CheckedCrashQualifiedUse, CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact,
-    CheckedOperatorCandidateFact, CheckedOperatorContractUse, CheckedOperatorCrashBucket,
-    CheckedOperatorCrashContract, CheckedOperatorFacts, CheckedOperatorOccurrence,
-    CheckedOperatorRealizationContract, CheckedOperatorResolutionIssue,
+    CheckedBoundaryOperatorDeclaration, CheckedCrashQualifiedUse, CheckedNamedOperatorUseFact,
+    CheckedNamedRequirementUseFact, CheckedOperatorCandidateFact, CheckedOperatorContractUse,
+    CheckedOperatorCrashBucket, CheckedOperatorCrashContract, CheckedOperatorFacts,
+    CheckedOperatorOccurrence, CheckedOperatorRealizationContract, CheckedOperatorResolutionIssue,
     CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedOperatorUseHandle,
-    CheckedProviderPlanCommitment, CheckedSelectedFloatComparisonExecution,
-    CheckedSymbolicBoundaryOperatorApplicationArgument,
+    CheckedProviderPlanCommitment, CheckedProviderRequirement, CheckedProviderRequirementKind,
+    CheckedSelectedFloatComparisonExecution, CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{
@@ -156,25 +164,26 @@ pub use proof::{
 };
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedByteSequenceOperand,
-    CheckedDispatchSubject, CheckedElementViewRegion, CheckedErasedProofParameterPlan,
-    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedIntegerRange,
-    CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedMathematicalArgument,
-    CheckedProjectionSelectorRoot, CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole,
-    CheckedProofTerms, CheckedQuotientAdaptationLicense, CheckedScalarCallee,
-    CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
-    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
-    CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
-    CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
-    CheckedScalarDispatchPattern, CheckedScalarEvaluationOperand, CheckedScalarExpression,
-    CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
-    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot,
-    CheckedStructuralCaseRoot, CheckedStructuralCaseSubject, CheckedStructuralDispatchArm,
-    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
-    CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
-    CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
-    CheckedStructuralValueRoot, CheckedSubsliceSite, CheckedValueCompletion, CheckedValueFact,
-    CheckedValueFacts, CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
+    CheckedDispatchSubject, CheckedElementViewRegion, CheckedEntryIndexBound,
+    CheckedEntryIndexSelector, CheckedErasedProofParameterPlan, CheckedIeeeFloatComparisonKind,
+    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
+    CheckedIntegerMathTerm, CheckedIntegerRange, CheckedLocatedProofTerm,
+    CheckedLocatedScalarExpression, CheckedMathematicalArgument, CheckedProjectionSelectorRoot,
+    CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
+    CheckedQuotientAdaptationLicense, CheckedScalarCallee, CheckedScalarCaseComputationField,
+    CheckedScalarCaseConstruction, CheckedScalarComputation, CheckedScalarComputationHandle,
+    CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarComputationRoot,
+    CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
+    CheckedScalarDispatchArm, CheckedScalarDispatchPattern, CheckedScalarEvaluationOperand,
+    CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole, CheckedScalarReadProjection, CheckedScalarSelector,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralDispatchArm, CheckedStructuralParameterField,
+    CheckedStructuralPredicatePathSegment, CheckedStructuralRecordField,
+    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
+    CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
+    CheckedSubsliceSite, CheckedValueCompletion, CheckedValueFact, CheckedValueFacts,
+    CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

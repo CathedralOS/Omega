@@ -1,0 +1,15 @@
+{"label": "checkcpu-cold-0", "probe_enabled": false, "cache_mode": "fresh private cache", "wall_seconds": 35.45406879999791, "cpu_seconds": 46.734375}
+{"label": "checkcpu-cold-1", "probe_enabled": true, "cache_mode": "fresh private cache", "wall_seconds": 34.439257099991664, "cpu_seconds": 44.3125}
+CHECK {'roots': 3, 'process_cpu': 24.90625, 'thread_cpu': 9.734375, 'wall': 14.954090299999999}
+{"label": "checkcpu-cold-2", "probe_enabled": true, "cache_mode": "fresh private cache", "wall_seconds": 33.038501000002725, "cpu_seconds": 43.40625}
+CHECK {'roots': 3, 'process_cpu': 24.5, 'thread_cpu': 8.953125, 'wall': 13.8301901}
+{"label": "checkcpu-cold-3", "probe_enabled": false, "cache_mode": "fresh private cache", "wall_seconds": 34.98420310000074, "cpu_seconds": 44.390625}
+{"label": "checkcpu-cold-4", "probe_enabled": true, "cache_mode": "fresh private cache", "wall_seconds": 33.942205700004706, "cpu_seconds": 42.953125}
+CHECK {'roots': 3, 'process_cpu': 23.9375, 'thread_cpu': 9.609375, 'wall': 14.6899631}
+{"label": "checkcpu-cold-5", "probe_enabled": true, "cache_mode": "fresh private cache", "wall_seconds": 34.45002019999083, "cpu_seconds": 44.265625}
+CHECK {'roots': 3, 'process_cpu': 24.765625, 'thread_cpu': 9.765625, 'wall': 15.0167114}
+{"label": "checkcpu-warm-1", "probe_enabled": true, "cache_mode": "reused own private cache", "wall_seconds": 15.97624960000394, "cpu_seconds": 15.171875}
+CHECK {'roots': 3, 'process_cpu': 0.046875, 'thread_cpu': 0.046875, 'wall': 0.0520826}
+{"label": "checkcpu-warm-5", "probe_enabled": true, "cache_mode": "reused own private cache", "wall_seconds": 13.42502819999936, "cpu_seconds": 13.21875}
+CHECK {'roots': 3, 'process_cpu': 0.03125, 'thread_cpu': 0.03125, 'wall': 0.041184099999999994}
+{"label": "checkcpu-both", "probe_enabled": false, "cache_mode": "fresh private cache", "wall_seconds": 32.93765320000239, "cpu_seconds": 42.859375}

@@ -44,6 +44,7 @@ pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
 pub(crate) use loans::call_reference_lifetime_sources;
 pub(crate) use loans::owner_path_from_place_segments;
+pub(crate) use loans::owner_path_selects_leaf;
 pub(crate) use loans::owner_place_segments;
 pub(crate) use loans::owner_segment_matches_place_segment;
 pub(crate) use loans::place_path_covers_owner;

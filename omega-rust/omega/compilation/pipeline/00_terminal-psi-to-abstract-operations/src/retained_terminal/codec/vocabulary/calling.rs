@@ -38,7 +38,17 @@ record_fields!(calling_conventions::BoundarySignatureGeometry {
     native_parameters,
     native_parameter_rows,
     callback_layouts,
-    callback_layout_rows
+    callback_layout_rows,
+    callback_bindings,
+    callback_binding_rows
+});
+
+record_fields!(calling_conventions::BoundaryCallbackBinding {
+    binder,
+    requirement,
+    static_machine_ordinal,
+    requirement_identity,
+    invokes_synchronously
 });
 
 record_variants!(calling_conventions::BoundaryValueClass {
@@ -195,13 +205,6 @@ record_variants!(calling_conventions::MachineState {
 record_fields!(calling_conventions::NativeCallbackDemand {
     destination,
     requirement
-});
-
-record_fields!(calling_conventions::NativeParameterApplication {
-    parameter,
-    native_ordinal,
-    shape,
-    placement
 });
 
 record_variants!(calling_conventions::NativePlace {

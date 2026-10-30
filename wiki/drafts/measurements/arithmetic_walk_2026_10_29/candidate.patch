@@ -1,0 +1,82 @@
+diff --git a/omega-rust/psi/compilation/checking/src/frozen_program.rs b/omega-rust/psi/compilation/checking/src/frozen_program.rs
+index 5f87a32150c..61b098be354 100644
+--- a/omega-rust/psi/compilation/checking/src/frozen_program.rs
++++ b/omega-rust/psi/compilation/checking/src/frozen_program.rs
+@@ -548,6 +548,21 @@ pub struct CheckingMemos {
+             )>,
+         >,
+     >,
++    /// Exact stored contracts and captured scalar/length bounds own this query;
++    /// changed checking context resets it with the other selection-sensitive memos.
++    pub(crate) guaranteed_return_intervals: Mutex<
++        symbols::SymbolKeyMap<
++            (
++                symbols::SymbolHandle,
++                typed_trees::types::TypeReferenceHandle,
++                Option<i64>,
++                Option<i64>,
++                Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>,
++                Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>,
++            ),
++            crate::proof_contracts::arithmetic_domains::Interval,
++        >,
++    >,
+     /// Closed metadata at one exact completed call occurrence. These queries
+     /// consume their own immutable state prefix, never an external engine roster.
+     pub(crate) completed_collection_lengths: Mutex<
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+index a6c88017e45..85678687048 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+@@ -31,6 +31,51 @@ pub(super) fn normal_return_interval(
+     {
+         return declared;
+     }
++    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
++        crate::machine_calls::calls::callee_entry_contract(program, callee.callable).is_some_and(
++            |stored| {
++                stored.callable == callee.callable
++                    && stored.return_type == callee.return_type
++                    && std::ptr::eq(stored.parameters, callee.parameters)
++                    && std::ptr::eq(stored.contracts, callee.contracts)
++            },
++        )
++    });
++    let Some(memos) = memos else {
++        return project_normal_return_interval(program, callee, declared, actuals);
++    };
++    let captured = |values: &[(SymbolHandle, Interval)]| {
++        values
++            .iter()
++            .map(|(symbol, interval)| (*symbol, interval.low, interval.high))
++            .collect::<Vec<_>>()
++    };
++    let key = (
++        callee.callable,
++        callee.return_type,
++        declared.low,
++        declared.high,
++        captured(&actuals.values),
++        captured(&actuals.lengths),
++    );
++    if let Ok(intervals) = memos.guaranteed_return_intervals.lock()
++        && let Some(&interval) = intervals.get(&key)
++    {
++        return interval;
++    }
++    let interval = project_normal_return_interval(program, callee, declared, actuals);
++    if let Ok(mut intervals) = memos.guaranteed_return_intervals.lock() {
++        intervals.insert(key, interval);
++    }
++    interval
++}
++
++fn project_normal_return_interval(
++    program: &dyn crate::CheckingInput,
++    callee: &CalleeContract<'_>,
++    declared: Interval,
++    actuals: &ArgumentBounds,
++) -> Interval {
+     // Only gated builtin preconditions may refine a formal used in a result
+     // relation. The ordinary source guard environment is not selection evidence.
+     let mut environment = ValueEnvironment::new();

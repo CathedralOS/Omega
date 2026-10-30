@@ -112,6 +112,7 @@ impl StateGraphEmission<'_, '_> {
         let requirements = crate::unit::attached_unit::entry_requirements::lower(
             identities,
             self.checked,
+            self.catalogs.scalar_applications,
             owner.symbol,
             actual_values,
             &self.state_erased[entry_position],
@@ -156,6 +157,7 @@ impl StateGraphEmission<'_, '_> {
             std::sync::Arc::clone(&self.dynamic_dispatch),
         );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
+            scalar_applications: std::sync::Arc::clone(self.catalogs.scalar_applications),
             completed_operand_scope: Vec::new(),
             current_claims: Default::default(),
             shared_qualifications: self

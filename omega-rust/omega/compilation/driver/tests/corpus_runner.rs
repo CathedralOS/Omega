@@ -136,9 +136,7 @@
 //! tab, with backslash, newline, carriage return and tab escaped as `\\`,
 //! `\n`, `\r` and `\t`.
 
-use compiler::{
-    CheckedCompileRequest, CompileRequest, OptimizationRollback, RequestedCompileProduct,
-};
+use compiler::{CheckedCompileRequest, OptimizationRollback};
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
 

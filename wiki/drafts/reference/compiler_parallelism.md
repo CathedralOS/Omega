@@ -368,5 +368,51 @@ attributed the large warm restore and tested bounded buffer preallocation.
 It preserves native bytes, invalid twins, malformed-record refusal and fresh
 admission while lowering warm peak private commit by about 97–119 MiB
 (15–19%). Timing differences did not establish another latency improvement.
-That memory change is retained locally; the landing receipt and descendant-main
-smoke evidence for PR #755 are recorded with the experiment.
+That memory change landed through [PR #757](https://github.com/CathedralOS/Omega/pull/757).
+The landing receipt and descendant-main smoke evidence for PR #755 are recorded
+with the experiment.
+
+The [root-scoped whole-graph experiment](../measurements/root_graph_2026_10_29/README.md)
+then avoided loading unrelated projects while retaining the complete coupled
+graph and fresh admission. The real candidate reduced three-root warm median
+latency by 19–30% and six-root warm median latency by 34–56%. All native images
+matched the baseline bytes; focused native/Terminal, reject, corruption, source
+change, foreign-root and pruning controls passed. This next substantial latency
+win is committed locally, with raw evidence and limitations in its record.
+
+The [bounded native queue integration](../measurements/target_native_queue_landing_2026_10_29/README.md)
+uses application Build's newer source-free product boundary. A fresh fixed-base
+comparison measured the heavy four-target compile at 2682.9→1749.2 ms (34.8%
+lower), with all four balanced blocks improving. Exact target images, actual
+native/Terminal agreement, rejects, cache custody and ordered failure controls
+passed. Peak private commit increased 107 MiB and root CPU rose 5%; small and
+single-target programs showed no general speedup. The initial baseline-native
+launch timeout and incomplete cohort remain separate from the complete replay;
+its cause is unresolved after 32 successful bounded replays. Source-bound pinned
+qualification passed. Publication is tracked with the experiment rather than
+inferred from the local commit.
+
+The [post-queue Windows ancestry screen](../measurements/windows_ancestry_postqueue_2026_10_29/README.md)
+missed its declared two-subject gate: length improved 27.5%, dispatch 12.0%,
+stack32 13.6%, including one losing dispatch block. All 60 image/native checks
+passed; full conditional qualification and confirmation did not run. Its
+unpublished production patch was parked. The next
+[invocation setup attribution](../measurements/invocation_setup_2026_10_29/README.md)
+measures startup and remaining serial setup before choosing another candidate.
+
+The [Windows sibling-custody experiment](../measurements/windows_sibling_custody_2026_10_29/README.md)
+passed correctness checks but weakened from 16.8–17.7% small-program screen
+gains to 5.9–9.6% in independent confirmation, with a 3.3% stack32 regression.
+It is not a standalone substantial win. Preserve its frozen producer as a
+control for a separately measured composition with linear ancestry, without
+adding percentages or promoting either inconclusive standalone result.
+
+The separately declared [three-producer custody composition](../measurements/windows_custody_composition_2026_10_29/README.md)
+then compared original, sibling-only and combined producers directly. The
+combined ordinary-O3 producer lowered warm Windows-only small-program medians
+28–30% in screening and 35–39% in independent confirmation; stack32 improved
+20–22%. Every block improved, all 180 images matched and executed, and focused
+native/Terminal, reject, corruption, source and junction controls passed.
+Median private commit rose about 8 MiB for length and 2.7 MiB for stack32.
+The source-bound result is retained locally as the next scoped substantial win;
+it does not imply a new multi-target, foreign-host or latest-main result.

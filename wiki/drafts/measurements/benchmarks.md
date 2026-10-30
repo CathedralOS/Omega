@@ -16,12 +16,11 @@ account.
 directory per sample, records the wall clock and per-child peak RSS of
 each compile, keeps the published executable for its size, then runs it
 with stdin closed (`/dev/null`) for the runtime leg. Samples select
-optimizations only through authored `optimizations.enable(...)` calls in
+optimizations through authored `Optimizations::enable(...)` calls in
 their `build.omg`; the harness reads the same file to key the record, so
 the empty selection is the honest default and never an implied bundle.
 
-Subjects that `depend()` on packages (every CLI sample depends on
-`source/library/std`) must pass the package-review gate before any
+Subjects that `depend()` on packages must pass the package-review gate before any
 compile. `benchmark.py prepare` performs the one-time settlement —
 `omega update`, accept the generated `pending` decisions, `omega update
 --resume` — publishing the host-local `omega.lock` beside the subject.
@@ -29,11 +28,17 @@ This records project acceptance, not a source audit, and the lock
 (which embeds absolute paths) is never committed.
 
 Units are milliseconds and bytes. The schema marker
-`omega-benchmark-record/1` is pinned by `tools/tests/test_benchmark.py`:
+`omega-benchmark-record/2` is pinned by `tools/tests/test_benchmark.py`;
+historical `/1` rows remain readable:
 a record that drifts from the documented fields, or a README that no
 longer names the current schema, fails the check.
 
 ## Host-row matrix
+
+The [2026-10-29 Windows run](../../../tools/benchmark/evidence/2026-10-29-windows/README.md)
+retains its exact producer, replay commands and rejected attempts. The table
+also contains older observations from different sources and hosts; it does not
+establish a speedup between those rows.
 
 `python3 tools/benchmark/benchmark.py matrix` renders one row per
 committed record plus one explicit row per catalogued deployment
@@ -81,10 +86,12 @@ when this block drifts.
 | macos_x86_64 | darwin arm64 | structural_proofs | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | Intel macOS host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
-| windows_x86_64 | darwin arm64 | standalone | default | measured 56606.8 ms | measured 111902720 B compile | measured 1024 B | skipped (--no-run was passed) |
+| windows_x86_64 | win32 AMD64 | prime_counter | default | measured 1862.88 ms | measured 2390020096 B compile | measured 9728 B | measured 110.461 ms |
+| windows_x86_64 | win32 AMD64 | segmented_packet_checksum | default | measured 483.861 ms | measured 972832768 B compile | measured 5120 B | measured 62.7086 ms |
+| windows_x86_64 | win32 AMD64 | standalone | default | measured 628.277 ms | measured 916328448 B compile | measured 1024 B | skipped (--no-run was passed) |
 | windows_x86_64 | darwin arm64 | structural_proofs | default | measured 21449.6 ms | measured 116834304 B compile | measured 1024 B | skipped (--no-run was passed) |
 | windows_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 24117.5 ms | measured 147505152 B compile | measured 1024 B | skipped (--no-run was passed) |
-| windows_x86_64 | Windows x86-64 host | — | — | measurable | measurable | measurable | pending Windows x86-64 host |
+| windows_x86_64 | win32 AMD64 | wrapping_square_sum | sel-44c60ac57c66 | measured 741.374 ms | measured 956645376 B compile | measured 1024 B | skipped (--no-run was passed) |
 | uefi_x86_64 | darwin arm64 | standalone | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |
 | uefi_x86_64 | darwin arm64 | structural_proofs | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |
 | uefi_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |

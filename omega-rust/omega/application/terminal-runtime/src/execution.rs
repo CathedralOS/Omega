@@ -214,9 +214,12 @@ pub fn execute_sliced(
             "runtime provisions name another deployment target",
         ));
     }
-    let retained_installation = request
-        .provisions
-        .and_then(TerminalRuntimeProvisions::installation);
+    let retained_installation = request.provisions.and_then(|provisions| {
+        provisions
+            .scalar_applications()
+            .map(|completed| completed.primary().providers())
+            .or_else(|| provisions.installation())
+    });
     let proposed_installation = request
         .provider_proposal
         .map(|proposal| {
@@ -361,6 +364,9 @@ pub fn execute_sliced(
             scalar_arguments: &[],
             structural_inputs: inputs,
             installation: Some(&installation),
+            scalar_admission: request
+                .provisions
+                .and_then(TerminalRuntimeProvisions::scalar_applications),
             ..Default::default()
         })
         .map_err(TerminalRuntimeError::Artifact)?;

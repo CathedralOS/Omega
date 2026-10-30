@@ -1,0 +1,31 @@
+// Expected checking refusal: copying and repairing a callee-local owned array
+// cannot establish a byte predicate on the caller's unchanged incoming array.
+machine valid_values(values: &[i32]) -> bool { check_values(values, values.len) }
+machine check_values(values: &[i32], remaining: u64) -> bool
+requires remaining <= values.len
+terminates;
+terminates by remaining;
+{
+    transition remaining > 0 { true -> inspect(values, remaining) false -> (true) }
+    machine inspect(values: &[i32], remaining: u64) -> bool
+    requires remaining > 0 && remaining <= values.len
+    {
+        let selected: u64 = remaining - 1;
+        transition values[selected] >= 0 && values[selected] <= 255 {
+            true -> check_values(values, selected)
+            false -> (false)
+        }
+    }
+}
+machine copy_bad(values: [i32; 2])
+requires values[0] == 300 && values[1] == 0
+ensures valid_values(&values) == true
+{
+    transition { _ -> repair(values) }
+    machine repair(incoming: [i32; 2])
+    {
+        let mut copied: [i32; 2] = incoming;
+        copied[0] = 40;
+    }
+}
+machine main() {}

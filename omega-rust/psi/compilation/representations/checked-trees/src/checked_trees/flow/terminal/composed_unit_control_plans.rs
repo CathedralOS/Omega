@@ -49,6 +49,26 @@ impl CheckedComposedUnitControlMachinePlan {
     pub fn state_position(&self, state: SymbolHandle) -> Option<usize> {
         state_position(&self.states, state)
     }
+
+    pub fn successor_position(
+        &self,
+        successor: &CheckedStructuralControlSuccessorPlan,
+    ) -> Option<usize> {
+        successor_position(&self.states, successor)
+    }
+}
+
+fn successor_position(
+    states: &[CheckedComposedUnitControlStatePlan],
+    successor: &CheckedStructuralControlSuccessorPlan,
+) -> Option<usize> {
+    match successor.target_occurrence {
+        Some(index) => states
+            .get(index as usize)
+            .filter(|state| state.state == successor.target_state)
+            .map(|_| index as usize),
+        None => state_position(states, successor.target_state),
+    }
 }
 
 /// The roster position of the state keyed `state`, if present.
@@ -108,6 +128,7 @@ pub struct CheckedStateNaturalRank {
     pub parameter: SymbolHandle,
     pub parameter_position: u32,
     pub measure: CheckedNaturalRankMeasure,
+    pub function: CheckedNaturalRankFunction,
     /// Executable observation in this state's exact formal namespace. The
     /// selected view and its proof metadata do not select another evaluator.
     pub observation: crate::CheckedScalarComputationHandle,
@@ -124,7 +145,30 @@ impl Default for CheckedStateNaturalRank {
             measure: CheckedNaturalRankMeasure::SequenceLength {
                 coordinate: crate::CheckedRankCoordinateHandle::invalid(),
             },
+            function: CheckedNaturalRankFunction::Identity,
             observation: crate::CheckedScalarComputationHandle::invalid(),
+        }
+    }
+}
+
+/// Total normalization of an admitted integer observation into the component's
+/// natural order. The source judgment separately retains view formation and
+/// bound conservation; this function grants neither premise.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedNaturalRankFunction {
+    #[default]
+    Identity,
+    Complement,
+}
+
+impl CheckedNaturalRankFunction {
+    pub fn complement_ceiling(self, primitive: PrimitiveType) -> Option<u64> {
+        match (self, primitive) {
+            (Self::Complement, PrimitiveType::U8) => Some(u64::from(u8::MAX)),
+            (Self::Complement, PrimitiveType::U16) => Some(u64::from(u16::MAX)),
+            (Self::Complement, PrimitiveType::U32) => Some(u64::from(u32::MAX)),
+            (Self::Complement, PrimitiveType::U64) => Some(u64::MAX),
+            _ => None,
         }
     }
 }
@@ -145,9 +189,14 @@ pub enum CheckedNaturalRankMeasure {
     SequenceLength {
         coordinate: crate::CheckedRankCoordinateHandle,
     },
-    /// `Nat::Descending`: the fixed-width integer subject itself, signed or
-    /// unsigned. The checker proves it descends on every cyclic edge.
-    IntegerParameter { primitive_type: PrimitiveType },
+    /// `Nat::Descending`: the exact formal-relative integer coordinate,
+    /// including a projected field. Admission owns formation and edge proofs;
+    /// executable observation must consume this coordinate, never a guessed
+    /// whole-formal slot.
+    IntegerValue {
+        coordinate: crate::CheckedRankCoordinateHandle,
+        primitive_type: PrimitiveType,
+    },
     /// `Nat::BoundedDistance` and `Nat::IncreasingTo(limit)`: the natural
     /// distance from the climbing lower subject (`parameter`) up to `upper`.
     /// The cursor uses `primitive_type`; the bound is an admitted expression
@@ -525,6 +574,45 @@ impl CheckedComposedUnitControlTerminatorPlan {
         }
     }
 
+    /// Mutable executable edges in the same order as `successors`.
+    pub fn successors_mut(&mut self) -> Vec<&mut CheckedStructuralControlSuccessorPlan> {
+        match self {
+            Self::Jump { successor } => vec![successor],
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            Self::ConditionalReturn { jump, .. } => vec![jump],
+            Self::GuardedJumps { arms, fallback } => arms
+                .iter_mut()
+                .filter_map(|arm| match arm {
+                    CheckedGuardedJumpArmPlan::Jump(plan) => Some(&mut plan.successor),
+                    CheckedGuardedJumpArmPlan::Return(_) => None,
+                })
+                .chain(match fallback {
+                    CheckedGuardedJumpFallbackPlan::Successor(successor) => Some(successor),
+                    CheckedGuardedJumpFallbackPlan::Return(_) => None,
+                })
+                .collect(),
+            Self::ClosedSum { cases, .. } => cases
+                .iter_mut()
+                .filter_map(|case| match &mut case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
+                    CheckedClosedSumCaseOutcomePlan::Return(_) => None,
+                })
+                .collect(),
+            Self::InvokeNoNormal { .. }
+            | Self::EvaluateNoNormal
+            | Self::ReturnUnit
+            | Self::ReturnScalar { .. }
+            | Self::Guarded { .. }
+            | Self::Crash { .. }
+            | Self::ReturnStructural { .. }
+            | Self::ConditionalCompletion { .. } => Vec::new(),
+        }
+    }
+
     /// Selected completion arms, in authored order. Each arm retains its own
     /// preparation namespace; these sequences are never concatenated as one
     /// unconditional execution path.
@@ -626,7 +714,7 @@ impl CheckedComposedUnitControlStatePlan {
         while let Some(source) = ready.get(next).copied() {
             next += 1;
             for successor in states[source].successors() {
-                let target = state_position(states, successor.target_state)?;
+                let target = successor_position(states, successor)?;
                 if !visited[target] {
                     visited[target] = true;
                     ready.push(target);

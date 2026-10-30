@@ -15,6 +15,32 @@ fn source_span(start: usize, end: usize) -> SourceSpan {
 }
 
 #[test]
+fn wire_request_formation_names_unknown_and_repeated_facts() {
+    let request = |facts: &[&str]| super::ProductDeclarationRequest {
+        source_span: source_span(1, 30),
+        operation: BuildOperation::WireCompatibilityRequest,
+        operands: ["Edge", "Lineage", "Local", "Peer"]
+            .into_iter()
+            .chain(facts.iter().copied())
+            .map(|name| super::ProductDeclarationOperand {
+                path: name.to_owned(),
+                source_span: source_span(2, 5),
+                application: None,
+            })
+            .collect(),
+    };
+    assert_eq!(request(&["Readable", "Writable"]).validate_shape(), Ok(()));
+    assert_eq!(
+        request(&["Imaginary"]).validate_shape(),
+        Err("unknown wire compatibility fact `Imaginary`".to_owned())
+    );
+    assert_eq!(
+        request(&["Readable", "Readable"]).validate_shape(),
+        Err("wire compatibility fact `Readable` is requested twice".to_owned())
+    );
+}
+
+#[test]
 fn static_operand_positions_survive_resolution_and_reject_drift() {
     let mut selections = AuthoredDeclarationSelections::default();
     let conformance = selections

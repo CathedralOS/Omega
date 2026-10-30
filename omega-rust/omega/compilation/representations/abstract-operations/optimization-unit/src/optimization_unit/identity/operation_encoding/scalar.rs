@@ -1,8 +1,8 @@
 //! Boolean and integer scalar-operation tags.
 
 use crate::optimization_unit::identity::carrier_encoding::{
-    encode_abstract_result, encode_integer_value, encode_scalar_type, encode_structural_argument,
-    encode_structural_path_segment,
+    encode_abstract_result, encode_integer_value, encode_optional_id, encode_scalar_type,
+    encode_structural_argument, encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::operation_encoding::scalar_shapes::{
     encode_cast, encode_shift, encode_trapping, encode_typed_binary, encode_typed_unary,
@@ -86,13 +86,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.slice(path, encode_structural_path_segment);
             super::encode_optional_field(bytes, *field);
             bytes.id(*source);
-            match predicate_obligation {
-                Some(obligation) => {
-                    bytes.u8(1);
-                    bytes.id(*obligation);
-                }
-                None => bytes.u8(0),
-            }
+            encode_optional_id(bytes, predicate_obligation.as_ref());
         }
         O::ByteSequenceWrite {
             psi_operation,
@@ -511,7 +505,7 @@ fn integer_arithmetic_tag(arithmetic: IntegerArithmetic) -> u8 {
     }
 }
 
-fn encode_byte_sequence_operand(
+pub(super) fn encode_byte_sequence_operand(
     bytes: &mut CanonicalBytes,
     operand: &terminal_psi::control_flow::ByteSequenceOperand,
 ) {

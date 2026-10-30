@@ -23,7 +23,7 @@ The declaration determines the subject, scope and checking boundary:
 | Named domain | Membership obligations for the exact qualified subject, without changing establishment or access routes. |
 | Generic declaration | Obligations on the admitted argument tuple, including static type equations and complete callable contracts. |
 | Machine | Entry obligations established at every invocation under exact actual-argument substitution. |
-| Assembly body or label | Incoming-edge assertions over the exact modeled machine state. |
+| Inline assembly or local assembly machine | Incoming-edge assertions over the exact modeled machine state. Callable assembly machines retain the ordinary machine contract. |
 
 Data and domain predicates retain their logical `self` subject. This does not
 introduce a machine receiver, implicit argument, borrow or authority. Generic
@@ -43,8 +43,10 @@ not flattened into the enclosing machine's entry requirements.
 Assembly removes the grouping word rather than replacing it with another
 `requires`: `asm requires ready ...` has one entry requirement, and
 `asm clobbers none { ... }` needs no predicate clause. Body-level `requires`,
-`ensures` and `clobbers`, and label-level contracts, retain their existing
-semantics. No assertion becomes an admission or overrides the instruction catalog.
+`ensures` and `clobbers` retain their checking boundaries. Nested `asm machine`
+blocks carry entry/exit assertions under [checked assembly](assembly.md#contracts-and-clobbers);
+an enclosing callable machine's postcondition still applies at normal completion.
+No assertion becomes an admission or overrides the instruction catalog.
 
 This is the accepted source contract, not a claim that either compiler already
 accepts all new forms. `REQUIRES-UNIFICATION` in [TASKS.md](../../../TASKS.md)

@@ -22,6 +22,13 @@ to selected named bodies and does not infer whole-trait conformance evidence.
 
 ## Applications and specialization
 
+An `asm machine` uses these same binders and machine-satisfaction rules; its
+body language does not require an asm-specific generic or iterator facility.
+Every admitted specialization must justify its exact instruction widths,
+layouts, copying rights and target obligations. Selecting an assembly callback
+does not imply textual expansion, unrolling or inlining. See
+[generic assembly](assembly.md#generics-slices-and-tracked-storage).
+
 Lexically nested machines may refer to enclosing static generic selections
 (types, static values, machine selections and conformance evidence) by their
 exact declaration identities. Elaboration retains that context in the nested

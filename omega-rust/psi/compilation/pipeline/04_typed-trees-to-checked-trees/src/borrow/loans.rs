@@ -48,11 +48,11 @@ use super::accesses::{self, borrow_access_place};
 use super::tracker::{BorrowOwnerSegment, StateLoanTracker};
 use aggregate::borrowed_initializers;
 use owner_paths::owner_path_matches;
-pub(crate) use owner_paths::place_path_covers_owner;
 pub(crate) use owner_paths::{
     owner_path_from_place_segments, owner_place_segments, owner_segment_matches_place_segment,
     store_destination_places,
 };
+pub(crate) use owner_paths::{owner_path_selects_leaf, place_path_covers_owner};
 
 mod aggregate;
 mod owner_paths;
@@ -607,6 +607,7 @@ fn assignment_borrow_loans(
                 loan.storage_owner,
                 loan.owner_path.as_slice(),
                 loan.place.incoming_reference,
+                loan.place.incoming_owner_path.as_slice(),
                 loan.place.root,
                 loan.place.segments.as_slice(),
             )

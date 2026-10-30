@@ -20,7 +20,7 @@ fn scalar_reevaluation_does_not_consume_an_earlier_child_recipe() {
         arrivals: Vec::new(),
         observations: Vec::new(),
         completed_children: Default::default(),
-        infer_call_bodies: false,
+        return_ranges: None,
         collect_arrivals: false,
     };
     walk.completed_children.insert(

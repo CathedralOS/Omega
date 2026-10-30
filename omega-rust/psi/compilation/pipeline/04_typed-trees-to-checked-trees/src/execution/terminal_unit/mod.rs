@@ -1001,6 +1001,8 @@ pub(crate) fn build_checked_unit_effect_plans(
         .flatten()
         .collect::<Vec<_>>();
     retained_type_identities.extend(operand_identities.iter().copied());
+    let layout_observations =
+        types::retain_layout_observation_types(program, &mut shapes, &mut retained_type_identities);
     // A performed field observation demands only the concrete declarations
     // along its finite storage path, including nested descriptor crossings.
     for (_, node) in facts.values.scalar_computations.nodes.iter() {
@@ -1180,6 +1182,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     (
         CheckedUnitEffectPlans {
             cleanup_control: shapes.cleanup_control,
+            layout_observations,
             structural_types: shapes.types.into_values().collect(),
             structural_domains: {
                 shapes.domains.sort_by_key(|domain| domain.domain.0);

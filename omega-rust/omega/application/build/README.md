@@ -84,6 +84,14 @@ demanded independent components before advancing consumers. Ready roots complete
 together through the compiler's product facade. One explicit stack worker spans
 the invocation; nested compiler calls execute inline on that worker.
 
+[native_completion.rs](src/native_completion.rs) consumes source-free pending
+native products from both routes. It prepares native work, completes the root
+and component scalar demands through the shared Build evaluator, compiles that
+same preparation, and settles the report and runtime provisions. Failures retain
+the attempted evaluation accounting. Source admission precedes this transfer;
+native production has neither an interpreter dependency nor an evaluator callback.
+Check, Terminal, inspection and component-publication stops do not enter it.
+
 The compiler returns an opaque `PackageBuild`: the application can inspect its
 package inputs, generated bundle and demanded package identities, and join
 component descriptions, but cannot extract its source continuation. Component

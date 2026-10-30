@@ -1,7 +1,46 @@
 //! Structural backing supplied at a Terminal entry, independent of its executor.
 
-use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+use semantic_vocabulary::{
+    IeeeFloatValue, IntegerType, IntegerValue, ScalarType, StructuralDomainId, StructuralTypeId,
+};
 use terminal_psi::{StructuralPathSegment, TerminalPlacedViewInput};
+
+/// A finite scalar exchanged with an execution engine. It carries no proof,
+/// artifact identity or target admission by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum TerminalScalarValue {
+    Boolean(bool),
+    Integer {
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+    IeeeFloat(IeeeFloatValue),
+}
+
+impl TerminalScalarValue {
+    /// Supplied contents must satisfy the predicate as well as its carrier.
+    pub fn satisfies_field(self, field: &terminal_psi::StructuralFieldType) -> bool {
+        terminal_semantics::scalar_field_accepts_literal(field, &self.literal())
+    }
+
+    pub fn literal(self) -> semantic_vocabulary::ScalarTerm {
+        match self {
+            Self::Boolean(value) => semantic_vocabulary::ScalarTerm::Boolean(value),
+            Self::Integer { scalar_type, value } => {
+                semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
+            }
+            Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
+        }
+    }
+
+    pub const fn scalar_type(self) -> ScalarType {
+        match self {
+            Self::Boolean(_) => ScalarType::Boolean,
+            Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::IeeeFloat(value) => ScalarType::IeeeFloat(value.format()),
+        }
+    }
+}
 
 /// Opaque target-neutral runtime carrier for one structural argument.
 ///

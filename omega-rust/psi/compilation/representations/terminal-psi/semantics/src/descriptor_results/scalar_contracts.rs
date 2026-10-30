@@ -173,7 +173,7 @@ pub(super) fn terminal_postconditions(
         .iter()
         .zip(structural_arguments)
     {
-        let root_type = super::place_type(machine, actual.place)?;
+        let root_type = machine.structural_place_type(actual.place)?;
         let selected = crate::runtime_structural_path_tip(
             module.structural_types.iter(),
             root_type,

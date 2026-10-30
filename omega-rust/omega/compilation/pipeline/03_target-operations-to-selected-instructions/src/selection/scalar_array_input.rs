@@ -53,7 +53,10 @@ pub(super) fn shape(
     for depth in 0..=declarations.len() {
         let declaration = terminal_psi::find_structural_type(declarations, current)?;
         match declaration.shape {
-            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+            terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 empty |= length == 0;
                 count = count.and_then(|count| count.checked_mul(length));
                 current = element;

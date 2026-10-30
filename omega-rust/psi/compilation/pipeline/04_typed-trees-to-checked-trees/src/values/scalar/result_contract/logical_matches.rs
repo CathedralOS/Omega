@@ -11,7 +11,7 @@ pub(super) struct ContractSubject {
 }
 
 impl ContractPredicates<'_, '_> {
-    /// Exact entry storage actual for a declared predicate telescope. Shared
+    /// Exact phase-scoped storage actual for a declared predicate telescope. Shared
     /// presentation unwraps only this authored borrow; no initializer is read.
     pub(super) fn predicate_actual_storage(
         &self,
@@ -21,9 +21,6 @@ impl ContractPredicates<'_, '_> {
         Vec<CheckedStructuralPredicatePathSegment>,
         TypeReferenceHandle,
     )> {
-        if self.allow_result {
-            return None;
-        }
         let expression = match self.program.expression_table.expression(expression) {
             ExpressionNode::Borrow(borrow)
                 if borrow.access == language_core::ReferenceAccess::Shared =>
@@ -33,7 +30,7 @@ impl ContractPredicates<'_, '_> {
             _ => expression,
         };
         let subject = self.logical_subject(expression, 0)?;
-        (!subject.result).then_some((subject.position, subject.path, subject.reference))
+        Some((subject.position, subject.path, subject.reference))
     }
 
     fn logical_readable_path(

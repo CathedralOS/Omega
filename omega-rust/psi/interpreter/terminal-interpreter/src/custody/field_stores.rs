@@ -122,21 +122,21 @@ impl TerminalExecution<'_> {
                         _ => None,
                     })
                     .collect::<Vec<_>>(),
-                StructuralTypeShape::FixedArray { element, length }
-                    if usize::try_from(*length).is_ok_and(|length| length <= frontier.len()) =>
-                {
-                    (0..*length)
-                        .map(|index| {
-                            let mut path = parent_path.to_vec();
-                            path.push(StructuralPathSegment::FixedIndex(index));
-                            StructuralAffineDiscard {
-                                place: destination,
-                                path,
-                                structural_type: *element,
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                }
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } if usize::try_from(*length).is_ok_and(|length| length <= frontier.len()) => (0
+                    ..*length)
+                    .map(|index| {
+                        let mut path = parent_path.to_vec();
+                        path.push(StructuralPathSegment::FixedIndex(index));
+                        StructuralAffineDiscard {
+                            place: destination,
+                            path,
+                            structural_type: *element,
+                        }
+                    })
+                    .collect::<Vec<_>>(),
                 _ => break,
             };
             if children.is_empty() || !children.iter().all(|child| frontier.contains(child)) {

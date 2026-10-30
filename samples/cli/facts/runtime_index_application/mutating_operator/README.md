@@ -4,6 +4,15 @@ A runtime limit from 9 to 10 binds `Index<limit>`, retaining payload 8 below the
 
 Parent: `RUNTIME-VALUE-GENERICS` in [TASKS.md](../../../../../TASKS.md). This is another production of the same runtime-index application fact. The selected `+` receives an explicit mutable scalar reference and a bounded right operand. Its checked contract returns right + 1 and its body toggles the referenced scalar. Construction captures that result once; the runtime oracle observes payload, index and a single toggle. The ordinary token call without a Value index is also pinned. Explicit reference shells must survive selection, while an overlapping live shared loan must still reject.
 
+
+The scalar-contract migration belongs to `CANONICALIZE-SCALAR-RANGE-CONTRACTS`.
+Inputs use bare carriers with complete `requires` bounds, data fields use
+owner `requires`, results publish `ensures`, and locals consume established
+initializer facts. The [declaration audit](../../../../../wiki/drafts/designs/range_suffix_migration.md#audited-runtime-index-application-productions)
+retains the original positions and endpoints. The target-body place selects
+four explicit pure implementations through Build. The source/native/Terminal
+oracle and payload-only reject difference are unchanged.
+
 | Place | Positive | Reject twin |
 | --- | --- | --- |
 | local | [local/main.omg](local/main.omg) | [invalid](local/invalid/main.omg) |

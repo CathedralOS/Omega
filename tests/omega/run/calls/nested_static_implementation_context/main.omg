@@ -1,0 +1,19 @@
+// Expected exit: 0.
+trait Reader<Value> { machine read(value: &Value) -> u64; }
+data Item { number: u64; }
+Selected satisfies Reader<Item> {
+    machine read(value: &Item) -> u64 { value.number }
+}
+machine outer<Value, Callbacks satisfies Reader<Value>>(value: &Value) -> u64 {
+    inner(value)
+    machine inner(value: &Value) -> u64 {
+        Callbacks::read(value)
+    }
+}
+machine main() crashes Trap {
+    let item: Item = Item { number: 42u64 };
+    let observed: u64 = outer<Item, Selected>(&item);
+    transition observed == 42 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

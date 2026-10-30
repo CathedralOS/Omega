@@ -1,0 +1,433 @@
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+@@ -53,6 +53,7 @@
+ pub(crate) use optimization::digest_encoder;
+ mod machine_lowering;
+ mod program_roots;
++mod reconciliation_probe;
+ pub use program_roots::TerminalProgramRoots;
+ 
+ // The plan families `machine_dispatch` selects between, in their dependency
+--- /dev/null
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs
+@@ -0,0 +1,87 @@
++//! Temporary, read-only attribution for the Dungeon reconciliation experiment.
++//! Local counters avoid a lock per operation; detailed counts are a separate run.
++
++use std::collections::BTreeMap;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++pub(crate) struct Probe {
++    operation: &'static str,
++    machines: usize,
++    started: Option<Instant>,
++    counting: bool,
++    values: BTreeMap<&'static str, u64>,
++}
++
++impl Probe {
++    pub(crate) fn new(operation: &'static str, machines: usize) -> Self {
++        static MODE: OnceLock<String> = OnceLock::new();
++        let mode = MODE.get_or_init(|| std::env::var("OMEGA_RECONCILE_PROBE").unwrap_or_default());
++        Self {
++            operation,
++            machines,
++            started: matches!(mode.as_str(), "timing" | "counts").then(Instant::now),
++            counting: mode == "counts",
++            values: BTreeMap::new(),
++        }
++    }
++
++    pub(crate) fn count(&mut self, name: &'static str, amount: usize) {
++        if self.counting {
++            *self.values.entry(name).or_default() += amount as u64;
++        }
++    }
++
++    pub(crate) fn clock(&self) -> Option<Instant> {
++        self.started.map(|_| Instant::now())
++    }
++
++    pub(crate) fn elapsed(&mut self, name: &'static str, started: Option<Instant>) {
++        if let Some(started) = started {
++            *self.values.entry(name).or_default() +=
++                u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
++        }
++    }
++}
++
++impl Drop for Probe {
++    fn drop(&mut self) {
++        let Some(started) = self.started else {
++            return;
++        };
++        let elapsed = started.elapsed().as_nanos();
++        let values = self
++            .values
++            .iter()
++            .map(|(name, value)| format!("\t{name}={value}"))
++            .collect::<String>();
++        eprintln!(
++            "RECONCILE\t{}\t{}\t{}{}",
++            self.operation, self.machines, elapsed, values
++        );
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn counts_are_local_and_disabled_without_counting() {
++        let mut probe = Probe {
++            operation: "calibration",
++            machines: 0,
++            started: None,
++            counting: false,
++            values: BTreeMap::new(),
++        };
++        probe.count("visits", 2);
++        assert!(probe.values.is_empty());
++        probe.counting = true;
++        probe.count("visits", 2);
++        probe.count("visits", 3);
++        assert_eq!(probe.values["visits"], 5);
++        probe.elapsed("time_ns", None);
++        assert!(!probe.values.contains_key("time_ns"));
++    }
++}
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+@@ -20,11 +20,13 @@
+ use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
+ 
+ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
++    let mut probe = crate::reconciliation_probe::Probe::new("places", module.machines.len());
+     for machine in &mut module.machines {
+         let mut declared: Option<BTreeSet<_>> = None;
+         let mut additions = Vec::new();
+         for block in &machine.blocks {
+             for operation in &block.operations {
++                probe.count("operations_scanned", 1);
+                 if !matches!(
+                     operation.kind,
+                     terminal_psi::structural_leaf_copy_pair_pattern!()
+@@ -34,6 +36,7 @@
+                 let Some(result) = operation.result.structural() else {
+                     continue;
+                 };
++                probe.count("leaf_copy_results", 1);
+                 let declared = declared.get_or_insert_with(|| {
+                     machine
+                         .structural_places
+@@ -53,8 +56,10 @@
+                 });
+             }
+         }
++        probe.count("declarations_added", additions.len());
+         machine.structural_places.extend(additions);
+         if !machine.structural_places.is_sorted_by_key(|place| place.id) {
++            probe.count("place_rosters_sorted", 1);
+             machine.structural_places.sort_by_key(|place| place.id);
+         }
+     }
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+@@ -35,6 +35,7 @@
+ /// Ordinary reference slots and byte/element view slots share one inventory;
+ /// an address to the carrier itself must remain an observation of its home.
+ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("residences", module.machines.len());
+     let copyable_types =
+         super::affine_cleanup::copyable_descriptor_type_ids(&module.structural_types);
+     if copyable_types.is_empty() {
+@@ -48,6 +49,11 @@
+     if machine_residences.iter().all(Vec::is_empty) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_residences",
++        machine_residences.iter().map(Vec::len).sum(),
++    );
++    let graph_started = probe.clock();
+     let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph(module);
+     let rules = module
+         .machines
+@@ -63,6 +69,8 @@
+         .collect::<Vec<_>>();
+     let mut analysis =
+         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for ((machine, residences), rules) in module
+         .machines
+         .iter_mut()
+@@ -75,10 +83,16 @@
+         let Some(mut rules) = rules else {
+             continue;
+         };
+-        let Some(flow) = analysis.residence_flow(machine.id, &mut rules) else {
++        probe.count("candidate_machines", 1);
++        let flow_started = probe.clock();
++        let flow = analysis.residence_flow(machine.id, &mut rules);
++        probe.elapsed("residence_flow_ns", flow_started);
++        probe.count("residence_flow_queries", 1);
++        let Some(flow) = flow else {
+             // Incomplete return/effect coverage is not a dead-lifetime proof.
+             continue;
+         };
++        let normal_started = probe.clock();
+         let normal = NormalEdges::new(
+             machine,
+             &module.structural_types,
+@@ -86,11 +100,15 @@
+             flow,
+             residences.len(),
+         )?;
++        probe.elapsed("normal_edges_ns", normal_started);
++        let solve_started = probe.clock();
+         let mut motions = Vec::<Motion>::new();
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let scheduled = normal.scheduled_flow(&motions);
+             let mut additions = Vec::new();
+             for residence in &residences {
++                probe.count("residence_plan_queries", 1);
+                 if let Some(motion) =
+                     plan_residence(machine, &normal, &scheduled, &rules, residence, &motions)?
+                 {
+@@ -111,10 +129,12 @@
+                 break;
+             }
+             for motion in additions {
++                probe.count("motion_updates", 1);
+                 motions.retain(|previous| previous.place != motion.place);
+                 motions.push(motion);
+             }
+         }
++        probe.elapsed("planning_ns", solve_started);
+         normal.install(machine, &residences, &motions);
+     }
+     Ok(())
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+@@ -22,9 +22,11 @@
+ use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
+ 
+ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("memberships", module.machines.len());
+     if module.structural_domains.is_empty() {
+         return Ok(());
+     }
++    let discovery_started = probe.clock();
+     let memberships = membership_reachability::MembershipReachability::new(
+         &module.structural_types,
+         module
+@@ -51,40 +53,58 @@
+     if !candidate_machines.iter().any(|&has| has) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_machines",
++        candidate_machines.iter().filter(|&&has| has).count(),
++    );
++    probe.elapsed("discovery_ns", discovery_started);
++    let graph_started = probe.clock();
+     let types = module.structural_types.clone();
+     let graph = descriptors::terminal_graph(module);
+     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
+         if !has_candidate {
+             continue;
+         }
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let mut copies = Vec::new();
+             let reference_memberships = terminal_semantics::ReferenceResultMemberships::new(module);
++            probe.count("reference_context_constructions", 1);
+             {
+                 let machine = &module.machines[machine_index];
++                let history_started = probe.clock();
+                 let mut history = descriptors::PayloadMembershipHistory::new(
+                     &types,
+                     &module.structural_domains,
+                     &graph,
+                     machine,
+                 );
++                probe.elapsed("history_creation_ns", history_started);
+                 for (block_index, block) in machine.blocks.iter().enumerate() {
+                     for (ordinal, operation) in block.operations.iter().enumerate() {
++                        probe.count("operations_scanned", 1);
+                         let Some(result) = operation.result.structural() else {
+                             continue;
+                         };
+                         if !memberships.may_contain(result.structural_type) {
+                             continue;
+                         }
++                        probe.count("eligible_operations", 1);
+                         let position = (
+                             block.id,
+                             u32::try_from(ordinal).map_err(|_| {
+                                 LoweringError::Unsupported("membership operation ordinal overflow")
+                             })?,
+                         );
+-                        if let Ok(projected_qualifications) =
+-                            reference_memberships.for_operation(machine, operation)
++                        let reference_started = probe.clock();
++                        let reference_result =
++                            reference_memberships.for_operation(machine, operation);
++                        probe.elapsed("reference_queries_ns", reference_started);
++                        probe.count("reference_queries", 1);
++                        if let Ok(projected_qualifications) = reference_result
+                             && !projected_qualifications.is_empty()
+                         {
+                             copies.push((
+@@ -99,17 +119,21 @@
+                                 },
+                             ));
+                         }
+-                        if let Some(contract) = view_memberships::retained(
++                        let view_started = probe.clock();
++                        let view_contract = view_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+                             position,
+                             &mut analysis,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("view_queries_ns", view_started);
++                        if let Some(contract) = view_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+-                        if let Some(contract) = operand_memberships::retained(
++                        let operand_started = probe.clock();
++                        let operand_contract = operand_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+@@ -117,12 +141,15 @@
+                             &mut analysis,
+                             &mut history,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("operand_queries_ns", operand_started);
++                        if let Some(contract) = operand_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+                         // Every value transfer observes its source at this operation,
+                         // including copies emitted directly by control-flow edges.
+                         // Declaration-time metadata alone can miss preceding stores.
++                        let source_started = probe.clock();
+                         let selected_source = match &operation.kind {
+                             OperationKind::MoveStructuralValue { source } => {
+                                 Some((source.place, source.path.as_slice()))
+@@ -161,33 +188,45 @@
+                                 ));
+                             }
+                         }
++                        probe.elapsed("source_contract_queries_ns", source_started);
+                         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
+                         else {
+                             continue;
+                         };
+-                        let Some(root) = descriptors::terminal_payload_contract(machine, *source)
+-                        else {
+-                            continue;
+-                        };
+-                        let Some(query) = descriptors::descriptor_contents_query(
++                        let root_started = probe.clock();
++                        let root = descriptors::terminal_payload_contract(machine, *source);
++                        probe.elapsed("leaf_root_lookup_ns", root_started);
++                        let Some(root) = root else {
++                            continue;
++                        };
++                        let query_started = probe.clock();
++                        let query = descriptors::descriptor_contents_query(
+                             &types,
+                             *source,
+                             root.carrier,
+                             path,
+                             None,
+-                        ) else {
+-                            continue;
+-                        };
+-                        let Some(targets) = analysis.payload_targets(machine.id, position, &query)
+-                        else {
+-                            continue;
+-                        };
+-                        let Some(contract) = descriptors::payload_memberships(
++                        );
++                        probe.elapsed("leaf_query_formation_ns", query_started);
++                        let Some(query) = query else {
++                            continue;
++                        };
++                        probe.count("payload_target_queries", 1);
++                        let targets_started = probe.clock();
++                        let targets = analysis.payload_targets(machine.id, position, &query);
++                        probe.elapsed("payload_target_queries_ns", targets_started);
++                        let Some(targets) = targets else {
++                            continue;
++                        };
++                        let memberships_started = probe.clock();
++                        let contract = descriptors::payload_memberships(
+                             &types,
+                             &module.structural_domains,
+                             targets,
+                             |place| descriptors::terminal_payload_contract(machine, place),
+-                        ) else {
++                        );
++                        probe.elapsed("payload_contract_queries_ns", memberships_started);
++                        let Some(contract) = contract else {
+                             continue;
+                         };
+                         if contract.carrier == result.structural_type
+@@ -198,9 +237,16 @@
+                         }
+                     }
+                 }
++                let drop_started = probe.clock();
++                drop(history);
++                probe.elapsed("history_drop_ns", drop_started);
+             }
++            let reference_drop_started = probe.clock();
+             drop(reference_memberships);
++            probe.elapsed("reference_context_drop_ns", reference_drop_started);
++            let merge_started = probe.clock();
+             let mut changed = false;
++            probe.count("proposed_updates", copies.len());
+             let machine = &mut module.machines[machine_index];
+             for (block, operation, contract) in copies {
+                 let OperationResult::Structural(result) =
+@@ -214,11 +260,25 @@
+                     contract.projected_qualifications,
+                 );
+             }
++            probe.elapsed("merge_ns", merge_started);
+             if !changed {
+                 break;
+             }
++            probe.count("changing_rounds", 1);
+         }
+     }
++    let drop_started = probe.clock();
++    drop(analysis);
++    probe.elapsed("analysis_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(graph);
++    probe.elapsed("graph_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(types);
++    probe.elapsed("types_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(memberships);
++    probe.elapsed("reachability_drop_ns", drop_started);
+     Ok(())
+ }
+ 

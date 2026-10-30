@@ -1,0 +1,14 @@
+{
+  "producer": "same-binary-graph",
+  "compiler_sha256": "f9937869a10f89a4de04d4dd70be13bf89db74c3f4eb3f36a91b327ca9c58df9",
+  "accepted_lock_sha256": "ec7b832157f461d51da0c7b8c94b867610573bfab546a0be18ce1050f7435cfb",
+  "build_profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "corpus_sha256": "3c56f1b4683e4e4339b02b1e8a12f4d70025db3e05ea4537726d6e73bc6ce01e",
+  "corpus_profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  }
+}

@@ -74,6 +74,10 @@ pub enum CheckedSuccessorCompletion {
 pub struct CheckedStructuralControlSuccessorPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
+    /// A prepared executable occurrence of the authored target. Source plans
+    /// leave this absent; custody specialization can retain several occurrences
+    /// of one declaration without inventing new source symbols or facts.
+    pub target_occurrence: Option<u32>,
     pub completion: CheckedSuccessorCompletion,
     /// Whether the transition selects the state's authored continuation
     /// rather than its ordinary target. Scalar terminators and the composed
@@ -110,6 +114,7 @@ impl CheckedStructuralControlSuccessorPlan {
         CheckedStructuralControlSuccessorPlan {
             statement_ordinal,
             target_state,
+            target_occurrence: None,
             completion,
             is_continuation,
             transfers,
@@ -203,6 +208,10 @@ pub struct CheckedStructuralControlTransferPlan {
     /// Reference construction syntax and intermediate descriptors do not name
     /// the ultimate home; operand-completion provenance does.
     pub retained_loan_backing: Option<u32>,
+    /// Complete whole-operand ingress provenance from checked loan resources.
+    /// Empty supplies no ingress judgment. Descriptor storage is not ownership
+    /// of its referent; payload evaluation and retained parent debts stay separate.
+    pub incoming_loan_resources: Vec<arena::Handle<crate::CheckedCallBorrowLoanResource>>,
     /// Owned storage reached through the captured backing's contained loans.
     /// Each pair names the exact dependent and parent in the source frame.
     /// These lifetime edges grant neither relocation nor disposal authority.
@@ -222,6 +231,7 @@ impl Default for CheckedStructuralControlTransferPlan {
             source: CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
             target_parameter_index: 0,
             retained_loan_backing: None,
+            incoming_loan_resources: Vec::new(),
             retained_loan_parents: Vec::new(),
             retained_operand_parents: Vec::new(),
         }

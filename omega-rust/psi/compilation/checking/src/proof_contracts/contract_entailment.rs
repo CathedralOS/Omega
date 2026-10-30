@@ -91,12 +91,14 @@ pub(crate) mod call_projection_identity;
 mod const_ranges;
 pub(crate) mod content_conservation;
 mod contract_refinement;
+mod declaration_projections;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
 pub(crate) mod law_conformance;
 pub(crate) mod numeric_observations;
 mod observed_projections;
+pub use declaration_projections::declaration_projection_cases_hold;
 mod operand_fits;
 mod proof_edges;
 pub(crate) mod proof_integer;
@@ -115,9 +117,10 @@ mod structural_case_arms;
 pub(crate) mod structural_judgment;
 pub(crate) mod structural_prefix;
 pub(crate) use operand_fits::{
-    anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
-    exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
-    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
+    CompletedIntegerFormation, anonymous_comparison_operand_fits_at_occurrence,
+    anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
+    exact_cast_fits_at_occurrence, float_integer_conversion_fits_at_occurrence,
+    integer_operands_exclude_at_occurrence,
 };
 mod structural_terms;
 pub(crate) mod transparent_applications;
@@ -198,7 +201,7 @@ use structural_terms::{
 /// Whether `OMEGA_STRUCT_TRACE` asks for structural-judgment tracing. Read
 /// once: each environment lookup takes the process environment lock, and
 /// body unfolding asks once per application.
-fn struct_trace() -> bool {
+pub(in crate::proof_contracts) fn struct_trace() -> bool {
     static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
 }
@@ -1083,6 +1086,7 @@ fn fact_call_targets(
     }
 }
 
+pub(crate) use structural_terms::denotation_preserving_conversion;
 pub(crate) use structural_terms::immutable_entry_boolean_projection;
 pub(crate) use structural_terms::source_operations_have_same_meaning;
 

@@ -1,0 +1,154 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\premise-probe\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\premise-counts-b\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 19.641255799997452,
+  "exit_code": 0,
+  "cpu_seconds": 26.28125,
+  "peak_working_set_bytes": 2098470912,
+  "peak_commit_bytes": 3465732096,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.09166139999797451,
+  "producer": "premise-probe",
+  "compiler_sha256": "2430aefa3bfe1d7a326989886d545fab807811a0b02b61baa9d80b766915756f",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "831e5d996b3e7959364489482257f84b241720fdc0a288d5aaabf95ecbd43fd5",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "counts",
+  "reconciliation": [
+    {
+      "operation": "places",
+      "machines": 7,
+      "wall_ns": 21100,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 26,
+        "operations_scanned": 55
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 7,
+      "wall_ns": 15200,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 7,
+      "wall_ns": 1400,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 2,
+      "wall_ns": 4600,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 2,
+        "operations_scanned": 5
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 2,
+      "wall_ns": 4100,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 2,
+      "wall_ns": 200,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 202,
+      "wall_ns": 240500,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 281,
+        "operations_scanned": 2702
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 202,
+      "wall_ns": 48300,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 202,
+      "wall_ns": 3092892500,
+      "metrics": {
+        "analysis_constructions": 1,
+        "analysis_drop_ns": 2103400,
+        "candidate_machines": 109,
+        "changing_rounds": 18,
+        "discovery_ns": 59000,
+        "eligible_operations": 418,
+        "fixed_point_rounds": 127,
+        "graph_drop_ns": 1743500,
+        "graph_preparation_ns": 142564100,
+        "history_creation_ns": 33100,
+        "history_drop_ns": 16038300,
+        "leaf_query_formation_ns": 56700,
+        "leaf_root_lookup_ns": 432200,
+        "merge_ns": 1569000,
+        "operand_queries_ns": 36224100,
+        "operations_scanned": 3313,
+        "payload_contract_queries_ns": 6316600,
+        "payload_target_queries": 173,
+        "payload_target_queries_ns": 4791700,
+        "proposed_updates": 439,
+        "reachability_drop_ns": 100,
+        "reference_context_constructions": 127,
+        "reference_context_drop_ns": 5215700,
+        "reference_queries": 418,
+        "reference_queries_ns": 461592200,
+        "source_contract_queries_ns": 2393712800,
+        "types_drop_ns": 11800,
+        "view_queries_ns": 5448500
+      }
+    }
+  ],
+  "premise_mode": "counts",
+  "premise": {
+    "windows": 418,
+    "hot": {
+      "requests": 7683,
+      "rows": 3140756,
+      "hits": 2147242,
+      "unique": 993514,
+      "kept": 3139864,
+      "kept_hits": 2146650,
+      "unchanged": 3085153,
+      "changed_without_substitution": 0,
+      "value_visits": 6088391
+    },
+    "global_counts": {
+      "requests": 7742,
+      "rows": 3142008,
+      "hits": 2147789,
+      "unique": 994219,
+      "kept": 3141045,
+      "kept_hits": 2147166,
+      "unchanged": 3086037,
+      "changed_without_substitution": 0,
+      "value_visits": 6090821
+    },
+    "hot_cost": {},
+    "global_cost": {},
+    "hot_scopes": 173,
+    "peak_unique_rows_per_query": 435899
+  }
+}

@@ -1,0 +1,11 @@
+[
+  {
+    "producer": "shared-membership-counts",
+    "compiler_sha256": "e07fc269dd143807e490bcdaa05279594e5d6cf5334abee6c5b3257d4527ed95",
+    "accepted_lock_sha256": "5bce2718166bbb27465b8e994a42c9f69ac1b7567b92d89697dd2d69259217e6",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+]

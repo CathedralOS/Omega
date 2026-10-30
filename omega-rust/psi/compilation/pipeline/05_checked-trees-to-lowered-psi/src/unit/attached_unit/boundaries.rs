@@ -33,6 +33,7 @@ mod reference_outputs;
 pub(crate) fn lower_declarations(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     scalar_qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
@@ -98,6 +99,7 @@ pub(crate) fn lower_declarations(
             .map(|parameter| (parameter.position, parameter.clone()))
             .collect::<Vec<_>>();
         let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications,
             constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,

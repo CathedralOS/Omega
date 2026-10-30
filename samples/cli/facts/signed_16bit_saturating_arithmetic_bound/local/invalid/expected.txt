@@ -1,1 +1,1 @@
-error: cannot prove requires contract for call verify_sum
+cannot prove requires contract for call verify_sum from step: v >= 350 && v <= 600 (needs fact `value >= 350 && value <= 600` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

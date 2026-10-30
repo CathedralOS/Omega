@@ -350,7 +350,8 @@ fn substitute_scalar_term_places(
             ScalarTerm::Value { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
-            | ScalarTerm::IeeeFloatLiteral(_) => {}
+            | ScalarTerm::IeeeFloatLiteral(_)
+            | ScalarTerm::Application { .. } => {}
         }
     }
     substitute(&mut term, substitutions);
@@ -786,7 +787,8 @@ pub(super) fn substitute_scalar_term_values(
         semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
         | ScalarTerm::Boolean(_)
         | ScalarTerm::Integer { .. }
-        | ScalarTerm::IeeeFloatLiteral(_) => term.clone(),
+        | ScalarTerm::IeeeFloatLiteral(_)
+        | ScalarTerm::Application { .. } => term.clone(),
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {
             operand: Box::new(recurse(operand)),
         },

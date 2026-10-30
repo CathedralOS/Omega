@@ -14,6 +14,15 @@
 //! that vocabulary's materialization groups charge stay with the instruction
 //! set; [`case`] and [`callback_fixture`] take them as arguments so the
 //! scaffolding around them is stated once.
+//!
+//! The template bodies both instruction sets run end to end are stated here
+//! too. Each admission asserts the same retained operands, the same evaluated
+//! effects, the same exact byte extent, and the same fixup refusal of a mutated
+//! group, a swapped destination, or a stale effect; an instruction set answers
+//! only the [`Entrances`] it enters through — its row, its declaration, its
+//! register vocabulary, its encoder and validator, its callback destination
+//! vocabulary and byte table, and the terminal call bytes those groups
+//! precede.
 
 use calling_conventions::{
     CallSignature, CallbackBinderRequirement, CallbackMaterialization,
@@ -27,8 +36,9 @@ use register_model::{
     ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionId,
-    SelectedInstructionKind, SelectedNormalizedForeignCall,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration,
+    MachineEncodedEffects, MachineSizeKnowledge, SelectedInstructionId, SelectedInstructionKind,
+    SelectedNormalizedForeignCall,
 };
 use semantic_vocabulary::{
     BoundaryMachineId, IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
@@ -319,12 +329,14 @@ pub struct CallbackPlacement {
 }
 
 /// The wired callback fixture: the record that carries the callbacks, each
-/// destination in the caller's own vocabulary, and the materialization byte
-/// count the caller's table charges for it — all in roster order.
+/// destination in the caller's own vocabulary, the materialization byte count
+/// the caller's table charges for it, and the physical placement the fixture
+/// drew it from — all in roster order.
 pub struct CallbackFixture<Destination> {
     pub record: SelectedNormalizedForeignCall,
     pub destinations: Vec<Destination>,
     pub byte_counts: Vec<u16>,
+    pub placements: Vec<CallbackPlacement>,
 }
 
 /// Wire the four-callback fixture into `record`: a private parameter slot, a
@@ -391,6 +403,7 @@ pub fn callback_fixture<Destination>(
     };
     let mut destinations = Vec::with_capacity(places.len());
     let mut byte_counts = Vec::with_capacity(places.len());
+    let mut placements = Vec::with_capacity(places.len());
     for (placement_index, place) in places.into_iter().enumerate() {
         let (parameter, native_ordinal, field_byte_offset) = match place {
             NativePlace::Parameter(parameter) => (parameter, placement_index / 2 + 1, None),
@@ -404,6 +417,10 @@ pub fn callback_fixture<Destination>(
             register: *register,
             field_byte_offset,
         }));
+        placements.push(CallbackPlacement {
+            register: *register,
+            field_byte_offset,
+        });
         byte_counts.push(if field_byte_offset.is_some() {
             counts.field
         } else {
@@ -439,5 +456,659 @@ pub fn callback_fixture<Destination>(
         record,
         destinations,
         byte_counts,
+        placements,
     }
+}
+
+/// One instruction set's terminal call bytes, and where its fixup patches the
+/// import field and measures the next-instruction reference, both relative to
+/// the call's first byte.
+#[derive(Debug, Clone)]
+pub struct CallBytes {
+    pub bytes: Vec<u8>,
+    pub patch_byte_offset: u16,
+    pub reference_byte_offset: u16,
+}
+
+/// The unresolved fixup record one instruction set's templates carry.
+pub type ForeignFixup<Kind, State, Callback> = crate::Fixup<Kind, State, Callback>;
+
+/// One instruction set's encoder entrance: the selected inputs a template is
+/// encoded from, the callback destinations in the caller's vocabulary, and the
+/// record they were derived from.
+pub type Entrance<Destination, Kind, State, Callback> =
+    fn(
+        NativeTarget,
+        &ValidatedPhysicalRegisterModel,
+        SelectedInstructionKind,
+        MachineAlternativeKey,
+        &[RegisterViewId],
+        &[RegisterOperandAccess],
+        &MachineEncodedEffects,
+        &[Destination],
+        &SelectedNormalizedForeignCall,
+    ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error>;
+
+/// One instruction set's validator entrance: the same selected inputs as
+/// [`Entrance`], plus the bytes, fixup, and callback destinations a caller
+/// claims the encoder produced.
+pub type Validation<Destination, Kind, State, Callback> =
+    fn(
+        NativeTarget,
+        &ValidatedPhysicalRegisterModel,
+        SelectedInstructionKind,
+        MachineAlternativeKey,
+        &[RegisterViewId],
+        &[RegisterOperandAccess],
+        &MachineEncodedEffects,
+        &[u8],
+        ForeignFixup<Kind, State, Callback>,
+        &[Destination],
+        &SelectedNormalizedForeignCall,
+    ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error>;
+
+/// Everything an instruction set answers the shared template bodies, and
+/// nothing else: the roster row and declaration its own effects owner
+/// evaluates, the physical view its model names a machine register by, its
+/// encoder and validator, the canonical fixup constructor and the columns of
+/// one callback materialization, and the terminal call bytes plus the patch
+/// offsets those materialization groups precede.
+pub struct Entrances<Destination, Kind, State, Callback> {
+    pub call: CallBytes,
+    pub constraint: fn(&SelectedNormalizedForeignCall) -> Option<RegisterInstructionConstraint>,
+    pub declaration: fn(
+        &SelectedNormalizedForeignCall,
+        &RegisterInstructionConstraint,
+    ) -> Option<MachineEffectDeclaration>,
+    pub fixed_view: fn(&ValidatedPhysicalRegisterModel, MachineRegister) -> Option<RegisterViewId>,
+    pub encode: Entrance<Destination, Kind, State, Callback>,
+    pub validate: Validation<Destination, Kind, State, Callback>,
+    /// The canonical unresolved fixup for one `{boundary, ordinal}` row.
+    pub fixup:
+        fn(BoundaryMachineId, u32, &[Destination]) -> Option<ForeignFixup<Kind, State, Callback>>,
+    /// One callback materialization as `(destination, byte offset, byte count)`.
+    pub fixup_row: fn(&Callback) -> (Destination, u16, u16),
+    /// Displace one materialization group, leaving the others intact.
+    pub advance: fn(&mut Callback),
+}
+
+/// One selected case bound to the instruction set that encodes it, so a shared
+/// body names only the effects, bytes, fixup, and destinations it asserts
+/// about rather than restating the nine selected inputs each time.
+struct Subject<'a, Destination, Kind, State, Callback> {
+    entrances: &'a Entrances<Destination, Kind, State, Callback>,
+    target: NativeTarget,
+    physical: ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operands: Vec<RegisterViewId>,
+    accesses: Vec<RegisterOperandAccess>,
+    effects: MachineEncodedEffects,
+    record: SelectedNormalizedForeignCall,
+}
+
+impl<'a, Destination, Kind, State, Callback> Subject<'a, Destination, Kind, State, Callback> {
+    fn new(entrances: &'a Entrances<Destination, Kind, State, Callback>, case: Case) -> Self {
+        let (physical, kind, alternative, operands, accesses, effects, record) = case;
+        let target = record
+            .call
+            .binding
+            .native_target()
+            .expect("fixture record names its target");
+        Self {
+            entrances,
+            target,
+            physical,
+            kind,
+            alternative,
+            operands,
+            accesses,
+            effects,
+            record,
+        }
+    }
+
+    /// Re-point the subject at the retained row's own columns and alternative.
+    fn bind_row(
+        &mut self,
+        row: &RegisterInstructionConstraint,
+        alternative: MachineAlternativeKey,
+    ) {
+        let (operands, accesses) = operand_columns(row);
+        self.alternative = alternative;
+        self.operands = operands;
+        self.accesses = accesses;
+    }
+
+    fn attempt(
+        &self,
+        kind: SelectedInstructionKind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        accesses: &[RegisterOperandAccess],
+        effects: &MachineEncodedEffects,
+        destinations: &[Destination],
+    ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error> {
+        self.attempt_at(
+            self.target,
+            kind,
+            alternative,
+            operands,
+            accesses,
+            effects,
+            destinations,
+        )
+    }
+
+    fn attempt_at(
+        &self,
+        target: NativeTarget,
+        kind: SelectedInstructionKind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        accesses: &[RegisterOperandAccess],
+        effects: &MachineEncodedEffects,
+        destinations: &[Destination],
+    ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error> {
+        (self.entrances.encode)(
+            target,
+            &self.physical,
+            kind,
+            alternative,
+            operands,
+            accesses,
+            effects,
+            destinations,
+            &self.record,
+        )
+    }
+
+    fn encode(
+        &self,
+        effects: &MachineEncodedEffects,
+        destinations: &[Destination],
+    ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error> {
+        self.attempt(
+            self.kind,
+            self.alternative,
+            &self.operands,
+            &self.accesses,
+            effects,
+            destinations,
+        )
+    }
+
+    /// Encode this record against substituted operand columns, which is how a
+    /// body proves the columns are not interchangeable.
+    fn encode_with(
+        &self,
+        operands: &[RegisterViewId],
+        accesses: &[RegisterOperandAccess],
+        effects: &MachineEncodedEffects,
+        destinations: &[Destination],
+    ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error> {
+        self.attempt(
+            self.kind,
+            self.alternative,
+            operands,
+            accesses,
+            effects,
+            destinations,
+        )
+    }
+
+    fn validate(
+        &self,
+        bytes: &[u8],
+        fixup: ForeignFixup<Kind, State, Callback>,
+        effects: &MachineEncodedEffects,
+        destinations: &[Destination],
+    ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error> {
+        (self.entrances.validate)(
+            self.target,
+            &self.physical,
+            self.kind,
+            self.alternative,
+            &self.operands,
+            &self.accesses,
+            effects,
+            bytes,
+            fixup,
+            destinations,
+            &self.record,
+        )
+    }
+
+    /// The exact extent of `byte_counts`' materialization groups plus this
+    /// instruction set's terminal call bytes.
+    fn extent(&self, byte_counts: &[u16]) -> u16 {
+        let call = u16::try_from(self.entrances.call.bytes.len()).expect("call bytes fit a u16");
+        byte_counts.iter().sum::<u16>() + call
+    }
+}
+
+/// The callback-bearing record's retained operands, evaluated effects, exact
+/// bytes, and unresolved fixups, under both of one target's alternate ABIs.
+///
+/// `into_destination` and `counts` are the caller's callback destination
+/// vocabulary and per-form byte table; every assertion around them is the same
+/// on both instruction sets.
+pub fn retained_callbacks<Destination, Kind, State, Callback>(
+    entrances: &Entrances<Destination, Kind, State, Callback>,
+    inputs: impl Fn(bool, usize, usize) -> Case,
+    into_destination: fn(CallbackPlacement) -> Destination,
+    counts: CallbackByteCounts,
+) where
+    Destination: Copy + PartialEq + std::fmt::Debug,
+    Kind: Clone + PartialEq + std::fmt::Debug,
+    State: Clone + PartialEq + std::fmt::Debug,
+    Callback: Clone + PartialEq + std::fmt::Debug,
+{
+    for alternate_abi in [false, true] {
+        let mut subject = Subject::new(entrances, inputs(alternate_abi, 3, 1));
+        let original = (entrances.constraint)(&subject.record)
+            .expect("fixture record evaluates its roster row");
+        let CallbackFixture {
+            record,
+            destinations,
+            byte_counts,
+            placements,
+        } = callback_fixture(subject.record.clone(), into_destination, counts);
+        subject.record = record;
+        let scratch_register = subject
+            .record
+            .call
+            .binding
+            .boundary_entry_plan
+            .call
+            .policy
+            .callback_field_scratch();
+        let row =
+            (entrances.constraint)(&subject.record).expect("callback record evaluates its row");
+        assert_eq!(row.key, original.key);
+        assert_eq!(row.operands.len(), 2);
+        assert_eq!(row.operands[0], original.operands[0]);
+        assert_eq!(row.operands[1].access, RegisterOperandAccess::Def);
+        assert_eq!(row.operands[1].fixed_view, original.operands[3].fixed_view);
+        for register in [
+            placements[0].register,
+            placements[2].register,
+            scratch_register,
+        ] {
+            let view = (entrances.fixed_view)(&subject.physical, register)
+                .expect("fixture placement is an ABI-visible register");
+            let view = subject
+                .physical
+                .model()
+                .view(view)
+                .expect("fixed view is in the model");
+            assert!(
+                view.units
+                    .iter()
+                    .all(|unit| row.implicit_uses.contains(unit))
+            );
+        }
+        let declaration = (entrances.declaration)(&subject.record, &row)
+            .expect("callback row retains its declaration");
+        let alternative = &declaration.alternatives[0];
+        assert_eq!(alternative.key.variant, 3);
+        subject.bind_row(&row, alternative.key);
+        let materialized: u16 = byte_counts.iter().sum();
+        let extent = subject.extent(&byte_counts);
+        assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(extent));
+        assert_eq!(alternative.encoded.external_operand_reads, vec![0]);
+        assert_eq!(alternative.encoded.external_operand_writes, vec![1]);
+        let template = subject
+            .encode(&alternative.encoded, &destinations)
+            .expect("callback record encodes");
+        assert_eq!(template.bytes().len(), usize::from(extent));
+        assert_eq!(
+            &template.bytes()[usize::from(materialized)..],
+            entrances.call.bytes.as_slice()
+        );
+        let fixup = template.fixup();
+        assert_eq!(fixup.opcode_byte_offset, materialized);
+        assert_eq!(
+            fixup.patch_byte_offset,
+            materialized + entrances.call.patch_byte_offset
+        );
+        assert_eq!(
+            fixup.reference_byte_offset,
+            materialized + entrances.call.reference_byte_offset
+        );
+        assert_eq!(fixup.patch_byte_width, 4);
+        assert_eq!(fixup.callbacks.len(), 4);
+        let mut byte_offset = 0;
+        for (position, callback) in fixup.callbacks.iter().enumerate() {
+            let (destination, materialization, byte_count) = (entrances.fixup_row)(callback);
+            assert_eq!(destination, destinations[position]);
+            assert_eq!(materialization, byte_offset);
+            assert_eq!(byte_count, byte_counts[position]);
+            byte_offset += byte_count;
+        }
+        assert_eq!(byte_offset, materialized);
+        let replay = |bytes: &[u8], fixup, effects: &MachineEncodedEffects, destinations: &[_]| {
+            subject.validate(bytes, fixup, effects, destinations)
+        };
+        assert!(
+            replay(
+                template.bytes(),
+                template.fixup().clone(),
+                &alternative.encoded,
+                &destinations
+            )
+            .is_ok()
+        );
+        let mut changed_bytes = template.bytes().to_vec();
+        changed_bytes[0] ^= 1;
+        assert!(
+            replay(
+                &changed_bytes,
+                template.fixup().clone(),
+                &alternative.encoded,
+                &destinations
+            )
+            .is_err()
+        );
+        let mut changed_fixup = template.fixup().clone();
+        (entrances.advance)(&mut changed_fixup.callbacks[1]);
+        assert!(
+            replay(
+                template.bytes(),
+                changed_fixup,
+                &alternative.encoded,
+                &destinations
+            )
+            .is_err()
+        );
+        let mut changed_destinations = destinations.clone();
+        changed_destinations.swap(0, 2);
+        assert!(
+            replay(
+                template.bytes(),
+                template.fixup().clone(),
+                &alternative.encoded,
+                &changed_destinations
+            )
+            .is_err()
+        );
+        let mut changed_effects = alternative.encoded.clone();
+        changed_effects.implicit_unit_uses.clear();
+        assert!(
+            replay(
+                template.bytes(),
+                template.fixup().clone(),
+                &changed_effects,
+                &destinations
+            )
+            .is_err()
+        );
+        let mut changed_row = row.clone();
+        changed_row.implicit_uses.clear();
+        assert!(
+            (entrances.declaration)(&subject.record, &changed_row).is_none(),
+            "a row that lost its implicit uses cannot retain the declaration"
+        );
+        let mut changed_record = subject.record.clone();
+        changed_record.call.callbacks[0].application.native_ordinal = 0;
+        assert!((entrances.constraint)(&changed_record).is_none());
+        let mut changed_record = subject.record.clone();
+        changed_record.call.callbacks[1].field_byte_offset = None;
+        assert!((entrances.constraint)(&changed_record).is_none());
+        let mut changed_record = subject.record.clone();
+        changed_record.call.callbacks[0].terminal_operation = OperationId::new(99).unwrap();
+        assert!((entrances.declaration)(&changed_record, &row).is_none());
+    }
+}
+
+/// Every result shape — direct, hidden-aggregate, and structural — retains one
+/// template, and a stale effect or a dropped parameter location is refused.
+pub fn direct_and_hidden_aggregate_results_share_the_import_template<
+    Destination,
+    Kind,
+    State,
+    Callback,
+>(
+    entrances: &Entrances<Destination, Kind, State, Callback>,
+    inputs: impl Fn(bool, usize, usize) -> Case,
+) where
+    Destination: Copy + PartialEq + std::fmt::Debug,
+    Kind: PartialEq + std::fmt::Debug,
+    State: PartialEq + std::fmt::Debug,
+    Callback: PartialEq + std::fmt::Debug,
+{
+    for alternate_abi in [false, true] {
+        let mut shared_key = None;
+        for result in 0..=5 {
+            let subject = Subject::new(entrances, inputs(alternate_abi, 11, result));
+            let row =
+                (entrances.constraint)(&subject.record).expect("fixture record evaluates its row");
+            if let Some(key) = shared_key {
+                assert_eq!(row.key, key);
+            } else {
+                shared_key = Some(row.key);
+            }
+            let declaration = (entrances.declaration)(&subject.record, &row)
+                .expect("fixture row retains its declaration");
+            assert_eq!(declaration.alternatives[0].encoded, subject.effects);
+            let template = subject
+                .encode(&subject.effects, &[])
+                .expect("fixture record encodes");
+            assert_eq!(template.bytes(), entrances.call.bytes.as_slice());
+            let mut corrupted = subject.effects.clone();
+            corrupted.implicit_unit_clobbers.clear();
+            assert_eq!(
+                subject.encode(&corrupted, &[]),
+                Err(crate::Error::EffectMismatch)
+            );
+            let mut changed_row = row.clone();
+            changed_row.operands.last_mut().unwrap().access = RegisterOperandAccess::UseDef;
+            assert!(
+                (entrances.declaration)(&subject.record, &changed_row).is_none(),
+                "a row that changed its result custody cannot retain the declaration"
+            );
+            let mut changed_record = subject.record.clone();
+            changed_record
+                .call
+                .binding
+                .boundary_entry_plan
+                .call
+                .parameters[0]
+                .locations
+                .clear();
+            assert!((entrances.constraint)(&changed_record).is_none());
+        }
+    }
+}
+
+/// A callback-free template is exactly the terminal call bytes over the
+/// canonical fixup, and every selected input round-trips.
+pub fn template_has_exact_bytes_and_fixup<Destination, Kind, State, Callback>(
+    entrances: &Entrances<Destination, Kind, State, Callback>,
+    inputs: impl Fn(bool, usize, usize) -> Case,
+) where
+    Destination: Copy + PartialEq + std::fmt::Debug,
+    Kind: Clone + PartialEq + std::fmt::Debug,
+    State: Clone + PartialEq + std::fmt::Debug,
+    Callback: Clone + PartialEq + std::fmt::Debug,
+{
+    let subject = Subject::new(entrances, inputs(false, 1, 1));
+    let template = subject
+        .encode(&subject.effects, &[])
+        .expect("fixture record encodes");
+    assert_eq!(template.bytes(), entrances.call.bytes.as_slice());
+    assert_eq!(template.kind(), subject.kind);
+    assert_eq!(template.alternative(), subject.alternative);
+    assert_eq!(template.operand_views(), subject.operands.as_slice());
+    assert_eq!(template.effects(), &subject.effects);
+    let fixup = template.fixup().clone();
+    assert_eq!(
+        fixup,
+        (entrances.fixup)(BoundaryMachineId::new(3).unwrap(), 2, &[])
+            .expect("canonical fixup constructs")
+    );
+    assert_eq!(fixup.opcode_byte_offset, 0);
+    assert_eq!(fixup.patch_byte_offset, entrances.call.patch_byte_offset);
+    assert_eq!(
+        fixup.reference_byte_offset,
+        entrances.call.reference_byte_offset
+    );
+    assert_eq!(fixup.patch_byte_width, 4);
+}
+
+/// Every evaluated boundary-entry plan selects its own exact operand columns
+/// under one template, and a substituted view, a flipped role, or another
+/// result's columns are refused.
+///
+/// `layouts` is the number of parameter counts one target's plan admits and
+/// `substitute` a view naming neither the input nor the result bank.
+pub fn evaluated_plans_select_exact_operands_and_effects_under_one_template<
+    Destination,
+    Kind,
+    State,
+    Callback,
+>(
+    entrances: &Entrances<Destination, Kind, State, Callback>,
+    inputs: impl Fn(bool, usize, usize) -> Case,
+    layouts: std::ops::Range<usize>,
+    substitute: &str,
+) where
+    Destination: Copy + PartialEq + std::fmt::Debug,
+    Kind: PartialEq + std::fmt::Debug,
+    State: PartialEq + std::fmt::Debug,
+    Callback: PartialEq + std::fmt::Debug,
+{
+    for input_layout in layouts {
+        for result in 0..3 {
+            let subject = Subject::new(entrances, inputs(false, input_layout, result));
+            let template = subject
+                .encode(&subject.effects, &[])
+                .expect("admitted plan encodes");
+            assert_eq!(template.operand_views(), subject.operands.as_slice());
+            // A different result choice is a valid row, but cannot retain
+            // this row's external writes and remaining caller-save effects.
+            let (_, _, _, wrong, wrong_accesses, _, _) =
+                inputs(false, input_layout, (result + 1) % 3);
+            assert_eq!(
+                subject.encode_with(&wrong, &wrong_accesses, &subject.effects, &[]),
+                Err(crate::Error::OperandViewMismatch)
+            );
+            if !subject.operands.is_empty() {
+                // This view belongs to neither the input nor result bank.
+                let mut substituted = subject.operands.clone();
+                substituted[0] = subject.physical.model().view_named(substitute).unwrap().id;
+                assert_eq!(
+                    subject.encode_with(&substituted, &subject.accesses, &subject.effects, &[]),
+                    Err(crate::Error::OperandViewMismatch)
+                );
+                // Flip the actual role: result-only rows start with Def,
+                // whereas nonempty input layouts start with Use. If the
+                // new roles describe another valid row, stale effects reject.
+                let mut swapped_accesses = subject.accesses.clone();
+                swapped_accesses[0] = match subject.accesses[0] {
+                    RegisterOperandAccess::Use => RegisterOperandAccess::Def,
+                    RegisterOperandAccess::Def => RegisterOperandAccess::Use,
+                    RegisterOperandAccess::UseDef => unreachable!(),
+                };
+                assert!(
+                    subject
+                        .encode_with(&subject.operands, &swapped_accesses, &subject.effects, &[])
+                        .is_err()
+                );
+            }
+        }
+    }
+}
+
+/// One admission rejects a wrong instruction kind, every target this
+/// instruction set does not encode, a foreign alternative family, a
+/// substituted `{boundary, ordinal}`, a non-canonical terminal word, and a
+/// stale effect.
+///
+/// `unsupported` is the set of targets the other instruction set owns, which
+/// is this one's evidence of target admission; `malformed` is a word that
+/// differs from the canonical placeholder.
+pub fn rejects_wrong_kind_target_alternative_and_fixup<Destination, Kind, State, Callback>(
+    entrances: &Entrances<Destination, Kind, State, Callback>,
+    inputs: impl Fn(bool, usize, usize) -> Case,
+    unsupported: &[NativeTarget],
+    malformed: &[u8],
+) where
+    Destination: Copy + PartialEq + std::fmt::Debug,
+    Kind: Clone + PartialEq + std::fmt::Debug,
+    State: Clone + PartialEq + std::fmt::Debug,
+    Callback: Clone + PartialEq + std::fmt::Debug,
+{
+    let subject = Subject::new(entrances, inputs(false, 1, 1));
+    assert_eq!(
+        subject.attempt(
+            SelectedInstructionKind::CallScalar {
+                target: selected_instructions::SelectedCallTarget::Machine(
+                    semantic_vocabulary::MachineId::new(4).unwrap(),
+                ),
+            },
+            subject.alternative,
+            &subject.operands,
+            &subject.accesses,
+            &subject.effects,
+            &[],
+        ),
+        Err(crate::Error::InstructionKindMismatch)
+    );
+    for target in unsupported {
+        assert_eq!(
+            subject.attempt_at(
+                *target,
+                subject.kind,
+                subject.alternative,
+                &subject.operands,
+                &subject.accesses,
+                &subject.effects,
+                &[],
+            ),
+            Err(crate::Error::UnsupportedTarget)
+        );
+    }
+    assert_eq!(
+        subject.attempt(
+            subject.kind,
+            MachineAlternativeKey {
+                family: MachineAlternativeFamily::CallScalar,
+                variant: 0,
+            },
+            &subject.operands,
+            &subject.accesses,
+            &subject.effects,
+            &[],
+        ),
+        Err(crate::Error::AlternativeMismatch)
+    );
+    let template = subject
+        .encode(&subject.effects, &[])
+        .expect("fixture record encodes");
+    // A substituted boundary or ordinal cannot validate.
+    let mut foreign = template.fixup().clone();
+    foreign.boundary = BoundaryMachineId::new(9).unwrap();
+    assert_eq!(
+        subject.validate(template.bytes(), foreign, &subject.effects, &[]),
+        Err(crate::Error::FixupMismatch)
+    );
+    let mut foreign = template.fixup().clone();
+    foreign.ordinal = 7;
+    assert_eq!(
+        subject.validate(template.bytes(), foreign, &subject.effects, &[]),
+        Err(crate::Error::FixupMismatch)
+    );
+    // The canonical placeholder is the only admitted word.
+    assert_eq!(
+        subject.validate(malformed, template.fixup().clone(), &subject.effects, &[]),
+        Err(crate::Error::MalformedTemplate)
+    );
+    // A complete effect mismatch rejects.
+    let mut wrong_effects = subject.effects.clone();
+    wrong_effects.implicit_unit_clobbers.clear();
+    assert_eq!(
+        subject.encode(&wrong_effects, &[]),
+        Err(crate::Error::EffectMismatch)
+    );
 }

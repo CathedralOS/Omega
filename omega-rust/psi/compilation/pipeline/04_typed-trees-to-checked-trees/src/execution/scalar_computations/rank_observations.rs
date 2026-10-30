@@ -169,7 +169,8 @@ pub(super) fn record(
             scalar_occurrences: Vec::new(),
             integer_occurrences: Vec::new(),
         };
-        if let Some(root) = observation(&mut builder, rank, subject, &bindings, admitted) {
+        let root = observation(&mut builder, rank, subject, &bindings, admitted);
+        if let Some(root) = root {
             let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
         }
     }
@@ -229,7 +230,7 @@ fn input_coordinate(
     };
     // Bare parameter coordinates require no authored expression; projected
     // coordinates retain their original occurrence for structural access.
-    builder.scalar_coordinate(subject.unwrap_or_default(), &source, primitive_type)
+    builder.scalar_coordinate(subject.unwrap_or_default(), &source, primitive_type, &[])
 }
 
 fn observation(
@@ -239,7 +240,7 @@ fn observation(
     bindings: &validation::RankStateBindings,
     admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedScalarComputationHandle> {
-    match rank.measure {
+    let observed = match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
             measure,
             primitive_type,
@@ -290,8 +291,32 @@ fn observation(
                 builder.expression(*body, primitive_type)
             }
         }
-        CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
-            input_coordinate(builder, rank, subject, bindings, primitive_type)
+        CheckedNaturalRankMeasure::IntegerValue {
+            coordinate,
+            primitive_type,
+        } => {
+            let coordinate = admitted.coordinates.get(coordinate);
+            let path = admitted.path_segments.span(coordinate.path)?;
+            if coordinate.parameter != rank.parameter {
+                return None;
+            }
+            let (_, state) = validation::find_state(builder.program, rank.state)?;
+            let parameter = builder
+                .program
+                .state_parameters(state)
+                .get(usize::try_from(rank.parameter_position).ok()?)?;
+            if parameter.symbol != coordinate.parameter {
+                return None;
+            }
+            builder.scalar_coordinate(
+                subject.unwrap_or_default(),
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(coordinate.parameter),
+                    segments: path.to_vec(),
+                },
+                primitive_type,
+                admitted.entry_indexes.span(coordinate.entry_indexes)?,
+            )
         }
         CheckedNaturalRankMeasure::SequenceLength { coordinate } => {
             let (_, state) = validation::find_state(builder.program, builder.state)?;
@@ -312,6 +337,20 @@ fn observation(
             let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
         }
+    }?;
+    match rank.function {
+        checked_trees::CheckedNaturalRankFunction::Identity => Some(observed),
+        checked_trees::CheckedNaturalRankFunction::Complement => {
+            let primitive = match rank.measure {
+                CheckedNaturalRankMeasure::SequenceLength { .. } => PrimitiveType::U64,
+                CheckedNaturalRankMeasure::DeclaredMeasure { primitive_type, .. }
+                | CheckedNaturalRankMeasure::IntegerValue { primitive_type, .. }
+                | CheckedNaturalRankMeasure::BoundedDistance { primitive_type, .. } => {
+                    primitive_type
+                }
+            };
+            distance(builder, observed, primitive)
+        }
     }
 }
 
@@ -324,13 +363,8 @@ fn distance(
     lower: CheckedScalarComputationHandle,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarComputationHandle> {
-    let maximum = match primitive_type {
-        PrimitiveType::U8 => u64::from(u8::MAX),
-        PrimitiveType::U16 => u64::from(u16::MAX),
-        PrimitiveType::U32 => u64::from(u32::MAX),
-        PrimitiveType::U64 => u64::MAX,
-        _ => return None,
-    };
+    let maximum =
+        checked_trees::CheckedNaturalRankFunction::Complement.complement_ceiling(primitive_type)?;
     let ceiling = builder.insert(
         primitive_type,
         CheckedScalarComputationKind::Value(facts::u64_integer_literal(maximum, primitive_type)?),

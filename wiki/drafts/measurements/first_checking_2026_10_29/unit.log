@@ -1,0 +1,9 @@
+   Compiling validation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\checking)
+    Finished `test` profile [optimized] target(s) in 48.35s
+────────────
+ Nextest run ID 898227b9-d75d-48e3-93e0-2bc899eb5869 with nextest profile: default
+    Starting 1 test across 1 binary (29 tests skipped)
+        PASS [   0.064s] (1/1) validation proof_contracts::contract_entailment::structural_judgment::integer_predicates::tests::operand_resolutions_preserve_payload_and_end_with_batch
+────────────
+     Summary [   0.064s] 1 test run: 1 passed, 29 skipped
+mbx[cache]: 0 hits, 0 misses, 1 not looked up; 0 B downloaded, 0 B uploaded, 12.8 MiB stored locally

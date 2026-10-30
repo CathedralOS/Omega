@@ -21,6 +21,10 @@ pub struct CapturedPlace {
     /// referent occurrence. Zero denotes ordinary storage; a descriptor's
     /// referent is not the slot that holds its pointer.
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    /// Selected descriptor within an incoming leaf family. This is the
+    /// captured carrier-owner path, not a suffix below its loaded pointer.
+    /// Empty retains the incoming identity's ordinary non-family namespace.
+    pub incoming_owner_path: Vec<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: Vec<facts::PlaceSegment>,
 }
@@ -159,7 +163,12 @@ pub struct BorrowReturnedLoanFact {
     /// Mutually exclusive arms never authenticate each other's formations.
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
     pub formation_expression: ExpressionHandle,
+    /// Descriptor leaf relative to the formation result, before installation
+    /// in an enclosing returned record/case. None withholds the association;
+    /// an empty path identifies this expression's root descriptor.
+    pub formation_owner_path: Option<HandleSpan<BorrowLoanOwnerSegment>>,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
@@ -295,6 +304,7 @@ pub struct BorrowCallReferenceSlotEffect {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowLoanFact {
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     /// Address admitted with a representation footprint, in this loan's same
     /// root and incoming-reference namespace. Zero means no distinct geometry;
     /// indexed representation addresses are nonempty. It grants no lineage.
@@ -420,6 +430,7 @@ pub struct CheckedCallBorrowLoanResource {
     /// Exact referent namespace and selected storage at this leaf completion.
     /// The lifetime root alone is not its descriptor or sibling storage.
     pub backing_incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub backing_incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     pub backing_path: HandleSpan<facts::PlaceSegment>,
 }
 
@@ -814,6 +825,10 @@ impl BorrowFacts {
 
     pub fn state_owns_loan(&self, state: &StateBorrowFact, loan: Handle<BorrowLoanFact>) -> bool {
         self.loans_contain(state.loans, loan)
+            && self
+                .access_segments
+                .span(self.loans.get(loan).incoming_owner_path)
+                .is_some()
     }
 
     pub fn state_loans(
@@ -937,6 +952,8 @@ impl BorrowFacts {
                 completed.lineage == loan.lineage
                     && completed.established_by_call == call
                     && completed.incoming_reference == loan.incoming_reference
+                    && self.access_segments.span(completed.incoming_owner_path)
+                        == self.access_segments.span(loan.incoming_owner_path)
                     && completed.root == loan.root
                     && completed.segments.is_empty()
                     && completed.storage_owner == loan.storage_owner

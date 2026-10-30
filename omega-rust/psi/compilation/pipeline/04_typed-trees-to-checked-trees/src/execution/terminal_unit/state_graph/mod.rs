@@ -151,13 +151,21 @@ pub(super) fn natural_rank_plans_for_fused(
                 rank.state == state.state
                     && rank.parameter == state.parameter
                     && rank.parameter_position == state.parameter_position
+                    && rank.function == state.function
                     && match (state.observation, rank.measure) {
                         (
                             validation::RankPremiseObservation::Value,
-                            checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                            checked_trees::CheckedNaturalRankMeasure::IntegerValue {
+                                coordinate,
                                 primitive_type,
                             },
-                        ) => primitive_type == state.primitive_type,
+                        ) => {
+                            let coordinate = admitted.coordinates.get(coordinate);
+                            primitive_type == state.primitive_type
+                                && coordinate.parameter == state.coordinate.parameter
+                                && admitted.path_segments.span(coordinate.path)
+                                    == Some(state.coordinate.path.as_slice())
+                        }
                         (
                             validation::RankPremiseObservation::Length,
                             checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate },

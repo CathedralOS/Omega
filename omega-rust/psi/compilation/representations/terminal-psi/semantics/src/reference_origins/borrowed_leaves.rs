@@ -114,7 +114,7 @@ impl<'types, I: Iterator<Item = &'types StructuralTypeDeclaration> + Clone>
         }
         self.active.push(root);
         match &declaration.shape {
-            StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+            StructuralTypeShape::FixedArray { element, length } if length.literal() != Some(0) => {
                 // Visit one element before multiplying its roster. Plain arrays
                 // cost one type walk; borrowed arrays cannot expand beyond the
                 // declared contract even with adversarial nested extents.
@@ -124,7 +124,10 @@ impl<'types, I: Iterator<Item = &'types StructuralTypeDeclaration> + Clone>
                 path.pop();
                 let per_element = self.leaves.len() - first;
                 if per_element != 0 {
-                    let count = usize::try_from(*length)
+                    let length = length.literal().ok_or(
+                        "dynamic result borrowed leaf enumeration requires a closed array extent",
+                    )?;
+                    let count = usize::try_from(length)
                         .ok()
                         .and_then(|length| length.checked_mul(per_element))
                         .and_then(|count| first.checked_add(count))
@@ -132,7 +135,7 @@ impl<'types, I: Iterator<Item = &'types StructuralTypeDeclaration> + Clone>
                     if count > self.maximum_leaves {
                         return Err("dynamic result has more borrowed leaves than public regions");
                     }
-                    for index in 1..*length {
+                    for index in 1..length {
                         path.push(StructuralPathSegment::FixedIndex(index));
                         self.visit(*element, path)?;
                         path.pop();

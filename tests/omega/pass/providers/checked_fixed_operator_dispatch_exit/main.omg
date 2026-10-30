@@ -24,7 +24,8 @@ data Main { }
 machine Main::main(main: &mut Main)
 reaches Console
 {
-    let result: i32 = (70 as i32) - 0;
+    // Primitive subtraction would return 67; the selected body returns 70.
+    let result: i32 = (70 as i32) - 3;
     Console::exit_process(result);
 }
 

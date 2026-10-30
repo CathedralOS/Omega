@@ -235,6 +235,7 @@ fn named_const_rejects_conflicting_or_mixed_source_payloads() {
     ));
     let mixed_application = StaticMachineArgument {
         application: Some(Box::new(StaticSymbolApplication {
+            member: arena::Handle::invalid(),
             lifetime_arguments: Box::default(),
             arguments: Box::default(),
         })),

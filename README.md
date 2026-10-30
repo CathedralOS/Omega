@@ -20,6 +20,7 @@ design is ahead of its implementation; native support is still being completed.
 [Specification](wiki/README.md#current-specification-subjects) ·
 [Examples](samples) ·
 [VS Code highlighting](tools/vscode-omega/README.md) ·
+[Compiler observatory](tools/dashboard/README.md) ·
 [Contributing](#development)
 
 ## Failures Omega addresses
@@ -42,17 +43,6 @@ These are design guarantees, within the stated trust boundaries:
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
 is not made safe by calling it from Omega.
-
-The 2026-10-22 optional reach-ceiling and ordinary entry-storage decisions are
-ratified language contracts, not claims that their compiler migration is complete.
-`OPTIONAL-REACH-CEILINGS`, `EXPLICIT-ENTRY-STORAGE`, and
-`STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md) retain that implementation
-and source-migration acceptance.
-
-The 2026-10-28 [requirement-clause unification](wiki/spec/language/state_contracts.md#requirement-clauses)
-retires `where` in favor of `requires` and direct assembly contract clauses.
-The examples use the ratified spelling; `REQUIRES-UNIFICATION` in
-[TASKS.md](TASKS.md) retains the compiler and source migration.
 
 ## Machines
 
@@ -106,6 +96,44 @@ Longer control flow uses nested machines and explicit transitions. Proved
 runtime tail cycles carry values and ownership without growing the call stack.
 [Machines](wiki/language_guide/chapter_3_machines.md)
 [Nested machines and transitions](wiki/language_guide/chapter_4_nested_machines_transitions.md)
+
+## Data
+The `data` keyword is the only manner by which data is described in Omega.
+
+```omega
+data User {
+    id: u64;
+    active: bool;
+}
+
+data Command {
+    command_id: u64;
+
+    case GetUser(user_id: u64);
+    case CountUsers;
+    case DeleteUser(user_id: u64);
+}
+
+machine targets_one_user(command: &Command) -> bool {
+    let Command { command_id as _, case as operation } = command;
+
+    match operation {
+        Command::GetUser { user_id as _ } -> true
+        Command::CountUsers -> false
+        Command::DeleteUser { user_id as _ } -> true
+    }
+}
+```
+
+`command_id` is present in every case and can be read as `command.command_id`
+without matching first. `user_id` exists only in GetUser and DeleteUser. The
+`let` pattern handles the common fields once and binds a case-only view with
+`case as operation`. This decomposition cannot fail for a valid Command; an
+equivalent one-arm outer match is also allowed. The match patterns name only
+payload fields; `as _` explicitly ignores values this helper does not need.
+All inline cases follow the common fields. See
+[data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition)
+and [irrefutable bindings](wiki/spec/language/patterns.md#irrefutable-data-bindings).
 
 ## Domains and invariants
 
@@ -163,40 +191,66 @@ separate implementation.
 [Invariant windows](wiki/language_guide/chapter_11_invariant_windows.md) ·
 [Mathematical proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
 
-## Checked Inline Assembly
+## Advanced Data
 
-Copying a packet's 16-byte header must not read past a truncated packet or
-overwrite a short destination. Moving the work into assembly does not remove
-those obligations:
-
+Suppose commands are sent as data. GetUser should produce a User, CountUsers a u64, and DeleteUser a bool indicating whether a user was deleted. A more complex declaration adds common metadata, stable identities for serialization, and GADT (generalized algebraic data type) constraints tying each command to its result type:
 ```omega
-machine copy_header(
-    packet: &[u8],
-    destination: &mut [u8; 16]
-)
-requires packet.len >= 16
+data Command<T>
+requires
+    ((self in Command::GetUser) && T == User)
+    || ((self in Command::CountUsers) && T == u64)
+    || ((self in Command::DeleteUser) && T == bool)
 {
-    let source_address: addr = address_of(&packet[0]);
-    let destination_address: addr = address_of(&mut destination[0]);
+    #1 request_id: u64;
+    #2 requested_at_ms: u64;
+    #3 sequence: u32;
 
-    asm clobbers xmm0 {
-        copy
-            requires packet.len >= 16:
-        movdqu xmm0, [source_address];
-        movdqu [destination_address], xmm0
+    #10 case GetUser(#1 user_id: u64);
+    #11 case CountUsers;
+    #12 case DeleteUser(#1 user_id: u64);
+}
+
+let accepted: Command<User> = Command::GetUser { user_id: 42 }; // Accepted.
+let rejected: Command<bool> = Command::GetUser { user_id: 42 }; // Rejected: GetUser requires T == User.
+
+machine execute<T>(
+    connection: &mut Database,
+    command: &Command<T>
+) -> Result<T, DatabaseError>
+{
+    let (_, _, _, operation) = command;
+
+    transition operation {
+        Command::GetUser { user_id } -> database::get_user(connection, user_id)
+        Command::CountUsers -> database::count_users(connection)
+        Command::DeleteUser { user_id } -> database::delete_user(connection, user_id)
     }
 }
 ```
 
-The load needs 16 readable bytes; the store needs 16 writable bytes. The packet
-length requirement and destination type establish the bounds, while the borrowed
-arguments supply the necessary access. Numeric addresses alone grant nothing.
-Shifting the store one byte forward would overrun the destination and leave an
-unproved access obligation.
+The positional binding follows authored order: request_id, requested_at_ms, sequence, then one case-only view. `_` ignores each metadata binding. The transition retains the original Command's domain facts, so selecting a case establishes the corresponding equality for T.
 
-Label contracts are checked against instruction semantics, not trusted comments.
-This SIMD snippet illustrates the intended contract; it is not a currently
-validated `movdqu` example. Instruction and target support remain incomplete.
+`Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
+
+GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is deliberately invalid because changing only its type argument breaks that relationship. Omitted metadata fields are zero-initialized here. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
+
+The `#N` identities are neither offsets nor runtime tags, and each payload has its own numbering scope. The two Command declarations above are alternative examples, not declarations to combine in one module.
+
+The same semantic data can use different representations. Custom policies use compile-time reflection to choose a layout, subject to compiler validation. The declarations below illustrate storage types, not implicit conversions; assume a protobuf package supplies the named encoded representation:
+
+```omega
+// Instantiate under the standard Omega layout.
+let command: Command<User>;
+
+// Select C layout, which may be mandated by foreign API calls.
+let command_c: CLayout<Command<User>>;
+
+// Select a library-authored protobuf representation.
+use protobuf;
+let command_proto: ProtobufLayout<Command<User>>;
+```
+
+Variable-length protobuf encoding needs explicit byte storage and checked encode/decode operations; it is not merely a fixed C-style layout.
 
 ## Reach Reporting
 
@@ -217,12 +271,110 @@ reaches FilesystemContentWrite
 
 `reaches FilesystemContentWrite` is a ceiling on this operation and its checked
 transitive calls. Adding network, Console or process-launch reach anywhere in
-that call chain would exceed the ceiling. Reach describes service usage; the
-supplied file and selected backing provide the actual authority.
+that call chain would exceed the ceiling and fail to compile.
 
 `blocks` and the call-site `block` acknowledge that the worker may be occupied
 while the operation waits. `suspend` instead parks an activation and returns
 control to its executor. Neither grants additional service access.
+
+## Trust Boundaries
+
+Omega can check calls into a foreign library, but it cannot prove that the
+library obeys its declared contract.
+
+```omega
+use omega::language::core::time_authority;
+
+data FileTime {
+    low: u32;
+    high: u32;
+}
+
+boundary trait WindowsWallClock:
+    Calling<MicrosoftX64Policy>
+{
+    machine read(output: &mut CLayout<FileTime>)
+        reaches ClockObservation;
+}
+
+machine read_wall_clock(output: &mut CLayout<FileTime>)
+reaches ClockObservation
+{
+    WindowsWallClock::read(output);
+}
+
+// In build.omg
+machine build(builder: &mut Build) {
+    Build::package(builder, "windows_wall_clock");
+    Build::bind<WindowsWallClock::read>(
+        builder,
+        windows_x86_64,
+        ForeignBinding::DllImport {
+            import: DllImport::PeByName {
+                library: "kernel32.dll",
+                export: "GetSystemTimePreciseAsFileTime",
+            },
+        }
+    );
+}
+```
+
+The foreign implementation must be explicitly trusted to honor its contract;
+if it lies, the caller's guarantees no longer hold. Wrapping the call cannot
+hide its `ClockObservation` reach, but reach checking does not sandbox native code.
+
+See [foreign bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
+and [reach contracts](wiki/spec/language/effects.md).
+
+## Checked Inline Assembly
+
+Omega supports checkable inline assembly. You may only write assembly that the
+compiler can prove is safe.
+
+Here, copying a packet's 16-byte header still needs bounds, alignment and access
+proofs, even when the instructions are handwritten:
+
+```omega
+asm machine copy_header(
+    packet: &[u8],
+    destination: &mut [u8; 16]
+)
+requires packet.len >= 16
+registers
+    r10 = address_of(&packet[0]),
+    r11 = address_of(&mut destination[0]),
+    r9b = align_of(packet) >= 16 && align_of(destination) >= 16
+{
+    test r9b, r9b;
+    jz unaligned;
+    transition -> aligned;
+
+    asm machine aligned
+        requires align_of(packet) >= 16 && align_of(destination) >= 16
+    {
+        movdqa xmm0, [r10];
+        movdqa [r11], xmm0;
+        jmp done;
+    }
+
+    asm machine unaligned {
+        movdqu xmm0, [r10];
+        movdqu [r11], xmm0;
+        transition -> done;
+    }
+
+    asm machine done {
+        ret;
+    }
+}
+```
+
+The packet length and destination type establish bounds; the borrows supply
+access. **Addresses are not authority**. Removing the length requirement or
+shifting the store one byte forward leaves an unproved memory access.
+
+`transition` names the adjacent successor without emitting a jump; `jmp` branches.
+Both conditional successors are explicit, and register clobbers are inferred.
 
 ## Hardware access
 
@@ -261,8 +413,7 @@ Recasts and checked assembly must respect that distinction too.
 
 The platform supplies the placement policy and its correspondence to the actual
 device. Omega checks against those contracts; it does not infer a datasheet from
-a field name. This is a policy-dependent design example, not a claim that the
-shown invalid program or every placed-access operation is currently supported.
+a field name.
 
 The same model extends to
 [memory authority without runtime domain tags](wiki/spec/resources/extents.md)

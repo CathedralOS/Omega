@@ -1,5 +1,5 @@
 //! Effects before a completing transition arrives at its callee. Ranking
-//! compares entry coordinates with the prepared actuals: the callee's body
+//! and invocation contracts consume prepared actuals: the callee's body
 //! executes after that comparison. Ordinary statement frames still include it.
 //! Strip only the resolved outer completing invocation; guards and nested
 //! operand calls keep their complete caller-visible write frames.
@@ -10,7 +10,7 @@ use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, StatementRootRole, TransitionExit};
 
 impl<'program> CallFrameResolver<'program> {
-    pub(crate) fn transition_operand_write_frame(
+    pub fn transition_operand_write_frame(
         &self,
         current_machine: &'program Machine,
         statement: &StatementNode,

@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+backend-plan = { path = "../backend/plans/backend-plan" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
@@ -27,6 +28,7 @@ provider-planning = { path = "../realization/provider-planning" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 target = { path = "../backend/target" }
+runtime-abi = { path = "../backend/runtime/runtime-abi" }
 trust-model = { path = "../realization/trust-model" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

@@ -49,9 +49,13 @@ mod application_values;
 mod call_contracts;
 mod collections;
 mod conditions;
+mod entry_fields;
+pub(crate) use entry_fields::parameter_projection_paths;
+mod joins;
 mod scalar_fields;
+mod scalar_storage;
 use conditions::ConditionBinding;
-use scalar_fields::{ScalarField, scalar_field_occurrence};
+use scalar_fields::{ScalarField, ScalarProjection, scalar_field_occurrence};
 
 #[derive(Clone)]
 struct Binding {
@@ -60,6 +64,9 @@ struct Binding {
     value: Option<ScopedArithmeticValue>,
     alternatives: Vec<ScopedArithmeticValue>,
     immutable_coordinate: bool,
+    /// None is unresolved borrowed backing and expires on any write.
+    /// Owned snapshots use Some(empty); their own home name remains separate.
+    read_dependencies: Option<Vec<String>>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -107,6 +114,10 @@ pub(crate) struct CurrentScalarValues<'program> {
 }
 
 impl<'program> CurrentScalarValues<'program> {
+    pub(crate) fn program(&self) -> &'program dyn ::validation::CheckingInput {
+        self.program
+    }
+
     pub(crate) fn at(
         program: &'program dyn ::validation::CheckingInput,
         machine: &'program Machine,
@@ -114,6 +125,26 @@ impl<'program> CurrentScalarValues<'program> {
         statement_index: usize,
         target: TransitionTargetHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
+    ) -> Option<Self> {
+        Self::at_observing_projections(
+            program,
+            machine,
+            state,
+            statement_index,
+            target,
+            frames,
+            &[],
+        )
+    }
+
+    pub(crate) fn at_observing_projections(
+        program: &'program dyn ::validation::CheckingInput,
+        machine: &'program Machine,
+        state: &'program State,
+        statement_index: usize,
+        target: TransitionTargetHandle,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        requested: &[Vec<facts::PlaceSegment>],
     ) -> Option<Self> {
         let mut initial = program
             .state_parameters(state)
@@ -154,6 +185,7 @@ impl<'program> CurrentScalarValues<'program> {
                     }),
                     alternatives: Vec::new(),
                     immutable_coordinate: false,
+                    read_dependencies: Some(Vec::new()),
                 })
             })
             .collect::<Vec<_>>();
@@ -185,6 +217,7 @@ impl<'program> CurrentScalarValues<'program> {
                         }),
                         alternatives: Vec::new(),
                         immutable_coordinate: true,
+                        read_dependencies: Some(Vec::new()),
                     })
                 }),
         );
@@ -229,13 +262,19 @@ impl<'program> CurrentScalarValues<'program> {
             in_transition_target: target.is_valid(),
             scalar_observations: std::cell::OnceCell::new(),
         };
-        values.seed_parameter_fields();
-        values.initial_lengths = values.lengths.clone();
         let owned_frames = frames
             .is_none()
             .then(|| validation::CallFrameResolver::new(program))
             .flatten();
         let frames = frames.or(owned_frames.as_ref());
+        let mut field_paths = parameter_projection_paths(program, machine, state);
+        for path in requested {
+            if !field_paths.contains(path) {
+                field_paths.push(path.clone());
+            }
+        }
+        values.seed_parameter_fields(&field_paths, frames);
+        values.initial_lengths = values.lengths.clone();
         let entry = program.machine_states(machine).first()?;
         let contracts = program.state_contracts(state).iter().chain(
             program
@@ -302,15 +341,42 @@ impl<'program> CurrentScalarValues<'program> {
                         local.initial_value,
                         ordinal,
                     );
-                    let scalar_fields = values.captured_scalar_fields(local.initial_value, 0);
-                    values.replace_scalar_fields(local.symbol, &[], scalar_fields);
-                    values.capture_record_fields(
-                        local.symbol,
-                        &[],
-                        local.name.as_str(),
+                    let scalar_fields = values.captured_scalar_fields_of_type(
                         local.initial_value,
+                        local.type_reference,
+                        0,
                     );
-                    if let Some(primitive) = integer_carrier(program, local.type_reference) {
+                    values.replace_scalar_fields(local.symbol, &[], scalar_fields);
+                    values.capture_record_fields(local.symbol, &[], local.initial_value);
+                    if integer_carrier(program, local.type_reference).is_none() {
+                        values.assume_aggregate_call_ensures(
+                            local.initial_value,
+                            &actuals,
+                            ordinal,
+                        );
+                    }
+                    let reference_scalar =
+                        validation::reference_shell(program, local.type_reference).and_then(
+                            |shell| {
+                                integer_carrier(program, shell.referee)
+                                    .map(|primitive| (primitive, shell.access.is_readable()))
+                            },
+                        );
+                    if let Some(primitive) = reference_scalar
+                        .map(|(primitive, _)| primitive)
+                        .or_else(|| integer_carrier(program, local.type_reference))
+                    {
+                        let (value, read_dependencies) =
+                            if let Some((_, readable)) = reference_scalar {
+                                let (value, dependencies) = values.reference_scalar_initializer(
+                                    statement,
+                                    local.initial_value,
+                                    frames,
+                                );
+                                (readable.then_some(value).flatten(), dependencies)
+                            } else {
+                                (value, Some(Vec::new()))
+                            };
                         // The executed initializer has one value even when its
                         // computation is unavailable to arithmetic reasoning.
                         // Keep that observation, not a replay of the initializer.
@@ -321,7 +387,8 @@ impl<'program> CurrentScalarValues<'program> {
                             local.initial_value,
                         );
                         let value = value.or_else(|| {
-                            Some(observed_scalar(state, local.symbol, ordinal, primitive))
+                            (!reference_scalar.is_some_and(|(_, readable)| !readable))
+                                .then(|| observed_scalar(state, local.symbol, ordinal, primitive))
                         });
                         if let Some(result_value) = &value {
                             values.assume_call_ensures(
@@ -337,19 +404,47 @@ impl<'program> CurrentScalarValues<'program> {
                             value,
                             alternatives,
                             immutable_coordinate: false,
+                            read_dependencies,
                         });
                     }
                 }
                 StatementNode::Assignment(assignment) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
+                    let target_remains_current = frames.is_some_and(|frames| {
+                        frames.assignment_destination_remains_current(machine, statement)
+                    });
                     let actuals = values.capture_call_actuals(assignment.value);
                     let value = values.capture(program, machine, state, assignment.value);
                     let conditions = values.capture_conditions(assignment.value, 0);
-                    let mut scalar_fields = values.captured_scalar_fields(assignment.value, 0);
-                    if let Some(field) =
-                        values.captured_scalar_store(assignment.target, value.clone(), ordinal)
+                    let mut scalar_fields = validation::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                    .map(|reference| {
+                        values.captured_scalar_fields_of_type(assignment.value, reference, 0)
+                    })
+                    .unwrap_or_else(|| values.captured_scalar_fields(assignment.value, 0));
+                    let scalar_store =
+                        values.captured_scalar_store(assignment.target, value.clone(), ordinal);
+                    let store_aliases = scalar_store.as_ref().map_or_else(Vec::new, |field| {
+                        values.scalar_store_aliases(statement, ordinal, field.carrier, frames)
+                    });
+                    let stored_value = scalar_store.as_ref().map(|field| field.value.clone());
+                    if let Some(field) = scalar_store
+                        && values
+                            .scalar_storage_path(assignment.target)
+                            .is_some_and(|(_, path)| !path.is_empty())
                     {
                         scalar_fields.push(field);
+                    }
+                    let alternatives =
+                        values.capture_alternatives(program, machine, state, assignment.value);
+                    if stored_value.is_some() {
+                        values.invalidate_operand_writes(
+                            frames.map(|frames| frames.assignment_write_frame(machine, statement)),
+                        );
                     }
                     let mut fields = values.captured_field_lengths(assignment.value, 0);
                     if let Some(value) = values.collection_length(assignment.value, 0)
@@ -368,8 +463,9 @@ impl<'program> CurrentScalarValues<'program> {
                             value,
                         });
                     }
-                    if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
+                    if target_remains_current
+                        && let ExpressionNode::Name(name) =
+                            program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()
                         && name.symbol == name.head_symbol
                         && values
@@ -377,9 +473,7 @@ impl<'program> CurrentScalarValues<'program> {
                             .iter()
                             .any(|binding| binding.symbol == name.symbol)
                     {
-                        let alternatives =
-                            values.capture_alternatives(program, machine, state, assignment.value);
-                        let next_value = value.or_else(|| {
+                        let next_value = value.or_else(|| stored_value.clone()).or_else(|| {
                             let reference = validation::expression_result_type_reference(
                                 program,
                                 machine,
@@ -405,8 +499,9 @@ impl<'program> CurrentScalarValues<'program> {
                             binding.value = next_value;
                             binding.alternatives = alternatives;
                         }
-                    } else if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
+                    } else if target_remains_current
+                        && let ExpressionNode::Name(name) =
+                            program.expression_table.expression(assignment.target)
                         && name.symbol == name.head_symbol
                         && let Some(length) = values
                             .lengths
@@ -426,15 +521,29 @@ impl<'program> CurrentScalarValues<'program> {
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
-                    if let Some((owner, path)) = field_storage_path(program, assignment.target) {
-                        values.replace_conditions(owner, &path, conditions);
+                    // The store uses the address captured before operand effects.
+                    // A rebound selector can no longer name that home; publishing
+                    // through its old spelling would manufacture a current rank.
+                    if target_remains_current
+                        && let Some((owner, path)) = values.scalar_storage_path(assignment.target)
+                    {
                         values.replace_scalar_fields(owner, &path, scalar_fields);
-                        values.replace_record_fields(
-                            owner,
-                            &path,
-                            &program.expression_table.display_name(assignment.target),
-                            fields,
-                        );
+                        if stored_value.is_none() {
+                            values.assume_aggregate_call_ensures(
+                                assignment.value,
+                                &actuals,
+                                ordinal,
+                            );
+                        }
+                    }
+                    if target_remains_current
+                        && let Some((owner, path)) = field_storage_path(program, assignment.target)
+                    {
+                        values.replace_conditions(owner, &path, conditions);
+                        values.replace_record_fields(owner, &path, fields);
+                    }
+                    if let Some(value) = stored_value {
+                        values.publish_scalar_store(&store_aliases, &value);
                     }
                 }
                 StatementNode::Call(call) => {
@@ -510,9 +619,17 @@ impl<'program> CurrentScalarValues<'program> {
                 continue;
             }
             if paths.as_ref().is_none_or(|paths| {
-                paths
-                    .iter()
-                    .any(|path| validation::frame_paths_overlap(path, &binding.name))
+                paths.iter().any(|path| {
+                    validation::frame_paths_overlap(path, &binding.name)
+                        || binding
+                            .read_dependencies
+                            .as_ref()
+                            .is_none_or(|dependencies| {
+                                dependencies.iter().any(|dependency| {
+                                    validation::frame_paths_overlap(path, dependency)
+                                })
+                            })
+                })
             }) {
                 binding.value = None;
                 binding.alternatives.clear();
@@ -527,9 +644,13 @@ impl<'program> CurrentScalarValues<'program> {
         });
         for field in &mut self.fields {
             if paths.as_ref().is_none_or(|paths| {
-                paths
-                    .iter()
-                    .any(|path| validation::frame_paths_overlap(path, &field.name))
+                paths.iter().any(|path| {
+                    validation::frame_paths_overlap(path, &field.name)
+                        || field
+                            .read_dependencies
+                            .iter()
+                            .any(|dependency| validation::frame_paths_overlap(path, dependency))
+                })
             }) {
                 field.value = None;
             }
@@ -687,6 +808,18 @@ impl<'program> CurrentScalarValues<'program> {
         if depth >= 64 {
             return None;
         }
+        // A completed scalar copy retains the supplying value, including
+        // compiler-introduced selector locals. Wrapping it in a new scoped
+        // Name term would give two reads of one snapshot different identities.
+        if let ExpressionNode::Name(name) = program.expression_table.expression(expression)
+            && name.symbol == name.head_symbol
+            && let Some(binding) = self
+                .current
+                .iter()
+                .find(|binding| binding.symbol == name.symbol)
+        {
+            return binding.value.clone();
+        }
         if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression)
             && let Some(value) = literal.value_i64()
         {
@@ -720,14 +853,17 @@ impl<'program> CurrentScalarValues<'program> {
                 maximum: high.map(numerics::bignum::BigInt::from_i64),
             });
         }
-        if let ExpressionNode::Member(_) = program.expression_table.expression(expression) {
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) {
             if let Some(value) = length_occurrence(program, expression, &self.lengths)
                 .and_then(|length| length.value.clone())
             {
                 return Some(value);
             }
             if let Some(value) =
-                scalar_field_occurrence(program, machine, state, expression, &self.fields)
+                scalar_field_occurrence(self.occurrence(), expression, &self.current, &self.fields)
             {
                 return Some(value);
             }
@@ -806,35 +942,11 @@ impl<'program> CurrentScalarValues<'program> {
                 )?),
             });
         }
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
-            let arms = program.expression_table.match_arms(dispatch.arms);
-            if !arms.is_empty() {
-                let mut captured = Vec::with_capacity(arms.len());
-                for arm in arms {
-                    if let Some(value) =
-                        self.capture_at_depth(program, machine, state, arm.value, depth + 1)
-                    {
-                        captured.push(value);
-                    } else {
-                        captured.clear();
-                        break;
-                    }
-                }
-                if !captured.is_empty()
-                    && captured.iter().skip(1).all(|value| {
-                        value == &captured[0]
-                            || self.proves_values_relation(
-                                program,
-                                machine,
-                                BinaryOperator::Equal,
-                                value,
-                                &captured[0],
-                            )
-                    })
-                {
-                    return Some(captured.swap_remove(0));
-                }
-            }
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+            && let Some(value) =
+                self.capture_join(program, machine, state, expression, dispatch, depth)
+        {
+            return Some(value);
         }
         // Resolve the captured term under this occurrence's exact callable;
         // admission alone does not supply the completed scalar value.
@@ -866,6 +978,16 @@ impl<'program> CurrentScalarValues<'program> {
             .find(|binding| binding.symbol == symbol)?
             .value
             .clone()
+    }
+
+    /// Value of a completed operand at this frame, retaining admitted
+    /// operation evidence as well as captured stores and field values.
+    /// Formation and ordered operand effects remain caller obligations.
+    pub(crate) fn current_value(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.capture(self.program, self.machine, self.state, expression)
     }
 
     pub(crate) fn initial_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
@@ -1528,9 +1650,9 @@ fn admitted(
             .is_some_and(|(_, argument)| {
                 admitted(occurrence, argument, bindings, fields, depth + 1)
             }),
-        ExpressionNode::Member(_) => {
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             length_occurrence(program, expression, lengths).is_some()
-                || scalar_field_occurrence(program, machine, state, expression, fields).is_some()
+                || scalar_field_occurrence(occurrence, expression, bindings, fields).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
                 || literal_window_length(program, expression).is_some()
         }
@@ -1618,12 +1740,10 @@ fn scoped(
                 let (_, argument) = validation::integer_embedding_argument(program, expression)?;
                 pending.push((argument, depth + 1));
             }
-            ExpressionNode::Member(_) => {
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 let value = length_occurrence(program, expression, lengths)
                     .and_then(|length| length.value.clone())
-                    .or_else(|| {
-                        scalar_field_occurrence(program, machine, state, expression, fields)
-                    })
+                    .or_else(|| scalar_field_occurrence(occurrence, expression, bindings, fields))
                     .or_else(|| field_occurrence(program, machine, state, expression))
                     .or_else(|| literal_window_length(program, expression))?;
                 projections.push(ScopedArithmeticBinding {

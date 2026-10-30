@@ -136,6 +136,16 @@ pub(crate) fn parse_logical_proof_facts_until<'tokens, 'source>(
     parse_fact_list(syntax_trees, input, is_terminator, true, true, false)
 }
 
+/// Declaration predicates require a proposition and retain the declaration's
+/// logical subject, including when a contextual clause name is its first operand.
+pub(crate) fn parse_required_logical_proof_facts_until<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(syntax_trees, input, is_terminator, true, true, true)
+}
+
 fn parse_fact_list<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

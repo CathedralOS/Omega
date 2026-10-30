@@ -1,5 +1,7 @@
 # Cathedral UI: preparation repaired and complete warm compilation measured
 
+Publication follow-up: the user subsequently authorized PR and merge. The separately qualified integration and its additional repair are recorded in [publication/README.md](publication/README.md). The local-only statements below describe the original measurement task.
+
 The frozen combined UI export workload now completes normal package review and
 acceptance, publishes both native UI components, and passes Cathedral's seven
 unchanged native consumer tests. The decoder result below measures a complete

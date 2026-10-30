@@ -40,7 +40,7 @@ impl OperationFrame<'_, '_> {
                         statement_index: call.coordinate.statement_index as usize,
                         call_ordinal: call.coordinate.call_ordinal as usize,
                     },
-                    source_site: call.source_site().flatten(),
+                    source_site: call.source_site(),
                     target: call.target.machine,
                     frontier: Default::default(),
                     outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::External {
@@ -54,12 +54,7 @@ impl OperationFrame<'_, '_> {
             return Ok(());
         }
         let id = self.operations.allocate();
-        self.record_source_call(
-            call.coordinate,
-            call.source_site().flatten(),
-            id,
-            call.target.machine,
-        )?;
+        self.record_source_call(call.coordinate, call.source_site(), id, call.target.machine)?;
         self.operations.push(Operation::unsuspended(
             id,
             OperationResult::Unit,
@@ -111,7 +106,7 @@ impl OperationFrame<'_, '_> {
                 statement_index: call.coordinate.statement_index as usize,
                 call_ordinal: call.coordinate.call_ordinal as usize,
             },
-            call.source_site().flatten(),
+            call.source_site(),
             *target_machine,
         )?
         .bind(
@@ -122,12 +117,7 @@ impl OperationFrame<'_, '_> {
             self.operations,
         )?;
         let id = self.operations.allocate();
-        self.record_source_call(
-            call.coordinate,
-            call.source_site().flatten(),
-            id,
-            *target_machine,
-        )?;
+        self.record_source_call(call.coordinate, call.source_site(), id, *target_machine)?;
         self.operations.push(Operation::unsuspended(
             id,
             OperationResult::Scalar(value),
@@ -194,12 +184,7 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
             &mut self.calls.claims,
         )?;
-        self.record_source_call(
-            *coordinate,
-            call.source_site().flatten(),
-            id,
-            *target_machine,
-        )?;
+        self.record_source_call(*coordinate, call.source_site(), id, *target_machine)?;
         Ok((returned, result_declaration))
     }
 

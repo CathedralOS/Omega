@@ -98,6 +98,7 @@ pub struct CheckedCompileOutcome {
 pub struct CompileTargetOutcome {
     target: Option<TargetProfile>,
     result: Result<CompileReport, Vec<Diagnostic>>,
+    failed_source_completion_accounting: Option<build_time_evaluation::SourceCompletionAccounting>,
 }
 
 impl CompileTargetOutcome {
@@ -107,7 +108,30 @@ impl CompileTargetOutcome {
         target: Option<TargetProfile>,
         result: Result<CompileReport, Vec<Diagnostic>>,
     ) -> Self {
-        Self { target, result }
+        Self {
+            target,
+            result,
+            failed_source_completion_accounting: None,
+        }
+    }
+
+    /// Preserve the actual evaluation work of a refused attempt. This ledger
+    /// grants no artifact or successful checking result.
+    pub fn with_failed_source_completion_accounting(
+        mut self,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        self.failed_source_completion_accounting = Some(accounting);
+        self
+    }
+
+    pub fn source_completion_accounting(
+        &self,
+    ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
+        match &self.result {
+            Ok(report) => Some(report.source_completion_accounting()),
+            Err(_) => self.failed_source_completion_accounting.as_ref(),
+        }
     }
     pub const fn target_profile(&self) -> Option<TargetProfile> {
         self.target

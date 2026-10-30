@@ -730,7 +730,10 @@ fn byte_capacity(
     match walked {
         Walked::Carrier(ByteSequenceCarrier::BoundedOwned { capacity, .. }) => Ok(*capacity),
         Walked::Type(array) => {
-            let StructuralTypeShape::FixedArray { element, length } = &unique_declaration(
+            let StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = &unique_declaration(
                 types,
                 array,
                 "representation view store carrier type is absent",
@@ -824,7 +827,11 @@ fn walk_carrier_prefix<'a>(
                 };
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                let StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = &declaration.shape
+                else {
                     return unsupported(
                         "representation view store fixed index requires a fixed array",
                     );

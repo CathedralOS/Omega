@@ -12,7 +12,41 @@ pub(super) struct Observation {
     value: Value,
 }
 
+pub(super) struct Update {
+    identity: usize,
+    previous: Value,
+    field: SymbolHandle,
+    value: Value,
+}
+
 impl Implication<'_> {
+    /// Produce an immutable replacement record. The previous record may itself
+    /// be a nested observation; its exact projection remains part of that value.
+    pub(super) fn record_store(
+        &mut self,
+        previous: Value,
+        field: SymbolHandle,
+        value: Value,
+    ) -> Option<Value> {
+        self.spend()?;
+        let Value::Record { reference, .. } = previous else {
+            return None;
+        };
+        let identity = self.next_identity;
+        self.next_identity += 1;
+        self.record_updates.push(Update {
+            identity,
+            previous,
+            field,
+            value,
+        });
+        Some(Value::Record {
+            identity,
+            reference,
+            projection: Vec::new(),
+        })
+    }
+
     pub(super) fn record_observes_integer(
         &mut self,
         identity: usize,
@@ -76,6 +110,23 @@ impl Implication<'_> {
         )?;
         if crate::reference_shell(self.program, field_type).is_some() {
             return None;
+        }
+        if let Some(update) = self
+            .record_updates
+            .iter()
+            .find(|update| update.identity == identity)
+        {
+            // Updated records are roots of fresh immutable values. Unchanged
+            // children are read from the exact previous snapshot, not assigned
+            // fresh identities merely because their parent changed.
+            if !projection.is_empty() {
+                return None;
+            }
+            if update.field == symbol {
+                return Some((path, update.value.clone()));
+            }
+            let previous = update.previous.clone();
+            return self.record_member(path, previous, symbol);
         }
         projection.push(segment);
         if let Some(value) = self

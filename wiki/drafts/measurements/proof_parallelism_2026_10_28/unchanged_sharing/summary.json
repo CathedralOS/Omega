@@ -1,0 +1,142 @@
+{
+  "pairs": [
+    {
+      "pair": "a",
+      "base": {
+        "wall_seconds": 31.0436458999975,
+        "cpu_seconds": 37.484375,
+        "source_replay_ms": 2491.2511,
+        "membership_ms": 3594.7115,
+        "peak_working_set_bytes": 1899380736,
+        "peak_commit_bytes": 3510018048
+      },
+      "candidate": {
+        "wall_seconds": 25.584165200001735,
+        "cpu_seconds": 32.546875,
+        "source_replay_ms": 1216.7077,
+        "membership_ms": 1822.1267,
+        "peak_working_set_bytes": 2142916608,
+        "peak_commit_bytes": 3502575616
+      },
+      "replay_change_percent": -51.160776205979396
+    },
+    {
+      "pair": "b",
+      "base": {
+        "wall_seconds": 29.224181800003862,
+        "cpu_seconds": 35.828125,
+        "source_replay_ms": 2313.1821,
+        "membership_ms": 3413.4254,
+        "peak_working_set_bytes": 2114031616,
+        "peak_commit_bytes": 3511762944
+      },
+      "candidate": {
+        "wall_seconds": 23.93621919999714,
+        "cpu_seconds": 31.0625,
+        "source_replay_ms": 1662.5511,
+        "membership_ms": 2726.0958,
+        "peak_working_set_bytes": 1921626112,
+        "peak_commit_bytes": 3550629888
+      },
+      "replay_change_percent": -28.12709816490453
+    },
+    {
+      "pair": "c",
+      "base": {
+        "wall_seconds": 28.52577320000273,
+        "cpu_seconds": 34.015625,
+        "source_replay_ms": 2358.3949,
+        "membership_ms": 3645.7962,
+        "peak_working_set_bytes": 1898819584,
+        "peak_commit_bytes": 3538579456
+      },
+      "candidate": {
+        "wall_seconds": 23.285379400003876,
+        "cpu_seconds": 29.5625,
+        "source_replay_ms": 1488.0794,
+        "membership_ms": 2330.3924,
+        "peak_working_set_bytes": 1885065216,
+        "peak_commit_bytes": 3538087936
+      },
+      "replay_change_percent": -36.90287406913914
+    },
+    {
+      "pair": "d",
+      "base": {
+        "wall_seconds": 19.18645380000089,
+        "cpu_seconds": 24.515625,
+        "source_replay_ms": 1454.0736,
+        "membership_ms": 2211.1234,
+        "peak_working_set_bytes": 1904676864,
+        "peak_commit_bytes": 3521175552
+      },
+      "candidate": {
+        "wall_seconds": 20.603641600006085,
+        "cpu_seconds": 26.28125,
+        "source_replay_ms": 1309.7303,
+        "membership_ms": 1963.911,
+        "peak_working_set_bytes": 1914978304,
+        "peak_commit_bytes": 3516039168
+      },
+      "replay_change_percent": -9.926822136100954
+    },
+    {
+      "pair": "e",
+      "base": {
+        "wall_seconds": 20.530324300001666,
+        "cpu_seconds": 27.796875,
+        "source_replay_ms": 1687.9764,
+        "membership_ms": 2347.0541,
+        "peak_working_set_bytes": 1922646016,
+        "peak_commit_bytes": 3497136128
+      },
+      "candidate": {
+        "wall_seconds": 21.50705420000304,
+        "cpu_seconds": 27.421875,
+        "source_replay_ms": 1348.8375,
+        "membership_ms": 2101.1232,
+        "peak_working_set_bytes": 2137227264,
+        "peak_commit_bytes": 3466010624
+      },
+      "replay_change_percent": -20.091447961002295
+    },
+    {
+      "pair": "f",
+      "base": {
+        "wall_seconds": 18.514989099996455,
+        "cpu_seconds": 24.828125,
+        "source_replay_ms": 1353.6021,
+        "membership_ms": 1993.9003,
+        "peak_working_set_bytes": 2021728256,
+        "peak_commit_bytes": 3362914304
+      },
+      "candidate": {
+        "wall_seconds": 20.561947200003488,
+        "cpu_seconds": 27.421875,
+        "source_replay_ms": 1866.7925,
+        "membership_ms": 2689.4543,
+        "peak_working_set_bytes": 2134482944,
+        "peak_commit_bytes": 3522609152
+      },
+      "replay_change_percent": 37.912943545226476
+    }
+  ],
+  "medians": {
+    "base": {
+      "wall_seconds": 24.5280487500022,
+      "cpu_seconds": 30.90625,
+      "source_replay_ms": 2000.57925,
+      "membership_ms": 2880.2397499999997,
+      "peak_working_set_bytes": 1913661440.0,
+      "peak_commit_bytes": 3510890496.0
+    },
+    "candidate": {
+      "wall_seconds": 22.396216800003458,
+      "cpu_seconds": 28.4921875,
+      "source_replay_ms": 1418.45845,
+      "membership_ms": 2215.7578000000003,
+      "peak_working_set_bytes": 2028054528.0,
+      "peak_commit_bytes": 3519324160.0
+    }
+  }
+}

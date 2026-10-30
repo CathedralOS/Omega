@@ -432,7 +432,16 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.push(0);
+                    crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, application.get().to_le_bytes());
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.push(4);
@@ -456,7 +465,10 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     }
 }
 
-fn encode_authored_field_storage(
+/// One authored field's storage row: the tag of the storage that declared it,
+/// then that tag's payload. The plan identity and the recovery codec write the
+/// same row, so its spelling lives beside the type it reads.
+pub fn encode_authored_field_storage(
     bytes: &mut Vec<u8>,
     storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) {

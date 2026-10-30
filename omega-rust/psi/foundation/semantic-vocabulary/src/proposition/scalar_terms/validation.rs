@@ -64,7 +64,8 @@ impl ScalarTerm {
                 }
                 Ok(())
             }
-            Self::Value { .. }
+            Self::Application { .. }
+            | Self::Value { .. }
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }
             | Self::ViewExtent { .. }

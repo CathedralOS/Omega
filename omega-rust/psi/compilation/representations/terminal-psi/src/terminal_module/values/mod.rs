@@ -7,7 +7,7 @@ mod signatures;
 pub use reference_origins::{ReferenceOriginProjection, ReferenceOriginSource};
 
 pub use places::{
-    OperationProjection, StructuralPathSegment, StructuralPlaceDeclaration,
+    OperationProjection, StructuralPathSegment, StructuralPlaceDeclaration, StructuralStorageUse,
     is_static_structural_path, is_static_structural_scalar_store_path,
     is_structural_scalar_store_path,
 };

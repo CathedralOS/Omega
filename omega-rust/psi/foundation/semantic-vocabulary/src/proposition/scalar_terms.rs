@@ -279,6 +279,13 @@ impl From<CanonicalStructuralPathSegment> for ScalarReadProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ScalarTerm {
+    /// The target-closed value of an exact portable application. Its catalog
+    /// owns the carrier and computation; a term alone supplies no value or
+    /// predicate evidence. This namespace is independent of machine SSA IDs.
+    Application {
+        application: crate::ScalarApplicationId,
+        scalar_type: ScalarType,
+    },
     /// A current scalar observation at an exact root and ordered projection.
     /// Only supplied premises establish its relation to an SSA value; this
     /// term grants no access, bounds, case membership or value guarantee.

@@ -145,7 +145,10 @@ impl TerminalExecution<'_> {
         if crate::custody::place_is_claimed(&self.live_claims, argument.place) {
             return Err(malformed());
         }
-        let StructuralTypeShape::FixedArray { length, .. } = self
+        let StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(length),
+            ..
+        } = self
             .program
             .structural_types()
             .get(&collection_type)

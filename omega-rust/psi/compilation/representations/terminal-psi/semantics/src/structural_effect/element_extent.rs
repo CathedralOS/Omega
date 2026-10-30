@@ -171,7 +171,10 @@ pub fn element_view_leaf(
         }
         (
             StructuralPathSegment::FixedIndex(index),
-            StructuralTypeShape::FixedArray { element, length },
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            },
         ) if index < length => primitive(*element),
         (
             StructuralPathSegment::RuntimeIndex { .. },

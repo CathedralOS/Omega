@@ -5,7 +5,8 @@
 //! application and proof context. A completed query may reuse its result only
 //! if those external membership questions still have the same answers.
 //! Locally entered applications belong to that query's execution, not its
-//! caller dependencies. Cache hits replay their external reads into every
+//! caller dependencies. Each read retains the caller-selected term mode; entering
+//! a question never changes that mode. Cache hits replay their external reads into every
 //! enclosing query. Changed immutable inputs or dependency observers decline
 //! memoization; no partial read set can authorize reuse.
 
@@ -35,6 +36,7 @@ struct ApplicationRead {
     application: StructuralTerm,
     fingerprint: u64,
     was_active: bool,
+    specification_terms: bool,
 }
 
 pub(super) struct ResolutionObservations<'program> {
@@ -105,8 +107,11 @@ impl<'program> CompletedResolutions<'program> {
                     && entry.context.same_resolution_context(judge)
                     && entry.term.same_resolution_payload(term)
                     && entry.reads.iter().all(|read| {
-                        judge.application_is_active(&read.application, read.fingerprint)
-                            == read.was_active
+                        judge.application_is_active_in_mode(
+                            &read.application,
+                            read.fingerprint,
+                            read.specification_terms,
+                        ) == read.was_active
                     })
             })?;
         self.clock = self.clock.wrapping_add(1);
@@ -204,7 +209,12 @@ impl<'program> StructuralJudge<'program> {
         {
             drop(cache);
             for read in reads {
-                self.observe_application_read(&read.application, read.fingerprint, read.was_active);
+                self.observe_application_read(
+                    &read.application,
+                    read.fingerprint,
+                    read.was_active,
+                    read.specification_terms,
+                );
             }
             phase_profile::count(
                 match kind {
@@ -269,11 +279,20 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn application_is_active(&self, application: &StructuralTerm, fingerprint: u64) -> bool {
+        self.application_is_active_in_mode(application, fingerprint, self.specification_terms)
+    }
+
+    fn application_is_active_in_mode(
+        &self,
+        application: &StructuralTerm,
+        fingerprint: u64,
+        specification_terms: bool,
+    ) -> bool {
         let mut active = self.active_application.as_deref();
         while let Some(frame) = active {
             if frame.fingerprint == fingerprint
                 && frame.application.same_resolution_payload(application)
-                && frame.context.specification_terms
+                && frame.context.specification_terms == specification_terms
                 && frame.context.same_resolution_inputs(self)
             {
                 return true;
@@ -300,6 +319,7 @@ impl<'program> StructuralJudge<'program> {
         application: &StructuralTerm,
         fingerprint: u64,
         base: Option<&Arc<ApplicationResolution<'program>>>,
+        specification_terms: bool,
     ) -> Option<bool> {
         let mut active = self.active_application.as_ref();
         let mut local_match = false;
@@ -312,7 +332,7 @@ impl<'program> StructuralJudge<'program> {
                 (Some(frame), _) => {
                     local_match |= frame.fingerprint == fingerprint
                         && frame.application.same_resolution_payload(application)
-                        && frame.context.specification_terms
+                        && frame.context.specification_terms == specification_terms
                         && frame.context.same_resolution_inputs(self);
                     active = frame.previous.as_ref();
                 }
@@ -326,6 +346,7 @@ impl<'program> StructuralJudge<'program> {
         application: &StructuralTerm,
         fingerprint: u64,
         was_active: bool,
+        specification_terms: bool,
     ) {
         let mut observation = self.resolution_observations.as_deref();
         while let Some(current) = observation {
@@ -333,6 +354,7 @@ impl<'program> StructuralJudge<'program> {
                 application,
                 fingerprint,
                 current.base_active.as_ref(),
+                specification_terms,
             );
             if let Ok(mut recorded) = current.reads.lock() {
                 if !current.context.same_resolution_inputs(self) || local.is_none() {
@@ -342,6 +364,7 @@ impl<'program> StructuralJudge<'program> {
                 {
                     if let Some(previous) = reads.iter().find(|read| {
                         read.fingerprint == fingerprint
+                            && read.specification_terms == specification_terms
                             && read.application.same_resolution_payload(application)
                     }) {
                         if previous.was_active != was_active {
@@ -354,6 +377,7 @@ impl<'program> StructuralJudge<'program> {
                             application: application.clone(),
                             fingerprint,
                             was_active,
+                            specification_terms,
                         });
                     }
                 }
@@ -369,14 +393,12 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<Self> {
         let fingerprint = fingerprint(application);
         let active = self.application_is_active(application, fingerprint);
-        self.observe_application_read(application, fingerprint, active);
+        self.observe_application_read(application, fingerprint, active, self.specification_terms);
         if active {
             return None;
         }
-        let mut context = self.resolution_input_context();
-        context.specification_terms = true;
+        let context = self.resolution_input_context();
         let mut resolving = self.clone();
-        resolving.specification_terms = true;
         resolving.active_application = Some(Arc::new(ApplicationResolution {
             application: application.clone(),
             fingerprint,
@@ -395,8 +417,8 @@ impl<'program> StructuralJudge<'program> {
         // Each active frame keeps these immutable owners alive. Pointer
         // equality therefore identifies the same premises/storage epoch, not
         // a recycled address. COW fact changes remain independent questions.
-        // Application membership first selects specification mode. All other
-        // inputs stay exact; completed-result keys also compare that policy bit.
+        // Each membership read supplies its exact term mode separately. Other
+        // inputs stay exact; completed-result keys also compare the caller mode.
         // Program-pure memo cells and query observers supply no premises.
         std::ptr::eq(self.program, other.program)
             && Arc::ptr_eq(&self.entry_machines, &other.entry_machines)
@@ -891,5 +913,114 @@ mod guard_depth_tests {
             nested.completed_predicate(question, 0, |_, _| StructuralJudgment::Unknown),
             StructuralJudgment::Unknown
         ));
+    }
+}
+
+#[cfg(test)]
+mod term_mode_tests {
+    use super::*;
+
+    #[test]
+    fn entering_a_question_preserves_its_caller_term_mode() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("question".to_owned());
+        for mode in [false, true] {
+            judge.specification_terms = mode;
+            let entered = judge.resolving_application(&question, 0).unwrap();
+            assert_eq!(entered.specification_terms, mode);
+            assert!(entered.resolving_application(&question, 0).is_none());
+            let mut other_mode = entered;
+            other_mode.specification_terms = !mode;
+            assert!(other_mode.resolving_application(&question, 0).is_some());
+        }
+    }
+
+    fn read_specification_question(
+        judge: &StructuralJudge<'_>,
+        _: StructuralTerm,
+    ) -> StructuralTerm {
+        let mut specification = judge.clone();
+        specification.specification_terms = true;
+        StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(i64::from(
+            specification
+                .resolving_application(&StructuralTerm::Variable("external".to_owned()), 0)
+                .is_none(),
+        )))
+    }
+
+    #[test]
+    fn completed_reads_keep_the_observed_mode_across_caller_mode_changes() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("external".to_owned());
+        let task = StructuralTerm::Variable("query".to_owned());
+        let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
+        assert_eq!(
+            judge.completed_resolution(task.clone(), 0, read_specification_question),
+            integer(0)
+        );
+        let mut specification = judge.clone();
+        specification.specification_terms = true;
+        let mut active = specification.resolving_application(&question, 0).unwrap();
+        active.specification_terms = false;
+        assert_eq!(
+            active.completed_resolution(task.clone(), 0, read_specification_question),
+            integer(1)
+        );
+        let ordinary = judge.resolving_application(&question, 0).unwrap();
+        assert_eq!(
+            ordinary.completed_resolution(task.clone(), 0, read_specification_question),
+            integer(0)
+        );
+        assert_eq!(
+            active.completed_resolution(task, 0, read_specification_question),
+            integer(1)
+        );
+    }
+
+    #[test]
+    fn cached_child_reads_replay_their_original_mode_into_the_parent() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let child = StructuralTerm::Variable("child".to_owned());
+        let parent = StructuralTerm::Variable("parent".to_owned());
+        let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
+        judge.completed_resolution(child.clone(), 0, read_specification_question);
+        let compute_parent = |scope: &StructuralJudge<'_>, _| {
+            scope.completed_resolution(child.clone(), 0, read_specification_question)
+        };
+        assert_eq!(
+            judge.completed_resolution(parent.clone(), 0, compute_parent),
+            integer(0)
+        );
+        let mut specification = judge.clone();
+        specification.specification_terms = true;
+        let mut active = specification
+            .resolving_application(&StructuralTerm::Variable("external".to_owned()), 0)
+            .unwrap();
+        active.specification_terms = false;
+        assert_eq!(
+            active.completed_resolution(parent, 0, compute_parent),
+            integer(1)
+        );
     }
 }

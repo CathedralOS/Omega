@@ -488,6 +488,9 @@ profiles bound to the actual binary digests. See
   `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
   Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
   commands to leverage mbx caching automatically.
+- Keep each worktree's Cargo target directory separate, including baseline
+  comparisons. Share objects through `mbx`, never by pointing two worktrees at
+  one `CARGO_TARGET_DIR`; a baseline can replace dependencies later reused as fresh.
 - Wrap a lane's local build/test chain in one `tools/build_slot.py`
   hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).
@@ -567,6 +570,16 @@ The rules that touch every edit:
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Inline cases follow all common fields as a consecutive tail. Destructure data
+  by named fields plus `case as binding`, or positionally by authored common-field
+  order then one case-only view. Case patterns bind payload fields only; common
+  fields in case patterns are retired. Preserve normal nested-match, subject,
+  borrow, ownership and cleanup rules; source order is not physical layout.
+  Irrefutable `let` bindings use the same named/positional patterns and evaluate
+  their initializer once; they add no hidden branch, trap, copying permission or
+  special match-as header. Keep the ordinary match forms valid.
+  Follow [data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition);
+  `DATA-DECOMPOSITION` owns compiler/source/tooling migration.
 - Source `where` is retired. Use `requires` for data/default-domain and generic
   predicates and static callable requirements; assembly carries `requires`,
   `ensures` and `clobbers` directly after `asm`. Keep nested callable contracts

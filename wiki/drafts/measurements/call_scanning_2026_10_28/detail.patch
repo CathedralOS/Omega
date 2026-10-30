@@ -1,0 +1,38 @@
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls.rs
+@@ -574,0 +575 @@
++    let _profile = phase_profile::guard("05.call_detail.validate_call_arguments");
+@@ -783,0 +785 @@
++    let _profile = phase_profile::guard("05.call_detail.validate_value_call_arguments");
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls/argument_bounds.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls/argument_bounds.rs
+@@ -25,0 +26 @@
++    let _profile = phase_profile::guard("05.call_detail.report_argument_bounds");
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls/expression_scanning/traversal.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls/expression_scanning/traversal.rs
+@@ -301,0 +302 @@
++        let profile = phase_profile::guard("05.call_scan.prelude");
+@@ -475,0 +477 @@
++        drop(profile);
+@@ -592,0 +595,2 @@
++                {
++                    let _profile = phase_profile::guard("05.call_scan.call_bounds");
+@@ -607,0 +612 @@
++                }
+@@ -629,0 +635,2 @@
++                {
++                    let _profile = phase_profile::guard("05.call_scan.binary_types");
+@@ -640,0 +648 @@
++                }
+@@ -641,0 +650 @@
++                let profile = phase_profile::guard("05.call_scan.short_circuit");
+@@ -649,0 +659 @@
++                drop(profile);
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/const_ranges.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/const_ranges.rs
+@@ -971,0 +972 @@
++    let _profile = phase_profile::guard("05.call_detail.validate_const_range_call");
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
+@@ -25,0 +26 @@
++    let _profile = phase_profile::guard("05.call_detail.reject_refuted_value_call_requires");

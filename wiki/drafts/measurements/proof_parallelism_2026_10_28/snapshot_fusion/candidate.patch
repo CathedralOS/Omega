@@ -1,0 +1,38 @@
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 44565c76071..ba0c75f7573 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -1221,7 +1221,7 @@ fn retain_common_snapshot(
+     incoming: &[Arc<semantic_vocabulary::Proposition>],
+ ) -> bool {
+     let mut remaining = incoming.iter().peekable();
+-    let unchanged = retained.iter().all(|premise| {
++    let mut is_common = |premise: &Arc<semantic_vocabulary::Proposition>| {
+         while remaining
+             .peek()
+             .is_some_and(|candidate| *candidate < premise)
+@@ -1231,11 +1231,21 @@ fn retain_common_snapshot(
+         remaining
+             .peek()
+             .is_some_and(|candidate| *candidate == premise)
+-    });
+-    if unchanged {
++    };
++    let Some(first_missing) = retained.iter().position(|premise| !is_common(premise)) else {
+         return false;
++    };
++    // The prefix and first loss are already classified; keep the arrival cursor.
++    let retained = Arc::make_mut(retained);
++    let mut write = first_missing;
++    for read in first_missing + 1..retained.len() {
++        if is_common(&retained[read]) {
++            retained.swap(write, read);
++            write += 1;
++        }
+     }
+-    retain_common_premises(Arc::make_mut(retained), incoming)
++    retained.truncate(write);
++    true
+ }
+ 
+ /// Preserve a published allocation when normalization would change no row.

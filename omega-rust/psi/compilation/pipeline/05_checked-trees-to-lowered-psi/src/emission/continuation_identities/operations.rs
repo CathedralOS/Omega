@@ -180,7 +180,8 @@ pub(crate) fn map_obligations(
         }
     }
     match operation {
-        OperationKind::EstablishNativeCodeLayout { .. }
+        OperationKind::ReadScalarApplication { .. }
+        | OperationKind::EstablishNativeCodeLayout { .. }
         | OperationKind::EstablishActivationClaim { .. }
         | OperationKind::SplitActivationClaim { .. }
         | OperationKind::MergeActivationClaim { .. }

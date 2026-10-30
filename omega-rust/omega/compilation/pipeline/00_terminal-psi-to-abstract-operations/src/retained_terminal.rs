@@ -8,6 +8,7 @@ pub use codec::{recover_native_derivation_inputs, retain_native_derivation_input
 mod component_inputs;
 pub use component_inputs::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
+    RetainedComponentNativeInputs,
 };
 
 mod native_providers;
@@ -18,7 +19,8 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 pub use backend_plan::{SelectedFamilyRealizationSource, TerminalTargetProviderProposal};
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{
-    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
+    PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,
+    RetainedNativeProviderInputs,
 };
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
@@ -262,6 +264,10 @@ impl RetainedTerminalArtifact {
     }
 
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub fn shared_artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
         &self.artifact
     }
 

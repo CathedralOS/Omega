@@ -203,9 +203,15 @@ impl StructuralJudge<'_> {
         // The tag guard alone supplies no default-domain admission. Retain
         // the original observed subject identity; the fresh constructor is a
         // pattern view of that value's selected fields, not a new owner.
-        if !definition.where_facts.is_empty()
-            && self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type)
-        {
+        let admitted =
+            self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type);
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT case-domain data={} case={} admitted={} reference={:?} subject={:?}",
+                definition.name, variant.name, admitted, subject_type, admitted_subject
+            );
+        }
+        if !definition.where_facts.is_empty() && admitted {
             let mut complete = true;
             let mut projections = Vec::new();
             for field in program
@@ -228,6 +234,12 @@ impl StructuralJudge<'_> {
                         symbol: field.symbol,
                     }],
                 ) else {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT case-domain projection-refused data={} field={} reference={:?}",
+                            definition.name, field.name, subject_type
+                        );
+                    }
                     complete = false;
                     break;
                 };
@@ -297,7 +309,17 @@ impl StructuralJudge<'_> {
         if self.completed_match_nominal_admission(expression, subject, reference) {
             return true;
         }
-        if self.storage_observation_invalidated(expression) {
+        let Some(identity) = subject.observation_identity_key() else {
+            return false;
+        };
+        // Earlier writes retire entry observations, including declarations
+        // initialized later. Only that binding's still-current completed value
+        // can bridge the entry fence; normal-result admission below must still
+        // establish this exact value's nominal validity.
+        let current = self
+            .stored_value_observation(self.runtime_declaration_scope(), expression)
+            .and_then(|value| value.observation_identity_key());
+        if self.storage_observation_invalidated(expression) && current.as_ref() != Some(&identity) {
             return false;
         }
         let program = self.program;
@@ -314,14 +336,45 @@ impl StructuralJudge<'_> {
             candidate_identity.is_valid()
                 && candidate_identity == program.normalized_type_identity(reference)
         };
-        let Some(identity) = subject.observation_identity_key() else {
-            return false;
-        };
         let place =
             crate::value_custody::places::canonical_place_from_expression(program, expression);
+        // A descriptor home is not its referent. Resolve the completed read's
+        // exact backing before asking which entry contract admitted it. This
+        // is the ordinary origin join, including aliases introduced by matches;
+        // recasts, ambiguous origins and retired entry storage donate nothing.
+        let entry_place = place.as_ref().and_then(|place| {
+            let root = place.root.as_symbol()?;
+            let declared = crate::declaration_type_reference(program, root)?;
+            if crate::reference_shell(program, declared).is_none() {
+                return Some(place.clone());
+            }
+            let (machine, state) = self.runtime_declaration_scope()?;
+            let backing = self.frame_resolver()?.storage_read_backing_at_expression(
+                machine,
+                state,
+                expression,
+                root,
+                &place.segments,
+            )?;
+            let [source] = backing.sources.as_slice() else {
+                return None;
+            };
+            if source.invocation_output.is_some()
+                || source.collection_coarse
+                || !source.recasts.is_empty()
+                || source.representation.is_some()
+                || self.storage_binding_invalidated(source.root)
+            {
+                return None;
+            }
+            Some(crate::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(source.root),
+                segments: source.segments.clone(),
+            })
+        });
         if self.declaration_state.is_valid()
             && !self.storage_observation_invalidated(expression)
-            && let Some(place) = &place
+            && let Some(place) = &entry_place
             && let facts::PlaceRoot::Symbol(root) = place.root
             && let Some((_, state)) = self.runtime_declaration_scope()
             && let Some(parameter) = program
@@ -333,13 +386,32 @@ impl StructuralJudge<'_> {
                 parameter.type_reference,
                 &place.segments,
             )
-            && crate::field_domains::owned_nominal_data_definition(program, projected_type)
-                .is_some()
+            && crate::field_domains::readable_nominal_definition(program, projected_type).is_some()
             && same_application(projected_type)
-            && let Some(captured) = self.captured_place_projection(
-                place,
-                language_semantics::content::ContentPlaceVersion::Entry,
-            )
+            && let Some(captured) = self
+                .captured_place_projection(
+                    place,
+                    language_semantics::content::ContentPlaceVersion::Entry,
+                )
+                .or_else(|| {
+                    // Invocation admission establishes a readable formal's referent
+                    // domain too, without making the reference an owned value.
+                    // Only this unchanged entry place may donate it. Mask nested
+                    // descriptors so entry admission cannot invent their contents.
+                    let shell = crate::reference_shell(program, parameter.type_reference)?;
+                    shell.access.is_readable().then_some(())?;
+                    let value = super::super::structural_terms::owned_projection_observation(
+                        program,
+                        shell.referee,
+                        StructuralTerm::Variable(parameter.name.to_string()),
+                    );
+                    super::super::observed_projections::project_observed_value(
+                        program,
+                        shell.referee,
+                        value,
+                        &place.segments,
+                    )
+                })
             && captured.observation_identity_key().as_ref() == Some(&identity)
         {
             return true;
@@ -670,19 +742,16 @@ impl StructuralJudge<'_> {
                     literal.value_bignum().map(StructuralTerm::Integer)
                 } else {
                     match program.type_reference_table.type_reference(argument) {
-                        TypeReferenceNode::ConstExpression(expression) => {
-                            super::selected_contracts::bound_term(
-                                program,
-                                *expression,
-                                callable,
-                                parameters,
-                                callable,
-                                bindings,
-                                &[],
-                                Some(value),
-                                0,
-                            )
-                        }
+                        TypeReferenceNode::ConstExpression(expression) => self.bound_contract_term(
+                            *expression,
+                            callable,
+                            parameters,
+                            callable,
+                            bindings,
+                            &[],
+                            Some(value),
+                            0,
+                        ),
                         TypeReferenceNode::Named { symbol, .. } => bindings
                             .iter()
                             .find(|(formal, _)| formal == symbol)

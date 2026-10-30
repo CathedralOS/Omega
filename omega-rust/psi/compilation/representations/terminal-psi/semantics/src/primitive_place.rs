@@ -89,7 +89,11 @@ pub fn fixed_array_place_shape<'a>(
         return None;
     }
     let declaration = canonical_structural_path_tip(declarations.clone(), root, path)?;
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    else {
         return None;
     };
     let mut matching = declarations.filter(|declaration| declaration.id == element);
@@ -105,7 +109,9 @@ pub fn fixed_array_place_shape<'a>(
 
 /// Resolve a primitive leaf projection that may select elements at run time.
 /// Fields step into structural children or end at a plain IEEE scalar. A literal
-/// index stays inside a declared extent. A borrowed descriptor's live extent
+/// index stays inside a literal declared extent. A symbolic extent needs a
+/// separately retained bounds obligation and cannot mint a canonical owned path.
+/// A borrowed descriptor's live extent
 /// is an operation obligation even for literal indices, just as for runtime
 /// indices. Such selections never mint a canonical owned path. `Referent`
 /// steps through a declared reference; a byte carrier's element is the u8 scalar.
@@ -400,6 +406,7 @@ pub fn runtime_structural_copy_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
+    expected: Option<StructuralTypeId>,
 ) -> Option<StructuralTypeId> {
     for (position, segment) in path.iter().enumerate() {
         if matches!(segment, StructuralPathSegment::Referent) {
@@ -417,12 +424,18 @@ pub fn runtime_structural_copy_type<'a>(
         if let StructuralFieldType::Structural(child) = field.field_type {
             return Some(child);
         }
-        // The endpoint is a materialized value, not a geometry-only view of
-        // its storage. In particular, retain a stored byte descriptor's access.
-        let shape = field.field_type.leaf_copy_shape()?;
-        return declarations
-            .clone()
-            .find(|declaration| declaration.shape == shape)
+        // Confirm the checked result against the field's complete copy
+        // contract. An equal-width restricted scalar elsewhere in the catalog
+        // must not select this value's identity or manufacture its predicate.
+        let expected = expected.and_then(|identity| {
+            declarations
+                .clone()
+                .find(|declaration| declaration.id == identity)
+        });
+        return field
+            .field_type
+            .leaf_copy_type(expected)?
+            .leaf_declaration(declarations)
             .map(|declaration| declaration.id);
     }
     runtime_structural_path_tip(declarations, root, path).map(|declaration| declaration.id)
@@ -456,6 +469,7 @@ pub fn projection_stays_in_inline_storage<'a>(
                 !crate::descriptor_results::is_descriptor(declarations.clone(), current)
             })
         },
+        None,
     )
     .is_some()
 }
@@ -480,7 +494,10 @@ impl<'path> StructuralStorageSelection<'path> {
             if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
                 let current =
                     runtime_structural_path_tip(declarations.clone(), root, &path[..position])?;
-                let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = current.shape
+                let terminal_psi::StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                    ..
+                } = current.shape
                 else {
                     return None;
                 };
@@ -534,7 +551,11 @@ pub fn stored_descriptor_paths<'a>(
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             let current =
                 runtime_structural_path_tip(declarations.clone(), root, &path[..position])?;
-            let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = current.shape else {
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = current.shape
+            else {
                 return None;
             };
             let length = usize::try_from(length).ok()?;
@@ -652,7 +673,46 @@ fn walk_primitive_projection<'a>(
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
     step: impl FnMut(Option<CanonicalStructuralPathSegment>),
 ) -> Option<ProjectionTip<'a>> {
-    walk_primitive_projection_with_policy(declarations, root, path, scalar_field, step, |_, _| true)
+    walk_primitive_projection_with_policy(
+        declarations,
+        root,
+        path,
+        scalar_field,
+        step,
+        |_, _| true,
+        None,
+    )
+}
+
+/// Record physical storage dependencies without admitting a projection. A
+/// pending extent permits discovery below an index, but does not prove that
+/// index in bounds. Type discovery never supplies a canonical storage identity
+/// across an unresolved extent.
+pub fn projection_storage_dependencies<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    dependencies: &mut std::collections::BTreeSet<StructuralTypeId>,
+) -> Option<Option<StructuralTypeId>> {
+    // A terminal byte window uses its backing geometry; it is not an owned
+    // child type. Window extent and access admission remain with the consumer.
+    let backing = match path.split_last() {
+        Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
+        _ => path,
+    };
+    let tip = walk_primitive_projection_with_policy(
+        declarations,
+        root,
+        backing,
+        plain_scalar_field,
+        |_| {},
+        |_, _| true,
+        Some(dependencies),
+    )?;
+    Some(match tip {
+        ProjectionTip::Declared(declaration) => Some(declaration.id),
+        ProjectionTip::ScalarField(_, _) | ProjectionTip::ByteElement => None,
+    })
 }
 
 /// The shared projection grammar, with a nominal-boundary policy before each
@@ -664,6 +724,7 @@ fn walk_primitive_projection_with_policy<'a>(
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
     mut step: impl FnMut(Option<CanonicalStructuralPathSegment>),
     mut may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
+    mut dependencies: Option<&mut std::collections::BTreeSet<StructuralTypeId>>,
 ) -> Option<ProjectionTip<'a>> {
     let unique = |id: StructuralTypeId| {
         let mut matching = declarations
@@ -679,6 +740,9 @@ fn walk_primitive_projection_with_policy<'a>(
             Position::Declared(root) => Some(root),
             _ => None,
         };
+        if let (Some(dependencies), Some(declared)) = (dependencies.as_mut(), declared) {
+            dependencies.insert(declared);
+        }
         if !may_step(declared, segment) {
             return None;
         }
@@ -767,8 +831,15 @@ fn walk_primitive_projection_with_policy<'a>(
             (
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => {
-                step(Some(CanonicalStructuralPathSegment::FixedIndex(*index)));
+            ) if length.literal().is_none_or(|length| *index < length) => {
+                // The element declaration is known before scalar completion;
+                // its existence at this coordinate is not. Bounds remain a
+                // separate obligation; this path grants no canonical fact.
+                step(
+                    length
+                        .literal()
+                        .map(|_| CanonicalStructuralPathSegment::FixedIndex(*index)),
+                );
                 Position::Declared(*element)
             }
             (
@@ -813,11 +884,20 @@ fn walk_primitive_projection_with_policy<'a>(
             _ => return None,
         };
     }
-    if payload_fields.is_some() {
+    // A dependency may name a payload namespace whose scalar field is carried
+    // separately by the operation. It needs the enclosing sum's geometry,
+    // not a claim that the namespace itself is a complete value projection.
+    if payload_fields.is_some() && dependencies.is_none() {
         return None;
     }
     match position {
-        Position::Declared(root) => unique(root).map(ProjectionTip::Declared),
+        Position::Declared(root) => {
+            let declaration = unique(root)?;
+            if let Some(dependencies) = dependencies {
+                dependencies.insert(root);
+            }
+            Some(ProjectionTip::Declared(declaration))
+        }
         Position::ScalarField((field, scalar)) => Some(ProjectionTip::ScalarField(field, scalar)),
         Position::ByteElement => Some(ProjectionTip::ByteElement),
     }
@@ -838,6 +918,7 @@ pub(crate) fn projection_tip_with_policy<'a>(
         plain_scalar_field,
         |_| {},
         may_step,
+        None,
     )? {
         ProjectionTip::Declared(tip) => Some(Some(tip.id)),
         ProjectionTip::ScalarField(_, _) | ProjectionTip::ByteElement => Some(None),

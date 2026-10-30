@@ -52,6 +52,9 @@ impl OptimizationRollbackReceipt {
         &self.effective
     }
 
+    /// The constructor's invariant restated for the receipt tests: the exact
+    /// intersection and its remainder partition the build selection.
+    #[cfg(test)]
     pub(crate) fn is_consistent(&self) -> bool {
         self.actually_disabled
             == canonical_subset(&self.build_selected, |optimization| {

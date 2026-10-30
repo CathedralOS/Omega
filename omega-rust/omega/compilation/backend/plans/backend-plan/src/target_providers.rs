@@ -5,6 +5,7 @@
 //! association. Publication and receiving policy use that same roster projection:
 //! a supplied subset cannot omit an uncalled instance or merge choosing owners.
 
+mod synchronous_calls;
 #[cfg(test)]
 mod tests;
 
@@ -74,49 +75,77 @@ impl TerminalTargetProviderSelection {
                     .into(),
             );
         }
-        if self
-            .plans
-            .iter()
-            .any(|selected| !selected.plan.target.is_empty() && selected.plan.target != target)
-        {
-            return Err("selected provider plan belongs to another deployment target".into());
-        }
-        let module = artifact.module();
-        let target_members =
-            terminal_installation::admit_target_machine_selections(artifact, target);
-        for selection in &supplied {
-            let callable = terminal_psi::TargetMachineCallable::Machine(selection.candidate);
-            for family in module.target_machine_families.iter().filter(|family| {
-                family
-                    .members
-                    .iter()
-                    .any(|member| member.callable == callable)
-            }) {
-                let member = target_members
-                    .member(family.canonical)
-                    .map_err(|error| format!("provider target membership rejected: {error:?}"))?;
-                if member.callable() != callable {
-                    return Err(
-                        "checked provider candidate belongs to another deployment target".into(),
-                    );
-                }
+        let selected = effects::SelectedProviderPlanFacts::from_selected_plans(
+            self.plans
+                .iter()
+                .map(|selected| selected.plan.clone())
+                .collect(),
+        )?
+        .with_assumed_bindings(self.assumed_bindings.clone());
+        admit_checked_roster(artifact, target, &selected, &supplied, &self.plans)
+    }
+}
+
+/// Bind the complete, already-selected native plans to canonical candidates.
+/// Unlike a public ordinary provider proposal, this input retains toolchain
+/// plans and inert source uses. Inert uses contribute no invented candidate;
+/// every emitted closed instance still enters ordinary catalog admission.
+pub fn admit_selected_checked_providers(
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+    target: &str,
+    selected: &effects::SelectedProviderPlanFacts,
+    declarations: &[TerminalTargetProviderPlan],
+) -> Result<terminal_installation::AdmittedProviderSelections, String> {
+    require_selected_declarations(selected, declarations)?;
+    let mut supplied = Vec::new();
+    for matched in selected_checked_candidates(declarations, artifact.module())? {
+        supplied.extend(matched.installations());
+    }
+    supplied.sort();
+    supplied.dedup();
+    admit_checked_roster(artifact, target, selected, &supplied, declarations)
+}
+
+fn admit_checked_roster(
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+    target: &str,
+    selected: &effects::SelectedProviderPlanFacts,
+    supplied: &[terminal_installation::ProviderInstallationSelection],
+    declarations: &[TerminalTargetProviderPlan],
+) -> Result<terminal_installation::AdmittedProviderSelections, String> {
+    if selected
+        .plans()
+        .iter()
+        .any(|plan| !plan.target.is_empty() && plan.target != target)
+    {
+        return Err("selected provider plan belongs to another deployment target".into());
+    }
+    let module = artifact.module();
+    let target_members = terminal_installation::admit_target_machine_selections(artifact, target);
+    for selection in supplied {
+        let callable = terminal_psi::TargetMachineCallable::Machine(selection.candidate);
+        for family in module.target_machine_families.iter().filter(|family| {
+            family
+                .members
+                .iter()
+                .any(|member| member.callable == callable)
+        }) {
+            let member = target_members
+                .member(family.canonical)
+                .map_err(|error| format!("provider target membership rejected: {error:?}"))?;
+            if member.callable() != callable {
+                return Err(
+                    "checked provider candidate belongs to another deployment target".into(),
+                );
             }
         }
-        let dependencies = matching_folded_constant_dependencies(
-            artifact,
-            target,
-            self.plans.iter().map(|selected| &selected.plan),
-        )?;
-        let installation = terminal_installation::admit_provider_installation(
-            artifact,
-            &supplied,
-            &effects::SelectedProviderPlanFacts::from_selected_plans(
-                self.plans
-                    .iter()
-                    .map(|selected| selected.plan.clone())
-                    .collect(),
-            )?
-            .with_assumed_bindings(self.assumed_bindings.clone())
+    }
+    let dependencies =
+        matching_folded_constant_dependencies(artifact, target, selected.plans().iter())?;
+    let installation = terminal_installation::admit_provider_installation(
+        artifact,
+        supplied,
+        &selected
             .assumed_binding_coordinates(module)?
             .into_iter()
             .map(|(required, supplied_requirement)| {
@@ -126,13 +155,13 @@ impl TerminalTargetProviderSelection {
                 }
             })
             .collect::<Vec<_>>(),
-        )
-        .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
-        if artifact.module().folded_constants.target.is_some() {
-            installation.admit_folded_constant_closure(artifact, target, &dependencies)
-        } else {
-            Ok(installation)
-        }
+    )
+    .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
+    synchronous_calls::validate(artifact, target, selected, declarations)?;
+    if artifact.module().folded_constants.target.is_some() {
+        installation.admit_folded_constant_closure(artifact, target, &dependencies)
+    } else {
+        Ok(installation)
     }
 }
 
@@ -236,14 +265,7 @@ fn checked_candidate_roster(
                     .identity_text(matched.row.requirement_identity),
             ));
         }
-        selections.extend(matched.candidates.into_iter().map(|candidate| {
-            terminal_installation::ProviderInstallationSelection {
-                boundary: candidate.boundary,
-                candidate: candidate.candidate,
-                provider_identity: matched.selected.plan.provider_type.clone(),
-                provider_declaration: matched.owner.to_owned(),
-            }
-        }));
+        selections.extend(matched.installations());
     }
     // Required parent schemas may share exactly one checked coordinate. Only
     // identical choices collapse; competing owners remain distinct for admission.
@@ -263,19 +285,7 @@ pub fn close_checked_provider_specializations(
     declarations: &[TerminalTargetProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<effects::SelectedProviderPlanFacts, String> {
-    if selected.plans().len() != declarations.len()
-        || selected.plans().iter().any(|plan| {
-            declarations
-                .iter()
-                .filter(|declaration| &declaration.plan == plan)
-                .count()
-                != 1
-        })
-    {
-        return Err(
-            "native provider declaration roster differs from the complete selected plans".into(),
-        );
-    }
+    require_selected_declarations(&selected, declarations)?;
     let selected = selected.without_checked_specializations();
     let mut rows = selected.specialized_requirement_rows().to_vec();
     let mut identities = selected.identities().clone().into_builder();
@@ -312,6 +322,25 @@ pub fn close_checked_provider_specializations(
     selected.with_specialized_requirement_rows(rows, &identities.build())
 }
 
+fn require_selected_declarations(
+    selected: &effects::SelectedProviderPlanFacts,
+    declarations: &[TerminalTargetProviderPlan],
+) -> Result<(), String> {
+    if selected.plans().len() != declarations.len()
+        || selected.plans().iter().any(|plan| {
+            declarations
+                .iter()
+                .filter(|declaration| &declaration.plan == plan)
+                .count()
+                != 1
+        })
+    {
+        return Err(
+            "native provider declaration roster differs from the complete selected plans".into(),
+        );
+    }
+    Ok(())
+}
 struct SelectedCheckedCandidate<'plan, 'terminal> {
     selected: &'plan TerminalTargetProviderPlan,
     row: &'plan effects::provider_plan::ProviderPlanRow,
@@ -319,6 +348,20 @@ struct SelectedCheckedCandidate<'plan, 'terminal> {
     candidates: Vec<&'terminal terminal_psi::ProviderCandidateConformance>,
 }
 
+impl SelectedCheckedCandidate<'_, '_> {
+    fn installations(
+        &self,
+    ) -> impl Iterator<Item = terminal_installation::ProviderInstallationSelection> + '_ {
+        self.candidates.iter().map(|candidate| {
+            terminal_installation::ProviderInstallationSelection {
+                boundary: candidate.boundary,
+                candidate: candidate.candidate,
+                provider_identity: self.selected.plan.provider_type.clone(),
+                provider_declaration: self.owner.to_owned(),
+            }
+        })
+    }
+}
 fn selected_checked_candidates<'plan, 'terminal>(
     plans: &'plan [TerminalTargetProviderPlan],
     module: &'terminal terminal_psi::TerminalModule,

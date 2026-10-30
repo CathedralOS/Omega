@@ -302,11 +302,16 @@ boundary authority, or exemption from evaluator admission.
 
 Generated equality follows the current field set. Handwritten equality owns
 its coverage and is not automatically substitutable equality; that requires
-explicit quotient laws. Record destructuring is exhaustive: bind each field,
-rename with `as`, or visibly waive it with `as _`. It is snapshot sugar for
-ordinary field `let` bindings, with only copy-eligible implicit bindings and
-no reference patterns or new binding modes. Larger fields require an explicit
-borrow expression or waiver.
+explicit quotient laws. Record destructuring follows the shared
+[data-pattern and irrefutable-binding rules](patterns.md#irrefutable-data-bindings):
+account for each component, rename with `as`, or explicitly waive bindings or
+remaining components. An initializer is evaluated once; copy-eligible field
+reads retain that subject's snapshots. This does not make non-copy fields
+implicitly copyable or movable from borrowed storage. Owned decomposition uses
+ordinary move/copy disposition and cleanup; a borrowed case view retains its
+source's loan rather than copying the carrier. No reference patterns or new
+binding modes are introduced. Larger borrowed fields require an otherwise
+authorized explicit borrow expression or waiver.
 
 Body-shape coverage is not a requirable value proposition. A separate
 trait-level coverage gate is deferred. Reflection visitation establishes its

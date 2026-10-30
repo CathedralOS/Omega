@@ -190,11 +190,9 @@ struct CandidateAccesses {
     terminal_loads: Vec<bool>,
     /// Per block: the last `ExistingStore` instruction index, if any.
     last_existing_store: Vec<Option<usize>>,
-    /// Per block: whether the block contains any `ExistingLoad` (body or terminator).
-    has_loads: Vec<bool>,
     /// Blocks where `last_existing_store[b].is_some()`.
     store_blocks: Vec<usize>,
-    /// Blocks where `has_loads[b]` is true.
+    /// Blocks where the block contains any `ExistingLoad` (body or terminator).
     load_blocks: Vec<usize>,
     /// True when every block in `load_blocks` starts its `accesses[b]` with `Event::ExistingStore`.
     is_entry_insensitive: bool,
@@ -918,7 +916,6 @@ impl RawCandidateSlots {
                 }
             }
             let mut last_existing_store = Vec::with_capacity(self.block_count);
-            let mut has_loads = Vec::with_capacity(self.block_count);
             let mut store_blocks = Vec::new();
             let mut load_blocks = Vec::new();
             let mut is_entry_insensitive = true;
@@ -939,7 +936,6 @@ impl RawCandidateSlots {
                     || block_accesses
                         .iter()
                         .any(|&(_, event)| matches!(event, Event::ExistingLoad));
-                has_loads.push(block_has_loads);
                 if block_has_loads {
                     load_blocks.push(block_index);
                     if !block_accesses
@@ -954,7 +950,6 @@ impl RawCandidateSlots {
                 accesses: slot_accesses,
                 terminal_loads: slot_terminal_loads,
                 last_existing_store,
-                has_loads,
                 store_blocks,
                 load_blocks,
                 is_entry_insensitive,

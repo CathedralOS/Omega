@@ -1,0 +1,31 @@
+// Expected exit: 0
+// A typed nested record keeps its untouched field across a call and a whole-value move.
+data Pair<Value> { left: Value; right: Value; }
+data Packet { pair: Pair<u64>; tag: u64; }
+public data Observation { headroom: u64; changed: u64; untouched: u64; }
+machine produce(right: u64) -> Packet
+requires right <= 75u64
+ensures result.pair.right == right && result.tag == 17u64 {
+    Packet { pair: Pair { left: 10u64, right: right }, tag: 17u64 }
+}
+machine touch_left(value: &mut u64) { value = 999u64; }
+public machine observe(right: u64) -> Observation
+requires right <= 75u64 {
+    let mut packet: Packet = produce(right);
+    touch_left(&mut packet.pair.left);
+    let copied: Packet = packet;
+    let headroom: u64 = 75u64 - copied.pair.right;
+    Observation { headroom: headroom, changed: copied.pair.left, untouched: copied.tag }
+}
+machine main() crashes Trap {
+    let first: Observation = observe(25u64);
+    let second: Observation = observe(30u64);
+    transition first.headroom == 50u64 && second.headroom == 45u64
+        && first.changed == 999u64 && second.changed == 999u64
+        && first.untouched == 17u64 && second.untouched == 17u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

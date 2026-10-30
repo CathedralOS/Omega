@@ -12,12 +12,13 @@ pub(crate) fn builtin_type_atom_by_symbol_name(
 }
 
 /// Search declaration scopes only. Enclosing invocation parameters, locals and
-/// live facts are never lexical machine bindings. Stop at a shadowing cohort,
+/// live facts are never lexical declaration bindings. Stop at a shadowing cohort,
 /// including ambiguity; root/module visibility remains the ordinary lookup's job.
-pub(super) fn lexical_machine_lookup(
+pub(super) fn lexical_declaration_lookup(
     symbols: &SymbolTable,
     mut scope: SymbolHandle,
     name: &str,
+    kinds: &[SymbolKind],
 ) -> SymbolLookup {
     while symbols.get(scope).kind == SymbolKind::Machine {
         let mut declarations = symbols
@@ -25,7 +26,7 @@ pub(super) fn lexical_machine_lookup(
             .into_iter()
             .flatten()
             .filter(|child| {
-                symbols.get(*child).kind == SymbolKind::Machine && symbols.name(*child) == name
+                kinds.contains(&symbols.get(*child).kind) && symbols.name(*child) == name
             });
         if let Some(first) = declarations.next() {
             return match declarations.next() {

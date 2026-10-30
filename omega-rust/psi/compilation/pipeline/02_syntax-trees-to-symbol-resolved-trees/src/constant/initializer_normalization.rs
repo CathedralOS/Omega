@@ -527,7 +527,7 @@ fn append_retained_custody(
                 // The detached original rederives call custody. A copied call
                 // selection is neither a constant origin nor a builtin premise;
                 // a named boundary operator keeps that same custody-only role.
-                let declaration = super::initializer_dependencies::call_declaration_source(
+                let declaration = crate::selection::call_identity::call_declaration_source(
                     program,
                     selected.selected_symbol(),
                 )

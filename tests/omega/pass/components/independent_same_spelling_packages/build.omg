@@ -1,0 +1,13 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "same_spelling_consumer");
+    Build::depend_as(builder, "api", Source::Path { location: "api" });
+    Build::depend_as(builder, "chosen", Source::Path { location: "chosen" });
+    Build::select_provider<api::main::Value, chosen::main::Provider>(builder, linux_x86_64, CompositionMode::Independent);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider<api::main::Value, chosen::main::Provider>(builder, windows_x86_64, CompositionMode::Independent);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<api::main::Value, chosen::main::Provider>(builder, linux_arm64, CompositionMode::Independent);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider<api::main::Value, chosen::main::Provider>(builder, macos_arm64, CompositionMode::Independent);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

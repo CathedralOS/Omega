@@ -49,8 +49,10 @@ impl<'execution> ConstructorValue<'execution> {
                 let StructuralPathSegment::FixedIndex(index) = segment else {
                     return Err(malformed());
                 };
-                let StructuralTypeShape::FixedArray { element, length } =
-                    types.get(&structural_type).ok_or_else(malformed)?.shape
+                let StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = types.get(&structural_type).ok_or_else(malformed)?.shape
                 else {
                     return Err(malformed());
                 };
@@ -172,8 +174,10 @@ impl<'execution> ConstructorValue<'execution> {
         // proportional to a huge outer array whose inner arrays are empty.
         let mut dimensions = Vec::new();
         let mut current = root;
-        while let StructuralTypeShape::FixedArray { element, length } =
-            types.get(&current).ok_or_else(malformed)?.shape
+        while let StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } = types.get(&current).ok_or_else(malformed)?.shape
         {
             dimensions.push(length);
             current = element;
@@ -733,7 +737,10 @@ impl ConstructorStorage {
                 }
                 self.primitives.insert(destination.clone(), *value)?;
             }
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 let (scalar_type, leaf_count) = terminal_semantics::scalar_array_leaf_shape(
                     execution.program.structural_types().values(),
                     structural_type,

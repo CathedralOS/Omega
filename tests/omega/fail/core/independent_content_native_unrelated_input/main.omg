@@ -1,0 +1,46 @@
+// Compile-only refusal: opaque supply cannot mint these private routed claims.
+// The deliberately incompatible locator must never execute.
+// Fact: Two independent routed interval claims on one owned region remain independently conserved by one checked split.
+// Expected exit: 0
+// Numeric custody model only; no physical backing or access is granted.
+use omega::language::core::content;
+use omega::language::core::drop;
+data Region [linear] { base: u64; length: u64; }
+domain Region::First established by issue;
+domain Region::Second established by issue;
+machine First::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine Second::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine issue() -> Region in First & Second
+ensures result.base == 10, result.length == 48
+{ Region { base: 10, length: 48 } }
+machine Region::drop(region: &mut Region) {}
+domain Region::Unrelated established by unrelated_issue;
+machine Unrelated::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine unrelated_issue() -> Region in Unrelated { Region { base: 100, length: 1 } }
+data IssuedBox { item: Region in First & Second; }
+boundary trait Factory { machine acquire(unrelated: Region in Unrelated) -> IssuedBox reaches; }
+
+machine inspect(boxed: IssuedBox) -> bool {
+    let correct: bool = boxed.item.base == 10 && boxed.item.length == 48;
+    let { item } = boxed;
+    drop(item);
+    correct
+}
+machine main() reaches Factory crashes Trap {
+    let unrelated: Region in Unrelated = unrelated_issue();
+    transition inspect(Factory::acquire(unrelated)) { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

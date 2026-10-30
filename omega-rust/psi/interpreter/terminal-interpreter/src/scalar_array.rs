@@ -249,8 +249,10 @@ impl TerminalExecution<'_> {
         }
         let mut dimensions = Vec::new();
         let mut current = structural_type;
-        while let Some(StructuralTypeShape::FixedArray { element, length }) =
-            types.get(&current).map(|declaration| &declaration.shape)
+        while let Some(StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        }) = types.get(&current).map(|declaration| &declaration.shape)
         {
             dimensions.push(*length);
             current = *element;

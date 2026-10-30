@@ -119,3 +119,88 @@ Each place also carries the same fact through `ranged_value/`.
 explain why optional intervals are instantiated at each invocation while the
 nonnegative rank relation stays fixed. The accompanying controls retain strict
 descent, arithmetic formation and ordinary call obligations.
+
+[Projected scalar coordinates](local/projected_value/README.md) carry the same
+private-cycle fact through inline record fields in all nine places, with
+nested-field, moved-copy, entry-reset and wrong-subject controls.
+
+[Descriptor field coordinates](local/descriptor_field/README.md) carry that same
+private-cycle fact through slice descriptors stored in inline records across all
+nine places. Nested records, moved copies and mutable payload stores exercise
+composition; restoring an earlier descriptor or shortening only another field
+still rejects. Call requirements observe prepared operands before callee writes.
+
+## Borrowed record coordinates
+
+The `borrowed_value/` child in every place carries the same count through a
+readable, binding-stable formal reference to the caller's original record.
+Each caller checks count zero, canary641 and counter3→10, then exercises the
+empty path. Each child's `invalid/` removes only the strict decrement.
+The [local compositions](local/borrowed_value/README.md) additionally cover a
+moved reference carrier, a disjoint write, nested inline fields and a borrowed
+slice descriptor updated through the original record. Recursive normal-exit
+summaries compose windows without identifying opaque windows as exact values.
+Reset, whole-record replacement, alias-write and pointer-reseat controls under
+`controls/borrowed_*/` must still fail the same rank obligation. Saved entry
+coordinates grant no permission to reuse invalidated current observations.
+
+## Paired cursor and bound coordinates
+
+Each place also carries the same private-cycle fact through `bounded_distance/`.
+The [requirement mapping and controls](parameter/bounded_distance/README.md)
+cover exact cursor/slice-bound transport, fixed-width natural normalization,
+independent entry formation, conserved upper coordinates and clamped-view
+counterfactuals. The original counter operation and empty path remain observable.
+
+## Stored-reference coordinates
+
+The `borrowed_value/stored_reference/` child in every place carries the same
+seven/empty payload through a `Remaining` record whose `child` is `&mut Payload`.
+The selected rank is `remaining.child.count`. The caller checks count zero and
+guard 827 on its original payload after the temporary reference carrier dies;
+the explicit counter still advances from 3 to 10 and then stays 10.
+[Requirements and controls](local/borrowed_value/stored_reference/README.md)
+distinguish matched entry loads from current storage observations. The local
+compositions cover carrier, child and scalar aliases plus an observable disjoint
+referent write. Their twins remove only descent. Separate controls reject a
+reset after descent, an alias reset, decrementing another child, write-only
+observation and reliance on an enclosing helper's arrival facts.
+
+Scalar stores publish their completed value to proven identical current storage
+coordinates, retaining independent owned snapshots and refreshing invalidation
+dependencies. Reference production consumes checked occurrence captures;
+borrowed descriptor storage cannot become an owned field extraction. Native
+geometry uses the shared structural path grammar for every reference crossing,
+while access, lineage and original backing remain independent obligations.
+The frozen local source refuses on `54fa5d06d77` before this repair. Further
+reference loads without independently retained evidence, indexed/case private
+coordinates and the parent's other accepted requirements remain unfinished.
+
+[Effectful decrement operands](local/borrowed_value/stored_reference/operand_effects/README.md)
+carry that same fact across all nine places while temporarily replacing and
+restoring stored references. The operand result, caller-visible audit and
+unchanged spare distinguish completed captures from reloaded descriptor homes.
+
+## Indexed scalar coordinates
+
+The same fact's `indexed_value/` production carries a runtime selector beside
+its readable fixed-array backing through all nine places. Both selectors and
+the seven/empty paths are observable, with untouched-neighbor canaries.
+[Entry formation, snapshot identity, read lowering and controls](local/indexed_value/README.md)
+separate admitted index bounds from source syntax and declaration geometry.
+
+## Case payload coordinates
+
+Each place's `case_value/` carries the same private-cycle fact through an
+independently classified Pending payload. The [requirement mapping and controls](local/case_value/README.md)
+cover declaration-owned case formation, public result guarantees, nested payload
+fields and computed construction, with strict-descent twins in every place.
+
+[Stored-reference case ranks](local/case_value/stored_reference/README.md)
+carry the same counter fact through a loaded descriptor, with aggregate/scalar
+aliases, ordered descriptor replacement and snapshot controls.
+
+[Reference-bearing case payload ranks](local/case_value/stored_reference/reference_payload/README.md)
+carry the same seven/empty counter fact through two independently captured stored
+references in all nine places, with common-field loans, pointer restoration and
+stale-result controls.

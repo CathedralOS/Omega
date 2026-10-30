@@ -68,6 +68,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
+    homes: validation::completed_storage::InstalledLoanHomes<'_>,
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     captured_destination: Option<CanonicalPlace>,
@@ -131,7 +132,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                         && crate::borrow::place_path_covers_owner(
                             program,
                             &effect.destination.local_segments,
-                            borrow.loan_owner_path(active),
+                            &homes.owner_path(program, active),
                         )
                 });
             if replaced {
@@ -220,7 +221,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     || !crate::borrow::place_path_covers_owner(
                         program,
                         &destination.segments,
-                        borrow.loan_owner_path(active),
+                        &homes.owner_path(program, active),
                     );
                 if !keep {
                     borrow_weakenings.append(FlowBorrowWeakeningFact {

@@ -80,6 +80,7 @@ pub enum LoweringError {
     InvalidServiceIdentity(String),
     /// Preserve the declaration and provenance reason from source identity closure.
     InvalidDeclarationIdentity(String),
+    InvalidBoundaryApplication(String),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
     InvalidUnitMachinePlan {
@@ -108,6 +109,22 @@ pub enum LoweringError {
     },
     InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
     Unsupported(&'static str),
+    /// Preserve the two actual descriptor shapes at a failed state-owner join.
+    CapturedLoanDescriptorMismatch {
+        source_state: usize,
+        target_state: usize,
+        target_parameter: u32,
+        earlier: terminal_psi::StructuralTypeShape,
+        incoming: terminal_psi::StructuralTypeShape,
+        source_access: checked_trees::CheckedStructuralAccess,
+        target_access: checked_trees::CheckedStructuralAccess,
+    },
+    /// Retained conditional arithmetic must preserve the failed source join.
+    UnpublishedScalarCondition {
+        owner: symbols::SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        reason: String,
+    },
     /// Crash substitution must identify the exact completed caller home.
     /// Preserve its namespace and path when the emitting owner is incomplete.
     MissingCrashArgumentSource {

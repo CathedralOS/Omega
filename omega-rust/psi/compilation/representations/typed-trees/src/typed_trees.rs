@@ -322,6 +322,7 @@ pub struct TypedTrees {
     /// The shared program keeps their authored symbolic nodes; checking
     /// records what it needs from each; a closed copy carries the values.
     pub constant_recipes: Arena<constant_recipes::RetainedConstantRecipe>,
+    pub constant_expression_contexts: Arena<constant_recipes::ConstantExpressionContext>,
     /// Every recipe's value under this copy's target capsule. Empty in the
     /// shared program: no consumer may guess a value the capsule has not fixed.
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
@@ -626,6 +627,7 @@ impl TypedTrees {
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
             constant_recipes: Arena::new(),
+            constant_expression_contexts: Arena::new(),
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             callable_identity_memo: OwnedIndex::default(),

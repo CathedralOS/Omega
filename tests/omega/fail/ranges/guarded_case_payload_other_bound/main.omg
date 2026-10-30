@@ -1,0 +1,20 @@
+// A same-named bounded sibling cannot lend its bound to an unbounded payload.
+data Text
+    requires ((self in Text::Bounded) && self.length <= 4u64)
+        || (self in Text::Unbounded)
+{
+    case Bounded(bytes: [u8; 4], length: u64);
+    case Unbounded(bytes: [u8; 4], length: u64);
+}
+machine length(text: &Text) -> u64 {
+    transition text {
+        Text::Unbounded { bytes, length } -> read(&bytes[0..length])
+        _ -> 0u64
+    }
+    machine read(bytes: &[u8]) -> u64 { bytes.len }
+}
+machine main() {
+    let bytes: [u8; 4];
+    let text: Text = Text::Unbounded { bytes: bytes, length: 5u64 };
+    let result: u64 = length(&text);
+}

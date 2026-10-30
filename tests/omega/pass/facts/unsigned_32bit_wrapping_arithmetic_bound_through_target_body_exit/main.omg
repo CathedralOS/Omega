@@ -12,64 +12,96 @@ requires value >= 50u32 && value <= 100u32
     }
 }
 
-linux_x86_64 machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32 crashes Trap {
-    let sum_wrap: u32 in Wrapping = lhs + rhs;
-    let sum: u32 = sum_wrap as u32;
-    transition sum >= 50u32 && sum <= 100u32 {
-        true -> step(sum)
-        _ -> bad()
-    }
-    machine step(s: u32) -> u32 {
-        verify_sum(s)
-    }
-    machine bad() -> u32 { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32 crashes Trap {
-    let sum_wrap: u32 in Wrapping = lhs + rhs;
-    let sum: u32 = sum_wrap as u32;
-    transition sum >= 50u32 && sum <= 100u32 {
-        true -> step(sum)
-        _ -> bad()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine step(s: u32) -> u32 {
-        verify_sum(s)
-    }
-    machine bad() -> u32 { crash Trap; }
 }
 
-macos_arm64 machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32 crashes Trap {
-    let sum_wrap: u32 in Wrapping = lhs + rhs;
-    let sum: u32 = sum_wrap as u32;
-    transition sum >= 50u32 && sum <= 100u32 {
-        true -> step(sum)
-        _ -> bad()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine step(s: u32) -> u32 {
-        verify_sum(s)
-    }
-    machine bad() -> u32 { crash Trap; }
 }
 
-windows_x86_64 machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32 crashes Trap {
-    let sum_wrap: u32 in Wrapping = lhs + rhs;
-    let sum: u32 = sum_wrap as u32;
-    transition sum >= 50u32 && sum <= 100u32 {
-        true -> step(sum)
-        _ -> bad()
-    }
-    machine step(s: u32) -> u32 {
-        verify_sum(s)
-    }
-    machine bad() -> u32 { crash Trap; }
+boundary trait SelectedProbe {
+    machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap;
 }
 
-machine main() crashes Trap {
-    let rc: u32 = exercise(60u32, 15u32);
+X86Probe satisfies SelectedProbe {
+    machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let sum_wrap: u32 in Wrapping = lhs + rhs;
+        let sum: u32 = sum_wrap as u32;
+        transition sum >= 50u32 && sum <= 100u32 {
+            true -> step(sum)
+            _ -> bad()
+        }
+        machine step(s: u32) -> u32 {
+            verify_sum(s)
+        }
+        machine bad() -> u32 { crash Trap; }
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let sum_wrap: u32 in Wrapping = lhs + rhs;
+        let sum: u32 = sum_wrap as u32;
+        transition sum >= 50u32 && sum <= 100u32 {
+            true -> step(sum)
+            _ -> bad()
+        }
+        machine step(s: u32) -> u32 {
+            verify_sum(s)
+        }
+        machine bad() -> u32 { crash Trap; }
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let rc: u32 = SelectedProbe::exercise(60u32, 15u32);
     transition rc == 0u32 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

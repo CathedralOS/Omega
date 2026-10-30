@@ -1,0 +1,15 @@
+from pathlib import Path
+p=Path('omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs')
+s=p.read_text(); start=s.index('    pub(in crate::proof_contracts::contract_entailment) fn judge_observed_predicate('); end=s.index('\n    /// Branch-wise truth',start)
+part=s[start:end]
+part=part.replace('        let resolved = self.resolve_at(predicate.clone(), depth + 1);','        let _total = phase_profile::guard("05.guard.total");\n        let resolved = phase_profile::scope("05.guard.resolve", || self.resolve_at(predicate.clone(), depth + 1));')
+part=part.replace('        match self.judge_equation(','        match phase_profile::scope("05.guard.equation", || self.judge_equation(',1).replace('            depth + 1,\n        ) {','            depth + 1,\n        )) {',1)
+part=part.replace('self.observed_float_predicate_judgment(&predicate, depth)','phase_profile::scope("05.guard.float", || self.observed_float_predicate_judgment(&predicate, depth))')
+part=part.replace('self.integer_predicate_observations(&predicate)','phase_profile::scope("05.guard.integer", || self.integer_predicate_observations(&predicate))')
+part=part.replace('self.proves_observed_integer_boolean(&resolved, depth)','phase_profile::scope("05.guard.boolean", || self.proves_observed_integer_boolean(&resolved, depth))')
+s=s[:start]+part+s[end:];p.write_text(s)
+out=Path('build/body-unfolding')
+profile=(out/'diagnostic-profile.py').read_text().replace("out / 'diagnostic/omega.exe'", "out / 'guards/omega.exe'").replace("'diagnostic-'+fixture", "'guards-'+fixture").replace("'diagnostic.json'", "'guards.json'").replace("'diagnostic-inputs.json'", "'guards-inputs.json'")
+(out/'guards-profile.py').write_text(profile)
+chain=(out/'diagnostic-chain.py').read_text().replace('diagnostic','guards')
+(out/'guards-chain.py').write_text(chain)
