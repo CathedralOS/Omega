@@ -34692,6 +34692,7 @@ run/calls/qualified_atomic_operation_names checked 1802ms check-target:macos_arm
 run/calls/qualified_literal_return_exit checked 934ms check-target:macos_arm64 @90c334a2c095
 run/calls/recursive_machine_transition_scalar_arguments_exit checked 3577ms check-target:macos_arm64 @a92f16431042
 run/calls/resultless_scalar_parameters checked 6466ms check-target:macos_arm64 @a92f16431042
+run/calls/retained_implicit_entry_selection checked 1850ms check-target:macos_arm64 @44449d36ba89
 run/calls/returned_reference_case_write_then_view_exit checked 937ms check-target:macos_arm64 @90c334a2c095
 run/calls/runtime_float_distinct_operand_calls_exit checked 12568ms check-target:macos_arm64 @a92f16431042
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11908ms check-target:macos_arm64 @a92f16431042
