@@ -2429,7 +2429,10 @@ fn visit_machine_with_sidecars(
             let source = program
                 .expression_table
                 .static_machine_application(capture.supplying_application);
-            retained.declaration_description_dependency(source.lexical_owner);
+            // This declaration owns the independently replayed evidence occurrence.
+            // It is a checking prerequisite, not a call edge or permission to
+            // execute the supplying owner's body.
+            visit_symbol(retained, source.lexical_owner);
             visit_symbol(retained, capture.conformance_application.declaration);
             visit_static_machine_bindings(program, retained, capture.binding_application);
             visit_static_machine_bindings(program, retained, capture.supplying_application);

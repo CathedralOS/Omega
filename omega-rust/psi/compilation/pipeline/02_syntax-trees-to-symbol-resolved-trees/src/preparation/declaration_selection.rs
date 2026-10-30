@@ -45,6 +45,27 @@ impl std::ops::Deref for SelectionBase<'_> {
     }
 }
 
+/// Representation adapters share the same immutable Core declaration contract.
+/// Neither a display name nor an opaque supply mode alone selects this meaning.
+pub(crate) fn is_core_layout_storage_source(
+    symbols: &SymbolTable,
+    name: &str,
+    supply_mode: language_semantics::DataSupplyMode,
+    reference: source::SourceSpan,
+) -> bool {
+    name == language_core::layout_storage::CONSTRUCTOR_NAME
+        && supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+        && symbols.source_file(reference).is_some_and(|file| {
+            file.origin == source::SourceOrigin::Toolchain
+                && file.package_identity.is_none()
+                && file.path.strip_prefix(&file.package_root).ok()
+                    == Some(std::path::Path::new(
+                        language_core::layout_storage::SOURCE_FILE_NAME,
+                    ))
+                && file.source.as_bytes() == language_core::layout_storage::SOURCE
+        })
+}
+
 impl<'base> ConstantSelection<'base> {
     /// Preserve header identities while replacing lookup membership. Pending
     /// bodies must not resolve against a declaration excluded by this consumer.
@@ -713,20 +734,12 @@ impl<'base> ConstantSelection<'base> {
         syntax: &SyntaxTrees,
         definition: &DataDefinition,
     ) -> bool {
-        definition.name.as_str(syntax) == language_core::layout_storage::CONSTRUCTOR_NAME
-            && definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
-            && self
-                .symbols
-                .source_file(definition.name.source_span())
-                .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        && file.package_identity.is_none()
-                        && file.path.strip_prefix(&file.package_root).ok()
-                            == Some(std::path::Path::new(
-                                language_core::layout_storage::SOURCE_FILE_NAME,
-                            ))
-                        && file.source.as_bytes() == language_core::layout_storage::SOURCE
-                })
+        is_core_layout_storage_source(
+            &self.symbols,
+            definition.name.as_str(syntax),
+            definition.supply_mode,
+            definition.name.source_span(),
+        )
     }
 
     /// Read the receiving telescope selected in this invocation's namespace.
