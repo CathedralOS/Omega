@@ -55,7 +55,8 @@ def env_seconds(name, default):
 
 def require_rung_identities(directory, adapter):
     """Bound Epsilon compiler, execution adapter, and D compiler identities.
-    Returns the D compiler bytes; callers keep their per-entry checks."""
+    Return the checked D and Epsilon bytes so callers frame exactly that
+    validated evaluator subject; callers keep their per-entry checks."""
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
     require_identity("Epsilon", epsilon, 617354,
                      "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e")
@@ -64,7 +65,7 @@ def require_rung_identities(directory, adapter):
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
     require_identity("D", compiler, 571647,
                      "895fee46c73c1bad33b366eac40d029f939f475d59b84302eaa0ae681ac30e47")
-    return compiler
+    return compiler, epsilon
 
 
 def require_receipt_identity(receipt):
