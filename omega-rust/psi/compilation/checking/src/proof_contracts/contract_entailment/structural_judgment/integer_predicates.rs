@@ -1430,9 +1430,12 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
-            operand_resolutions: None,
+            operand_resolutions: Some(Vec::new()),
         };
         let mut premises = self.project_observed_integer_premises(&mut observations);
+        // Resolved payloads belong only to this immutable judge's preparation.
+        // Published premises and later goal batches never inherit these answers.
+        observations.operand_resolutions = None;
         if !premises.complete {
             return None;
         }
@@ -1813,7 +1816,7 @@ impl<'program> StructuralJudge<'program> {
                     reference,
                     operand,
                 ) {
-                    self.integer_projection_value(operand.as_ref().clone())
+                    self.resolve_integer_operand(operand.as_ref().clone(), observations)
                 } else {
                     // An unobserved original operand cannot gain the new
                     // completed-call route by resolving to a different shell.
