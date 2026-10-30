@@ -249,6 +249,23 @@ pub(crate) mod test_support {
         image.symbol_table.entry_symbol = entry;
     }
 
+    /// The import-bearing image the relocation fixtures stage: `text_size`
+    /// zeroed `.text` bytes over one symbol, one import and two relocation
+    /// slots.
+    pub(crate) fn relocation_image(target: target::NativeTarget, text_size: usize) -> FinalImage {
+        FinalImage::with_capacity(
+            target,
+            image::FinalImageMemory {
+                text: vec![0; text_size],
+                ..image::FinalImageMemory::default()
+            },
+            arena::Handle::invalid(),
+            1,
+            1,
+            2,
+        )
+    }
+
     /// The shared dynamic-link staging chain every dynamic-executable test
     /// drives through section planning to the procedure-linkage relocation
     /// plan.
