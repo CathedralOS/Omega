@@ -149,39 +149,10 @@ impl SourceContinuation {
                     "native table designation has no exact visible data field",
                 )
             })?;
-            let definition = self
-                .typed()
-                .data_definition_by_symbol(table)
-                .ok_or_else(|| {
-                    refuse(
-                        operand.source_span,
-                        "native table lost its data declaration",
-                    )
-                })?;
-            let field_definition = self
-                .typed()
-                .data_members(definition)
-                .iter()
-                .filter_map(|member| member.as_field())
-                .find(|candidate| candidate.symbol == field)
-                .ok_or_else(|| {
-                    refuse(
-                        operand.source_span,
-                        "native table field does not belong to its designated data declaration",
-                    )
-                })?;
-            if field_definition.relevance.is_erased()
-                || self
-                    .typed()
-                    .primitive_type_reference(field_definition.type_reference)
-                    != Some(typed_trees::types::PrimitiveType::Addr)
-            {
-                return Err(refuse(
-                    operand.source_span,
-                    "native table dispatch requires a runtime addr field",
-                ));
-            }
-            Some(NativeTableField { table, field, drops_receiver: request.operation == language_semantics::declaration_selection::BuildOperation::NativeTableFunction })
+            Some(validate_table_field(
+                self.typed(), table, field,
+                request.operation == language_semantics::declaration_selection::BuildOperation::NativeTableFunction,
+            ).map_err(|reason| refuse(operand.source_span, reason))?)
         } else {
             None
         };
@@ -245,6 +216,21 @@ impl SourceContinuation {
         environment: Option<&ProductStaticEnvironment>,
         demand: ProductApplicationDemand,
     ) -> Result<(NativeRequirementApplication, Option<NativeTableField>), Vec<Diagnostic>> {
+        let author_source = declaration
+            .sources
+            .get(declaration.author.source_id)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "captured native author lost original source custody",
+                )]
+            })?;
+        if author_source.package_identity != Some(declaration.producer.package)
+            || author_source.resolution_stratum != declaration.resolution_stratum
+        {
+            return Err(vec![Diagnostic::error(
+                "captured native author changed its package or source stratum",
+            )]);
+        }
         let request = &declaration.request;
         request
             .validate_shape()
@@ -280,18 +266,14 @@ impl SourceContinuation {
         let table = request.operands.get(1).map(|operand| {
             let field = resolve(operand, language_semantics::declaration_selection::ProductOperandRole::TableField)?;
             let typed = self.typed();
-            let (table, field_definition) = typed.data_definitions().iter().find_map(|definition| {
+            let table = typed.data_definitions().iter().find(|definition| {
                 typed.data_members(definition).iter().filter_map(|member| member.as_field())
-                    .find(|candidate| candidate.symbol == field).map(|field| (definition.symbol, field))
-            }).ok_or_else(|| vec![Diagnostic::error("captured native field lost its exact table")])?;
-            if field_definition.relevance.is_erased()
-                || typed.primitive_type_reference(field_definition.type_reference)
-                    != Some(typed_trees::types::PrimitiveType::Addr)
-            {
-                return Err(vec![Diagnostic::error("native table dispatch requires a runtime addr field")]);
-            }
-            Ok(NativeTableField { table, field, drops_receiver:
-                request.operation == language_semantics::declaration_selection::BuildOperation::NativeTableFunction })
+                    .any(|candidate| candidate.symbol == field)
+            }).map(|definition| definition.symbol)
+                .ok_or_else(|| vec![Diagnostic::error("captured native field lost its exact table")])?;
+            validate_table_field(typed, table, field,
+                request.operation == language_semantics::declaration_selection::BuildOperation::NativeTableFunction)
+                .map_err(|reason| vec![Diagnostic::error(reason)])
         }).transpose()?;
         Ok((
             NativeRequirementApplication {
@@ -302,6 +284,34 @@ impl SourceContinuation {
             table,
         ))
     }
+}
+
+fn validate_table_field(
+    typed: &typed_trees::TypedTrees,
+    table: SymbolHandle,
+    field: SymbolHandle,
+    drops_receiver: bool,
+) -> Result<NativeTableField, &'static str> {
+    let definition = typed
+        .data_definition_by_symbol(table)
+        .ok_or("native table lost its data declaration")?;
+    let field_definition = typed
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .find(|candidate| candidate.symbol == field)
+        .ok_or("native table field does not belong to its designated data declaration")?;
+    if field_definition.relevance.is_erased()
+        || typed.primitive_type_reference(field_definition.type_reference)
+            != Some(typed_trees::types::PrimitiveType::Addr)
+    {
+        return Err("native table dispatch requires a runtime addr field");
+    }
+    Ok(NativeTableField {
+        table,
+        field,
+        drops_receiver,
+    })
 }
 
 fn refuse(span: source::SourceSpan, reason: &str) -> Vec<Diagnostic> {
