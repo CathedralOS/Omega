@@ -447,20 +447,96 @@ impl<'program> Encoder<'program> {
         match length {
             FixedArrayLength::Literal(length) => Ok(*length),
             FixedArrayLength::ConstParameter { symbol, .. } => {
+                if symbol.is_valid()
+                    && self.program.symbols.get(*symbol).kind == symbols::SymbolKind::Const
+                {
+                    let (_, value) = self.declaration_integer(*symbol)?;
+                    return usize::try_from(value).map_err(|_| {
+                        "materialized array extent is not a nonnegative host-sized integer".into()
+                    });
+                }
                 let binding = self.bindings[..frame]
                     .iter()
                     .rev()
                     .find(|binding| binding.parameter == *symbol)
                     .ok_or("materialized array extent has no exact declaration binding")?;
                 let argument = self.resolve(binding.actual)?;
-                let TypeReference::Named { name, .. } = argument.reference else {
+                let TypeReference::Named { symbol, name, .. } = argument.reference else {
                     return Err("materialized array extent is not a completed integer".into());
                 };
+                if symbol.is_valid()
+                    && self.program.symbols.get(*symbol).kind == symbols::SymbolKind::Const
+                {
+                    let (_, value) = self.declaration_integer(*symbol)?;
+                    return usize::try_from(value).map_err(|_| {
+                        "materialized array extent is not a nonnegative host-sized integer".into()
+                    });
+                }
+                // Remaining decimal operands are the existing closed literal
+                // atoms, not a lookup of an authored constant by name.
                 name.as_str().parse().map_err(|_| {
                     "materialized array extent is not a closed nonnegative integer".into()
                 })
             }
             _ => Err("materialized array extent is not complete".into()),
+        }
+    }
+
+    /// An extent's selected declaration owns both its integer carrier and
+    /// completed initializer. Never read a same-spelled caller constant or a
+    /// provisional receipt encoding to determine geometry.
+    fn declaration_integer(
+        &self,
+        mut symbol: SymbolHandle,
+    ) -> Result<(BuiltinTypeAtom, i128), String> {
+        let mut active = Vec::new();
+        let mut declared_carrier = None;
+        loop {
+            if active.contains(&symbol) {
+                return Err("materialized array extent has a cyclic constant dependency".into());
+            }
+            active.push(symbol);
+            let declaration = self
+                .program
+                .const_declaration(symbol)
+                .ok_or("materialized array extent lost its exact constant declaration")?;
+            let carrier = self.unconstrained(Operand {
+                reference: &declaration.declared_type,
+                frame: 0,
+            })?;
+            let TypeReference::Named {
+                symbol: carrier_symbol,
+                ..
+            } = carrier.reference
+            else {
+                return Err(
+                    "materialized array extent constant must have an integer carrier".into(),
+                );
+            };
+            let atom = self
+                .program
+                .symbols
+                .builtin_type_atom(*carrier_symbol)
+                .filter(|atom| atom.is_fixed_integer())
+                .ok_or("materialized array extent constant must have an integer carrier")?;
+            if declared_carrier.is_some_and(|expected| expected != atom) {
+                return Err(
+                    "materialized array extent alias changes its declared integer carrier".into(),
+                );
+            }
+            declared_carrier = Some(atom);
+            let table = &self.program.tables.bodies.expressions;
+            if let ExpressionNode::Name(path) = table.expression(declaration.initializer)
+                && path.symbol.is_valid()
+                && self.program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+            {
+                symbol = path.symbol;
+                continue;
+            }
+            return match self.scalar(atom, declaration.initializer)? {
+                Value::Integer { value, .. } => Ok((atom, value)),
+                _ => Err("materialized array extent constant is not a completed integer".into()),
+            };
         }
     }
 
