@@ -278,6 +278,55 @@ impl TerminalExecution<'_> {
         Ok(root)
     }
 
+    /// Resolve the live collection before choosing its byte storage. Reference
+    /// and descriptor crossings retain the original backing, not the path in
+    /// the caller's reference carrier. Packed local roots use staged identities
+    /// so argument validation remains transactional.
+    fn byte_array_storage_staged(
+        &self,
+        source: &StructuralArgument,
+        identity_cursor: &mut Option<u64>,
+        local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+    ) -> Result<(TerminalStructuralValue, ArrayStorage), TerminalInterpretError> {
+        let (selected, home) = self.element_collection_storage(source)?;
+        let referent = match selected {
+            Some(selected) => selected,
+            None => {
+                let (root, _) = self.array_storage_root_staged(
+                    source.place,
+                    identity_cursor,
+                    local_array_roots,
+                )?;
+                let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
+                resolve_single_structural_argument(
+                    &self.program.structural_types(),
+                    &values,
+                    source,
+                )?
+            }
+        };
+        let mut storage_referent = StructuralRuntimePlace::from(&referent);
+        let home = match home {
+            Some(home) => {
+                let (depth, place, structural_type) = home.storage.scalar_array_frame();
+                storage_referent.path = home.path;
+                ArrayStorageHome::Frame {
+                    depth,
+                    place,
+                    structural_type,
+                }
+            }
+            None => ArrayStorageHome::Runtime,
+        };
+        Ok((
+            referent,
+            ArrayStorage {
+                referent: storage_referent,
+                home,
+            },
+        ))
+    }
+
     /// Whole-array loan whose payload still lives in the owner's scalar array.
     fn loaned_byte_array_frame(
         &self,
@@ -384,26 +433,14 @@ impl TerminalExecution<'_> {
             // as mutable descriptors below. Their ordinary reads remain an
             // immutable observation; only the descriptor retains its loan.
         }
-        let (root, home) = self.array_storage_root_staged(
-            source.place,
+        let (mut referent, array) = self.byte_array_storage_staged(
+            source,
             identity_cursor,
             &mut RuntimeRows::new(self.account.as_ref()),
         )?;
-        let array_type = array_path_type(
-            &self.program.structural_types(),
-            root.structural_type,
-            &source.path,
-        )
-        .ok_or_else(malformed)?;
+        let array_type = referent.structural_type;
         let length = byte_array_length(&self.program.structural_types(), array_type)
             .ok_or_else(malformed)?;
-        let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
-        let mut referent =
-            resolve_single_structural_argument(&self.program.structural_types(), &values, &source)?;
-        let array = ArrayStorage {
-            referent: StructuralRuntimePlace::from(&referent),
-            home,
-        };
         if (source.access == StructuralAccess::MutableBorrow && !referent.qualifications.is_empty())
             || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
             || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
@@ -630,8 +667,7 @@ impl TerminalExecution<'_> {
         }
         // A genuine array projection resolves to its own structural type. The
         // bounded byte-field presentation remains owned by its separate path.
-        let (root, home) =
-            self.array_storage_root_staged(argument.place, identity_cursor, local_array_roots)?;
+        let root_type = self.live_structural_type(argument.place)?;
         // A window changes the borrowed extent, never the backing's identity.
         // Keep the range out of the storage key so repeated and forwarded calls
         // update the same array and leave bytes outside the loan untouched.
@@ -639,11 +675,9 @@ impl TerminalExecution<'_> {
             Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
             _ => &argument.path,
         };
-        let Some(array_type) = array_path_type(
-            &self.program.structural_types(),
-            root.structural_type,
-            backing_path,
-        ) else {
+        let Some(array_type) =
+            array_path_type(&self.program.structural_types(), root_type, backing_path)
+        else {
             return Ok(None);
         };
         let Some(length) = byte_array_length(&self.program.structural_types(), array_type) else {
@@ -689,7 +723,7 @@ impl TerminalExecution<'_> {
                 })
             })
             .ok_or_else(malformed)?;
-        if source.structural_type != root.structural_type {
+        if source.structural_type != root_type {
             return Err(malformed());
         }
         let window = terminal_semantics::fixed_byte_array_loan(
@@ -705,23 +739,8 @@ impl TerminalExecution<'_> {
             path: window.backing_path.to_vec(),
             access: argument.access,
         };
-        let local_values;
-        let values = if matches!(home, ArrayStorageHome::Frame { .. }) {
-            local_values =
-                RuntimeRows::from_rows(self.account.as_ref(), [(argument.place, root.clone())])?;
-            &local_values
-        } else {
-            &self.structural_values
-        };
-        let mut referent = resolve_single_structural_argument(
-            &self.program.structural_types(),
-            values,
-            &backing_argument,
-        )?;
-        let array = ArrayStorage {
-            referent: StructuralRuntimePlace::from(&referent),
-            home,
-        };
+        let (mut referent, array) =
+            self.byte_array_storage_staged(&backing_argument, identity_cursor, local_array_roots)?;
         if self.stored_byte_array_length(&array)? as u128 != u128::from(length) {
             return Err(malformed());
         }

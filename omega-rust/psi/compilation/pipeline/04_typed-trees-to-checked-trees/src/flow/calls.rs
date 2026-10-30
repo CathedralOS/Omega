@@ -230,6 +230,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         invalidations: invalidation.invalidations,
         normal_return_writes,
         normal_return_writes_complete: storage_writes.is_some(),
+        normal_return_referents: HandleSpan::empty(),
         boundary_edges,
         requires: contract_call
             .map(|call| call.requires)

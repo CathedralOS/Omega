@@ -158,7 +158,9 @@ impl Execution<'_, '_, '_> {
                             let formation = self.context.control.referent_formations.append(
                                 checked_trees::FlowReferentFormation {
                                     source,
-                                    source_access: capture.case_access,
+                                    evidence: checked_trees::FlowReferentFormationEvidence::Access(
+                                        capture.case_access,
+                                    ),
                                     owner,
                                     path,
                                     root: place.place.root,
@@ -686,6 +688,84 @@ impl Execution<'_, '_, '_> {
         *referents = Some(self.append_captured_references(&origins));
     }
 
+    /// Normal return completes the descriptor formation established in the
+    /// checked callee. The pre-call capture supplies possible backing, not a
+    /// requirement that the caller select every mutually exclusive origin.
+    pub(super) fn complete_call_reference_formations(
+        &mut self,
+        call: arena::Handle<checked_trees::FlowCallFact>,
+        referents: &mut Option<HandleSpan<FlowOperandReferent>>,
+        leaves: &mut Option<HandleSpan<checked_trees::FlowCapturedReferenceLeaf>>,
+    ) {
+        if !self.context.control.calls.is_valid(call) {
+            return;
+        }
+        let mut returned_origins = Vec::new();
+        if let Some(referents) = referents {
+            *referents = self.returned_descriptor_formations(call, *referents);
+            returned_origins.extend_from_slice(
+                self.context
+                    .control
+                    .operand_referents
+                    .span_or_empty(*referents),
+            );
+        }
+        if let Some(leaves) = leaves {
+            let mut returned = self
+                .context
+                .control
+                .captured_reference_leaves
+                .span_or_empty(*leaves)
+                .to_vec();
+            for leaf in &mut returned {
+                leaf.referents = self.returned_descriptor_formations(call, leaf.referents);
+                returned_origins.extend_from_slice(
+                    self.context
+                        .control
+                        .operand_referents
+                        .span_or_empty(leaf.referents),
+                );
+            }
+            *leaves = self
+                .context
+                .control
+                .captured_reference_leaves
+                .insert_many(returned);
+        }
+        let returned_origins = self
+            .context
+            .control
+            .operand_referents
+            .insert_many(returned_origins);
+        self.context
+            .control
+            .calls
+            .get_mut(call)
+            .normal_return_referents = returned_origins;
+    }
+
+    fn returned_descriptor_formations(
+        &mut self,
+        call: arena::Handle<checked_trees::FlowCallFact>,
+        referents: HandleSpan<FlowOperandReferent>,
+    ) -> HandleSpan<FlowOperandReferent> {
+        let mut returned = Vec::new();
+        for source in referents.handles() {
+            let mut referent = *self.context.control.operand_referents.get(source);
+            referent.formation = self.context.control.referent_formations.append(
+                checked_trees::FlowReferentFormation {
+                    source,
+                    evidence: checked_trees::FlowReferentFormationEvidence::Return(call),
+                    root: referent.root,
+                    segments: referent.segments,
+                    ..Default::default()
+                },
+            );
+            returned.push(referent);
+        }
+        self.context.control.operand_referents.insert_many(returned)
+    }
+
     /// Read the completed value installed by a reaching store. A matching
     /// unresolved capture or an intervening replacement is authoritative:
     /// neither may fall back to the declaration's initializer.
@@ -1109,7 +1189,7 @@ impl Execution<'_, '_, '_> {
             reference.formation = self.context.control.referent_formations.append(
                 checked_trees::FlowReferentFormation {
                     source,
-                    source_access: access,
+                    evidence: checked_trees::FlowReferentFormationEvidence::Access(access),
                     owner: arena::Handle::invalid(),
                     path: HandleSpan::empty(),
                     root: reference.place.root,
