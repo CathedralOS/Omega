@@ -34,21 +34,43 @@ pub struct FlowOperandReferent {
 }
 
 /// Provenance of a completed reference descriptor, never a pointee snapshot.
-/// `source_access` names an earlier actual payload read. A nonzero `owner`
+/// Evidence names an earlier actual payload read or completed invocation. A nonzero `owner`
 /// names an owned inventory whose conditional leaf has not been loaded yet:
 /// its `path` must be selected on that completed value at the actual load.
 /// The saved namespace ends at this descriptor; every later suffix remains
 /// subject to current case evidence. Inventory presence proves no case.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowReferentFormation {
-    /// Actual source coordinates paired with source_access. The owned path is
+    /// Actual source coordinates paired with the formation evidence. The owned path is
     /// relative to the value, not a suffix to trim from physical geometry.
     pub source: Handle<FlowOperandReferent>,
-    pub source_access: Handle<FlowCaseAccessFact>,
+    pub evidence: FlowReferentFormationEvidence,
     pub owner: Handle<FlowOperandFact>,
     pub path: HandleSpan<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
+}
+
+/// Descriptor formation is established either by a checked read here or by
+/// a checked callee returning that descriptor. Neither establishes current
+/// case facts about the pointee below the completed descriptor's namespace.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowReferentFormationEvidence {
+    #[default]
+    Unknown,
+    Access(Handle<FlowCaseAccessFact>),
+    Return(Handle<super::FlowCallFact>),
+}
+
+impl FlowReferentFormation {
+    pub fn source_access(&self) -> Handle<FlowCaseAccessFact> {
+        match self.evidence {
+            FlowReferentFormationEvidence::Access(access) => access,
+            FlowReferentFormationEvidence::Unknown | FlowReferentFormationEvidence::Return(_) => {
+                Handle::invalid()
+            }
+        }
+    }
 }
 
 /// Independent lifetime dependencies and spatial associations of one completed

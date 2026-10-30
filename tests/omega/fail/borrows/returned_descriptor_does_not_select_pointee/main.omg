@@ -1,0 +1,22 @@
+data Inner { case Present(value: u64); case Absent; }
+data Outer { case Left(items: [Inner; 1]); case Right(items: [Inner; 1]); }
+machine items(outer: &Outer) -> &[Inner] {
+    transition outer {
+        Outer::Left { items } -> (&items[0..1])
+        Outer::Right { items } -> (&items[0..1])
+    }
+}
+machine read(outer: &Outer) -> u64 {
+    let values: &[Inner] = items(outer);
+    transition values.len > 0 {
+        true -> first(values)
+        false -> (0)
+    }
+    machine first(values: &[Inner]) -> u64 requires values.len > 0 {
+        values[0].value
+    }
+}
+machine main() {
+    let outer: Outer = Outer::Left { items: [Inner::Absent] };
+    let result: u64 = read(&outer);
+}

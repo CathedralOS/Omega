@@ -1782,6 +1782,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     constraints,
                 );
                 *invocation = completed.call;
+                self.complete_call_reference_formations(
+                    completed.call,
+                    referents,
+                    reference_leaves,
+                );
                 // Share the invocation's exact captured operands. Cloning
                 // them would manufacture second evaluation occurrences and
                 // make retained-loan correspondence ambiguous.
