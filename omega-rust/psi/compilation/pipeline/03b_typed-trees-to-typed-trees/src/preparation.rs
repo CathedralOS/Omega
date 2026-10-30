@@ -460,7 +460,7 @@ pub fn prepare_execution_applications(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     selections::retain_static_argument_contexts(program);
     loop {
-        let signatures = program.applied_callable_signatures.len();
+        let signatures = program.closed_requirement_applications().count();
         specialize_machine_calls(program, false)?;
         // Both declared dynamic families and ordinary public requirement
         // applications own complete specialized provider bodies. Run the same
@@ -471,7 +471,7 @@ pub fn prepare_execution_applications(
         crate::monomorphization::instantiate_requirement_applications(program)?;
         materialized +=
             crate::monomorphization::generate_requirement_provider_specializations(program)?;
-        if materialized == 0 && program.applied_callable_signatures.len() == signatures {
+        if materialized == 0 && program.closed_requirement_applications().count() == signatures {
             break;
         }
     }
