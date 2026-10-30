@@ -26,7 +26,9 @@ fn capture_byte_view(
     identity_cursor: &mut Option<u64>,
 ) -> Result<CapturedOriginal, TerminalInterpretError> {
     let (mut capture, offset, length) = if let Some(window) = binding.array_window()? {
-        let original = execution.original_byte_array_owner(&window.array, identity_cursor)?;
+        let original = execution
+            .original_byte_array_owner(&window.array, identity_cursor)
+            .map_err(|error| error.in_argument_preparation("resolve original byte-array owner"))?;
         // The selected array has u8 geometry, but its allocation can be a
         // containing record. Each scalar below retains its exact original-root
         // path; only the native layout owner derives physical byte offsets.
@@ -76,7 +78,11 @@ fn capture_byte_view(
             if binding.access == StructuralAccess::MutableBorrow {
                 execution.validate_scalar_loan_qualifications(&storage)?;
             }
-            let value = execution.original_scalar(&original, &storage)?;
+            let value = execution
+                .original_scalar(&original, &storage)
+                .map_err(|error| {
+                    error.in_argument_preparation("capture original byte-array cell")
+                })?;
             if crate::structural_inputs::byte_arrays::storage::scalar_byte(&value.value)?
                 != binding.entry_bytes()[index - window.offset]
             {
@@ -251,7 +257,10 @@ impl BoundaryStorageInputs {
             )?;
         }
         for binding in &self.byte_views {
-            captures.push(capture_byte_view(execution, binding, identity_cursor)?);
+            captures.push(
+                capture_byte_view(execution, binding, identity_cursor)
+                    .map_err(|error| error.in_argument_preparation("capture original byte view"))?,
+            );
         }
         let owners = captures
             .iter()
@@ -323,7 +332,12 @@ impl BoundaryStorageInputs {
             for ((endpoint, original), backing) in
                 endpoints.into_iter().zip(&request.values).zip(backings)
             {
-                prepared.push((endpoint, ScalarCell::resident(original.value, backing)?));
+                prepared.push((
+                    endpoint,
+                    ScalarCell::resident(original.value, backing).map_err(|error| {
+                        error.in_argument_preparation("validate original resident scalar")
+                    })?,
+                ));
             }
         }
         // Fund any packed-owner detachment and validate existing resident
@@ -362,7 +376,10 @@ impl BoundaryStorageInputs {
                 arrays
                     .backing_mut(&place)
                     .ok_or_else(malformed)?
-                    .prepare_resident_install(index, resident)?;
+                    .prepare_resident_install(index, resident)
+                    .map_err(|error| {
+                        error.in_argument_preparation("prepare original frame-array residence")
+                    })?;
             }
         }
         let mut original_roots = crate::runtime_rows::RuntimeRows::new(execution.account.as_ref());
