@@ -379,21 +379,24 @@ fn coordinate_reads_in_prefix(
         precision: FramePathPrecision::Exact,
         source: source.clone(),
     };
-    stored_origins::captured_reference_reads(
+    let current = caller_aliases::prefix_reference_origins(
         program,
-        &Some(origin),
-        &prefix.aliases,
+        Some((state, index)),
         &prefix.stored,
-    )
-    .into_iter()
-    .map(|source| {
-        let read = source?;
-        (read.source.lifetime_access.is_none()
-            && read.source.origin.precision == FramePathPrecision::Exact
-            && read.source.origin.source.output_identity().is_none())
-        .then_some(read)
-    })
-    .collect()
+        &[],
+        &[],
+    )?;
+    let aliases = caller_aliases::current_reference_aliases(program, &current, &prefix.aliases);
+    stored_origins::captured_reference_reads(program, &Some(origin), &aliases, &prefix.stored)
+        .into_iter()
+        .map(|source| {
+            let read = source?;
+            (read.source.lifetime_access.is_none()
+                && read.source.origin.precision == FramePathPrecision::Exact
+                && read.source.origin.source.output_identity().is_none())
+            .then_some(read)
+        })
+        .collect()
 }
 
 /// Complete backing footprints for invalidation, independent of exact identity.
