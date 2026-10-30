@@ -1135,3 +1135,24 @@ fn packages_do_not_manage_frontend_or_judgment_reuse() {
         }
     }
 }
+#[test]
+fn executable_callback_placement_is_owned_by_terminal_settlement() {
+    let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
+    let source = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    let request = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs"
+    );
+    let persisted = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec.rs"
+    );
+    assert!(selection.contains("callback_roots"));
+    assert!(source.contains("select_nominal_callback_roots"));
+    for source in [selection, source, persisted] {
+        assert!(!source.contains("NativeCallbackPlacement"));
+        assert!(!source.contains("SelectedCallbackPlacement"));
+    }
+    assert!(!request.contains("pub callback_placements:"));
+    assert!(request.contains("callback_settlement::place_callbacks"));
+}

@@ -142,7 +142,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // operands, builtin Boolean meaning and whole-graph formation independently of
 // selective evaluation. Structural case edges also retain simultaneous bindings.
 // This union differs from both upstream 204 and the scalar-only 211 format.
-pub(crate) const FORMAT_MARKER: u16 = 212;
+// Callback uses retain missing entry admission as an explicit native obligation.
+pub(crate) const FORMAT_MARKER: u16 = 213;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

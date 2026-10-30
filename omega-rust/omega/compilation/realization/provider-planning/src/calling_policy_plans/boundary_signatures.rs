@@ -278,7 +278,7 @@ pub struct BoundaryDirectCallbackParameter {
     pub(crate) requirement: CallbackRequirementId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallbackBinder {
     pub binder: StaticMachineBinderId,
     pub requirement: CallbackRequirementId,
@@ -286,6 +286,8 @@ pub struct BoundaryCallbackBinder {
     pub parameter_symbol: symbols::SymbolHandle,
     pub requirement_trait: symbols::SymbolHandle,
     pub requirement_machine: symbols::SymbolHandle,
+    pub requirement_identity: String,
+    pub invokes_synchronously: bool,
 }
 
 /// Materialize the ABI of one explicit top-level boundary requirement.
@@ -511,6 +513,8 @@ pub(crate) fn call_signature_from_typed(
     let mut parameters = Vec::new();
     let mut callback_binders = Vec::new();
     let mut static_machine_ordinal = 0u32;
+    let invocations =
+        checked_trees::typed_trees::invocations::declared_signature_invocations(typed, signature);
     for parameter in typed.state_signature_type_parameters(signature) {
         let checked_trees::typed_trees::data::TypeParameterKind::Machine { contract } =
             &parameter.kind
@@ -553,6 +557,9 @@ pub(crate) fn call_signature_from_typed(
             parameter_symbol: parameter.symbol,
             requirement_trait: *trait_definition,
             requirement_machine: *requirement,
+            requirement_identity,
+            invokes_synchronously: invocations
+                .contains(&flow_effects::InvocationTarget::Service(*trait_definition)),
         });
     }
 

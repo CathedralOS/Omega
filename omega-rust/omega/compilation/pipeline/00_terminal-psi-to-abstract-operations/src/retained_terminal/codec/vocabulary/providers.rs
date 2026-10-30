@@ -16,20 +16,6 @@ record_variants!(effects::AuthoredBehaviorExclusionKind {
     2 => Service { identity, name },
 });
 
-record_fields!(backend_plan::BoundCallbackPrivateMaterialization {
-    registrar_invokes_callback,
-    binder,
-    destination,
-    requirement,
-    registrar_boundary_entry_plan,
-    registrar_calling_plan_report_fingerprint,
-    registrar_application_report_fingerprint,
-    registrar_application_commitment,
-    registrar_application,
-    destination_application,
-    context
-});
-
 record_variants!(effects::CompilerIntrinsicExecutionIdentity {
     0 => HostedExitProcessI32,
     1 => HostedWriteByteI32,
@@ -105,26 +91,6 @@ record_fields!(effects::InstallationReachResolution {
     provider_plan_report_identity,
     upper_bound,
     resolved_row
-});
-
-record_fields!(backend_plan::NativeCallbackEntryParameter {
-    application,
-    origin
-});
-
-record_fields!(backend_plan::NativeCallbackPlacement {
-    application_index,
-    static_machine_ordinal,
-    canonical_requirement_overload,
-    contract_commitment,
-    boundary_entry_plan,
-    entry_parameters,
-    private_materialization
-});
-
-record_variants!(backend_plan::PrivateCallbackDestinationApplication {
-    0 => Direct { application },
-    1 => Field { root, byte_offset },
 });
 
 record_variants!(effects::provider_plan::ProviderBinding {
