@@ -81,6 +81,16 @@ native replays, two static rejects and ten focused custody tests pass. One
 initial diagnostic native timeout and one fixture-setup failure remain recorded.
 [Full evidence, scope and next question](source_resolution_remaining_2026_10_29/README.md).
 
+## Additional source-resolution evidence - 2026-10-29
+
+The independently measured root-selection experiment found 15.3%/24.2% lower
+first-compile medians and 24.1%/19.0% lower warm medians on length/dispatch.
+Stack32 ranges overlap and remain inconclusive. Its 95 successful native
+observations and two static rejects are retained with full provenance and
+limits. Main already has root-scoped graphs from PR #762; this entry adds
+historical evidence without changing that implementation or claiming those
+timings for its producer. [Record](source_resolution_2026_10_29/README.md).
+
 Host: Windows `x86_64` (`windows_x86_64`), release profile (`target/release/omega.exe`, `target/release/deps/corpus_runner-*.exe`).
 Base commit: `e44ed43aefa9` (`HEAD`).
 

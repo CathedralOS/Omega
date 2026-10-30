@@ -22,15 +22,6 @@ canonical_identity!(
     OptimizedAbstractPlanProjectionIdentity,
     b"omega.optimized-abstract-plan-projection-identity.v2\0"
 );
-canonical_identity!(
-    OptimizedBoundaryOccurrenceIdentity,
-    b"omega.optimized-boundary-occurrence-identity.v1\0"
-);
-canonical_identity!(
-    OptimizedOperatorOccurrenceIdentity,
-    b"omega.optimized-operator-occurrence-identity.v1\0"
-);
-canonical_identity!(
-    NativeOptimizationProjectionIdentity,
-    b"omega.native-optimization-projection-identity.v2\0"
-);
+s!(OptimizedBoundaryOccurrenceIdentity => b"omega.optimized-boundary-occurrence-identity.v1\0");
+s!(OptimizedOperatorOccurrenceIdentity => b"omega.optimized-operator-occurrence-identity.v1\0");
+s!(NativeOptimizationProjectionIdentity => b"omega.native-optimization-projection-identity.v2\0");

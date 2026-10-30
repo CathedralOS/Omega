@@ -222,6 +222,21 @@ mod tests {
     };
     use crate::mathematical_core::{Level, Sort, Term};
 
+    macro_rules! term {
+        (Apply => $function:expr => $argument:expr) => {
+            Term::Apply {
+                function: $function,
+                argument: $argument,
+            }
+        };
+        (Constant => $declaration:expr => $levels:expr) => {
+            Term::Constant {
+                declaration: $declaration,
+                levels: $levels,
+            }
+        };
+    }
+
     /// `λ(A : Type 0). λ(x : A). x` and its type `Π(A : Type 0). Π(x : A). A`.
     fn polymorphic_identity(arena: &mut TermArena) -> (TermHandle, TermHandle) {
         let type_zero = type_sort(arena, 0);
@@ -358,10 +373,7 @@ mod tests {
             one_branch: b_term,
             scrutinee,
         });
-        let expected = arena.insert(Term::Apply {
-            function: family,
-            argument: scrutinee,
-        });
+        let expected = arena.insert(term!(Apply => family => scrutinee));
         let certificate = MathematicalCertificate::closed(
             vec![type_zero, type_zero, a_binding, b_binding, two_binding],
             term,
@@ -373,10 +385,7 @@ mod tests {
         // the claimed judgment: `C t` stays stuck on the neutral
         // scrutinee and never collapses to either branch's type.
         let zero = arena.insert(Term::TwoZero);
-        let wrong_expected = arena.insert(Term::Apply {
-            function: family,
-            argument: zero,
-        });
+        let wrong_expected = arena.insert(term!(Apply => family => zero));
         let certificate = MathematicalCertificate::closed(
             vec![type_zero, type_zero, a_binding, b_binding, two_binding],
             term,
@@ -417,10 +426,7 @@ mod tests {
         let hypothesis_binding = {
             let predicate = variable(&mut arena, 2);
             let x = variable(&mut arena, 3);
-            arena.insert(Term::Apply {
-                function: predicate,
-                argument: x,
-            })
+            arena.insert(term!(Apply => predicate => x))
         };
         // The motive under the full context: its second domain is
         // `Id A x y` under the endpoint binder (A index 6, x index 5,
@@ -443,18 +449,12 @@ mod tests {
                 let domain = {
                     let predicate = variable(&mut arena, 5);
                     let x = variable(&mut arena, 6);
-                    arena.insert(Term::Apply {
-                        function: predicate,
-                        argument: x,
-                    })
+                    arena.insert(term!(Apply => predicate => x))
                 };
                 let codomain = {
                     let predicate = variable(&mut arena, 6);
                     let bound_y = variable(&mut arena, 2);
-                    arena.insert(Term::Apply {
-                        function: predicate,
-                        argument: bound_y,
-                    })
+                    arena.insert(term!(Apply => predicate => bound_y))
                 };
                 pi(&mut arena, domain, codomain)
             };
@@ -467,10 +467,7 @@ mod tests {
             let domain = {
                 let predicate = variable(&mut arena, 3);
                 let x = variable(&mut arena, 4);
-                arena.insert(Term::Apply {
-                    function: predicate,
-                    argument: x,
-                })
+                arena.insert(term!(Apply => predicate => x))
             };
             let bound = variable(&mut arena, 0);
             lambda(&mut arena, domain, bound)
@@ -484,17 +481,11 @@ mod tests {
             proof,
         });
         let hypothesis = variable(&mut arena, 0);
-        let term = arena.insert(Term::Apply {
-            function: elimination,
-            argument: hypothesis,
-        });
+        let term = arena.insert(term!(Apply => elimination => hypothesis));
         let expected = {
             let predicate = variable(&mut arena, 3);
             let y = variable(&mut arena, 2);
-            arena.insert(Term::Apply {
-                function: predicate,
-                argument: y,
-            })
+            arena.insert(term!(Apply => predicate => y))
         };
         let certificate = MathematicalCertificate::closed(
             vec![
@@ -516,10 +507,7 @@ mod tests {
         let wrong_expected = {
             let predicate = variable(&mut arena, 3);
             let x = variable(&mut arena, 4);
-            arena.insert(Term::Apply {
-                function: predicate,
-                argument: x,
-            })
+            arena.insert(term!(Apply => predicate => x))
         };
         let certificate = MathematicalCertificate::closed(
             vec![
@@ -558,10 +546,7 @@ mod tests {
         let k_binding = {
             let b_at = variable(&mut arena, 1);
             let a_at = variable(&mut arena, 0);
-            let child_positions = arena.insert(Term::Apply {
-                function: b_at,
-                argument: a_at,
-            });
+            let child_positions = arena.insert(term!(Apply => b_at => a_at));
             let carrier = variable(&mut arena, 3);
             let children = variable(&mut arena, 2);
             let w_under_b = arena.insert(Term::W { carrier, children });
@@ -580,10 +565,7 @@ mod tests {
             let function_type = {
                 let b_at = variable(&mut arena, 4);
                 let a_bound = variable(&mut arena, 0);
-                let child_positions = arena.insert(Term::Apply {
-                    function: b_at,
-                    argument: a_bound,
-                });
+                let child_positions = arena.insert(term!(Apply => b_at => a_bound));
                 let carrier = variable(&mut arena, 6);
                 let children = variable(&mut arena, 5);
                 let w_at_two = arena.insert(Term::W { carrier, children });
@@ -592,21 +574,12 @@ mod tests {
             let hypothesis = {
                 let b_at = variable(&mut arena, 5);
                 let a_bound = variable(&mut arena, 1);
-                let hypothesis_domain = arena.insert(Term::Apply {
-                    function: b_at,
-                    argument: a_bound,
-                });
+                let hypothesis_domain = arena.insert(term!(Apply => b_at => a_bound));
                 let p_at = variable(&mut arena, 3);
                 let k_bound = variable(&mut arena, 1);
                 let b_bound = variable(&mut arena, 0);
-                let child = arena.insert(Term::Apply {
-                    function: k_bound,
-                    argument: b_bound,
-                });
-                let hypothesis_codomain = arena.insert(Term::Apply {
-                    function: p_at,
-                    argument: child,
-                });
+                let child = arena.insert(term!(Apply => k_bound => b_bound));
+                let hypothesis_codomain = arena.insert(term!(Apply => p_at => child));
                 pi(&mut arena, hypothesis_domain, hypothesis_codomain)
             };
             let result = {
@@ -621,10 +594,7 @@ mod tests {
                     label,
                     function,
                 });
-                arena.insert(Term::Apply {
-                    function: p_at,
-                    argument: node,
-                })
+                arena.insert(term!(Apply => p_at => node))
             };
             let inner = pi(&mut arena, hypothesis, result);
             let middle = pi(&mut arena, function_type, inner);
@@ -658,10 +628,7 @@ mod tests {
         };
         let expected = {
             let p = variable(&mut arena, 2);
-            arena.insert(Term::Apply {
-                function: p,
-                argument: node,
-            })
+            arena.insert(term!(Apply => p => node))
         };
         let certificate = MathematicalCertificate::closed(
             vec![
@@ -678,10 +645,7 @@ mod tests {
         let wrong_expected = {
             let p = variable(&mut arena, 2);
             let t = variable(&mut arena, 0);
-            arena.insert(Term::Apply {
-                function: p,
-                argument: t,
-            })
+            arena.insert(term!(Apply => p => t))
         };
         let certificate = MathematicalCertificate::closed(
             vec![
@@ -783,10 +747,7 @@ mod tests {
     fn a_signed_certificate_verifies_its_declaration_closure() {
         let mut arena = TermArena::new();
         let declaration = polymorphic_identity_declaration(&mut arena);
-        let evidence = arena.insert(Term::Constant {
-            declaration: 0,
-            levels: vec![Level::Constant(0)],
-        });
+        let evidence = arena.insert(term!(Constant => 0 => vec![Level::Constant(0)]));
         let expected = instantiated_identity_type(&mut arena, Level::Constant(0));
         let certificate = MathematicalCertificate::with_signature(
             vec![declaration],
@@ -802,10 +763,7 @@ mod tests {
         let mut arena = TermArena::new();
         let declaration = polymorphic_identity_declaration(&mut arena);
         // The signature has exactly one declaration; index 1 points past it.
-        let forged = arena.insert(Term::Constant {
-            declaration: 1,
-            levels: vec![Level::Constant(0)],
-        });
+        let forged = arena.insert(term!(Constant => 1 => vec![Level::Constant(0)]));
         let expected = instantiated_identity_type(&mut arena, Level::Constant(0));
         let certificate = MathematicalCertificate::with_signature(
             vec![declaration],
@@ -834,10 +792,7 @@ mod tests {
         let two = arena.insert(Term::Two);
         let type_zero = type_sort(&mut arena, 0);
         let unsound = Declaration::definition(0, two, type_zero);
-        let evidence = arena.insert(Term::Constant {
-            declaration: 1,
-            levels: Vec::new(),
-        });
+        let evidence = arena.insert(term!(Constant => 1 => Vec::new()));
         let two = arena.insert(Term::Two);
         let certificate = MathematicalCertificate::with_signature(
             vec![sound, unsound],
@@ -858,16 +813,10 @@ mod tests {
         // only `uses`, but the closure reports `axiom` through its body.
         let type_zero = type_sort(&mut arena, 0);
         let axiom = Declaration::assumption(0, type_zero);
-        let axiom_constant = arena.insert(Term::Constant {
-            declaration: 0,
-            levels: Vec::new(),
-        });
+        let axiom_constant = arena.insert(term!(Constant => 0 => Vec::new()));
         let type_zero = type_sort(&mut arena, 0);
         let uses = Declaration::definition(0, type_zero, axiom_constant);
-        let evidence = arena.insert(Term::Constant {
-            declaration: 1,
-            levels: Vec::new(),
-        });
+        let evidence = arena.insert(term!(Constant => 1 => Vec::new()));
         let type_zero = type_sort(&mut arena, 0);
         let certificate = MathematicalCertificate::with_signature(
             vec![axiom, uses],

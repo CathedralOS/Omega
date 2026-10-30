@@ -11,6 +11,12 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, ValueId,
 };
 
+macro_rules! sub {
+    ($a:expr => $b:expr) => {
+        IntegerMathTerm::Subtract($a, $b)
+    };
+}
+
 fn check(left: ScalarTerm, right: ScalarTerm) {
     let ScalarType::Integer(integer) = left.scalar_type() else {
         unreachable!()
@@ -22,10 +28,7 @@ fn check(left: ScalarTerm, right: ScalarTerm) {
     let premise = Proposition::LessOrEqual(right.clone(), left.clone());
     let goal = Proposition::IntegerMathLessOrEqual(
         IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
-        IntegerMathTerm::Subtract(
-            Box::new(mathematical(&left)),
-            Box::new(mathematical(&right)),
-        ),
+        sub!(Box::new(mathematical(&left)) => Box::new(mathematical(&right))),
     );
     let proof = ProofNode {
         conclusion: goal.clone(),
@@ -127,10 +130,7 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
     let premise = Proposition::LessOrEqual(root.clone(), left.clone());
     let goal = Proposition::IntegerMathLessOrEqual(
         mathematical(&literal(0)),
-        IntegerMathTerm::Subtract(
-            Box::new(mathematical(&left)),
-            Box::new(mathematical(&right)),
-        ),
+        sub!(Box::new(mathematical(&left)) => Box::new(mathematical(&right))),
     );
     let proof = ProofNode {
         conclusion: goal.clone(),
@@ -190,10 +190,7 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
     let mut wrong_goal = proof.clone();
     wrong_goal.conclusion = Proposition::IntegerMathLessOrEqual(
         mathematical(&literal(1)),
-        IntegerMathTerm::Subtract(
-            Box::new(mathematical(&left)),
-            Box::new(mathematical(&right)),
-        ),
+        sub!(Box::new(mathematical(&left)) => Box::new(mathematical(&right))),
     );
     assert_refused(&context, &goal, &assumptions, &[], &wrong_goal);
 }
@@ -215,10 +212,7 @@ fn correlated_subtract_upper_through_cited_definitions() {
     let addend = ScalarTerm::integer(integer, IntegerValue::Unsigned(7)).unwrap();
     let expression = ScalarTerm::exact_integer_add(integer, value(4), addend.clone()).unwrap();
     let premise = Proposition::LessOrEqual(value(1), value(3));
-    let difference = IntegerMathTerm::Subtract(
-        Box::new(mathematical(&value(1))),
-        Box::new(mathematical(&addend)),
-    );
+    let difference = sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&addend)));
     let goal = Proposition::IntegerMathLessOrEqual(difference, mathematical(&endpoint));
     for reversed in [false, true] {
         let equality = |left, right| {
@@ -285,10 +279,7 @@ fn correlated_subtract_closed_goal_decides_by_numeral_laws() {
     let premise = Proposition::LessOrEqual(root.clone(), left.clone());
     let goal = Proposition::IntegerMathLessOrEqual(
         mathematical(&literal(0)),
-        IntegerMathTerm::Subtract(
-            Box::new(mathematical(&left)),
-            Box::new(mathematical(&right)),
-        ),
+        sub!(Box::new(mathematical(&left)) => Box::new(mathematical(&right))),
     );
     let proof = ProofNode {
         conclusion: goal.clone(),
@@ -369,10 +360,7 @@ fn direct_subtract_bound_exact_carrier_boundary_cases() {
         (1..=2).map(|index| (ValueId::new(index).unwrap(), scalar)),
     )
     .unwrap();
-    let difference = IntegerMathTerm::Subtract(
-        Box::new(mathematical(&value(1))),
-        Box::new(mathematical(&value(2))),
-    );
+    let difference = sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(2))));
     for (lower, exact, bound) in [
         (true, 255, IntegerValue::Unsigned(0)),
         (false, 0, IntegerValue::Unsigned(0)),
@@ -431,10 +419,7 @@ fn direct_subtract_bound_out_of_numeral_range_keeps_instance_fallback() {
         IntegerMathTerm::IntegerLiteral(
             semantic_vocabulary::IntegerMathLiteral::new(true, u128::MAX).unwrap(),
         ),
-        IntegerMathTerm::Subtract(
-            Box::new(mathematical(&value(1))),
-            Box::new(mathematical(&value(2))),
-        ),
+        sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(2)))),
     );
     let proof = direct_affine_proof(
         integer,
@@ -463,10 +448,7 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
         (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
     )
     .unwrap();
-    let difference = IntegerMathTerm::Subtract(
-        Box::new(mathematical(&value(1))),
-        Box::new(mathematical(&value(2))),
-    );
+    let difference = sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(2))));
     let premise = Proposition::Conjunction(vec![
         Proposition::LessOrEqual(literal(5), value(1)),
         Proposition::LessOrEqual(value(2), literal(3)),
@@ -494,10 +476,7 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
         ),
         Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::literal(IntegerValue::Unsigned(2)),
-            IntegerMathTerm::Subtract(
-                Box::new(mathematical(&value(1))),
-                Box::new(mathematical(&value(3))),
-            ),
+            sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(3)))),
         ),
         Proposition::IntegerMathLessOrEqual(
             difference.clone(),

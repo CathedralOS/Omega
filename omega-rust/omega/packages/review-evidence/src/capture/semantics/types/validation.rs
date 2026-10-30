@@ -31,43 +31,36 @@ pub(crate) fn validate_package_type_identity_input_inner(
     use typed_trees::data::{TypeParameter, TypeParameterKind};
     use typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
+    macro_rules! validate_child {
+        ($child:expr, $allow_const:expr $(,)?) => {
+            validate_package_type_identity_input_inner(
+                compilation,
+                program,
+                $child,
+                binders,
+                $allow_const,
+                extent_exposure,
+            )
+        };
+    }
     // A declared type argument carries a value only in the const slot of its
     // own telescope; domain rosters index their arguments past the carrier.
     let validate_argument = |argument, parameters: Option<&[TypeParameter]>, index: usize| {
         let is_const = parameters
             .and_then(|parameters| parameters.get(index))
             .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }));
-        validate_package_type_identity_input_inner(
-            compilation,
-            program,
-            argument,
-            binders,
-            is_const,
-            extent_exposure,
-        )
+        validate_child!(argument, is_const)
     };
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => validate_package_type_identity_input_inner(
-            compilation,
-            program,
-            *referee,
-            binders,
-            false,
-            extent_exposure,
-        ),
+        TypeReferenceNode::Reference { referee, .. } => {
+            validate_child!(*referee, false)
+        }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            validate_package_type_identity_input_inner(
-                compilation,
-                program,
-                *base_type,
-                binders,
-                false,
-                extent_exposure,
-            )?;
+            validate_child!(*base_type, false)?;
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
                     TypeConstraintNode::Range {
@@ -142,14 +135,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
             element_type,
             length,
         } => {
-            validate_package_type_identity_input_inner(
-                compilation,
-                program,
-                *element_type,
-                binders,
-                false,
-                extent_exposure,
-            )?;
+            validate_child!(*element_type, false)?;
             match length {
                 FixedArrayLength::Literal(_) => Ok(()),
                 FixedArrayLength::ConstParameter { symbol, name } => {
@@ -176,14 +162,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                 )]),
             }
         }
-        TypeReferenceNode::Slice { element_type } => validate_package_type_identity_input_inner(
-            compilation,
-            program,
-            *element_type,
-            binders,
-            false,
-            extent_exposure,
-        ),
+        TypeReferenceNode::Slice { element_type } => validate_child!(*element_type, false),
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
@@ -284,6 +263,11 @@ fn validate_package_index_expression(
     builtin_exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::expression::ExpressionNode;
+    macro_rules! index_expr {
+        ($value:expr => $exposure:expr) => {
+            validate_package_index_expression(compilation, program, $value, binders, $exposure)
+        };
+    }
 
     // Declaration selection alone does not freeze arithmetic or call arguments.
     // Retained array recipes must preserve their exact original node and edges;
@@ -325,13 +309,7 @@ fn validate_package_index_expression(
             }
         }
         ExpressionNode::Integer(_) => Ok(()),
-        ExpressionNode::Unary(unary) => validate_package_index_expression(
-            compilation,
-            program,
-            unary.operand,
-            binders,
-            builtin_exposure,
-        ),
+        ExpressionNode::Unary(unary) => index_expr!(unary.operand => builtin_exposure),
         ExpressionNode::Binary(binary) => {
             if let Some(selection) = program.expression_table.open_index_operation(expression) {
                 if !selection.operator.is_valid()
@@ -366,20 +344,8 @@ fn validate_package_index_expression(
                 // Builtin selection licenses this exact operation only. No
                 // conformance laws or algebraic rewriting are manufactured.
             }
-            validate_package_index_expression(
-                compilation,
-                program,
-                binary.left,
-                binders,
-                builtin_exposure,
-            )?;
-            validate_package_index_expression(
-                compilation,
-                program,
-                binary.right,
-                binders,
-                builtin_exposure,
-            )
+            index_expr!(binary.left => builtin_exposure)?;
+            index_expr!(binary.right => builtin_exposure)
         }
         ExpressionNode::Call(call) if builtin_exposure.is_some() => {
             use language_semantics::declaration_selection::{
@@ -428,13 +394,7 @@ fn validate_package_index_expression(
                 )]);
             }
             for argument in program.expression_table.expression_handles(call.arguments) {
-                validate_package_index_expression(
-                    compilation,
-                    program,
-                    *argument,
-                    binders,
-                    builtin_exposure,
-                )?;
+                index_expr!(*argument => builtin_exposure)?;
             }
             Ok(())
         }
@@ -460,13 +420,7 @@ fn validate_package_index_expression(
                 false,
                 builtin_exposure,
             )?;
-            validate_package_index_expression(
-                compilation,
-                program,
-                cast.value,
-                binders,
-                builtin_exposure,
-            )
+            index_expr!(cast.value => builtin_exposure)
         }
         ExpressionNode::SavedSubject(_)
         | ExpressionNode::Match(_)

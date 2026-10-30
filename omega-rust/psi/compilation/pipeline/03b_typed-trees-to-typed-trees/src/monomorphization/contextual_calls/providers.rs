@@ -54,6 +54,20 @@ pub(super) fn close(
         return Ok(None);
     };
     let mut provider = candidate::from_machine(program, machine_index);
+    macro_rules! retain_selected {
+        ($selected:expr $(,)?) => {
+            super::applications::retain_view(
+                program,
+                &provider,
+                application,
+                ordinal,
+                $selected,
+                demand,
+                expected,
+                caller_types,
+            )
+        };
+    }
     // The tuple's operands come from this source edge, not the private clone.
     // Retaining its scope matters even for closed types containing lifetimes.
     provider.binding_application = application;
@@ -197,16 +211,7 @@ pub(super) fn close(
             application,
             &lifetimes,
         );
-        super::applications::retain_view(
-            program,
-            &provider,
-            application,
-            ordinal,
-            selected,
-            demand,
-            expected,
-            caller_types,
-        )?;
+        retain_selected!(selected)?;
         return Ok(Some(source_entry));
     }
     // Admission consumes the complete determined symbolic tuple, not the
@@ -236,16 +241,7 @@ pub(super) fn close(
             application,
             &lifetimes,
         );
-        super::applications::retain_view(
-            program,
-            &provider,
-            application,
-            ordinal,
-            selected,
-            demand,
-            expected,
-            caller_types,
-        )?;
+        retain_selected!(selected)?;
         return Ok(Some(selected));
     }
     provider.binding_application =
@@ -265,16 +261,7 @@ pub(super) fn close(
             })
             .map(|state| state.symbol);
         if let Some(entry) = entry {
-            super::applications::retain_view(
-                program,
-                &provider,
-                application,
-                ordinal,
-                entry,
-                demand,
-                expected,
-                caller_types,
-            )?;
+            retain_selected!(entry)?;
         }
         return Ok(entry);
     }
@@ -303,16 +290,7 @@ pub(super) fn close(
         .find(|(original, _)| *original == source_entry)
         .map(|(_, concrete)| concrete);
     if let Some(entry) = entry {
-        super::applications::retain_view(
-            program,
-            &provider,
-            application,
-            ordinal,
-            entry,
-            demand,
-            expected,
-            caller_types,
-        )?;
+        retain_selected!(entry)?;
     }
     Ok(entry)
 }

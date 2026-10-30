@@ -9,6 +9,12 @@ use abstract_operations::AbstractOperation;
 use legalized_operations::LegalizedScalarInstructionKind;
 use semantic_vocabulary::ScalarType;
 
+macro_rules! o {
+    ($optimized:expr => $unit:expr => $operation:expr => $elements:expr) => {
+        crate::legalization::runtime_indices::operands($optimized, $unit, $operation, $elements)
+    };
+}
+
 pub(super) fn project_structural_case_membership(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -34,8 +40,7 @@ pub(super) fn project_structural_case_membership(
         )?;
     // A runtime element joins its selector and certificate, as a
     // primitive read's does.
-    let indices =
-        crate::legalization::runtime_indices::operands(optimized, unit, *psi_operation, &elements)?;
+    let indices = o!(optimized => unit => *psi_operation => &elements)?;
     Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
         source: *source,
         path: path.clone(),
@@ -85,8 +90,7 @@ pub(super) fn project_structural_leaf_copy(
             result,
             plan,
         )?;
-    let indices =
-        crate::legalization::runtime_indices::operands(optimized, unit, psi_operation, &elements)?;
+    let indices = o!(optimized => unit => psi_operation => &elements)?;
     Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
         result: result.clone(),
         source,
@@ -211,12 +215,7 @@ pub(super) fn project_primitive_scalar_read(
                 &unit.structural_types,
             )
             .ok_or(Error::custody())?;
-        crate::legalization::runtime_indices::operands(
-            optimized,
-            unit,
-            *psi_operation,
-            &geometry.elements,
-        )?
+        o!(optimized => unit => *psi_operation => &geometry.elements)?
     };
     Ok(LegalizedScalarInstructionKind::PrimitiveScalarRead {
         source: *source,
@@ -253,12 +252,7 @@ pub(super) fn project_write_only_primitive_store(
         value: *value,
         byte_offset: geometry.byte_offset,
         byte_size: u8::try_from(geometry.byte_size).map_err(|_| Error::custody())?,
-        indices: crate::legalization::runtime_indices::operands(
-            optimized,
-            unit,
-            *psi_operation,
-            &geometry.elements,
-        )?,
+        indices: o!(optimized => unit => *psi_operation => &geometry.elements)?,
     })
 }
 
@@ -301,12 +295,7 @@ pub(super) fn project_structural_scalar_field_store(
         value: *value,
         byte_offset: *field_byte_offset,
         byte_size,
-        indices: crate::legalization::runtime_indices::operands(
-            optimized,
-            unit,
-            *psi_operation,
-            &elements,
-        )?,
+        indices: o!(optimized => unit => *psi_operation => &elements)?,
     })
 }
 
@@ -319,18 +308,13 @@ fn view_indices(
     psi_operation: semantic_vocabulary::OperationId,
     view: &terminal_psi::StructuralArgument,
 ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, LegalizationError> {
-    crate::legalization::runtime_indices::operands(
-        optimized,
-        unit,
-        psi_operation,
-        &scalar_graph_input::element_views::descriptor_geometry(
+    o!(optimized => unit => psi_operation => &scalar_graph_input::element_views::descriptor_geometry(
             optimized,
             view,
             &unit.structural_types,
         )
         .ok_or(LegalizationError::custody())?
-        .elements,
-    )
+        .elements)
 }
 
 /// Both immutable windows legalize the same way: the source view's descriptor
@@ -629,12 +613,7 @@ pub(super) fn project_element_view_read(
                     &unit.structural_types,
                 )
                 .ok_or(Error::custody())?;
-            crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &elements,
-            )?
+            o!(optimized => unit => *psi_operation => &elements)?
         },
     })
 }
@@ -721,12 +700,7 @@ pub(super) fn project_storage_address(
         &unit.structural_types,
     )
     .ok_or(Error::custody())?;
-    let indices = crate::legalization::runtime_indices::operands(
-        optimized,
-        unit,
-        *psi_operation,
-        &geometry.elements,
-    )?;
+    let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
     Ok(LegalizedScalarInstructionKind::StorageAddress {
         source: *source,
         path: path.clone(),

@@ -245,6 +245,11 @@ fn reaching_capture<'program>(
 ) -> Option<(ExpressionHandle, usize, Vec<String>)> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut writes = Vec::new();
+    macro_rules! extend_writes {
+        ($method:ident, $subject:expr) => {
+            writes.extend(frames.$method(machine, $subject).into_complete_paths()?)
+        };
+    }
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
@@ -260,11 +265,7 @@ fn reaching_capture<'program>(
             if !local.initial_value.is_valid() {
                 return None;
             }
-            writes.extend(
-                frames
-                    .expression_write_frame(machine, local.initial_value)
-                    .into_complete_paths()?,
-            );
+            extend_writes!(expression_write_frame, local.initial_value);
             return Some((local.initial_value, definition, writes));
         }
         match statement {
@@ -278,43 +279,19 @@ fn reaching_capture<'program>(
                     return None;
                 }
                 if let TransitionGuardNode::When(guard) = transition.guard {
-                    writes.extend(
-                        frames
-                            .expression_write_frame(machine, guard)
-                            .into_complete_paths()?,
-                    );
+                    extend_writes!(expression_write_frame, guard);
                 }
             }
             StatementNode::Assignment(_) => {
-                writes.extend(
-                    frames
-                        .assignment_write_frame(machine, statement)
-                        .into_complete_paths()?,
-                );
-                writes.extend(
-                    frames
-                        .statement_value_write_frame(machine, statement)
-                        .into_complete_paths()?,
-                );
+                extend_writes!(assignment_write_frame, statement);
+                extend_writes!(statement_value_write_frame, statement);
             }
             StatementNode::Call(call) => {
-                writes.extend(
-                    frames
-                        .may_write_frame(machine, call)
-                        .into_complete_paths()?,
-                );
-                writes.extend(
-                    frames
-                        .statement_value_write_frame(machine, statement)
-                        .into_complete_paths()?,
-                );
+                extend_writes!(may_write_frame, call);
+                extend_writes!(statement_value_write_frame, statement);
             }
             StatementNode::LocalData(_) | StatementNode::Expression(_) => {
-                writes.extend(
-                    frames
-                        .statement_value_write_frame(machine, statement)
-                        .into_complete_paths()?,
-                );
+                extend_writes!(statement_value_write_frame, statement);
             }
             // Assembly and binding/proof directives do not have a complete
             // executable preservation judgment here. Absence is not purity.

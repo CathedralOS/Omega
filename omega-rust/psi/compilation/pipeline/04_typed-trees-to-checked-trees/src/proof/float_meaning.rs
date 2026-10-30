@@ -32,6 +32,12 @@ use validation::{
     exact_toolchain_float_format_const, exact_toolchain_float_semantic_contract,
 };
 
+macro_rules! err {
+    ($message:literal) => {
+        vec![Diagnostic::error($message)]
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CheckedFloatProjectionSourceKey {
     DirectMachineParameter {
@@ -557,9 +563,7 @@ fn push_float_meaning_projection(
             };
             let source_id =
                 CheckedFloatProjectionInputId(u32::try_from(source_index).map_err(|_| {
-                    vec![Diagnostic::error(
-                        "float-meaning projection sources exceed their dense identity space",
-                    )]
+                    err!("float-meaning projection sources exceed their dense identity space")
                 })?);
             let fallback = CheckedFloatProjectionInput {
                 id: source_id,
@@ -643,9 +647,7 @@ fn push_float_meaning_projection(
         None => {
             projection_keys.push(projection_key);
             let id = u32::try_from(projections.len()).map_err(|_| {
-                vec![Diagnostic::error(
-                    "float-meaning projection plan exceeds its dense identity space",
-                )]
+                err!("float-meaning projection plan exceeds its dense identity space")
             })?;
             let projection = CheckedFloatMeaningProjection {
                 result: CheckedProofValueDeclaration {
@@ -656,21 +658,15 @@ fn push_float_meaning_projection(
                 operation,
                 contract,
             };
-            projection.validate().map_err(|_| {
-                vec![Diagnostic::error(
-                    "checked float-meaning projection failed exact format replay",
-                )]
-            })?;
+            projection
+                .validate()
+                .map_err(|_| err!("checked float-meaning projection failed exact format replay"))?;
             projections.push(projection);
             projections.len() - 1
         }
     };
     Ok(CheckedProofValueId(u32::try_from(value_index).map_err(
-        |_| {
-            vec![Diagnostic::error(
-                "float-meaning projection plan exceeds its dense identity space",
-            )]
-        },
+        |_| err!("float-meaning projection plan exceeds its dense identity space"),
     )?))
 }
 
@@ -768,18 +764,14 @@ fn instantiate_equalities_at_use(
                 .iter()
                 .find(|invocation| invocation.invocation == invocation_handle)
                 .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "validated float-meaning equality lost its projection contract",
-                    )]
+                    err!("validated float-meaning equality lost its projection contract")
                 })?;
             let contract = invocation_contracts
                 .iter()
                 .find(|(invocation, _)| *invocation == invocation_handle)
                 .map(|(_, contract)| *contract)
                 .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "validated float-meaning equality lost its projection contract",
-                    )]
+                    err!("validated float-meaning equality lost its projection contract")
                 })?;
             let key = operand_key(invocation);
             operands.push(push_float_meaning_projection(
@@ -795,11 +787,8 @@ fn instantiate_equalities_at_use(
         let [left, right] = operands.as_slice() else {
             unreachable!("float-meaning equality has exactly two operands")
         };
-        let id = u32::try_from(equalities.len()).map_err(|_| {
-            vec![Diagnostic::error(
-                "float-meaning equality plan exceeds its dense identity space",
-            )]
-        })?;
+        let id = u32::try_from(equalities.len())
+            .map_err(|_| err!("float-meaning equality plan exceeds its dense identity space"))?;
         equalities.push(CheckedFloatMeaningEqualityProposition {
             id: CheckedProofPropositionId(id),
             left: CheckedProofValueId(left.0.min(right.0)),
@@ -1152,11 +1141,9 @@ fn bind_semantic_application_call(
             format,
             operands,
         };
-        application.validate().map_err(|_| {
-            vec![Diagnostic::error(
-                "checked float-semantic application failed exact catalog replay",
-            )]
-        })?;
+        application
+            .validate()
+            .map_err(|_| err!("checked float-semantic application failed exact catalog replay"))?;
         tables.applications.push(application);
     }
     tables.application_values.push((expression, value));
@@ -1200,11 +1187,8 @@ fn bind_semantic_application_equality(
             "checked float-semantic equality operands do not share one exact format and projection contract",
         )]);
     }
-    let id = u32::try_from(tables.equalities.len()).map_err(|_| {
-        vec![Diagnostic::error(
-            "float-meaning equality plan exceeds its dense identity space",
-        )]
-    })?;
+    let id = u32::try_from(tables.equalities.len())
+        .map_err(|_| err!("float-meaning equality plan exceeds its dense identity space"))?;
     tables
         .equalities
         .push(CheckedFloatMeaningEqualityProposition {
@@ -1328,25 +1312,23 @@ pub(crate) fn bind_float_meaning_projection_facts(
         invocation_contracts.push((fact.invocation, contract));
         occurrences.push(CheckedFloatMeaningProjectionOccurrence {
             id: CheckedFloatMeaningProjectionOccurrenceId(u32::try_from(index).map_err(|_| {
-                vec![Diagnostic::error(
-                    "float-meaning projection occurrences exceed their dense identity space",
-                )]
+                err!("float-meaning projection occurrences exceed their dense identity space")
             })?),
             value,
             source_span: program.expression_table.source_span(fact.invocation),
         });
     }
     if projection_keys.len() != projections.len() {
-        return Err(vec![Diagnostic::error(
-            "checked float-meaning projection canonicalization lost a semantic key",
-        )]);
+        return Err(err!(
+            "checked float-meaning projection canonicalization lost a semantic key"
+        ));
     }
     let mut equalities = Vec::with_capacity(equality_facts.len());
     for (index, fact) in equality_facts.iter().copied().enumerate() {
         let Some(expression) = program.expression_table.binary_node(fact.expression) else {
-            return Err(vec![Diagnostic::error(
-                "validated float-meaning equality is no longer a binary proposition",
-            )]);
+            return Err(err!(
+                "validated float-meaning equality is no longer a binary proposition"
+            ));
         };
         if expression.operator != BinaryOperator::Equal
             || expression.left != fact.left
@@ -1360,17 +1342,13 @@ pub(crate) fn bind_float_meaning_projection_facts(
             .iter()
             .find(|projection| projection.invocation == fact.left)
             .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "validated float-meaning equality lost its left projection contract",
-                )]
+                err!("validated float-meaning equality lost its left projection contract")
             })?;
         let right_projection = facts
             .iter()
             .find(|projection| projection.invocation == fact.right)
             .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "validated float-meaning equality lost its right projection contract",
-                )]
+                err!("validated float-meaning equality lost its right projection contract")
             })?;
         if left_projection.source_primitive != right_projection.source_primitive
             || left_projection.operation != right_projection.operation
@@ -1384,25 +1362,14 @@ pub(crate) fn bind_float_meaning_projection_facts(
             .iter()
             .find(|(invocation, _)| *invocation == fact.left)
             .map(|(_, value)| value.0)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "validated float-meaning equality lost its left projection",
-                )]
-            })?;
+            .ok_or_else(|| err!("validated float-meaning equality lost its left projection"))?;
         let right = invocation_values
             .iter()
             .find(|(invocation, _)| *invocation == fact.right)
             .map(|(_, value)| value.0)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "validated float-meaning equality lost its right projection",
-                )]
-            })?;
-        let id = u32::try_from(index).map_err(|_| {
-            vec![Diagnostic::error(
-                "float-meaning equality plan exceeds its dense identity space",
-            )]
-        })?;
+            .ok_or_else(|| err!("validated float-meaning equality lost its right projection"))?;
+        let id = u32::try_from(index)
+            .map_err(|_| err!("float-meaning equality plan exceeds its dense identity space"))?;
         equalities.push(CheckedFloatMeaningEqualityProposition {
             id: CheckedProofPropositionId(id),
             left: CheckedProofValueId(left.min(right)),

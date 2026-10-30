@@ -7,6 +7,12 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeSet;
 
+macro_rules! v {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        verify_bounded_certificate($a, $b, $c, $d, $e, $f)
+    };
+}
+
 /// The `PredicateDenotation` proof of a single assumption premise,
 /// verified against the goal with no semantic axioms and a default
 /// budget — the preamble every denotation test used to restate.
@@ -22,15 +28,8 @@ pub(crate) fn denote_via_assumption_premise(
             premise: Box::new(assumption_proof(premise.clone(), 0)),
         },
     };
-    verify_bounded_certificate(
-        context,
-        goal,
-        std::slice::from_ref(premise),
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .expect(message)
+    v!(context => goal => std::slice::from_ref(premise) => &[] => &proof => &mut Budget::default())
+        .expect(message)
 }
 
 pub(crate) fn mathematical(term: &ScalarTerm) -> IntegerMathTerm {
@@ -70,15 +69,8 @@ pub(crate) fn open_operation_preserves_skipped_numeric_resource_refusals(
     );
     let goal = Proposition::IntegerMathEqual(open.clone(), open);
     let proof = assumption_proof(goal.clone(), 0);
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        std::slice::from_ref(&goal),
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
+    v!(&context => &goal => std::slice::from_ref(&goal) => &[] => &proof => &mut Budget::default())
+        .unwrap();
     let closed_goal = Proposition::IntegerMathEqual(large.clone(), large);
     let closed_proof = assumption_proof(closed_goal.clone(), 0);
     assert_refused(
@@ -96,15 +88,8 @@ pub(super) fn direct_fixture(
     premise: &Proposition,
     proof: &ProofNode,
 ) -> Denotation {
-    verify_bounded_certificate(
-        context,
-        goal,
-        std::slice::from_ref(premise),
-        &[],
-        proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
+    v!(context => goal => std::slice::from_ref(premise) => &[] => proof => &mut Budget::default())
+        .unwrap();
     let parameters = BTreeSet::new();
     let assumptions = [premise.clone()];
     let mut elaboration = Elaboration::new(context, goal, &assumptions, &[], &parameters).unwrap();
@@ -144,15 +129,7 @@ pub(super) fn verify_then_elaborate<'a>(
     machine_parameter_values: &'a BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Elaboration<'a> {
-    verify_bounded_certificate(
-        context,
-        goal,
-        assumptions,
-        &[],
-        proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
+    v!(context => goal => assumptions => &[] => proof => &mut Budget::default()).unwrap();
     elaborate_checked(
         context,
         goal,
@@ -197,15 +174,8 @@ pub(crate) fn assert_refused(
     proof: &ProofNode,
 ) {
     assert!(
-        verify_bounded_certificate(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            proof,
-            &mut Budget::default(),
-        )
-        .is_err()
+        v!(context => goal => assumptions => semantic_axioms => proof => &mut Budget::default())
+            .is_err()
     );
 }
 

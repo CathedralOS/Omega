@@ -7,32 +7,26 @@ use selected_instructions::{
 use super::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};
 use crate::aarch64_physical_register_model;
 
+type Kind = SelectedInstructionKind;
+type Family = MachineAlternativeFamily;
+
+macro_rules! r {
+    ($a:ident => $b:ident) => {
+        (Kind::$a, Family::$b)
+    };
+    ($a:ident => $b:ident => $c:expr => $d:expr => $e:expr) => {
+        (Kind::$a, Family::$b, $c, $d, $e)
+    };
+}
+
 fn forms() -> [(SelectedInstructionKind, MachineAlternativeFamily); 6] {
     [
-        (
-            SelectedInstructionKind::ZeroExtendU8,
-            MachineAlternativeFamily::ZeroExtendU8,
-        ),
-        (
-            SelectedInstructionKind::ZeroExtendU16,
-            MachineAlternativeFamily::ZeroExtendU16,
-        ),
-        (
-            SelectedInstructionKind::ZeroExtendU32,
-            MachineAlternativeFamily::ZeroExtendU32,
-        ),
-        (
-            SelectedInstructionKind::SignExtendI8,
-            MachineAlternativeFamily::SignExtendI8,
-        ),
-        (
-            SelectedInstructionKind::SignExtendI16,
-            MachineAlternativeFamily::SignExtendI16,
-        ),
-        (
-            SelectedInstructionKind::SignExtendI32,
-            MachineAlternativeFamily::SignExtendI32,
-        ),
+        r!(ZeroExtendU8 => ZeroExtendU8),
+        r!(ZeroExtendU16 => ZeroExtendU16),
+        r!(ZeroExtendU32 => ZeroExtendU32),
+        r!(SignExtendI8 => SignExtendI8),
+        r!(SignExtendI16 => SignExtendI16),
+        r!(SignExtendI32 => SignExtendI32),
     ]
 }
 
@@ -112,34 +106,10 @@ fn normalization_matches_clang_assembler_oracle() {
         &str,
         &[u8],
     ); 4] = [
-        (
-            SelectedInstructionKind::ZeroExtendU16,
-            MachineAlternativeFamily::ZeroExtendU16,
-            "x16",
-            "x9",
-            &[0x09, 0x3e, 0x40, 0xd3],
-        ),
-        (
-            SelectedInstructionKind::SignExtendI8,
-            MachineAlternativeFamily::SignExtendI8,
-            "x16",
-            "x9",
-            &[0x09, 0x1e, 0x40, 0x93],
-        ),
-        (
-            SelectedInstructionKind::SignExtendI16,
-            MachineAlternativeFamily::SignExtendI16,
-            "x16",
-            "x9",
-            &[0x09, 0x3e, 0x40, 0x93],
-        ),
-        (
-            SelectedInstructionKind::SignExtendI32,
-            MachineAlternativeFamily::SignExtendI32,
-            "x16",
-            "x9",
-            &[0x09, 0x7e, 0x40, 0x93],
-        ),
+        r!(ZeroExtendU16 => ZeroExtendU16 => "x16" => "x9" => &[0x09, 0x3e, 0x40, 0xd3]),
+        r!(SignExtendI8 => SignExtendI8 => "x16" => "x9" => &[0x09, 0x1e, 0x40, 0x93]),
+        r!(SignExtendI16 => SignExtendI16 => "x16" => "x9" => &[0x09, 0x3e, 0x40, 0x93]),
+        r!(SignExtendI32 => SignExtendI32 => "x16" => "x9" => &[0x09, 0x7e, 0x40, 0x93]),
     ];
     for (kind, family, source, destination, expected) in fixtures {
         let operands = [

@@ -12,6 +12,11 @@ use crate::lowering::LoweringError;
 pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, LoweringError> {
     use IntegerArithmeticOperator as Operator;
     use IntegerOverflowPolicy as Policy;
+    macro_rules! r {
+        ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr) => {
+            ($a, $b, $c, $d, $e)
+        };
+    }
     let (policy, operator, obligation, left, right) = match operation.kind.clone() {
         OperationKind::WrappingIntegerAdd { left, right } => {
             (Policy::Wrapping, Operator::Add, None, left, right)
@@ -31,13 +36,7 @@ pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, Lowering
             left,
             right,
             obligation,
-        } => (
-            Policy::Exact,
-            Operator::Subtract,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Exact => Operator::Subtract => Some(obligation) => left => right),
         OperationKind::SaturatingIntegerSubtract { left, right } => {
             (Policy::Saturating, Operator::Subtract, None, left, right)
         }
@@ -48,13 +47,7 @@ pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, Lowering
             left,
             right,
             obligation,
-        } => (
-            Policy::Exact,
-            Operator::Multiply,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Exact => Operator::Multiply => Some(obligation) => left => right),
         OperationKind::SaturatingIntegerMultiply { left, right } => {
             (Policy::Saturating, Operator::Multiply, None, left, right)
         }
@@ -62,68 +55,32 @@ pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, Lowering
             left,
             right,
             obligation,
-        } => (
-            Policy::Wrapping,
-            Operator::Divide,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Wrapping => Operator::Divide => Some(obligation) => left => right),
         OperationKind::ExactIntegerDivide {
             left,
             right,
             obligation,
-        } => (
-            Policy::Exact,
-            Operator::Divide,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Exact => Operator::Divide => Some(obligation) => left => right),
         OperationKind::SaturatingIntegerDivide {
             left,
             right,
             obligation,
-        } => (
-            Policy::Saturating,
-            Operator::Divide,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Saturating => Operator::Divide => Some(obligation) => left => right),
         OperationKind::WrappingIntegerRemainder {
             left,
             right,
             obligation,
-        } => (
-            Policy::Wrapping,
-            Operator::Remainder,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Wrapping => Operator::Remainder => Some(obligation) => left => right),
         OperationKind::ExactIntegerRemainder {
             left,
             right,
             obligation,
-        } => (
-            Policy::Exact,
-            Operator::Remainder,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Exact => Operator::Remainder => Some(obligation) => left => right),
         OperationKind::SaturatingIntegerRemainder {
             left,
             right,
             obligation,
-        } => (
-            Policy::Saturating,
-            Operator::Remainder,
-            Some(obligation),
-            left,
-            right,
-        ),
+        } => r!(Policy::Saturating => Operator::Remainder => Some(obligation) => left => right),
         _ => unreachable!("arithmetic router is exhaustive"),
     };
     let Some(scalar_type) = operation.result.expect_scalar().scalar_type.as_integer() else {
