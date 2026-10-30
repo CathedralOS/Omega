@@ -44,6 +44,7 @@ pub fn project_checked_terminal_permission_policy<'a>(
             services::declaration_parameters(&mut signatures, resolved.symbol)?;
         let methods = resolved
             .schema
+            .declaration
             .methods
             .iter()
             .zip(&resolved.requirements)
@@ -54,7 +55,7 @@ pub fn project_checked_terminal_permission_policy<'a>(
                     resolved.symbol,
                     *requirement,
                     method,
-                    &resolved.schema.identities,
+                    &resolved.schema.declaration.identities,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;

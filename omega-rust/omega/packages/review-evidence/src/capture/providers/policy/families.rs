@@ -96,7 +96,7 @@ pub(super) fn project(
                         && retained
                             .plan
                             .schema
-                            .identity_text(retained.plan.schema.trait_name)
+                            .identity_text(retained.plan.schema.declaration.trait_name)
                             == coordinate.requirement_identity
                         && retained.provider.provider_type == Some(selection.provider_type.symbol)
                         && plan.provider_type_declaration() == Some(&provider_type_declaration)

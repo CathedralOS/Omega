@@ -84,11 +84,11 @@ pub(crate) fn derive(
                     .collect::<String>();
                 let provider = format!(
                     "native-build:{supplier}:{}",
-                    schema.identity_text(schema.trait_name)
+                    schema.identity_text(schema.declaration.trait_name)
                 );
                 let name = crate::satisfies_plan_name(
                     target.target_name(),
-                    schema.identity_text(schema.trait_name),
+                    schema.identity_text(schema.declaration.trait_name),
                     &provider,
                 );
                 plans.push(DerivedProviderPlan {

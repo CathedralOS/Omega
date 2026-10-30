@@ -148,10 +148,11 @@ fn selected_method<'a>(
 ) -> Result<&'a ServiceMethod, ProgramStorageEntryDiagnostic> {
     let matches = selected
         .schema()
+        .declaration
         .methods
         .iter()
         .filter(|method| {
-            selected.schema().identities.id_at(
+            selected.schema().declaration.identities.id_at(
                 selected
                     .identities()
                     .text(selected.requirement_identity())
@@ -199,8 +200,14 @@ fn validate_method(
     // entry settlement admitted for the plan above — never against the plan's own
     // `contract_report_fingerprint`/`contract_commitment_digest`, which could
     // only match a fabricated schema row.
-    if method.calling_plan_report_fingerprint != Some(semantic_application.report_fingerprint())
-        || method.calling_plan_commitment != Some(semantic_application.commitment())
+    if schema
+        .calling_plan(method.requirement_identity)
+        .map(|plan| plan.report_fingerprint)
+        != Some(semantic_application.report_fingerprint())
+        || schema
+            .calling_plan(method.requirement_identity)
+            .map(|plan| plan.commitment)
+            != Some(semantic_application.commitment())
     {
         return Err(ProgramStorageEntryDiagnostic(
             "selected semantic ProgramStorage requirement does not retain its exact calling-plan application"
@@ -210,6 +217,7 @@ fn validate_method(
     for (index, parameter) in source.into_iter().enumerate() {
         if Some(
             schema
+                .declaration
                 .identities
                 .text(method.parameter_type_identities[index]),
         ) != plan_identities.text(parameter.normalized_type_identity())
@@ -245,7 +253,11 @@ fn validate_claim(
     // normalized identities verbatim: reconstructing a bare `Extent`/`Granted`
     // spelling loses the owner and rejects package-qualified identities.
     if claim.parameter_index != parameter_index
-        || schema.identities.text(claim.carrier_identity).is_empty()
+        || schema
+            .declaration
+            .identities
+            .text(claim.carrier_identity)
+            .is_empty()
         || claim.domain.is_empty()
         || !claim.predicate_presence.is_present()
         || claim.effective_carry != CarryPolicy::STRICT
@@ -253,7 +265,7 @@ fn validate_claim(
     {
         return Err(ProgramStorageEntryDiagnostic(format!(
             "selected semantic ProgramStorage parameter {parameter_index} is not exact Extent in Granted: carrier={}, domain={}, predicate={:?}, carry={:?}, flow={:?}",
-            schema.identities.text(claim.carrier_identity),
+            schema.declaration.identities.text(claim.carrier_identity),
             claim.domain,
             claim.predicate_presence,
             claim.effective_carry,

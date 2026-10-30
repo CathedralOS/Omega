@@ -72,6 +72,8 @@ fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms 
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
@@ -11753,6 +11755,7 @@ pass/proofs/structural_application_premise_reentry_exit checked 3276ms check-tar
 pass/proofs/structural_mathematical_predicate_polarity_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_binding_field_telescopes_exit rejected 731ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	compiler-derived copies of one authored Call selection resolved inconsistently: `Main::main::done::entry` versus `Main<u64>::main::done::entry`
+pass/providers/applied_calling_surface_exit checked 8862ms check-target:macos_arm64 @d9073fc2214b
 pass/providers/applied_entry_nested_binding_context_exit checked 3583ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_header_dependent_const_carrier_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	const parameter `Count` of `Parent` requires an integer literal argument

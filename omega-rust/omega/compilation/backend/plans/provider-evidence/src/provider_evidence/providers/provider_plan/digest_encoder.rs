@@ -92,8 +92,8 @@ impl ProviderPlanDigestEncoder {
     }
 
     pub(crate) fn receiver_applications(&mut self, schema: &super::ServiceSchema) {
-        self.len(schema.receiver_applications.len());
-        for application in &schema.receiver_applications {
+        self.len(schema.declaration.receiver_applications.len());
+        for application in &schema.declaration.receiver_applications {
             self.string(schema.identity_text(application.application));
             self.string(schema.identity_text(application.trait_name));
             self.package_identity(application.trait_package_identity);
@@ -151,6 +151,7 @@ impl ProviderPlanDigestEncoder {
         &mut self,
         method: &ServiceMethod,
         identities: &ProviderIdentityTable,
+        calling: Option<&super::ServiceCallingPlan>,
     ) {
         self.string(&method.name);
         self.string(&method.requirement_owner);
@@ -246,14 +247,14 @@ impl ProviderPlanDigestEncoder {
             }
         }
 
-        match method.calling_plan_report_fingerprint {
+        match calling.map(|plan| plan.report_fingerprint) {
             Some(fingerprint) => {
                 self.byte(1);
                 self.u64(fingerprint);
             }
             None => self.byte(0),
         }
-        match method.calling_plan_commitment {
+        match calling.map(|plan| plan.commitment) {
             Some(commitment) => {
                 self.byte(1);
                 self.bytes(&commitment.as_bytes());

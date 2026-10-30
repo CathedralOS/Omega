@@ -11,8 +11,10 @@ type ProviderSelectionKey = (
 
 fn provider_slot_key(plan: &ProviderPlan) -> ProviderSelectionKey {
     (
-        plan.schema.trait_package_identity,
-        plan.schema.identity_text(plan.schema.trait_name).to_owned(),
+        plan.schema.declaration.trait_package_identity,
+        plan.schema
+            .identity_text(plan.schema.declaration.trait_name)
+            .to_owned(),
         plan.schema.root_application_identity().map(str::to_owned),
     )
 }
@@ -147,7 +149,7 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Origin: Clon
     let mut selected = Vec::new();
     let mut slot_keys: Vec<ProviderSelectionKey> = plans
         .iter()
-        .filter(|plan| !plan.schema.methods.is_empty())
+        .filter(|plan| !plan.schema.declaration.methods.is_empty())
         .map(provider_slot_key)
         .collect();
     slot_keys.sort_unstable();
@@ -208,7 +210,7 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Origin: Clon
         plans
             .iter()
             .filter(|plan| provider_slot_key(plan) == *key && applies(&plan.target))
-            .map(|plan| plan.schema.receiver_applications.len())
+            .map(|plan| plan.schema.declaration.receiver_applications.len())
             .max()
             .unwrap_or(0)
     };
@@ -309,7 +311,7 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Origin: Clon
                     declaration.provider_type.authored_path,
                     plan.name,
                     plan.rows.len(),
-                    plan.schema.methods.len(),
+                    plan.schema.declaration.methods.len(),
                 ))),
                 [] => {
                     let wrong_target = plans.iter().any(|plan| {

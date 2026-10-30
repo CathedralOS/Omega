@@ -60,7 +60,7 @@ pub(crate) fn resolve_accepted_service_binding(
     let declaration = services
         .select(binding.package(), binding.declaration_path())?
         .declaration;
-    if declaration.schema.trait_package_identity != Some(binding.package())
+    if declaration.schema.declaration.trait_package_identity != Some(binding.package())
         || package_compilation::accepted_service_schema_digest(binding.role(), &declaration.schema)
             != binding.normalized_schema_digest()
     {
@@ -489,6 +489,7 @@ fn validate_terminal_authority_permissions(
             .text(permission.requirement_identity())
             .unwrap_or_default();
         let matches = schema
+            .declaration
             .methods
             .iter()
             .filter(|method| {

@@ -76,6 +76,7 @@ pub fn time_host_permission_rows(
 ) -> Result<Vec<ServiceTerminalAuthorityPermission>, UnsettledTimeHostRequirement> {
     let digest = schema.identity_digest();
     schema
+        .declaration
         .methods
         .iter()
         .map(|method| time_host_permission_row(schema, digest, method, identities))

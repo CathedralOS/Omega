@@ -86,13 +86,13 @@ impl HostedSubject {
                 binding.role() == AcceptedSemanticBindingRole::ConsoleExitProcessI32
                     && self.service_owner == Some(binding.package())
                     && self.requirement_owner == Some(binding.package())
-                    && plan.schema.trait_package_identity == Some(binding.package())
+                    && plan.schema.declaration.trait_package_identity == Some(binding.package())
             }
             HostedService::ProcessExit => {
                 binding.role() == AcceptedSemanticBindingRole::ProcessExitExitProcessI32
                     && self.service_owner.is_none()
                     && self.requirement_owner.is_none()
-                    && plan.schema.trait_package_identity.is_none()
+                    && plan.schema.declaration.trait_package_identity.is_none()
             }
         };
         owns_service
@@ -673,6 +673,7 @@ fn boundary_row_shape(
         typed.trait_requirement_callable_identity_text(definition, requirement);
     let methods = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| plan.schema.row_binds_method(row, method, &plan.identities))

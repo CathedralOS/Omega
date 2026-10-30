@@ -162,7 +162,9 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
         admit_selected_checked_providers(loaded.view(), target, &marked, &opaque.plans),
         "marked opaque ceilings",
     )?;
-    for method in &mut opaque.plans[0].plan.schema.methods {
+    for method in
+        &mut std::sync::Arc::make_mut(&mut opaque.plans[0].plan.schema.declaration).methods
+    {
         method.synchronous_invocations.clear();
     }
     opaque.admit(loaded.view(), target)?;

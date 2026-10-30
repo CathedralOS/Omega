@@ -343,11 +343,17 @@ pub(super) fn boundary_contract_matches_selected_schema(
     plan: &effects::provider_plan::ProviderPlan,
     requirement: &str,
 ) -> bool {
-    let Some(requirement_id) = plan.schema.identities.id_at(requirement.as_ref()) else {
+    let Some(requirement_id) = plan
+        .schema
+        .declaration
+        .identities
+        .id_at(requirement.as_ref())
+    else {
         return false;
     };
     let mut matching = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| method.requirement_identity == requirement_id);

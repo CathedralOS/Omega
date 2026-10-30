@@ -224,7 +224,10 @@ impl CompiledReviewCache {
     /// component description replaces the record that lacked it.
     pub(crate) fn store(&self, key: &[u8; 32], review: &CachedCompiledReview, replace: bool) {
         let mut payload = Vec::new();
-        encode_record(review, &mut payload);
+        if encode_record(review, &mut payload).is_err() {
+            // Cache storage is best-effort; malformed evidence is never saved.
+            return;
+        }
         if payload.len() as u64 > self.limits.max_record_bytes {
             return;
         }

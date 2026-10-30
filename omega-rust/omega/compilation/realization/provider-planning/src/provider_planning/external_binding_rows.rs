@@ -130,7 +130,8 @@ impl ExternalBindingContext<'_> {
             typed,
             boundary_calling_plan_realizations,
             plan,
-            plan.schema.identity_text(plan.schema.trait_name),
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name),
             &row.method,
             plan.identities.text(row.requirement_identity),
         )
@@ -147,8 +148,9 @@ impl ExternalBindingContext<'_> {
                 crate::calling_policy_plans::evaluate_default_calling_application(
                     typed,
                     native_target,
-                    plan.schema.identity_text(plan.schema.trait_name),
-                    plan.schema.trait_package_identity,
+                    plan.schema
+                        .identity_text(plan.schema.declaration.trait_name),
+                    plan.schema.declaration.trait_package_identity,
                     &row.method,
                     plan.identities.text(row.requirement_identity),
                     policy,
@@ -158,7 +160,8 @@ impl ExternalBindingContext<'_> {
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
                         "cannot evaluate default native calling application for `{}::{}`: {reason}",
-                        plan.schema.identity_text(plan.schema.trait_name),
+                        plan.schema
+                            .identity_text(plan.schema.declaration.trait_name),
                         row.method
                     ))]
                 })?
@@ -171,7 +174,10 @@ impl ExternalBindingContext<'_> {
             } else {
                 plan.target.clone()
             },
-            trait_name: plan.schema.identity_text(plan.schema.trait_name).to_owned(),
+            trait_name: plan
+                .schema
+                .identity_text(plan.schema.declaration.trait_name)
+                .to_owned(),
             method: row.method.clone(),
             requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
             table_type: plan.provider_type.clone(),

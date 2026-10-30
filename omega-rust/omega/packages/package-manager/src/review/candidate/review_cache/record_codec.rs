@@ -5,9 +5,10 @@
 use super::{CachedCompiledReview, CachedOccurrenceFacts};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ProviderIdentityTable, ProviderPlanDigest,
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
+    ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow, ServiceEntryClaim,
+    ServiceMethod, ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+    ServiceProgressPremise, ServiceProgressSubject, ServiceReceiverApplication, ServiceResultClaim,
+    ServiceSchema, ServiceSchemaDigest, ServiceSurface,
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
@@ -245,6 +246,7 @@ fn recover_predicate_presence(
 fn encode_service_method(
     method: &ServiceMethod,
     identities: &ProviderIdentityTable,
+    calling: Option<&ServiceCallingPlan>,
     out: &mut Vec<u8>,
 ) {
     encode_string(&method.name, out);
@@ -319,12 +321,12 @@ fn encode_service_method(
         }
     }
     encode_optional(
-        method.calling_plan_report_fingerprint.as_ref(),
+        calling.map(|plan| plan.report_fingerprint).as_ref(),
         out,
         |value, out| crate::codec_bytes::push_encoded(out, value.to_le_bytes()),
     );
     encode_optional(
-        method.calling_plan_commitment.as_ref(),
+        calling.map(|plan| plan.commitment).as_ref(),
         out,
         |commitment, out| push_framed(out, &commitment.as_bytes()),
     );
@@ -333,7 +335,7 @@ fn encode_service_method(
 fn recover_service_method(
     cursor: &mut ObservationCursor<'_>,
     identities: &mut ProviderIdentityTable,
-) -> Option<ServiceMethod> {
+) -> Option<(ServiceMethod, Option<ServiceCallingPlan>)> {
     let name = cursor_string(cursor)?.to_owned();
     let requirement_owner = cursor_string(cursor)?.to_owned();
     let requirement_owner_package_identity = recover_optional(cursor, recover_identity)?;
@@ -419,45 +421,50 @@ fn recover_service_method(
             cursor.framed()?.try_into().ok()?,
         ))
     })?;
-    match (calling_plan_report_fingerprint, calling_plan_commitment) {
-        (Some(_), None) | (None, Some(_)) => return None,
-        _ => {}
-    }
-    Some(ServiceMethod {
-        completion,
-        name,
-        requirement_owner,
-        requirement_owner_package_identity,
-        requirement_identity,
-        parameter_count,
-        parameter_type_identities,
-        entry_claims,
-        has_result,
-        result_type_identity,
-        result_claims,
-        service_reach,
-        synchronous_invocations,
-        may_suspend,
-        may_block,
-        terminates_guarantee,
-        termination_premises,
-        calling_plan_report_fingerprint,
-        calling_plan_commitment,
-    })
+    let calling = match (calling_plan_report_fingerprint, calling_plan_commitment) {
+        (Some(report_fingerprint), Some(commitment)) => Some(ServiceCallingPlan {
+            report_fingerprint,
+            commitment,
+        }),
+        (None, None) => None,
+        _ => return None,
+    };
+    Some((
+        ServiceMethod {
+            completion,
+            name,
+            requirement_owner,
+            requirement_owner_package_identity,
+            requirement_identity,
+            parameter_count,
+            parameter_type_identities,
+            entry_claims,
+            has_result,
+            result_type_identity,
+            result_claims,
+            service_reach,
+            synchronous_invocations,
+            may_suspend,
+            may_block,
+            terminates_guarantee,
+            termination_premises,
+        },
+        calling,
+    ))
 }
 
 fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
     // The identity table rides the wire as a roster ahead of every field that
     // points into it: recovery re-mints the texts in order so a decoded schema
     // holds the same ids, not merely the same texts.
-    crate::codec_bytes::push_count_u64(out, schema.identities.texts().count());
-    for text in schema.identities.texts() {
+    crate::codec_bytes::push_count_u64(out, schema.declaration.identities.texts().count());
+    for text in schema.declaration.identities.texts() {
         encode_string(text, out);
     }
-    encode_string(schema.identity_text(schema.trait_name), out);
-    encode_optional_identity(schema.trait_package_identity.as_ref(), out);
-    crate::codec_bytes::push_count_u64(out, schema.receiver_applications.len());
-    for application in &schema.receiver_applications {
+    encode_string(schema.identity_text(schema.declaration.trait_name), out);
+    encode_optional_identity(schema.declaration.trait_package_identity.as_ref(), out);
+    crate::codec_bytes::push_count_u64(out, schema.declaration.receiver_applications.len());
+    for application in &schema.declaration.receiver_applications {
         encode_string(schema.identity_text(application.application), out);
         encode_string(schema.identity_text(application.trait_name), out);
         encode_optional_identity(application.trait_package_identity.as_ref(), out);
@@ -472,9 +479,14 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
             }
         }
     }
-    crate::codec_bytes::push_count_u64(out, schema.methods.len());
-    for method in &schema.methods {
-        encode_service_method(method, &schema.identities, out);
+    crate::codec_bytes::push_count_u64(out, schema.declaration.methods.len());
+    for method in &schema.declaration.methods {
+        encode_service_method(
+            method,
+            &schema.declaration.identities,
+            schema.calling_plan(method.requirement_identity),
+            out,
+        );
     }
 }
 
@@ -487,7 +499,8 @@ fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceS
     for _ in 0..identity_count {
         identities.intern(cursor_string(cursor)?);
     }
-    Some(ServiceSchema {
+    let mut calling_applications = Vec::new();
+    let declaration = ServiceSurface {
         trait_name: identities.intern(cursor_string(cursor)?),
         trait_package_identity: recover_optional(cursor, recover_identity)?,
         receiver_applications: cursor_vec(cursor, |cursor| {
@@ -514,10 +527,23 @@ fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceS
             })
         })?,
         methods: cursor_vec(cursor, |cursor| {
-            recover_service_method(cursor, &mut identities)
+            let (method, calling) = recover_service_method(cursor, &mut identities)?;
+            if let Some(plan) = calling {
+                calling_applications.push(ServiceCallingApplication {
+                    requirement: method.requirement_identity,
+                    plan,
+                });
+            }
+            Some(method)
         })?,
         identities,
-    })
+    };
+    let schema = ServiceSchema {
+        declaration: std::sync::Arc::new(declaration),
+        calling_applications,
+    };
+    schema.validate_calling_applications().ok()?;
+    Some(schema)
 }
 
 fn encode_candidate(candidate: &SemanticBindingReviewCandidate, out: &mut Vec<u8>) {
@@ -718,7 +744,19 @@ fn recover_component_description(
 }
 
 /// Encode one record's payload.
-pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
+pub(super) fn encode_record(
+    review: &CachedCompiledReview,
+    out: &mut Vec<u8>,
+) -> Result<(), &'static str> {
+    // A flattened historical wire format cannot retain orphaned or duplicate
+    // attachment coordinates. Refuse the record instead of dropping evidence.
+    for candidate in review
+        .semantic_binding_candidates
+        .iter()
+        .chain(review.facts.target_entry_candidate.iter())
+    {
+        candidate.service_schema().validate_calling_applications()?;
+    }
     out.extend_from_slice(RECORD_MAGIC);
     crate::codec_bytes::push_encoded(out, RECORD_VERSION.to_le_bytes());
     out.extend_from_slice(&review.package_identity.digest());
@@ -779,6 +817,7 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
         encode_candidate,
     );
     crate::codec_bytes::push_encoded(out, review.policy_canonical_bytes.to_le_bytes());
+    Ok(())
 }
 
 pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
@@ -933,11 +972,11 @@ mod tests {
             payload
         }
         let mut payload = Vec::new();
-        encode_record(&review, &mut payload);
+        encode_record(&review, &mut payload).expect("review encodes");
         let encoded = signed(payload.clone());
         let recovered = decode_record(&encoded).expect("current record decodes");
         let mut reencoded = Vec::new();
-        encode_record(&recovered, &mut reencoded);
+        encode_record(&recovered, &mut reencoded).expect("recovered review encodes");
         assert_eq!(reencoded, payload);
         for retired_version in 1u16..RECORD_VERSION {
             let mut retired = payload.clone();
@@ -960,45 +999,47 @@ mod tests {
         let alpha = identities.intern("omega.test.Trait.alpha");
         let beta = identities.intern("omega.test.Trait.beta");
         let u32_type_identity = identities.intern("omega.core.u32");
-        let schema = ServiceSchema {
-            trait_name,
-            receiver_applications: vec![ServiceReceiverApplication {
-                application: Default::default(),
+        let schema = ServiceSchema::from_declaration(std::sync::Arc::new(
+            effects::provider_plan::ServiceSurface {
                 trait_name,
-                trait_package_identity: None,
-                argument_identities: vec![u32_type_identity],
-                lifetime_argument_identities: Vec::new(),
-                requirement_identities: vec![alpha, beta, requirement_identity],
-            }],
-            identities,
-            trait_package_identity: None,
-            methods: vec![ServiceMethod {
-                name: "method".to_owned(),
-                requirement_owner: "omega.test.Trait".to_owned(),
-                requirement_identity,
-                parameter_count: 1,
-                parameter_type_identities: vec![u32_type_identity],
-                has_result: true,
-                result_type_identity: u32_type_identity,
-                terminates_guarantee: true,
-                termination_premises: vec![ServiceProgressPremise {
-                    profile: "terminates".to_owned(),
-                    subject: ServiceProgressSubject::Parameter(0),
-                    subject_projections: Vec::new(),
-                    establishment_routes: vec![
-                        ServiceProgressEstablishmentRoute {
-                            kind: ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                            requirement_identity: alpha,
-                        },
-                        ServiceProgressEstablishmentRoute {
-                            kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                            requirement_identity: beta,
-                        },
-                    ],
+                receiver_applications: vec![ServiceReceiverApplication {
+                    application: Default::default(),
+                    trait_name,
+                    trait_package_identity: None,
+                    argument_identities: vec![u32_type_identity],
+                    lifetime_argument_identities: Vec::new(),
+                    requirement_identities: vec![alpha, beta, requirement_identity],
                 }],
-                ..Default::default()
-            }],
-        };
+                identities,
+                trait_package_identity: None,
+                methods: vec![ServiceMethod {
+                    name: "method".to_owned(),
+                    requirement_owner: "omega.test.Trait".to_owned(),
+                    requirement_identity,
+                    parameter_count: 1,
+                    parameter_type_identities: vec![u32_type_identity],
+                    has_result: true,
+                    result_type_identity: u32_type_identity,
+                    terminates_guarantee: true,
+                    termination_premises: vec![ServiceProgressPremise {
+                        profile: "terminates".to_owned(),
+                        subject: ServiceProgressSubject::Parameter(0),
+                        subject_projections: Vec::new(),
+                        establishment_routes: vec![
+                            ServiceProgressEstablishmentRoute {
+                                kind: ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                                requirement_identity: alpha,
+                            },
+                            ServiceProgressEstablishmentRoute {
+                                kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                                requirement_identity: beta,
+                            },
+                        ],
+                    }],
+                    ..Default::default()
+                }],
+            },
+        ));
 
         let mut encoded = Vec::new();
         encode_service_schema(&schema, &mut encoded);
@@ -1012,5 +1053,45 @@ mod tests {
             encoded, reencoded,
             "a decoded record must re-encode to identical bytes"
         );
+
+        // The final two fields remain the historical independent option tags,
+        // even though one paired attachment now owns their in-memory meaning.
+        assert!(encoded.ends_with(&[0, 0]));
+        let prefix = &encoded[..encoded.len() - 2];
+        let calling = ServiceCallingPlan {
+            report_fingerprint: 73,
+            commitment: BoundaryCallingPlanCommitment::from_digest([19; 32]),
+        };
+        let mut expected = prefix.to_vec();
+        expected.push(1);
+        crate::codec_bytes::push_encoded(&mut expected, calling.report_fingerprint.to_le_bytes());
+        expected.push(1);
+        push_framed(&mut expected, &calling.commitment.as_bytes());
+        let mut attached = schema.clone();
+        attached
+            .calling_applications
+            .push(ServiceCallingApplication {
+                requirement: requirement_identity,
+                plan: calling,
+            });
+        let mut encoded_attachment = Vec::new();
+        encode_service_schema(&attached, &mut encoded_attachment);
+        assert_eq!(encoded_attachment, expected);
+        let recovered = recover_service_schema(&mut ObservationCursor::new(&expected))
+            .expect("complete calling attachment decodes");
+        assert_eq!(recovered, attached);
+        let mut reencoded_attachment = Vec::new();
+        encode_service_schema(&recovered, &mut reencoded_attachment);
+        assert_eq!(reencoded_attachment, expected);
+
+        let mut fingerprint_only = prefix.to_vec();
+        fingerprint_only.push(1);
+        crate::codec_bytes::push_encoded(&mut fingerprint_only, 73u64.to_le_bytes());
+        fingerprint_only.push(0);
+        assert!(recover_service_schema(&mut ObservationCursor::new(&fingerprint_only)).is_none());
+        let mut commitment_only = prefix.to_vec();
+        commitment_only.extend_from_slice(&[0, 1]);
+        push_framed(&mut commitment_only, &calling.commitment.as_bytes());
+        assert!(recover_service_schema(&mut ObservationCursor::new(&commitment_only)).is_none());
     }
 }

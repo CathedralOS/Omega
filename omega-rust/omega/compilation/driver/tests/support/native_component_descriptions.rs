@@ -218,10 +218,11 @@ fn reject_unrequired_provider(
         ..ProviderPlan::default()
     };
     let requirement_identity = plan.identities.intern(requirement);
-    plan.schema.trait_name = plan.schema.identities.intern("UnusedNativeProbe");
-    let schema_requirement = plan.schema.identities.intern(requirement);
-    let result_type = plan.schema.identities.intern("named(name(u64))");
-    plan.schema.methods.push(ServiceMethod {
+    let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+    declaration.trait_name = declaration.identities.intern("UnusedNativeProbe");
+    let schema_requirement = declaration.identities.intern(requirement);
+    let result_type = declaration.identities.intern("named(name(u64))");
+    declaration.methods.push(ServiceMethod {
         name: "unused_native_probe".into(),
         requirement_owner: "UnusedNativeProbe".into(),
         requirement_identity: schema_requirement,

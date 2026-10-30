@@ -22,12 +22,15 @@ impl RequirementPlanIdentity<'_> {
         method: &crate::provider_plan::ServiceMethod,
         row: &ProviderPlanRow,
     ) -> bool {
-        plan.schema.trait_package_identity == self.package
+        plan.schema.declaration.trait_package_identity == self.package
             && method.requirement_owner_package_identity == self.package
             && plan.schema.identity_text(method.requirement_identity) == self.overload
             && plan.identities.text(row.requirement_identity) == self.overload
             && plan.schema.row_binds_method(row, method, &plan.identities)
-            && plan.schema.identity_text(plan.schema.trait_name) == self.schema
+            && plan
+                .schema
+                .identity_text(plan.schema.declaration.trait_name)
+                == self.schema
             && method.name == self.method
             && method.requirement_owner == self.owner
     }
@@ -44,7 +47,10 @@ pub fn matches_requirement_schema(
     let Some(schema) = &candidate.requirement_schema else {
         return false;
     };
-    let ([method], [selected_row]) = (plan.schema.methods.as_slice(), plan.rows.as_slice()) else {
+    let ([method], [selected_row]) = (
+        plan.schema.declaration.methods.as_slice(),
+        plan.rows.as_slice(),
+    ) else {
         return false;
     };
     let (Some(overload), Some(schema), Some(name), Some(owner)) = (
@@ -133,7 +139,7 @@ pub fn matches_external_selection(
         && matches_requirement_schema(candidate, identities, plan, row)
         && identities.text(candidate.requirement_identity)
             == Some(plan.identities.text(row.requirement_identity))
-        && candidate.requirement_package == plan.schema.trait_package_identity
+        && candidate.requirement_package == plan.schema.declaration.trait_package_identity
         && candidate
             .target
             .as_ref()
