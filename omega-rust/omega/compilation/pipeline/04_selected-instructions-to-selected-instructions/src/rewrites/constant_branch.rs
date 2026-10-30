@@ -96,12 +96,6 @@ pub(crate) use rewrite::fold_selected_constant_branch;
 pub(crate) use validation::{measured_steps, surface_sizes};
 
 /// An accepted constant condition branch fold with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedConstantBranch {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: ConstantBranchReceipt,
-}
-
 validated_transformed_receipt!(ValidatedConstantBranch, ConstantBranchReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

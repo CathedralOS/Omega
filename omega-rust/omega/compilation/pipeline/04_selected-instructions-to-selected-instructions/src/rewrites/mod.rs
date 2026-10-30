@@ -30,11 +30,19 @@
 //! production route, and compiled nowhere. See its module doc for the
 //! disposition roster.
 
-/// Every validated rewrite exposes the same three accessors: the
-/// transformed plan borrowed and shared, and the receipt the rewrite
-/// replayed. One declarative row per validated type expands that impl.
+/// Every validated rewrite carries the same two fields — the transformed plan
+/// shared by later stages and the receipt the rewrite replayed — and exposes
+/// the same three accessors over them: the plan borrowed and shared, and the
+/// receipt. One declarative row per validated type expands the carrier and
+/// that impl, so a family names its receipt instead of restating the shell.
 macro_rules! validated_transformed_receipt {
     ($name:ident, $receipt:ident) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name {
+            transformed: Arc<SelectedInstructionPlan>,
+            receipt: $receipt,
+        }
+
         impl $name {
             pub fn transformed(&self) -> &SelectedInstructionPlan {
                 &self.transformed

@@ -205,12 +205,6 @@ pub enum RuntimeSpillSpanPolicy {
     UnitWriteCrossing,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRuntimeSpill {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RuntimeSpillReceipt,
-}
-
 validated_transformed_receipt!(ValidatedRuntimeSpill, RuntimeSpillReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

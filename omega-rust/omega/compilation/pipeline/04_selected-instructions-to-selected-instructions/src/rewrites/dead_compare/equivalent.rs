@@ -87,12 +87,6 @@ pub(crate) use rewrite::remove_equivalent_compare;
 pub(crate) use validation::measured_steps;
 
 /// An accepted equivalent-compare removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedEquivalentCompare {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: EquivalentCompareReceipt,
-}
-
 validated_transformed_receipt!(ValidatedEquivalentCompare, EquivalentCompareReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

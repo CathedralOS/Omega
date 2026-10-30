@@ -80,12 +80,6 @@ pub(crate) use rewrite::remove_redundant_compare;
 pub(crate) use validation::measured_steps;
 
 /// An accepted redundant-compare removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRedundantCompare {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RedundantCompareReceipt,
-}
-
 validated_transformed_receipt!(ValidatedRedundantCompare, RedundantCompareReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

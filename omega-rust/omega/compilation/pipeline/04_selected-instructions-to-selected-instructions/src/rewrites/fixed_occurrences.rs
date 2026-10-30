@@ -27,12 +27,6 @@ use semantic_vocabulary::{FuelScheduleIdentity, ScalarType};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::control_mut;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFixedOccurrences {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: FixedOccurrencesReceipt,
-}
-
 validated_transformed_receipt!(ValidatedFixedOccurrences, FixedOccurrencesReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

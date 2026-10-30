@@ -101,12 +101,6 @@ pub(crate) use rewrite::fold_selected_constant_boolean;
 pub(crate) use validation::{measured_steps, surface_sizes};
 
 /// An accepted constant condition materialization with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedConstantBoolean {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: ConstantBooleanReceipt,
-}
-
 validated_transformed_receipt!(ValidatedConstantBoolean, ConstantBooleanReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

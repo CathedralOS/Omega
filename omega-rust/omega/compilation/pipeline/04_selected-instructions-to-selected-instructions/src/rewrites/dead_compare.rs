@@ -97,12 +97,6 @@ pub(crate) use rewrite::remove_dead_compare;
 pub(crate) use validation::measured_steps;
 
 /// An accepted dead-compare removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedDeadCompare {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: DeadCompareReceipt,
-}
-
 validated_transformed_receipt!(ValidatedDeadCompare, DeadCompareReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

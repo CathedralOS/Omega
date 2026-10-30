@@ -66,12 +66,6 @@ pub(crate) use rewrite::remove_selected_redundant_extension;
 pub(crate) use validation::measured_steps;
 
 /// An accepted redundant-extension removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRedundantExtension {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RedundantExtensionReceipt,
-}
-
 validated_transformed_receipt!(ValidatedRedundantExtension, RedundantExtensionReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

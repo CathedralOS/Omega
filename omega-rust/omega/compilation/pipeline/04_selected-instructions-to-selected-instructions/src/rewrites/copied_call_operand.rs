@@ -122,12 +122,6 @@ rewrite_receipt_identity!(
 );
 
 /// An accepted copied-call-operand reroute with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCopiedCallOperand {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: CopiedCallOperandReceipt,
-}
-
 validated_transformed_receipt!(ValidatedCopiedCallOperand, CopiedCallOperandReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

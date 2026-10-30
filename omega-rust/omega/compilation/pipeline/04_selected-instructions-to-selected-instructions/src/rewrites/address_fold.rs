@@ -70,12 +70,6 @@ pub(crate) use rewrite::fold_selected_address;
 pub(crate) use validation::measured_steps;
 
 /// An accepted address fold with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAddressFold {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: AddressFoldReceipt,
-}
-
 validated_transformed_receipt!(ValidatedAddressFold, AddressFoldReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

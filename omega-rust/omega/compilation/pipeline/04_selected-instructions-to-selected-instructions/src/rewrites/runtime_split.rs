@@ -65,12 +65,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use admission::visit_structural_registers;
 pub use rewrite::split_selected_runtime_value;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRuntimeSplit {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RuntimeSplitReceipt,
-}
-
 validated_transformed_receipt!(ValidatedRuntimeSplit, RuntimeSplitReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

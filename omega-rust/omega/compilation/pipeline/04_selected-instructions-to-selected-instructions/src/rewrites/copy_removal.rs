@@ -66,12 +66,6 @@ pub(crate) use rewrite::remove_selected_copy;
 pub(crate) use validation::measured_steps;
 
 /// An accepted copy removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCopyRemoval {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: CopyRemovalReceipt,
-}
-
 validated_transformed_receipt!(ValidatedCopyRemoval, CopyRemovalReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
