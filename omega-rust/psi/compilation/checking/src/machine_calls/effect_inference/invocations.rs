@@ -743,6 +743,60 @@ fn extend_realized(
     for target in source {
         if !targets.contains(target) {
             targets.push(*target);
+            // Fixed-point equality must ignore discovery order around call cycles.
+            targets.sort_by_key(|target| match target {
+                RealizedInvocationTarget::Requirement(symbol) => (0u8, symbol.arena_index()),
+                RealizedInvocationTarget::Abstract(InvocationTarget::Parameter(index)) => {
+                    (1, *index)
+                }
+                RealizedInvocationTarget::Abstract(InvocationTarget::Service(symbol)) => {
+                    (2, symbol.arena_index())
+                }
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InvocationTarget, RealizedInvocationTarget, extend_realized};
+
+    #[test]
+    fn realized_invocation_cycle_converges_without_losing_targets() {
+        let target =
+            |ordinal| RealizedInvocationTarget::Abstract(InvocationTarget::Parameter(ordinal));
+        let direct = [
+            vec![],
+            vec![],
+            vec![],
+            vec![target(3)],
+            vec![target(4)],
+            vec![target(5)],
+        ];
+        let calls: [&[usize]; 6] = [&[1], &[2, 5, 1], &[0, 4, 3], &[5], &[2, 1], &[0, 4, 1]];
+        let mut realized = direct.clone();
+        let mut converged = false;
+        // A six-node union graph with three targets has at most 18 additions.
+        for _ in 0..19 {
+            let previous = realized.clone();
+            for index in 0..realized.len() {
+                let mut next = direct[index].clone();
+                for callee in calls[index] {
+                    extend_realized(&mut next, &realized[*callee]);
+                }
+                realized[index] = next;
+            }
+            if realized == previous {
+                converged = true;
+                break;
+            }
+        }
+        assert!(
+            converged,
+            "stable target sets must not oscillate in discovery order"
+        );
+        for targets in realized {
+            assert_eq!(targets, vec![target(3), target(4), target(5)]);
         }
     }
 }

@@ -60,6 +60,13 @@ record. A failed runtime observation is not benchmark evidence, and
 
 ## Package-review preparation
 
+`measure` records `metrics.package_preparation_ms` separately from compile time
+when the project lacks `omega.lock`. It includes update, review acceptance and
+resume. An already accepted lock records this leg as skipped; historical rows
+without it remain unknown. The dashboard keeps preparation seconds visible in
+the measurements table. This is one setup observation with uncontrolled file
+caches, not a cold-cache throughput measurement.
+
 Compiling a project that `depend()`s on packages requires the
 package-review gate to be settled first, otherwise every compile exits
 with 'package acceptance is missing or current requirements need
