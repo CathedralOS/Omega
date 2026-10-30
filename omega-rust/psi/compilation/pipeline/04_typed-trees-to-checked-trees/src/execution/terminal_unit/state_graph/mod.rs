@@ -35,6 +35,7 @@ mod closed_sum;
 mod fused;
 mod guards;
 mod loan_backing;
+pub(super) use loan_backing::RetainedBorrowRecords;
 mod local_results;
 mod operation_custody;
 mod result_custody;
@@ -210,6 +211,7 @@ pub(super) fn natural_rank_plans_for_fused(
 pub(super) fn build_traced(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    records: &RetainedBorrowRecords<'_>,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
@@ -548,6 +550,7 @@ pub(super) fn build_traced(
             program,
             facts,
             &declarations,
+            records,
             scalar_callees,
             shapes,
             fused,

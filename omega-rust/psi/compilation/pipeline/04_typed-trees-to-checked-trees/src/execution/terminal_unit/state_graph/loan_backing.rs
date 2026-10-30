@@ -19,6 +19,9 @@ use typed_trees::expression::ExpressionHandle;
 
 use crate::borrow::accesses::is_image_storage_root;
 
+mod record_selections;
+pub(in crate::execution::terminal_unit) use record_selections::RetainedBorrowRecords;
+
 // One graph request borrows one complete checking input. Only declaration
 // geometry is shared: roots, selected paths, constraints, loans and dependency
 // verdicts remain live inputs to every retention question below.
@@ -131,7 +134,7 @@ pub(super) struct RetainedStorage {
 
 pub(super) fn retained_storage(
     declarations: &DeclaredStoragePlans<'_>,
-    facts: &CheckFacts,
+    records: &RetainedBorrowRecords<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
@@ -142,6 +145,7 @@ pub(super) fn retained_storage(
     address_source: Option<CheckedUnitStructuralArgumentSourcePlan>,
 ) -> Result<RetainedStorage, &'static str> {
     let program = declarations.program;
+    let facts = records.facts();
     let call_handle = selected_call(program, facts, machine, state, statement, target, arguments)
         .ok_or("state loan: exact captured call")?;
     let operand = facts
@@ -155,7 +159,7 @@ pub(super) fn retained_storage(
         .ok_or("state loan: captured operand position")?;
     let (parents, mut operand_parents) = retained_parents(
         declarations,
-        facts,
+        records,
         machine,
         state,
         statement,
@@ -164,10 +168,9 @@ pub(super) fn retained_storage(
         operations,
         address_source,
     )?;
-    let mut roots = facts
-        .borrow
-        .call_loan_resources
-        .iter()
+    let mut roots = records
+        .call_resources(call_handle, machine, state)
+        .into_iter()
         .filter(|(_, resource)| {
             resource.call == call_handle
                 && resource.machine_symbol == machine
@@ -370,7 +373,7 @@ fn local_storage_binding(
 /// A dependency is storage lifetime only: cleanup still needs its own action.
 fn retained_parents(
     declarations: &DeclaredStoragePlans<'_>,
-    facts: &CheckFacts,
+    records: &RetainedBorrowRecords<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
@@ -389,16 +392,16 @@ fn retained_parents(
     &'static str,
 > {
     let program = declarations.program;
+    let facts = records.facts();
     let call = facts.flow.control.calls.get(call_handle);
     let capture = facts.flow.control.operands.get(operand);
     // State ingress already owns opaque carried permissions, not fresh local
     // loan rows. Replacements still supply their current stored-loan resources.
     // Their lifetime is continued by the actual parameter handoff, never by
     // inventing a local parent or granting relocation of its referent.
-    let ingress = facts
-        .borrow
-        .incoming_references
-        .iter()
+    let ingress = records
+        .incoming_references(machine, state)
+        .into_iter()
         .filter_map(|(_, incoming)| {
             if incoming.machine_symbol != machine || incoming.state_symbol != state {
                 return None;
@@ -437,10 +440,9 @@ fn retained_parents(
     let paths =
         validation::borrow_contracts::borrow_carrying_owner_paths(program, capture.type_reference)
             .ok_or("state loan parents: unresolved operand frontier")?;
-    let roots = facts
-        .borrow
-        .call_loan_resources
-        .iter()
+    let roots = records
+        .call_resources(call_handle, machine, state)
+        .into_iter()
         .filter(|(_, resource)| {
             resource.call == call_handle
                 && resource.machine_symbol == machine
@@ -924,7 +926,7 @@ fn owned_parent_source(
 
 pub(super) fn retired_carrier_backing(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    records: &RetainedBorrowRecords<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
@@ -934,6 +936,7 @@ pub(super) fn retired_carrier_backing(
     operations: &[CheckedUnitEffectOperationPlan],
     subject: &CheckedUnitStructuralArgumentPlan,
 ) -> Option<u32> {
+    let facts = records.facts();
     if subject.path.as_slice() != [CheckedUnitStructuralPathSegment::Referent] {
         return None;
     }
@@ -995,10 +998,9 @@ pub(super) fn retired_carrier_backing(
     let call_handle = selected_call(program, facts, machine, state, statement, target, arguments)?;
     let call = facts.flow.control.calls.get(call_handle);
     let selected_operand = call.argument_operands().handles().nth(argument_position)?;
-    let resources = facts
-        .borrow
-        .call_loan_resources
-        .iter()
+    let resources = records
+        .call_resources(call_handle, machine, state)
+        .into_iter()
         .filter(|(_, resource)| {
             resource.call == call_handle
                 && resource.machine_symbol == machine
