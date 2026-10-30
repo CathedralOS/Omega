@@ -14,11 +14,15 @@
 //! guarantee. Terminal re-proves every row at each consumption point it owns;
 //! naming the roster grants no fact.
 //!
-//! A definition's facts enter the roster in one of three forms:
+//! A definition's facts are carried in these forms:
 //!
 //! - An interval-only fact set bounds each field's own Terminal carrier
 //!   (`data_where_field_intervals`), which every store proves and every read
 //!   assumes. It occupies no row.
+//! - A complete case-dependent predicate implied by every selected payload's
+//!   retained field carriers also occupies no row. The implication check must
+//!   cover every case; independently constrained fields do not discharge an
+//!   additional coupling, an excluded case, or an unsupported predicate.
 //! - A fact the bounded vocabulary spells directly (integer, Boolean and IEEE
 //!   comparisons over field leaves and literals, and their connectives) is one
 //!   row with the same meaning.
@@ -55,6 +59,8 @@ use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+
+mod field_carriers;
 
 /// Recursion belongs to the exact retained application, not merely its
 /// generic declaration. Wrapper<Wrapper<u64>> owns two different finite homes.
@@ -241,7 +247,7 @@ fn complete_owned_storage(
         TypeReferenceNode::FixedArray { element_type, .. } => {
             // The roster can enumerate only an exact retained literal extent.
             // Never publish a partial element predicate list for another form.
-            !storage_carries_rows(program, *element_type, &mut Vec::new())
+            !storage_carries_rows(program, operators, *element_type, &mut Vec::new())
         }
         TypeReferenceNode::Reference { .. } => true,
         _ => owned_data_definition(program, carrier).is_none_or(|definition| {
@@ -255,9 +261,7 @@ fn definition_own_facts_carried(
     operators: &CheckedOperatorFacts,
     definition: &DataDefinition,
 ) -> bool {
-    if definition.where_facts.is_empty()
-        || crate::data_where_field_intervals(program, definition).is_some()
-    {
+    if !definition_emits_rows(program, operators, definition) {
         return true;
     }
     program
@@ -316,7 +320,7 @@ impl RowEmitter<'_, '_> {
             } => {
                 // Visiting every element of an array whose elements reach
                 // no row-emitting definition emits nothing; skip it whole.
-                if !storage_carries_rows(self.program, *element_type, visited) {
+                if !storage_carries_rows(self.program, self.operators, *element_type, visited) {
                     return;
                 }
                 for index in 0..*length {
@@ -387,7 +391,7 @@ impl RowEmitter<'_, '_> {
         prefix: &[CheckedStructuralPredicatePathSegment],
         definition: &DataDefinition,
     ) {
-        if !definition_emits_rows(self.program, definition) {
+        if !definition_emits_rows(self.program, self.operators, definition) {
             return;
         }
         let spelling = FactSpelling {
@@ -550,11 +554,16 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
 }
 
 /// Whether `definition` contributes rows of its own: it has facts that are
-/// not interval-only (those are carried by its fields' carriers). Zero
-/// provisioning does not change the obligations of an established value.
-fn definition_emits_rows(program: &dyn crate::CheckingInput, definition: &DataDefinition) -> bool {
+/// not already implied by its retained field carriers. Zero provisioning
+/// does not change the obligations of an established value.
+fn definition_emits_rows(
+    program: &dyn crate::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    definition: &DataDefinition,
+) -> bool {
     !(definition.where_facts.is_empty()
-        || crate::data_where_field_intervals(program, definition).is_some())
+        || crate::data_where_field_intervals(program, definition).is_some()
+        || field_carriers::imply_declaration(program, operators, definition))
 }
 
 /// The relevant fields whose storage `definition` owns inline. A borrowed
@@ -597,6 +606,7 @@ fn owned_storage_fields<'program>(
 /// array elements one by one. `visited` is the definition stack on this path.
 fn storage_carries_rows(
     program: &dyn crate::CheckingInput,
+    operators: &CheckedOperatorFacts,
     type_reference: TypeReferenceHandle,
     visited: &mut Vec<StorageDefinitionIdentity>,
 ) -> bool {
@@ -612,7 +622,7 @@ fn storage_carries_rows(
             // An unresolved extent may still own elements. Detection must
             // retain their requirements even though emission cannot enumerate
             // them yet; recursive eligibility then refuses that partial roster.
-            storage_carries_rows(program, *element_type, visited)
+            storage_carries_rows(program, operators, *element_type, visited)
         }
         _ => {
             let Some(definition) = owned_data_definition(program, carrier) else {
@@ -621,12 +631,13 @@ fn storage_carries_rows(
             if visited.contains(&StorageDefinitionIdentity::of(definition)) {
                 return false;
             }
-            if definition_emits_rows(program, definition) {
+            if definition_emits_rows(program, operators, definition) {
                 return true;
             }
             visited.push(StorageDefinitionIdentity::of(definition));
-            let carries = owned_storage_fields(program, definition)
-                .any(|(_, field)| storage_carries_rows(program, field.type_reference, visited));
+            let carries = owned_storage_fields(program, definition).any(|(_, field)| {
+                storage_carries_rows(program, operators, field.type_reference, visited)
+            });
             visited.pop();
             carries
         }
