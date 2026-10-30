@@ -153,9 +153,10 @@ struct RecordPredicate {
 }
 
 struct RecordFieldRead {
-    start: usize,
-    end: usize,
+    root: std::ops::Range<usize>,
+    access_suffixes: Vec<std::ops::Range<usize>>,
     path: Vec<String>,
+    logical_subject: bool,
 }
 
 impl RecordShape {
@@ -166,31 +167,52 @@ impl RecordShape {
     pub(super) fn store_facts(&self, field: &str, prefix: &str) -> StoreFacts {
         let mut facts = Vec::new();
         for predicate in self.predicates.as_ref().map_err(|_| ())? {
-            let mut segments = Vec::new();
-            let mut literal = String::new();
-            let mut copied_until = 0;
+            let mut edits = Vec::new();
             for read in &predicate.reads {
                 if read.path.is_empty() {
                     return Err(());
                 }
                 let path = read.path.join(".");
-                literal.push_str(&predicate.source[copied_until..read.start]);
-                if path == field {
-                    segments.push(std::mem::take(&mut literal));
-                } else if let Some(suffix) = path.strip_prefix(&format!("{field}.")) {
-                    segments.push(std::mem::take(&mut literal));
-                    literal.push('.');
-                    literal.push_str(suffix);
+                if path == field || path.starts_with(&format!("{field}.")) {
+                    edits.push((read.root.clone(), None));
+                    let removed = field.split('.').count() - usize::from(!read.logical_subject);
+                    if read.access_suffixes.len() < removed {
+                        return Err(());
+                    }
+                    edits.extend(
+                        read.access_suffixes
+                            .iter()
+                            .take(removed)
+                            .map(|suffix| (suffix.clone(), Some(String::new()))),
+                    );
                 } else if field.starts_with(&format!("{path}."))
                     || field.starts_with(&format!("{path}["))
                 {
                     return Err(());
                 } else {
-                    literal.push_str("value.");
-                    literal.push_str(prefix);
-                    literal.push_str(&path);
+                    let root = if read.logical_subject {
+                        format!("value.{prefix}").trim_end_matches('.').to_owned()
+                    } else {
+                        format!("value.{prefix}{}", read.path[0])
+                    };
+                    edits.push((read.root.clone(), Some(root)));
                 }
-                copied_until = read.end;
+            }
+            edits.sort_unstable_by_key(|(span, _)| (span.start, span.end));
+            edits.dedup();
+            let mut segments = Vec::new();
+            let mut literal = String::new();
+            let mut copied_until = 0;
+            for (span, replacement) in edits {
+                if span.start < copied_until {
+                    return Err(());
+                }
+                literal.push_str(&predicate.source[copied_until..span.start]);
+                match replacement {
+                    Some(replacement) => literal.push_str(&replacement),
+                    None => segments.push(std::mem::take(&mut literal)),
+                }
+                copied_until = span.end;
             }
             literal.push_str(&predicate.source[copied_until..]);
             segments.push(literal);
@@ -200,38 +222,52 @@ impl RecordShape {
     }
 }
 
-/// Parser nodes distinguish value reads from labels, type arguments and quoted
-/// source. Member spans name their final token, so compose their full extent
-/// from the receiver instead of scanning text for a field's spelling.
+struct RecordProjection {
+    root: SourceSpan,
+    access_suffixes: Vec<SourceSpan>,
+    path: Vec<String>,
+    logical_subject: bool,
+}
+
+/// The parser supplies each authored member suffix independently from its
+/// receiver. Replacing a path's root and removing selected suffixes preserves
+/// grouping and comments, including `(self).field` and `(self.inner).field`.
+/// Labels, type arguments and quoted source are not value reads.
 fn record_projection(
     syntax_trees: &SyntaxTrees,
     fields: &HashMap<String, TypeReferenceHandle>,
     expression: ExpressionHandle,
-) -> Option<(SourceSpan, Vec<String>)> {
+) -> Option<RecordProjection> {
     match syntax_trees.tables.expressions.expression(expression) {
         ExpressionNode::Name(path) => {
             let name = sole_member_name(syntax_trees, *path)?;
-            let path = if name == "self" {
+            let logical_subject = name == "self";
+            let path = if logical_subject {
                 Vec::new()
             } else if fields.contains_key(name) {
                 vec![name.to_owned()]
             } else {
                 return None;
             };
-            Some((
-                syntax_trees.tables.expressions.source_span(expression),
+            Some(RecordProjection {
+                root: syntax_trees.tables.expressions.source_span(expression),
+                access_suffixes: Vec::new(),
                 path,
-            ))
+                logical_subject,
+            })
         }
         ExpressionNode::Member(member) => {
-            let (mut span, mut path) = record_projection(syntax_trees, fields, member.receiver)?;
-            let member_span = member.member.source_span();
-            if span.source_id != member_span.source_id {
+            let mut projection = record_projection(syntax_trees, fields, member.receiver)?;
+            let suffix = member.access_source_span;
+            if projection.root.source_id != suffix.source_id || suffix.span.start >= suffix.span.end
+            {
                 return None;
             }
-            span.span.end = member_span.span.end;
-            path.push(member.member.as_str(syntax_trees).to_owned());
-            Some((span, path))
+            projection.access_suffixes.push(suffix);
+            projection
+                .path
+                .push(member.member.as_str(syntax_trees).to_owned());
+            Some(projection)
         }
         _ => None,
     }
@@ -258,17 +294,25 @@ fn record_predicate(
         if !expression.is_valid() {
             continue;
         }
-        if let Some((read, path)) = record_projection(syntax_trees, fields, expression) {
-            if read.source_id != span.source_id
-                || read.span.start < span.span.start
-                || read.span.end > span.span.end
-            {
-                return Err(());
-            }
+        if let Some(projection) = record_projection(syntax_trees, fields, expression) {
+            let relative = |read: SourceSpan| {
+                if read.source_id != span.source_id
+                    || read.span.start < span.span.start
+                    || read.span.end > span.span.end
+                {
+                    return Err(());
+                }
+                Ok((read.span.start - span.span.start)..(read.span.end - span.span.start))
+            };
             reads.push(RecordFieldRead {
-                start: read.span.start - span.span.start,
-                end: read.span.end - span.span.start,
-                path,
+                root: relative(projection.root)?,
+                access_suffixes: projection
+                    .access_suffixes
+                    .into_iter()
+                    .map(relative)
+                    .collect::<Result<_, _>>()?,
+                path: projection.path,
+                logical_subject: projection.logical_subject,
             });
             continue;
         }
@@ -334,8 +378,6 @@ fn record_predicate(
             | ExpressionNode::ZeroValue(_) => {}
         }
     }
-    reads.sort_unstable_by_key(|read| (read.start, read.end));
-    reads.dedup_by(|a, b| a.start == b.start && a.end == b.end);
     Ok(RecordPredicate {
         source: sources.text_at(span).to_owned(),
         reads,

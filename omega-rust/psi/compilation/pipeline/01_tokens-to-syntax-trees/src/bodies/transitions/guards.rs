@@ -639,6 +639,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                 .expressions
                 .insert(ExpressionNode::Member(TableMemberExpression {
                     receiver: subject,
+                    access_source_span: Default::default(),
                     member,
                     case_variant: case_variant.clone(),
                 }));
