@@ -199,3 +199,8 @@ fields and computed construction, with strict-descent twins in every place.
 [Stored-reference case ranks](local/case_value/stored_reference/README.md)
 carry the same counter fact through a loaded descriptor, with aggregate/scalar
 aliases, ordered descriptor replacement and snapshot controls.
+
+[Reference-bearing case payload ranks](local/case_value/stored_reference/reference_payload/README.md)
+carry the same seven/empty counter fact through two independently captured stored
+references in all nine places, with common-field loans, pointer restoration and
+stale-result controls.
