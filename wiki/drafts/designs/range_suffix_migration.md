@@ -871,3 +871,46 @@ check signed zero floors, signed ceilings seven/eight, and unsigned ceilings
 three/two. Valid neighbours check; invalid stores reject the owning data
 predicate. The focused two-sample gate passes their complete authored oracles.
 Other hosted targets and the remainder of the parent migration remain open.
+
+## Audited loop, controller and renderer customers
+
+Seven customers retain 17 original field restrictions from `7a9a7b8287e6` on
+their existing data owners. No originally bare field gains a new restriction.
+
+| Customer | Preserved storage intervals |
+| --- | --- |
+| `bubble_sort` | Unsigned `Main.i <= 5`, `Main.j <= 4`; their carriers supply zero floors. |
+| `array_sum` | `Main.i` remains in 0..=2. |
+| `elevator` | `Elevator.moves` remains in 0..=100, including through `Main.lift`. |
+| `traffic_light` | `Light.advances` remains in 0..=100, including through `Main.light`. |
+| `bouncing_console` | `Main.p`, `frame`, `x` remain in 0..=40, 0..=50, 0..=40. |
+| `bouncing_ball_2d` | `Main.frame`, `y`, `x` remain in 0..=70, 0..=12, 0..=24. Float and ball-coordinate fields remain originally bare. |
+| `ripple_field` | `Main.frame`, `y`, `x` remain in 0..=60, 0..=16, 0..=30; `dx`, `dy`, `dist` retain -15..=15, -8..=8, -23..=23. |
+
+The original endpoints include stored sentinels that are not valid indices,
+and negative displacements that the fixed render trace later makes positive.
+All narrower index guards remain. Exactly 122 terminal calls acknowledge the
+existing blocking-input paths; computation-only command and phase calls remain
+ordinary calls. Clock calls retain their published operational contracts.
+
+Both controllers regain their original `(counter + 1) % 101` expression.
+The established pre-store 0..=100 invariant makes the removed inner remainder
+an identity and proves the intermediate 1..=101 fits i32. Only the outer
+remainder is stored, again in 0..=100. The floor write is disjoint from the move
+counter; neither spelling adds a read, call or write. This is not equivalence
+over unconstrained i32 or permission to use the desired result as its premise.
+Array sum's three hexadecimal constants denote the original two inputs and
+2,200,000,000 total; widening and Wrapping accumulation are unchanged.
+
+Optimized producer `f0584b450558` runs all seven programs in the working and
+separately prepared fresh projects on macOS ARM64. All fourteen cases agree
+between native and Terminal execution and match complete independently frozen
+stdout: 183, 170, 168, 142, 2,213, 21,372 and 30,074 bytes for bubble sort,
+array sum, elevator, traffic light, line bounce, gravity bounce and ripples.
+Their original exits remain 10, 70, 70, 70, 0, 0 and 0. The binary64 oracle
+retains the truncation-sensitive frame 44 at x=5; no physics operation changes.
+Eight representative endpoint pairs check or reject the intended data
+predicate, including stored `p=40`, `dist=-23` and both nested counters at 100.
+The focused seven-sample gate passes. These are native/Terminal observations,
+separate from older checked-tree notes; physical timing is not newly qualified.
+Other hosted targets and the full parent migration remain open.
