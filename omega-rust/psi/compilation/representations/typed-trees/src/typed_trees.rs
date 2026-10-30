@@ -132,6 +132,7 @@ mod selection_exclusions;
 pub use selection_exclusions::AuthoredSelectionExclusions;
 mod trait_and_machine_tables;
 mod type_reference_queries;
+pub use type_reference_queries::ApplicationValueIndices;
 pub mod type_system;
 pub mod values;
 mod wire_schema_queries;

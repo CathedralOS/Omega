@@ -8,6 +8,9 @@ use crate::typed_trees::{
 };
 use crate::{expression, name, types};
 
+mod application_indices;
+pub use application_indices::ApplicationValueIndices;
+
 #[cfg(test)]
 mod static_const_binding_tests;
 

@@ -25,6 +25,7 @@ mod lifetime_parameters;
 mod normalized_identities;
 mod open_index_identity;
 mod result_dispatch_terms;
+mod static_operand_identity;
 mod storage_identity;
 mod substitution;
 
@@ -44,6 +45,7 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
+pub use static_operand_identity::StaticOperandIdentityRequest;
 
 use crate::TypedTrees;
 

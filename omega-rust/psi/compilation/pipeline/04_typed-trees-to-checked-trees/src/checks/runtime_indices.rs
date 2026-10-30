@@ -1,6 +1,8 @@
-//! Runtime data indices describe captured values, not mutable storage names.
+//! Application value indices describe captured values, not mutable storage names.
 //!
-//! A type at a local formation captures the scalar roster at that statement;
+//! Const bindings retain immutable invocation coordinates; runtime Value bindings
+//! additionally owe descriptor capture and freshness. A type at a local formation
+//! captures the scalar roster at that statement;
 //! a parameter captures arrival. Every store, result and call compares those
 //! independent snapshots. CurrentScalarValues owns assignment/effect transfer
 //! and checked equality, so changing the source variable never retags an old
@@ -377,6 +379,13 @@ impl Scope<'_> {
             self.state,
             expression,
         )?;
+        if self
+            .program
+            .expression_const_declaration(expression)
+            .is_some()
+        {
+            return Some(Application::bare(reference, 0));
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 let formation = self
@@ -490,13 +499,40 @@ impl Scope<'_> {
         }
     }
 
-    fn compare(&self, actual: &Application<'_>, required: &Application<'_>, depth: usize) -> bool {
+    fn compare(
+        &self,
+        actual: &Application<'_>,
+        required: &Application<'_>,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> bool {
         if depth > 128 {
             return false;
         }
         let table = &self.program.type_reference_table;
-        let actual_reference = actual.reference;
-        let required_reference = required.reference;
+        let contextual = |reference| {
+            table.unconstrained_type_reference(
+                self.program
+                    .statically_refined_type_reference(expression, reference),
+            )
+        };
+        let actual_reference = contextual(actual.reference);
+        let required_reference = contextual(required.reference);
+        let instance_origin = |reference| {
+            let symbol = match table.type_reference(reference) {
+                TypeReferenceNode::Named { symbol, .. } => *symbol,
+                TypeReferenceNode::Generic {
+                    base_symbol,
+                    arguments,
+                    ..
+                } if arguments.count() == 0 => *base_symbol,
+                _ => return None,
+            };
+            self.program
+                .data_definition_by_symbol(symbol)?
+                .generic_instance
+                .filter(|origin| *origin != reference)
+        };
         let exact = |left, right| {
             let left = typed_trees::type_identity::applied_type_identity(
                 self.program,
@@ -517,8 +553,14 @@ impl Scope<'_> {
             actual.reference = left;
             let mut required = required.clone();
             required.reference = right;
-            self.compare(&actual, &required, depth + 1)
+            self.compare(&actual, &required, expression, depth + 1)
         };
+        if let Some(origin) = instance_origin(actual_reference) {
+            return recurse(origin, required_reference);
+        }
+        if let Some(origin) = instance_origin(required_reference) {
+            return recurse(actual_reference, origin);
+        }
         match (
             table.type_reference(actual_reference),
             table.type_reference(required_reference),
@@ -554,19 +596,42 @@ impl Scope<'_> {
             (
                 TypeReferenceNode::Generic {
                     base_symbol: left_base,
+                    lifetime_arguments: left_lifetimes,
                     arguments: left,
                     ..
                 },
                 TypeReferenceNode::Generic {
                     base_symbol: right_base,
+                    lifetime_arguments: right_lifetimes,
                     arguments: right,
                     ..
                 },
             ) if left_base == right_base => {
-                let Some(data) = self.program.data_definition_by_symbol(*left_base) else {
-                    return exact(actual_reference, required_reference);
-                };
-                let parameters = self.program.data_type_parameters(data);
+                // Contextual value equality never erases independent region
+                // operands, including phantom regions on selected code.
+                if left_lifetimes.len() != right_lifetimes.len()
+                    || !left_lifetimes
+                        .iter()
+                        .zip(right_lifetimes)
+                        .all(|(left, right)| {
+                            let left = typed_trees::type_identity::applied_lifetime_identity(
+                                self.program,
+                                left.as_str(),
+                                self.machine.symbol,
+                                &[],
+                            );
+                            let right = typed_trees::type_identity::applied_lifetime_identity(
+                                self.program,
+                                right.as_str(),
+                                self.machine.symbol,
+                                &[],
+                            );
+                            left.is_some() && left == right
+                        })
+                {
+                    return false;
+                }
+                let parameters = self.program.declaration_type_parameters(*left_base);
                 let left = table.type_reference_handles(*left);
                 let right = table.type_reference_handles(*right);
                 if parameters.len() != left.len() || parameters.len() != right.len() {
@@ -576,7 +641,10 @@ impl Scope<'_> {
                     .iter()
                     .zip(left.iter().zip(right))
                     .all(|(parameter, (left, right))| {
-                        if matches!(parameter.kind, TypeParameterKind::Value { .. }) {
+                        if matches!(
+                            parameter.kind,
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                        ) {
                             if let (Some(left), Some(right)) =
                                 (self.static_index(*left), self.static_index(*right))
                             {
@@ -596,6 +664,12 @@ impl Scope<'_> {
                                 }))
                             {
                                 return true;
+                            }
+                            // Only runtime Value binders have descriptor fields.
+                            // Const bindings still use the checked scalar relation
+                            // above, but never acquire descriptor authority.
+                            if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
+                                return false;
                             }
                             let closed_requirement = self.static_index(*right).is_some()
                                 || matches!(self.program.type_reference_table.type_reference(*right),
@@ -629,25 +703,24 @@ impl Scope<'_> {
                                 );
                             }
                             false
-                        } else if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
-                            let left = typed_trees::type_identity::applied_index_identity(
-                                self.program,
-                                typed_trees::type_identity::IndexIdentityArgument::TypeReference(
-                                    *left,
-                                ),
-                                self.machine.symbol,
-                                &[],
-                            );
-                            let right = typed_trees::type_identity::applied_index_identity(
-                                self.program,
-                                typed_trees::type_identity::IndexIdentityArgument::TypeReference(
-                                    *right,
-                                ),
-                                self.machine.symbol,
-                                &[],
-                            );
+                        } else if matches!(
+                            parameter.kind,
+                            TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. }
+                        ) {
+                            let identity = |reference| {
+                                let operand = self.program.static_operand_from_type_reference(reference).ok()?;
+                                self.program.static_operand_identity(
+                                    typed_trees::type_identity::StaticOperandIdentityRequest {
+                                        operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(&operand),
+                                        lexical_owner: self.machine.symbol,
+                                        substitutions: &[],
+                                    },
+                                )
+                            };
+                            let left = identity(*left);
+                            let right = identity(*right);
                             left.is_some() && left == right
-                        } else if self.has_indices(*left, 0) || self.has_indices(*right, 0) {
+                        } else if !self.program.type_application_value_indices(*left).is_empty() || !self.program.type_application_value_indices(*right).is_empty() {
                             recurse(*left, *right)
                         } else {
                             exact(*left, *right)
@@ -655,52 +728,6 @@ impl Scope<'_> {
                     })
             }
             _ => exact(actual_reference, required_reference),
-        }
-    }
-
-    fn has_indices(&self, reference: TypeReferenceHandle, depth: usize) -> bool {
-        if !reference.is_valid() || depth > 128 {
-            return false;
-        }
-        let table = &self.program.type_reference_table;
-        match table.type_reference(reference) {
-            TypeReferenceNode::Constrained {
-                base_type: inner, ..
-            }
-            | TypeReferenceNode::Reference { referee: inner, .. }
-            | TypeReferenceNode::FixedArray {
-                element_type: inner,
-                ..
-            }
-            | TypeReferenceNode::Slice {
-                element_type: inner,
-            } => self.has_indices(*inner, depth + 1),
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } => {
-                self.program
-                    .data_definition_by_symbol(*base_symbol)
-                    .is_some_and(|data| {
-                        self.program
-                            .data_type_parameters(data)
-                            .iter()
-                            .any(|parameter| {
-                                matches!(parameter.kind, TypeParameterKind::Value { .. })
-                            })
-                    })
-                    || table
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .any(|argument| self.has_indices(*argument, depth + 1))
-            }
-            TypeReferenceNode::Named { symbol, .. } => self
-                .program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|data| data.generic_instance)
-                .is_some_and(|origin| self.has_indices(origin, depth + 1)),
-            _ => false,
         }
     }
 
@@ -1119,7 +1146,9 @@ impl Scope<'_> {
                                     _ => false,
                                 }
                             } else {
-                                !self.has_indices(*argument, 0)
+                                self.program
+                                    .type_application_value_indices(*argument)
+                                    .is_empty()
                                     || self.stable_proof_indices(
                                         *argument,
                                         payload_owner,
@@ -1484,18 +1513,36 @@ impl Scope<'_> {
         required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if !self.has_indices(required.reference, 0) {
+        if self
+            .program
+            .type_application_value_indices(required.reference)
+            .is_empty()
+        {
             return;
         }
         if !expression.is_valid() {
-            diagnostics.push(Diagnostic::error(
-                "runtime indexed default requires an explicit captured construction",
-            ));
+            if self
+                .program
+                .type_application_value_indices(required.reference)
+                .has_runtime_values()
+            {
+                diagnostics.push(Diagnostic::error(
+                    "runtime indexed default requires an explicit captured construction",
+                ));
+            }
             return;
         }
         // Contextual formation checks the same receiving obligation at every
         // produced leaf. A branch, aggregate, or cast cannot hide an old
         // indexed value behind its destination's annotation.
+        if self
+            .program
+            .expression_const_declaration(expression)
+            .is_some()
+        {
+            self.check_completed_value(expression, &required, diagnostics);
+            return;
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Atomic(atomic) => {
                 self.check(atomic.value, required, diagnostics);
@@ -1561,7 +1608,10 @@ impl Scope<'_> {
                         literal.case_symbol,
                     );
                     for declared in &declared {
-                        if self.has_indices(declared.type_reference, 0)
+                        if self
+                            .program
+                            .type_application_value_indices(declared.type_reference)
+                            .has_runtime_values()
                             && !fields
                                 .iter()
                                 .any(|field| field.field_symbol == declared.symbol)
@@ -1605,6 +1655,15 @@ impl Scope<'_> {
             }
             _ => {}
         }
+        self.check_completed_value(expression, &required, diagnostics);
+    }
+
+    fn check_completed_value(
+        &self,
+        expression: ExpressionHandle,
+        required: &Application<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         let Some(actual) = self.actual(expression) else {
             diagnostics.push(
                 Diagnostic::error("runtime indexed value has no retained subject provenance")
@@ -1612,7 +1671,7 @@ impl Scope<'_> {
             );
             return;
         };
-        if !self.compare(&actual, &required, 0) {
+        if !self.compare(&actual, required, expression, 0) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}` cannot prove runtime index subject equality at statement {}; an indexed value retains its captured index",
                 self.machine.name, self.state.name, self.statement,
@@ -1627,13 +1686,15 @@ pub(super) fn check(
     frames: Option<&CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let program_has_runtime_indices = program.data_definitions().iter().any(|data| {
-        program
-            .data_type_parameters(data)
-            .iter()
-            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
-    });
-    if !program_has_runtime_indices {
+    let (has_const_indices, has_runtime_indices) = program.data_type_parameters.iter().fold(
+        (false, false),
+        |(has_const, has_runtime), (_, parameter)| match parameter.kind {
+            TypeParameterKind::Const { .. } => (true, has_runtime),
+            TypeParameterKind::Value { .. } => (has_const, true),
+            _ => (has_const, has_runtime),
+        },
+    );
+    if !has_const_indices && !has_runtime_indices {
         return;
     }
     for (_, flow) in facts.flow.control.states.iter() {
@@ -1659,27 +1720,29 @@ pub(super) fn check(
             };
             // A scalar loan would discard the descriptor/index relationship.
             // Whole indexed loans retain that relationship in their referee type.
-            let mut roots = Vec::new();
-            validation::expression_traversal::collect_statement_expression_trees(
-                program, node, &mut roots,
-            );
-            let mut visited = Vec::new();
-            for root in roots {
-                validation::expression_traversal::visit_post_order(
-                    program,
-                    root,
-                    &mut visited,
-                    |expression, node| {
-                        if let ExpressionNode::Borrow(borrow) = node {
-                            if borrow.access != language_core::ReferenceAccess::Shared
-                                && scope.descriptor_target(borrow.target).is_some()
-                            {
-                                diagnostics.push(Diagnostic::error("mutable scalar loan cannot preserve a runtime index descriptor")
-                                .with_source_span(program.expression_table.source_span(expression)));
-                            }
-                        }
-                    },
+            if has_runtime_indices {
+                let mut roots = Vec::new();
+                validation::expression_traversal::collect_statement_expression_trees(
+                    program, node, &mut roots,
                 );
+                let mut visited = Vec::new();
+                for root in roots {
+                    validation::expression_traversal::visit_post_order(
+                        program,
+                        root,
+                        &mut visited,
+                        |expression, node| {
+                            if let ExpressionNode::Borrow(borrow) = node {
+                                if borrow.access != language_core::ReferenceAccess::Shared
+                                    && scope.descriptor_target(borrow.target).is_some()
+                                {
+                                    diagnostics.push(Diagnostic::error("mutable scalar loan cannot preserve a runtime index descriptor")
+                                .with_source_span(program.expression_table.source_span(expression)));
+                                }
+                            }
+                        },
+                    );
+                }
             }
             match node {
                 StatementNode::LocalData(local) => scope.check_binding(

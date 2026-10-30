@@ -366,6 +366,22 @@ fn index_reference(
     reference: TypeReferenceHandle,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    // A callable replacement must retain its selected overload and complete
+    // static application just as a directly supplied callable does.
+    if context.invalid_application.is_some()
+        && let Ok(selected) = program.static_operand_from_type_reference(reference)
+        && selected.symbol.is_valid()
+        && matches!(
+            program.symbols.get(selected.symbol).kind,
+            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+        )
+    {
+        return index_argument(
+            program,
+            IndexIdentityArgument::StaticArgument(&selected),
+            context,
+        );
+    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, name } => {
             index_name(program, *symbol, name.as_str(), context)
