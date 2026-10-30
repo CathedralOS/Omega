@@ -124,7 +124,10 @@ pub fn snapshot() -> Vec<Row> {
 
 /// Render the snapshot as aligned text, one row per line.
 pub fn render() -> String {
-    let rows = snapshot();
+    render_rows(snapshot())
+}
+
+fn render_rows(rows: impl IntoIterator<Item = Row>) -> String {
     let mut text = String::new();
     for row in rows {
         if row.nanos == 0 {
@@ -139,6 +142,35 @@ pub fn render() -> String {
         }
     }
     text
+}
+
+/// Emit one coarse boundary and one completed scope/counter row. Names are
+/// exact: this never streams the per-node scope roster. Values are inclusive
+/// wall-time totals across this process, including overlapping compilations;
+/// they are not exclusive CPU time or an active scope's elapsed time.
+/// Reporting cannot change compiler errors when stderr is unavailable.
+pub fn checkpoint(label: &'static str, completed_scope: &'static str) {
+    if !enabled() {
+        return;
+    }
+    let row = {
+        let rows = ROWS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        rows.binary_search_by(|row| row.name.cmp(completed_scope))
+            .ok()
+            .map(|position| rows[position])
+    };
+    // Copy the single row before formatting or I/O; no semantic work or
+    // diagnostic output runs while the profiler mutex is held.
+    let mut text = format!(
+        "CHECKPOINT {label} pid={} thread={:?} process-cumulative completed inclusive-wall\n",
+        std::process::id(),
+        std::thread::current().id(),
+    );
+    text.push_str(&render_rows(row));
+    use std::io::Write;
+    let _ = std::io::stderr().lock().write_all(text.as_bytes());
 }
 
 #[cfg(test)]

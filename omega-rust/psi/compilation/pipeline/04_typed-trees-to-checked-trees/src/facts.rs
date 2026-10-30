@@ -232,7 +232,14 @@ pub(crate) fn build_check_facts(
     };
     let mut claim_outcomes = crate::checks::ClaimOutcomePreparation::default();
     drop(pre_flow_guard);
-    mutation_summaries.prewarm(program, &prepared.borrow, call_frames.as_ref());
+    phase_profile::checkpoint("after pre-flow facts", "05.d.3.a.pre_flow_facts");
+    phase_profile::scope("05.d.3.a2.prewarm_mutation_summaries", || {
+        mutation_summaries.prewarm(program, &prepared.borrow, call_frames.as_ref());
+    });
+    phase_profile::checkpoint(
+        "after mutation prewarm",
+        "05.d.3.a2.prewarm_mutation_summaries",
+    );
     let flow_loop_guard = phase_profile::guard("05.d.3.b.flow_fixed_point");
     loop {
         phase_profile::count("05.d.3.b.flow_fixed_point.outer_iterations", 1);
@@ -259,6 +266,10 @@ pub(crate) fn build_check_facts(
                 call_frames.as_ref(),
             )
         });
+        phase_profile::checkpoint(
+            "after flow construction",
+            "05.d.3.b.flow_fixed_point.build_flow_facts",
+        );
         prepared.flow.control.seal_indexes();
         phase_profile::scope("05.d.3.b.flow_fixed_point.bind_call_spans", || {
             crate::facts::review_sources::bind_checked_body_call_source_spans(
@@ -266,7 +277,7 @@ pub(crate) fn build_check_facts(
                 &mut prepared.flow,
             )
         })?;
-        if phase_profile::scope(
+        let permission_outcome = phase_profile::scope(
             "05.d.3.b.flow_fixed_point.prepare_permission_events",
             || {
                 crate::checks::prepare_permission_events(
@@ -277,7 +288,12 @@ pub(crate) fn build_check_facts(
                     call_frames.as_ref(),
                 )
             },
-        )? {
+        );
+        phase_profile::checkpoint(
+            "after permission events",
+            "05.d.3.b.flow_fixed_point.prepare_permission_events",
+        );
+        if permission_outcome? {
             continue;
         }
         if phase_profile::scope(
@@ -304,6 +320,11 @@ pub(crate) fn build_check_facts(
         }
     }
     drop(flow_loop_guard);
+    phase_profile::checkpoint("after flow fixed point", "05.d.3.b.flow_fixed_point");
+    phase_profile::checkpoint(
+        "flow fixed-point iterations",
+        "05.d.3.b.flow_fixed_point.outer_iterations",
+    );
     prepared.flow.ownership.seal_indexes();
     prepared.flow.control.seal_indexes();
     let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
@@ -466,6 +487,7 @@ pub(crate) fn build_check_facts(
                 &values.structural_values,
             )
         })?;
+    phase_profile::checkpoint("after contract plans", "05.d.3.c.5c.contract_plans");
     static_callable_crashes::validate(
         program,
         &operators,
