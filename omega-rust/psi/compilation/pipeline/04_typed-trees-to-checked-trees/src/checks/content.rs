@@ -227,6 +227,7 @@ pub(crate) fn compose_partition_wrappers(
 ) {
     let source_plans = validation::content_conservation_plans(program);
     entailment.record_preserved_content_sources(facts, &source_plans);
+    let outgoing_rows = partition_wrappers::OutgoingRows::new(&facts.flow.control.outgoing);
     // Prepare exact body observations once. Replaying a body at every
     // availability round would duplicate observation work and risk importing a
     // later frontier into an earlier captured value.
@@ -247,7 +248,7 @@ pub(crate) fn compose_partition_wrappers(
             {
                 return None;
             } else {
-                body_proofs::completed_source(program, facts, source)?
+                body_proofs::completed_source(program, facts, &outgoing_rows, source)?
             };
             Some((source.plan.clone(), returns))
         })
@@ -319,9 +320,13 @@ pub(crate) fn compose_partition_wrappers(
 
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                for invocation in
-                    returned_partition_invocations(program, facts, state, &mut conditions)
-                {
+                for invocation in returned_partition_invocations(
+                    program,
+                    facts,
+                    &outgoing_rows,
+                    state,
+                    &mut conditions,
+                ) {
                     for source in sources.iter().filter(|source| {
                         source.plan.callable == invocation.target_symbol
                             && equation_contains_partition(&source.plan.equation)
@@ -372,7 +377,11 @@ pub(crate) fn compose_partition_wrappers(
             let Some(state) = program.state_by_symbol(composition.state_symbol) else {
                 continue;
             };
-            let outgoing = partition_wrappers::ordinary_returns(program, facts, state);
+            let outgoing = partition_wrappers::ordinary_returns(
+                program,
+                outgoing_rows.for_state(state.symbol).into_iter(),
+                state,
+            );
             // A theorem on one arm is not a callable guarantee. Exact exit
             // proofs must cover every reachable selection. One completed call
             // can legitimately feed several arms; counting proofs would reject

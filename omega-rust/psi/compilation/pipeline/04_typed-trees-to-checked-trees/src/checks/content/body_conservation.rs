@@ -69,7 +69,7 @@ pub(crate) fn observe_body_completion(
             // return relation. Do not reinterpret them as owned consumption.
             continue;
         };
-        for returned_at in ordinary_returns(program, facts, state) {
+        for returned_at in ordinary_returns(program, facts.flow.control.outgoing.iter(), state) {
             let outgoing = facts.flow.control.outgoing.get(returned_at);
             let outgoing_evaluation = if outgoing.statement_index != statement_index {
                 checked_trees::FlowPermissionEvaluation::Statement
