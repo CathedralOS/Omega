@@ -46,6 +46,25 @@ This complete output was compared with an independent simulation on macOS
 ARM64; native execution exits 0. Other declared hosted targets still require
 matching-host execution.
 
-Both native execution and checked interpretation exit 0 on macOS ARM64.
-The checked sleep adapter executes normally; its exact selected foreign wait
-advances virtual time without delaying the interpreter or invoking a host import.
+Both native execution and Terminal interpretation exit 0 on macOS ARM64.
+The CLI supplies the host clock environment, so Terminal waits use the host
+sleep implementation. Earlier checked-tree observations used a virtual-time
+sleep adapter; the current native/Terminal qualification is recorded below.
+
+## Scalar contract migration
+
+This `CANONICALIZE-SCALAR-RANGE-CONTRACTS` customer retains its original
+`7a9a7b8287e6` field restrictions on the containing data declarations:
+
+`Main.frame`: `0 <= self.frame && self.frame <= 70`; `Main.y`: `0 <= self.y && self.y <= 12`; `Main.x`: `0 <= self.x && self.x <= 24`.
+
+The original endpoints, guards and operations remain; 35 terminal calls
+acknowledge the existing blocking-input path. `input.txt` supplies one newline
+and then EOF. `expected_stdout.txt` pins the complete independently derived
+21372-byte transcript; native and Terminal execution must both produce it and
+exit 0. Other hosted targets retain their entry bindings and need
+matching-host execution.
+
+The binary64 trajectory keeps its original operation order and truncating
+conversion. Zero-based frame 44 renders x=5: the stored position is just below
+six. The oracle includes every frame and preserves that boundary.

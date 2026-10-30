@@ -23,7 +23,12 @@ domain [u8; 3]::Utf8
 requires
     valid_utf8(self);
 
-data Main {
+data Main
+requires
+    0 <= self.frame && self.frame <= 70
+    && 0 <= self.y && self.y <= 12
+    && 0 <= self.x && self.x <= 24
+{
     line: [u8; 24] in Utf8;
     home: [u8; 3] in Utf8;
     bx: f64;
@@ -52,59 +57,59 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     main.ball_x = 3;
     main.ball_y = 1;
     main.frame = 0;
-    transition { _ -> frame_loop(main) }
+    transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: &mut Main) {
-        transition main.frame < 70 { true -> frame_start(main) _ -> finish(main) }
+        transition main.frame < 70 { true -> block frame_start(main) _ -> block finish(main) }
     }
     machine frame_start(main: &mut Main) {
         Console::write(main.home);
         main.y = 0;
-        transition { _ -> row_loop(main) }
+        transition { _ -> block row_loop(main) }
     }
 
     // --- render a 24x12 grid, one CELL at a time (a single write per cell whose
     // value a guard decides), one row per write_line ---
     machine row_loop(main: &mut Main) {
-        transition main.y >= 0 && main.y < 12 { true -> col_init(main) _ -> after_frame(main) }
+        transition main.y >= 0 && main.y < 12 { true -> block col_init(main) _ -> block after_frame(main) }
     }
     machine col_init(main: &mut Main) {
         main.x = 0;
-        transition { _ -> col_loop(main) }
+        transition { _ -> block col_loop(main) }
     }
     machine col_loop(main: &mut Main) {
-        transition main.x >= 0 && main.x < 24 { true -> cell(main) _ -> emit_row(main) }
+        transition main.x >= 0 && main.x < 24 { true -> block cell(main) _ -> block emit_row(main) }
     }
     machine cell(main: &mut Main) {
         transition main.x == main.ball_x && main.y == main.ball_y {
-            true -> ball_cell(main)
-            _ -> space_cell(main)
+            true -> block ball_cell(main)
+            _ -> block space_cell(main)
         }
     }
     machine ball_cell(main: &mut Main) {
         main.line[main.x] = 79;
-        transition { _ -> x_step(main) }
+        transition { _ -> block x_step(main) }
     }
     machine space_cell(main: &mut Main) {
         main.line[main.x] = 32;
-        transition { _ -> x_step(main) }
+        transition { _ -> block x_step(main) }
     }
     // Re-guard before each counter increment (the ball/space branch and the
     // write_line call don't carry the loop bound), so the `+ 1`s prove Exact.
     machine x_step(main: &mut Main) {
-        transition main.x >= 0 && main.x < 24 { true -> x_bump(main) _ -> emit_row(main) }
+        transition main.x >= 0 && main.x < 24 { true -> block x_bump(main) _ -> block emit_row(main) }
     }
     machine x_bump(main: &mut Main) {
         main.x = main.x + 1;
-        transition { _ -> col_loop(main) }
+        transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
-        transition main.y >= 0 && main.y < 12 { true -> y_bump(main) _ -> row_loop(main) }
+        transition main.y >= 0 && main.y < 12 { true -> block y_bump(main) _ -> block row_loop(main) }
     }
     machine y_bump(main: &mut Main) {
         main.y = main.y + 1;
-        transition { _ -> row_loop(main) }
+        transition { _ -> block row_loop(main) }
     }
 
     // --- integrate the physics, then bounce off the four walls ---
@@ -112,39 +117,39 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         main.vy = main.vy + 0.45;
         main.bx = main.bx + main.vx;
         main.by = main.by + main.vy;
-        transition { _ -> bounce_floor(main) }
+        transition { _ -> block bounce_floor(main) }
     }
     machine bounce_floor(main: &mut Main) {
-        transition main.by >= 11.0 { true -> floor_hit(main) _ -> bounce_ceil(main) }
+        transition main.by >= 11.0 { true -> block floor_hit(main) _ -> block bounce_ceil(main) }
     }
     machine floor_hit(main: &mut Main) {
         main.by = 11.0;
         main.vy = 0.0 - main.vy * 0.72;
-        transition { _ -> bounce_ceil(main) }
+        transition { _ -> block bounce_ceil(main) }
     }
     machine bounce_ceil(main: &mut Main) {
-        transition main.by <= 0.0 { true -> ceil_hit(main) _ -> bounce_walls(main) }
+        transition main.by <= 0.0 { true -> block ceil_hit(main) _ -> block bounce_walls(main) }
     }
     machine ceil_hit(main: &mut Main) {
         main.by = 0.0;
         main.vy = 0.0 - main.vy;
-        transition { _ -> bounce_walls(main) }
+        transition { _ -> block bounce_walls(main) }
     }
     machine bounce_walls(main: &mut Main) {
-        transition main.bx >= 23.0 { true -> wall_right(main) _ -> bounce_wall_left(main) }
+        transition main.bx >= 23.0 { true -> block wall_right(main) _ -> block bounce_wall_left(main) }
     }
     machine wall_right(main: &mut Main) {
         main.bx = 23.0;
         main.vx = 0.0 - main.vx;
-        transition { _ -> recompute(main) }
+        transition { _ -> block recompute(main) }
     }
     machine bounce_wall_left(main: &mut Main) {
-        transition main.bx <= 0.0 { true -> wall_left(main) _ -> recompute(main) }
+        transition main.bx <= 0.0 { true -> block wall_left(main) _ -> block recompute(main) }
     }
     machine wall_left(main: &mut Main) {
         main.bx = 0.0;
         main.vx = 0.0 - main.vx;
-        transition { _ -> recompute(main) }
+        transition { _ -> block recompute(main) }
     }
     machine recompute(main: &mut Main) {
         // Named saturating conversions truncate the float positions; the policy
@@ -154,11 +159,11 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         main.ball_x = column as i32;
         main.ball_y = row as i32;
         Clock::sleep(40);
-        transition main.frame < 70 { true -> frame_bump(main) _ -> frame_loop(main) }
+        transition main.frame < 70 { true -> block frame_bump(main) _ -> block frame_loop(main) }
     }
     machine frame_bump(main: &mut Main) {
         main.frame = main.frame + 1;
-        transition { _ -> frame_loop(main) }
+        transition { _ -> block frame_loop(main) }
     }
 
     machine finish(main: &mut Main) {
