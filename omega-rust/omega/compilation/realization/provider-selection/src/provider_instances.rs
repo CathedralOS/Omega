@@ -12,12 +12,12 @@ use language_semantics::provider_declarations::{
 };
 
 pub struct ProviderInstanceRowDeclarations {
-    pub inherited: Result<Vec<ProviderInstanceApplication>, Vec<Diagnostic>>,
+    pub inherited: Result<Vec<ProviderInstanceApplication<String>>, Vec<Diagnostic>>,
 }
 
 pub struct GenericProviderInstanceDeclarations {
     pub template: String,
-    pub rows: Vec<Result<Vec<Result<ClosedProviderInstance, String>>, Diagnostic>>,
+    pub rows: Vec<Result<Vec<Result<ClosedProviderInstance<String>, String>>, Diagnostic>>,
     pub required_instances: Vec<String>,
 }
 
@@ -167,7 +167,7 @@ fn append_instance(
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     selected_machine: ProviderIdentityId,
-    instance: &ClosedProviderInstance,
+    instance: &ClosedProviderInstance<String>,
     rows: &mut Vec<effects::SelectedRequirementSpecialization>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) {

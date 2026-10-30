@@ -422,6 +422,7 @@ That source projection now has a declaration producer and a source-free policy
 consumer. Psi records exact inherited receiving-application candidates and
 generic specialization identities, preserving individual failures inside their
 candidate groups. `provider-planning/src/provider_instances.rs` supplies original
+plan/review renderings of Psi's checked identity handles, as well as original
 plan/row correspondence and exact adapter judgments; `provider-selection` owns
 candidate cardinality, template-row agreement, complete closed-instance coverage
 and attachment to the selected plans. Review still prepares from the original

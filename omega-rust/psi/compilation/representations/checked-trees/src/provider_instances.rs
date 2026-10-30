@@ -11,6 +11,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
+use typed_trees::type_identity::CallableIdentityId;
 
 pub fn inherited_instances(
     typed: &TypedTrees,
@@ -19,7 +20,7 @@ pub fn inherited_instances(
     provider: &Machine,
     selecting_declaration: Option<SymbolHandle>,
     package: Option<PackageKeyIdentity>,
-) -> Vec<ProviderInstanceApplication> {
+) -> Vec<ProviderInstanceApplication<CallableIdentityId>> {
     typed.closed_requirement_applications().filter(|application| {
         typed.trait_machine_signature(application.template).is_some_and(|(owner, signature)| {
             typed.trait_requirement_callable_identity_text(owner, signature) == requirement
@@ -46,9 +47,9 @@ pub fn inherited_instances(
             }
             let owner = typed.trait_definition_by_symbol(application.declaring_trait)
                 .ok_or("closed requirement fact lost its declaring trait")?;
-            let requirement = typed.trait_requirement_callable_identity_text(owner, application.signature);
-            let realization = typed.machine_callable_identity_text(instance).unwrap_or_default();
-            if requirement.is_empty() || realization.is_empty() {
+            let requirement = typed.trait_requirement_callable_identity(owner, application.signature);
+            let realization = typed.machine_callable_identity(instance);
+            if !requirement.is_valid() || !realization.is_valid() {
                 return Err("closed provider coordinate has no normalized callable identity".into());
             }
             Ok(ClosedProviderInstance { requirement, realization })
@@ -63,7 +64,7 @@ pub fn generic_instances(
     provider: &Machine,
     template: &Machine,
     package: Option<PackageKeyIdentity>,
-) -> Vec<Result<ClosedProviderInstance, String>> {
+) -> Vec<Result<ClosedProviderInstance<CallableIdentityId>, String>> {
     typed.machine_specializations.iter().filter(|receipt| {
         receipt.template == provider.symbol && receipt.operator_realizations.iter()
             .any(|application| application.requirement_symbol == template.symbol)
@@ -90,9 +91,9 @@ pub fn generic_instances(
                 "selected provider instance `{}` replays requirement template `{}` onto itself", instance.name, template.name,
             ));
         }
-        let requirement = typed.machine_callable_identity_text(closed).unwrap_or_default();
-        let realization = typed.machine_callable_identity_text(instance).unwrap_or_default();
-        if requirement.is_empty() || realization.is_empty() {
+        let requirement = typed.machine_callable_identity(closed);
+        let realization = typed.machine_callable_identity(instance);
+        if !requirement.is_valid() || !realization.is_valid() {
             return Err(format!(
                 "selected provider instance `{}` or closed requirement `{}` has no normalized identity", instance.name, closed.name,
             ));
@@ -101,7 +102,7 @@ pub fn generic_instances(
     }).collect()
 }
 
-pub fn closed_requirements(typed: &TypedTrees, template: &Machine) -> Vec<String> {
+pub fn closed_requirements(typed: &TypedTrees, template: &Machine) -> Vec<CallableIdentityId> {
     typed
         .machine_specializations
         .iter()
@@ -110,7 +111,8 @@ pub fn closed_requirements(typed: &TypedTrees, template: &Machine) -> Vec<String
         .filter(|instance| {
             instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         })
-        .filter_map(|instance| typed.machine_callable_identity_text(instance))
+        .map(|instance| typed.machine_callable_identity(instance))
+        .filter(|identity| identity.is_valid())
         .collect()
 }
 

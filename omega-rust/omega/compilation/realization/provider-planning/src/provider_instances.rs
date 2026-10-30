@@ -169,14 +169,26 @@ fn prepare_instance_declarations<'plan>(
                 } => adapters
                     .machine(plan, row)
                     .map(|provider| {
-                        checked_trees::provider_instances::inherited_instances(
+                        let applications = checked_trees::provider_instances::inherited_instances(
                             typed,
                             check_facts,
                             plan.identities.text(row.requirement_identity),
                             provider,
                             selecting,
                             machine_package_identity,
-                        )
+                        );
+                        let mut projected = Vec::new();
+                        for application in applications {
+                            let candidates = application
+                                .candidates
+                                .into_iter()
+                                .map(|candidate| {
+                                    candidate.map(|instance| render_instance(typed, instance))
+                                })
+                                .collect();
+                            projected.push(ProviderInstanceApplication { candidates });
+                        }
+                        projected
                     })
                     .map_err(|error| vec![error]),
                 _ => Ok(Vec::new()),
@@ -202,6 +214,9 @@ fn prepare_instance_declarations<'plan>(
                             template,
                             machine_package_identity,
                         )
+                        .into_iter()
+                        .map(|instance| instance.map(|instance| render_instance(typed, instance)))
+                        .collect()
                     }),
                     _ => Ok(Vec::new()),
                 };
@@ -214,7 +229,10 @@ fn prepare_instance_declarations<'plan>(
                 rows: instance_rows,
                 required_instances: checked_trees::provider_instances::closed_requirements(
                     typed, template,
-                ),
+                )
+                .into_iter()
+                .map(|identity| typed.callable_identity_text(identity))
+                .collect(),
             });
         }
         declarations.push(ProviderInstanceDeclarations {
@@ -224,4 +242,18 @@ fn prepare_instance_declarations<'plan>(
         });
     }
     declarations
+}
+
+/// Rendering happens once at the existing plan/review encoding boundary.
+/// The checked declaration producer retains handles in its own identity owner.
+fn render_instance(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    instance: language_semantics::provider_declarations::ClosedProviderInstance<
+        checked_trees::typed_trees::type_identity::CallableIdentityId,
+    >,
+) -> language_semantics::provider_declarations::ClosedProviderInstance<String> {
+    language_semantics::provider_declarations::ClosedProviderInstance {
+        requirement: typed.callable_identity_text(instance.requirement),
+        realization: typed.callable_identity_text(instance.realization),
+    }
 }
