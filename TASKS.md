@@ -113,7 +113,11 @@ Update by subtraction, not accumulation. This applies to all three task boards.
   one-per-line bullets (one unfinished witness or missing mechanism gap per
   bullet), followed by the final `Acceptance:` gate. When a witness or mechanism
   gap lands, delete its bullet line outright (`Delta lines < 0`); delete the
-  entire item when its `Acceptance:` passes.
+  entire item when its `Acceptance:` passes. When one bullet mixes a landed
+  witness with work that is still open, delete only the finished clause and
+  leave the open clause. Do not rewrite the finished clause into a retaining
+  or preserving sentence. The witness stays in `samples/cli/facts/` and
+  `tests/omega/`.
 - **No milestone chronicles:** Run histories, stage-by-stage completion notes,
   and `"X now reserves / now completes Y"` narratives belong in commit messages
   and test records, never on the board. Keep a revision only when needed to
@@ -122,7 +126,9 @@ Update by subtraction, not accumulation. This applies to all three task boards.
   sub-tasks into the existing capability outcome that shares their subsystem and
   sample family as a discrete remaining bullet rather than creating stage-sliced
   or `split-of:` shards. Reconcile concurrent edits by their remaining bullets,
-  never by union-merging old and new prose.
+  never by union-merging old and new prose. A merge keeps one heading per
+  item. When that heading appears inside a conflict and again outside it,
+  replace the surviving copy with the edited text and delete the other.
 
 ## Ownership firewall
 
@@ -1077,38 +1083,6 @@ helper that passes does not close an item.
   without staging caller storage. Missing repair, early return, stale reads,
   overlapping loans, wrong-place repair, repeated extraction, and whole-owner
   cleanup reject (`fail/ownership/{whole_borrowed_*,borrowed_window_*,borrowed_storage_*}`).
-
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (also covers
-  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**)
-  Complete runtime selection of named implementations (`dyn`) with separated
-  selector and data lanes under
-  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md) end to end
-  across Psi checking/lowering/interpretation, package review, Omega 8-byte
-  dispatch-table realization, and `source/psi/` + `source/omega/` product parity.
-  - Extend requirement-contract checking at selector calls beyond exact fact
-    correspondence to transparent proposition aliases, supported integer
-    arithmetic, and literal IEEE-bound weakening while preserving the
-    requirement's public contract independently of stronger implementation
-    guarantees.
-  - Support suspending requirements at planning, crash-refinement rows when
-    operands lead with the selector, and ranked recursion cycles crossing a
-    dispatch edge (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked`
-    until ranked).
-  - Extend public slot metadata with returned-borrow origins and parameter
-    qualification preconditions, consume the new records in package review, and
-    implement `source/psi/` and `source/omega/` producer/consumer parity.
-  - Preserve complete 8-byte tables, zero trap slots, exact private callable
-    identities, and patched image targets across all supported hosts, including
-    matching-host Windows x86-64 execution.
-  Acceptance: `python3 tools/corpus_gate.py --both --filter traits/` (including
-  `runtime_dyn_rebound_selector_forwarded_exit`,
-  `runtime_dyn_two_impl_dispatch_exit`,
-  `runtime_dyn_{structural,nested,array,guarded,linear}_result_exit`,
-  `runtime_dyn_data_argument_counts_exit`, `runtime_dyn_joined_selector_exit`,
-  and `runtime_dyn_selector_record_field_exit`) passes with Terminal and native
-  agreement on all matching supported hosts (including Windows and macOS), and
-  copying or rebinding a selector neither captures data nor changes its borrow
-  lifetime.
 
 Prioritize unchanged customer programs reaching native execution over
 additional evidence without an exercising program. The
