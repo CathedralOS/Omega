@@ -253,21 +253,7 @@ impl Builder<'_, '_> {
         let selectors =
             crate::values::authored_projection_selectors_below(self.program, expression, receiver)?;
         let selectors = self.retain_projection_selector_evaluations(expression, selectors)?;
-        let (projected, mut path) =
-            crate::execution::terminal_unit::calls::projected_argument_path(
-                self.program,
-                self.state,
-                self.statement_index,
-                &place,
-                Some(self.machine),
-                Some(&|expression| {
-                    selectors.iter().find_map(|(selector, value)| {
-                        (*selector == expression).then_some(
-                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
-                        )
-                    })
-                }),
-            )?;
+        let (projected, mut path) = self.projected_place_path(&place, &selectors)?;
         if !validation::declared_carriers_match(self.program, projected, expected) {
             return None;
         }
