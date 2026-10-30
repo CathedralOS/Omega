@@ -356,17 +356,27 @@ fn contract_refined_certificate<'program>(
     }
 
     let value = ValueId::new(seed)?;
-    let atom = IntegerMathTerm::MathValue {
-        source_type: integer_type,
-        value,
-    };
-    let proposition_context =
-        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))]).ok()?;
+    let (atom, proposition_context) = integer_math_atom(integer_type, value)?;
     let mut assumptions = Vec::with_capacity(facts.len());
     for fact in &facts {
         push_math_premise(&mut assumptions, &fact.bound, &atom, fact.lower);
     }
     guarded_bounds_certificate(atom, assumptions, proposition_context, target, seed)
+}
+
+/// `integer_type`'s math-value atom at `value`, together with the context that
+/// types `value` at that scalar -- the opening every certificate here shares.
+fn integer_math_atom(
+    integer_type: IntegerType,
+    value: ValueId,
+) -> Option<(IntegerMathTerm, PropositionContext)> {
+    let atom = IntegerMathTerm::MathValue {
+        source_type: integer_type,
+        value,
+    };
+    let context =
+        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))]).ok()?;
+    Some((atom, context))
 }
 
 /// `condition`'s `subject OP literal` conjuncts restated as `<=` facts on
@@ -531,12 +541,7 @@ fn guarded_direct_certificate(
             .primitive_type_reference(obligation.base_type)?,
     )?;
     let value = ValueId::new(seed)?;
-    let atom = IntegerMathTerm::MathValue {
-        source_type: integer_type,
-        value,
-    };
-    let context =
-        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))]).ok()?;
+    let (atom, context) = integer_math_atom(integer_type, value)?;
 
     let mut facts = Vec::new();
     // Declared interval endpoints are the same premise pair the declared leg
@@ -862,12 +867,7 @@ fn guarded_refold_certificate(
 
     let value = ValueId::new(seed)?;
     let place_scalar = ScalarTerm::value(value, ScalarType::Integer(integer_type));
-    let place_math = IntegerMathTerm::MathValue {
-        source_type: integer_type,
-        value,
-    };
-    let context =
-        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))]).ok()?;
+    let (place_math, context) = integer_math_atom(integer_type, value)?;
 
     // Render every collected fact as the scalar `<=` premise the affine
     // rule's endpoint evidence requires; a bound the place's carrier cannot
@@ -1197,12 +1197,7 @@ fn declared_interval_certificate(
     seed: u64,
 ) -> Option<BoundedValueCertificate> {
     let value = ValueId::new(seed)?;
-    let atom = IntegerMathTerm::MathValue {
-        source_type: integer_type,
-        value,
-    };
-    let context =
-        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))]).ok()?;
+    let (atom, context) = integer_math_atom(integer_type, value)?;
     let declared_lower = bigint_math_literal(&declared.minimum)?;
     let declared_upper = bigint_math_literal(&declared.maximum)?;
 
