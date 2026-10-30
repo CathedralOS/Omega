@@ -9,6 +9,7 @@ use super::super::super::{
     LoweringError, PlaceId, StructuralMultiplicity, lookup_type_id, unsupported,
 };
 use super::{Emission, ProjectionSource};
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
@@ -147,12 +148,7 @@ impl Emission<'_, '_, '_> {
             return Ok(ValueOutcome::Normal(ProjectionSource {
                 root: saved.argument.place,
                 root_path: Vec::new(),
-                root_type_identity: validation::stored_structural_type_identity(
-                    &self.checked.typed,
-                    node.type_reference,
-                    &[],
-                    &[],
-                ),
+                root_type_identity: stored_structural_identity(&self.checked, node.type_reference),
                 path,
                 logical_root_type_identity,
             }));
@@ -183,12 +179,8 @@ impl Emission<'_, '_, '_> {
                 (place, argument.type_identity)
             }
             _ => {
-                let root_type_identity = validation::stored_structural_type_identity(
-                    &self.checked.typed,
-                    node.type_reference,
-                    &[],
-                    &[],
-                );
+                let root_type_identity =
+                    stored_structural_identity(&self.checked, node.type_reference);
                 let root_type =
                     lookup_type_id(self.type_ids, &root_type_identity).map_err(|_| {
                         LoweringError::MissingUnitStructuralType(format!(

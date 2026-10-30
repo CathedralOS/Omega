@@ -286,25 +286,8 @@ impl StateGraphEmission<'_, '_> {
                             next_edge,
                             operations,
                         },
-                        |frame| {
-                            let (mut environment, emission) = frame.split();
-                            emission.evaluation.source_value(
-                                identities,
-                                checked,
-                                owner,
-                                state.state,
-                                *statement_ordinal,
-                                role,
-                                &retained,
-                                emission.source_value_count,
-                                emission.values,
-                                emission.next_value,
-                                emission.next_block,
-                                emission.next_edge,
-                                emission.operations,
-                                emission.calls,
-                                &mut environment,
-                            )
+                        |mut frame| {
+                            frame.source_value(identities, *statement_ordinal, role, &retained)
                         },
                     )?;
                 PreparedArmCompletion::Edge(Terminator::Return {

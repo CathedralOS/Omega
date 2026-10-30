@@ -7,6 +7,7 @@
 use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
 use machine_code::{ScalarStackEvidence, ScalarStackMutationKind};
 
+use super::super::instruction_bytes;
 use super::super::instruction_loads::{
     aarch64_replay_memory_load, aarch64_replay_stack_load, aarch64_terminal_register,
     x86_replay_memory_load, x86_replay_rsp_load, x86_terminal_register,
@@ -166,10 +167,5 @@ pub(crate) fn replay_aarch64_boolean_structural_read(
         }
     }
     instructions.push(0x1200_0000);
-    Some(
-        instructions
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect(),
-    )
+    Some(instruction_bytes(instructions))
 }

@@ -99,23 +99,7 @@ impl StateGraphEmission<'_, '_> {
                             next_edge,
                             operations,
                         },
-                        |frame| {
-                            let (mut environment, emission) = frame.split();
-                            emission.evaluation.guard_value(
-                                identities,
-                                checked,
-                                owner,
-                                state.state,
-                                arm.statement_ordinal(),
-                                emission.values,
-                                emission.next_value,
-                                emission.next_block,
-                                emission.next_edge,
-                                emission.operations,
-                                emission.calls,
-                                &mut environment,
-                            )
-                        },
+                        |mut frame| frame.guard_value(identities, arm.statement_ordinal()),
                     )?;
                 ChainGuard::Value(guard.id)
             };

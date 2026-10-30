@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use crate::function_fragments::refuse_symbol_collision;
 use crate::{
     FunctionFragmentObjectArtifactError as Error, ObjectArtifact, ObjectCompilerPrivateFunction,
     PrivateFunctionObject, PrivateObjectSymbolBinding,
@@ -110,14 +111,7 @@ fn private_symbol(
     let name = identity
         .private_symbol()
         .ok_or(Error::Mismatch("invalid private function identity"))?;
-    if object
-        .layout
-        .symbols
-        .iter()
-        .any(|(_, symbol)| symbol.name == name)
-    {
-        return Err(Error::Mismatch("private function symbol collision"));
-    }
+    refuse_symbol_collision(object, &name, "private function symbol collision")?;
     let symbol = object.layout.symbols.insert(SymbolPlan {
         name,
         kind: SymbolKind::Function,

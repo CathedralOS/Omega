@@ -1,7 +1,7 @@
 //! Bind emitted whole-value copies to retained checked formation and operation identity.
 use crate::emission::operation_emission::buffer::SourceQuotientAdaptation;
 use crate::lowering_error::LoweringError;
-use crate::terminal_identities::{lookup_machine_id, lookup_type_id};
+use crate::terminal_identities::{lookup_machine_id, lookup_type_id, stored_structural_identity};
 use checked_trees::{CheckedQuotientAdaptationLicense, CheckedStructuralValueKind, CheckedTrees};
 use terminal_psi::{
     TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
@@ -46,12 +46,7 @@ pub(super) fn retain(
         }
         let carrier = lookup_type_id(
             type_ids,
-            &validation::stored_structural_type_identity(
-                &checked.typed,
-                quotient.carrier,
-                &[],
-                &[],
-            ),
+            &stored_structural_identity(checked, quotient.carrier),
         )?;
         let formation = validation::checked_quotient_relation_identity(
             &checked.typed,

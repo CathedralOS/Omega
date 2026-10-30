@@ -137,6 +137,18 @@ pub(crate) fn structural_declaration_by_identity<'types>(
     .ok_or(LoweringError::Unsupported(absent_message))
 }
 
+/// The identity a stored structural carrier's type reference names.
+///
+/// A stored carrier is a rooted type, never a binder or a substituted
+/// application: every stored reference re-derives with the empty roster pair,
+/// so a site that spells those two rosters itself can only drift from it.
+pub(crate) fn stored_structural_identity(
+    checked: &checked_trees::CheckedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> typed_trees::type_identity::TypeIdentityId {
+    validation::stored_structural_type_identity(&checked.typed, reference, &[], &[])
+}
+
 /// A semantic domain family instantiated on one exact structural carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct StructuralDomainBinding {

@@ -8,6 +8,7 @@ use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarEffect,
 };
 use crate::scalar_lowering::computations::Expansion;
+use crate::terminal_identities::stored_structural_identity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ValueRequest {
@@ -31,12 +32,7 @@ impl ValueRequest {
             .ok_or(LoweringError::Unsupported(
                 "computed value lost its complete checked root",
             ))?;
-        let identity = validation::stored_structural_type_identity(
-            &checked.typed,
-            root.type_reference,
-            &[],
-            &[],
-        );
+        let identity = stored_structural_identity(checked, root.type_reference);
         let declaration = crate::terminal_identities::structural_declaration_by_identity(
             types,
             identities,

@@ -21,16 +21,18 @@ use isa_x86_64::{
 };
 use register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey, RegisterUnitId,
-    ValidatedRegisterConstraintCatalog,
+    RegisterView, ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
-    MachineSemanticKind, ValidatedMachineEffectCatalog,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineSemanticKind, SelectedConstraintKeys,
+    ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
 
-use super::super::baseline_target_register_environment;
 use super::super::catalog::scalar_call_constraint_key;
+use super::super::{ValidatedTargetRegisterEnvironment, baseline_target_register_environment};
 
 #[derive(Clone, Copy)]
 struct ScalarAbiCase {
@@ -235,6 +237,86 @@ fn produced_effects(
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
         Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
     }
+}
+
+/// The stack-pointer view the ABI matrix names for this target.
+fn stack_pointer_view<'m>(
+    model: &'m PhysicalRegisterModel,
+    case: ScalarAbiCase,
+) -> &'m RegisterView {
+    named_view(
+        model,
+        case.target,
+        "rsp",
+        "sp",
+        "the ABI matrix names a stack-pointer view",
+    )
+}
+
+/// The condition-codes view the ABI matrix names for this target.
+fn flags_view<'m>(model: &'m PhysicalRegisterModel, case: ScalarAbiCase) -> &'m RegisterView {
+    named_view(
+        model,
+        case.target,
+        "rflags",
+        "nzcv",
+        "the ABI matrix names a flags view",
+    )
+}
+
+/// The produced catalog names this exact target, this validated constraint
+/// catalog's root, and this environment's selected keys: provenance, not a
+/// re-derived roster.
+fn binds_catalog_provenance(
+    catalog: &ValidatedMachineEffectCatalog,
+    case: ScalarAbiCase,
+    environment: &ValidatedTargetRegisterEnvironment,
+    keys: SelectedConstraintKeys,
+) {
+    assert_eq!(catalog.catalog().target, case.target);
+    assert_eq!(
+        catalog.catalog().register_constraints,
+        environment.constraints().identity()
+    );
+    assert_eq!(catalog.catalog().selected_keys, keys);
+}
+
+/// One alternative's encoded effects inside a catalog a test is corrupting:
+/// the declaration is addressed by its key and semantic, the alternative by
+/// its ordinal.
+fn encoded_mut<'a>(
+    catalog: &'a mut MachineEffectCatalog,
+    key: RegisterConstraintKey,
+    semantic: MachineSemanticKind,
+    index: usize,
+) -> &'a mut MachineEncodedEffects {
+    &mut declaration_mut(catalog, key, semantic).alternatives[index].encoded
+}
+
+/// One encoded rule may take an architectural fault: its encoded trap surface
+/// admits a fault whatever trap policy its declaration states.
+fn assert_faulting_trap(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
+    assert_eq!(
+        encoded.trap,
+        MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        "{key:?}"
+    );
+}
+
+/// One encoded rule that touches no memory and leaves the stack alone: its
+/// contribution is register custody plus whatever control and trap shape its
+/// own family declares.
+fn assert_storage_free(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
+    assert_eq!(
+        encoded.memory,
+        MachineEncodedMemoryEffect::NoneV1,
+        "{key:?}"
+    );
+    assert_eq!(
+        encoded.stack,
+        MachineEncodedStackEffect::UnchangedV1,
+        "{key:?}"
+    );
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -3,6 +3,20 @@ use checked_trees::{
     ProofObligationOwner,
 };
 use facts::{FactOrigin, ProgramPoint};
+use symbols::SymbolHandle;
+
+/// The `State` point of one machine state. Every entry row in this crate is
+/// attached to a state rather than to a statement offset, so the point is
+/// spelled once here instead of at each seeding site.
+pub(super) fn state_point(
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> ProgramPoint {
+    ProgramPoint::State {
+        machine_symbol,
+        state_symbol,
+    }
+}
 
 pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> ProgramPoint {
     match obligation.owner {
@@ -13,10 +27,7 @@ pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> Progra
         | ProofObligationOwner::StateReturn {
             machine_symbol,
             state_symbol,
-        } => ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
+        } => state_point(machine_symbol, state_symbol),
         ProofObligationOwner::MachineOwnedData {
             machine_symbol,
             data_symbol: _,
@@ -36,10 +47,7 @@ pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> Progra
             machine_symbol,
             state_symbol,
             parameter_symbol: _,
-        } => ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
+        } => state_point(machine_symbol, state_symbol),
         ProofObligationOwner::Unknown => ProgramPoint::Global,
     }
 }
@@ -58,27 +66,18 @@ pub(super) fn contract_fact_point(
                     .machine(machine_symbol)
                     .and_then(|machine| program.machine_states(machine).first())
             {
-                return Some(ProgramPoint::State {
-                    machine_symbol,
-                    state_symbol: entry.symbol,
-                });
+                return Some(state_point(machine_symbol, entry.symbol));
             }
             ProgramPoint::Machine { machine_symbol }
         }
         ContractProofFactOwner::MachineState {
             machine_symbol,
             state_symbol,
-        } => ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
+        } => state_point(machine_symbol, state_symbol),
         ContractProofFactOwner::StateSignature {
             owner_symbol,
             state_symbol,
-        } => ProgramPoint::State {
-            machine_symbol: owner_symbol,
-            state_symbol,
-        },
+        } => state_point(owner_symbol, state_symbol),
         ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
             ProgramPoint::Definition {
                 symbol: operator_symbol,
