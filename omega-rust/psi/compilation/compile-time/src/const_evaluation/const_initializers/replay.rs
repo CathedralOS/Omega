@@ -226,12 +226,22 @@ pub(crate) fn validate(
         );
         // Both source roots own a prepared value exit. Scalar recipes can
         // contain generic calls too; their untouched handles are not executable.
+        // The authored invocation still owes the declaration's complete
+        // representation and policy. Its independently materialized literal
+        // spells semantic data, as materialize::literal specifies, so check
+        // that private value exit against the same authenticated payload view.
+        // Encoding below still uses leaf.destination and compares both roots
+        // independently with the declaration's retained canonical result.
+        let mut materialized_destination = leaf.destination;
+        while let Some(storage) = probe.layout_storage_arguments(materialized_destination) {
+            materialized_destination = storage.semantic_type;
+        }
         let materialized = super::invocations::append_probe(
             &mut probe,
             leaf.owner,
             format!("@const-replay-materialized-{ordinal}"),
             leaf.materialized,
-            leaf.destination,
+            materialized_destination,
         );
         owners.push((original, materialized));
     }
