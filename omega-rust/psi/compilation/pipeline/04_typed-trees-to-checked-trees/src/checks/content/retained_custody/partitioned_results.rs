@@ -12,7 +12,9 @@
 //! checks. Calls still owe live actuals, exact substitution, result correspondence
 //! and provider admission; these checks do not publish qualification facts.
 
-use super::structural_sources::{ContentSource, SourceSegment, domain_sources, parameter_sources};
+use super::structural_sources::{
+    ContentSource, ContentSourceExpansion, SourceSegment, domain_sources, parameter_sources,
+};
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::content::{
@@ -34,7 +36,9 @@ pub(crate) fn check_boundary_partition_results(
     contracts: &[&SignatureContract],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let (sources, complete) = domain_sources(program, return_type);
+    let ContentSourceExpansion {
+        sources, complete, ..
+    } = domain_sources(program, return_type);
     let outputs: Vec<_> = sources
         .iter()
         .filter(|source| {
@@ -64,9 +68,9 @@ pub(crate) fn check_boundary_partition_results(
     // checks; this cannot authorize an issuer or connect equal algebras.
     // Unknown inputs cannot establish that frontier's emptiness.
     if complete
-        && inputs.iter().all(|(sources, complete)| {
-            *complete
-                && sources.iter().all(|source| {
+        && inputs.iter().all(|input| {
+            input.frontier_is_closed()
+                && input.sources.iter().all(|source| {
                     source.borrowed
                         || facts
                             .qualifications
@@ -327,7 +331,7 @@ fn same_segment(left: &ContentPlaceSegment, right: &ContentPlaceSegment) -> bool
 
 fn owned_input(
     parameters: &[StateParameter],
-    inputs: &[(Vec<ContentSource>, bool)],
+    inputs: &[ContentSourceExpansion],
     projection: &ContentProjectionPlan,
     place: &ContentStructuralPlace,
 ) -> bool {
@@ -343,12 +347,12 @@ fn owned_input(
     let Some(parameter) = parameters.get(position) else {
         return false;
     };
-    let Some((sources, complete)) = inputs.get(position) else {
+    let Some(input) = inputs.get(position) else {
         return false;
     };
-    *complete
+    input.complete
         && parameter.symbol == symbol
-        && sources.iter().any(|source| {
+        && input.sources.iter().any(|source| {
             !source.borrowed
                 && source.domain.symbol == projection.domain
                 && source.domain.semantic_domain == projection.semantic_domain

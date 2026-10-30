@@ -21,6 +21,21 @@ pub(super) struct ContentSource {
     pub(super) path: Vec<SourceSegment>,
 }
 
+/// Known declaration sources and the independent completeness of their frontier.
+/// Existing source checks can inspect the known paths of an open generic carrier;
+/// absence of those paths must never prove that its owned content is empty.
+pub(super) struct ContentSourceExpansion {
+    pub(super) sources: Vec<ContentSource>,
+    pub(super) complete: bool,
+    has_open_owned_carrier: bool,
+}
+
+impl ContentSourceExpansion {
+    pub(super) fn frontier_is_closed(&self) -> bool {
+        self.complete && !self.has_open_owned_carrier
+    }
+}
+
 /// Array coverage stays symbolic: source discovery visits an element type once,
 /// even when its declared extent is much larger than the authored proof.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -35,8 +50,12 @@ pub(super) fn parameter_sources(
     program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
     contracts: &[&SignatureContract],
-) -> (Vec<ContentSource>, bool) {
-    let (mut sources, mut complete) = domain_sources(program, parameter.type_reference);
+) -> ContentSourceExpansion {
+    let ContentSourceExpansion {
+        mut sources,
+        mut complete,
+        has_open_owned_carrier,
+    } = domain_sources(program, parameter.type_reference);
     for contract in contracts
         .iter()
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
@@ -95,7 +114,11 @@ pub(super) fn parameter_sources(
             }
         }
     }
-    (sources, complete)
+    ContentSourceExpansion {
+        sources,
+        complete,
+        has_open_owned_carrier,
+    }
 }
 
 // Each actual retains the lexical environment in which it was supplied. A
@@ -110,8 +133,9 @@ struct TypeBinding {
 pub(super) fn domain_sources(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
-) -> (Vec<ContentSource>, bool) {
+) -> ContentSourceExpansion {
     let mut sources = Vec::new();
+    let mut has_open_owned_carrier = false;
     let complete = append_sources(
         program,
         reference,
@@ -121,8 +145,13 @@ pub(super) fn domain_sources(
         &[],
         &mut Vec::new(),
         &mut sources,
+        &mut has_open_owned_carrier,
     );
-    (sources, complete)
+    ContentSourceExpansion {
+        sources,
+        complete,
+        has_open_owned_carrier,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -135,6 +164,7 @@ fn append_sources(
     path: &[SourceSegment],
     visiting: &mut Vec<(SymbolHandle, usize)>,
     sources: &mut Vec<ContentSource>,
+    has_open_owned_carrier: &mut bool,
 ) -> bool {
     let (reference, substitutions) = substituted_head(program, reference, substitutions);
     if !reference.is_valid() {
@@ -171,6 +201,7 @@ fn append_sources(
                 path,
                 visiting,
                 sources,
+                has_open_owned_carrier,
             );
         }
         TypeReferenceNode::Reference { referee, .. } => {
@@ -183,6 +214,7 @@ fn append_sources(
                 path,
                 visiting,
                 sources,
+                has_open_owned_carrier,
             );
         }
         TypeReferenceNode::FixedArray {
@@ -212,6 +244,7 @@ fn append_sources(
                 &element_path,
                 visiting,
                 sources,
+                has_open_owned_carrier,
             );
         }
         TypeReferenceNode::FixedArray { .. } => return false,
@@ -220,6 +253,12 @@ fn append_sources(
         _ => return true,
     };
     let Some(definition) = program.data_definition_by_symbol(definition_symbol) else {
+        if !borrowed
+            && definition_symbol.is_valid()
+            && program.symbols.get(definition_symbol).kind == symbols::SymbolKind::TypeParameter
+        {
+            *has_open_owned_carrier = true;
+        }
         return true;
     };
     // Finite Wrapper<Wrapper<T>> consumes type-argument structure. Recursive
@@ -270,6 +309,7 @@ fn append_sources(
                     &field_path,
                     visiting,
                     sources,
+                    has_open_owned_carrier,
                 );
             }
             DataMember::Variant(variant) => {
@@ -286,6 +326,7 @@ fn append_sources(
                         &field_path,
                         visiting,
                         sources,
+                        has_open_owned_carrier,
                     );
                 }
             }
