@@ -699,9 +699,7 @@ pub fn static_const_argument_spelling(
     program: &TypedTrees,
     argument: &expression::StaticMachineArgument,
 ) -> Option<String> {
-    use language_semantics::const_value::{
-        CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
-    };
+    use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
 
     if argument.type_reference.is_valid()
         || argument.application.is_some()
@@ -720,13 +718,7 @@ pub fn static_const_argument_spelling(
     }
     if argument.symbol.is_valid() {
         let value = canonical_const_declaration_value(program, argument.symbol)?;
-        return Some(match value.decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
-            DecodedCanonicalConstValue::Boolean(value) => {
-                CanonicalConstValue::boolean(value).atom()
-            }
-            _ => value.atom(),
-        });
+        return canonical_static_const_spelling(value);
     }
     let [name] = argument.path.as_ref() else {
         return None;
@@ -735,7 +727,31 @@ pub fn static_const_argument_spelling(
         return Some(CanonicalConstValue::boolean(value).atom());
     }
     // A previous specialization may forward a compiler-created atom.
-    CanonicalConstValue::from_atom(name.as_str()).map(|value| value.atom())
+    CanonicalConstValue::from_atom(name.as_str()).and_then(canonical_static_const_spelling)
+}
+
+/// Completed source values and their literal/name transport share one Const
+/// namespace. Carrier and formation admission stay with the Source checker.
+pub fn static_const_value_identity(
+    identity: &language_semantics::const_value::CanonicalConstIdentity,
+) -> Option<String> {
+    canonical_static_const_spelling(language_semantics::const_value::CanonicalConstValue::new(
+        identity.type_name.clone(),
+        identity.encoding.clone(),
+        "",
+    ))
+    .map(|spelling| static_const_identity_from_spelling(&spelling))
+}
+
+fn canonical_static_const_spelling(
+    value: language_semantics::const_value::CanonicalConstValue,
+) -> Option<String> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    Some(match value.decode_encoding()? {
+        DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
+        DecodedCanonicalConstValue::Boolean(value) => CanonicalConstValue::boolean(value).atom(),
+        _ => value.atom(),
+    })
 }
 
 /// Wrap one static const spelling in the normalized `Named` type identity the

@@ -132,9 +132,13 @@ impl TypedTrees {
                     path: vec![name.clone()].into_boxed_slice(),
                     ..expression::StaticMachineArgument::default()
                 }),
-            types::TypeReferenceNode::Named { .. } => {
-                Some(self.normalized_type_identity_text(reference))
-            }
+            types::TypeReferenceNode::Named { symbol, name } => self
+                .static_const_argument_identity(&expression::StaticMachineArgument {
+                    symbol: *symbol,
+                    path: vec![name.clone()].into_boxed_slice(),
+                    ..expression::StaticMachineArgument::default()
+                })
+                .or_else(|| Some(self.normalized_type_identity_text(reference))),
             _ => None,
         }
     }

@@ -150,26 +150,55 @@ pub fn validate_authored_static_arguments(
             ));
             continue;
         };
-        // The application receipt owns its source route. Rebuilding only the
-        // materialized argument tuple here loses enclosing and inherited
-        // simultaneous frames, including captured regions in phantom operands.
-        let scope = application
-            .trait_scope
-            .scope(program)
-            .filter(|scope| scope.declaration.symbol == owner.symbol);
-        let Some(signature) = scope
-            .as_ref()
-            .and_then(|scope| program.applied_callable_signature(scope, application.template))
-        else {
+        // The producer retains the complete admission telescope separately
+        // from executable arity. Its exact source scope remains mandatory;
+        // an unrelated outer-signature cache is not this instance's owner.
+        let Some(scope) = application.trait_scope.scope(program) else {
             diagnostics.push(Diagnostic::error(
-                "closed requirement lost its complete applied source telescope",
+                "closed requirement lost its retained source scope",
             ));
             continue;
         };
+        if scope.declaration.symbol != owner.symbol {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement source scope selects a different declaring trait",
+            ));
+            continue;
+        }
+        if scope.application_identity(program) != Some(application.trait_application_identity)
+            || scope.portable_application_identity(program)
+                != Some(application.portable_trait_application_identity)
+        {
+            diagnostics.push(Diagnostic::error("closed requirement source scope differs from its complete retained application identity"));
+            continue;
+        }
+        if let Err(reason) = program.require_receiving_trait_operands(&scope) {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed requirement source operands are not closed: {reason}"
+            )));
+            continue;
+        }
+        let Some(signature) =
+            program.closed_requirement_admission_signature(application.signature.symbol)
+        else {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement lost its produced admission signature",
+            ));
+            continue;
+        };
+        if program.state_signature_type_parameters(&signature).len() != arguments.len()
+            || application.local_arguments.len() != arguments.len()
+            || source.binding_declaration != application.template
+        {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement admission tuple differs from its exact source declaration",
+            ));
+            continue;
+        }
         if let Err(error) = validate_arguments(
             program,
             requirement.name.as_str(),
-            program.state_signature_type_parameters(signature),
+            program.state_signature_type_parameters(&signature),
             arguments,
             None,
         ) {
@@ -178,7 +207,7 @@ pub fn validate_authored_static_arguments(
         requirement_predicates::validate_where_facts(
             program,
             owner,
-            signature,
+            &signature,
             arguments,
             source.lexical_owner,
             None,

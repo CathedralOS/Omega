@@ -357,6 +357,10 @@ pub(crate) fn conformance_binding_is_exact(
     if parameters.len() != application.arguments.len() || bindings.len() != parameters.len() {
         return Err("capture tuple or binding roster differs from map telescope");
     }
+    // This is the independently reclosed original supplying application,
+    // already joined above on its complete raw tuple and exact source custody.
+    let reclosed = &selected[0];
+    let mut const_ordinal = 0;
     for (parameter, argument) in parameters.iter().zip(&application.arguments) {
         let selected = bindings
             .iter()
@@ -365,13 +369,35 @@ pub(crate) fn conformance_binding_is_exact(
         let [selected] = selected.as_slice() else {
             return Err("capture binder has no unique selected operand");
         };
-        let matches = program.static_binding_matches_argument(
-            &parameter.kind,
-            &selected.value,
-            argument,
-            source.lexical_owner,
-            binding.lexical_owner,
-        );
+        let evaluated = if parameter.kind.is_const_or_value() {
+            let value = reclosed.const_arguments.get(const_ordinal);
+            const_ordinal += 1;
+            match value {
+                Some(typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
+                    value,
+                    ..
+                }) => Some(value),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let matches = if let Some(expected) = evaluated {
+            let StaticMachineBindingValue::Const(actual) = &selected.value else {
+                return Err("capture const binder changed its declared operand category");
+            };
+            typed_trees::typed_trees::static_const_value_identity(expected)
+                .zip(program.static_const_type_reference_identity(*actual))
+                .is_some_and(|(expected, actual)| expected == actual)
+        } else {
+            program.static_binding_matches_argument(
+                &parameter.kind,
+                &selected.value,
+                argument,
+                source.lexical_owner,
+                binding.lexical_owner,
+            )
+        };
         if !matches {
             return Err("capture operand does not match its exact original selected argument");
         }
