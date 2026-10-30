@@ -45,13 +45,7 @@ fn wrapping_product_bounds_require_the_entire_rectangle_to_fit() {
         (IntegerSign::Unsigned, unsigned.as_slice()),
     ] {
         let integer_type = IntegerType::new(sign, 8).unwrap();
-        let context = PropositionContext::from_value_types((1..=2).map(|identity| {
-            (
-                ValueId::new(identity).unwrap(),
-                ScalarType::Integer(integer_type),
-            )
-        }))
-        .unwrap();
+        let context = value_context(ScalarType::Integer(integer_type), 2);
         let left = value(1, integer_type);
         let right = value(2, integer_type);
         let product =

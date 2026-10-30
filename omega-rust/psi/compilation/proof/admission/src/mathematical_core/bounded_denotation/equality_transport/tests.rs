@@ -1,9 +1,7 @@
 use super::super::Elaboration;
 use crate::proof::assumption_proof;
-use crate::{Budget, ProofNode, ProofRule, verify_mathematical_certificate};
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
-};
+use crate::{Budget, ProofNode, ProofRule, value_context, verify_mathematical_certificate};
+use semantic_vocabulary::{IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId};
 use std::collections::BTreeSet;
 
 fn integer() -> IntegerType {
@@ -18,13 +16,7 @@ fn value(position: u64) -> ScalarTerm {
 }
 
 fn check(premise: Proposition, goal: Proposition, equations: &[(u64, u64)]) {
-    let context = PropositionContext::from_value_types((1..=8).map(|position| {
-        (
-            ValueId::new(position).unwrap(),
-            ScalarType::Integer(integer()),
-        )
-    }))
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer()), 8);
     let assumptions = [premise.clone()];
     let axioms: Vec<_> = equations
         .iter()
@@ -109,13 +101,7 @@ fn nested_identity_requiring_unlicensed_reversal_rejects() {
         conclusion: Box::new(equal_value(2, 3)),
     };
     let axioms = [equal_value(4, 1)];
-    let context = PropositionContext::from_value_types((1..=4).map(|position| {
-        (
-            ValueId::new(position).unwrap(),
-            ScalarType::Integer(integer()),
-        )
-    }))
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer()), 4);
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::ValueEqualityTransport {

@@ -8,7 +8,7 @@ use super::super::{Elaboration, verify_bounded_certificate_on_current_thread};
 use super::Law;
 use crate::{
     Budget, CorrelatedAffineBranchWitness, IntegerCorrelatedForbiddenRootWitness, ProofError,
-    ProofNode, ProofRule, correlated_step,
+    ProofNode, ProofRule, correlated_step, value_context,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -131,13 +131,7 @@ fn safe_fixture() -> Fixture {
             integer(integer_type, 1),
         ),
     ];
-    let context = PropositionContext::from_value_types((1..=8).map(|index| {
-        (
-            ValueId::new(index).unwrap(),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("context");
+    let context = value_context(ScalarType::Integer(integer_type), 8);
     let witness = IntegerCorrelatedForbiddenRootWitness {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
@@ -204,13 +198,7 @@ fn negative_multiplier_fixture() -> Fixture {
             integer(integer_type, 5),
         ),
     ];
-    let context = PropositionContext::from_value_types((1..=5).map(|index| {
-        (
-            ValueId::new(index).unwrap(),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("context");
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let witness = IntegerCorrelatedForbiddenRootWitness {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
@@ -360,13 +348,7 @@ fn forbidden_roots_out_of_interval_root_refutes_case() {
             integer(integer_type, 1),
         ),
     ];
-    let context = PropositionContext::from_value_types((1..=5).map(|index| {
-        (
-            ValueId::new(index).unwrap(),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("context");
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let witness = IntegerCorrelatedForbiddenRootWitness {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),

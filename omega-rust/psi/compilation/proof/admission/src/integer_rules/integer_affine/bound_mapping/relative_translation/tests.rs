@@ -1,7 +1,7 @@
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, PrimitiveJudgment, ProofNode,
     ProofRule, check_certificate, check_integer_affine_witness, integer_affine_wrapping_evidence,
-    map_integer_affine_bound,
+    map_integer_affine_bound, value_context,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -19,10 +19,7 @@ fn literal(carrier: IntegerType, raw: u64) -> ScalarTerm {
     .unwrap()
 }
 fn context(carrier: IntegerType) -> PropositionContext {
-    PropositionContext::from_value_types(
-        (1..=4).map(|raw| (ValueId::new(raw).unwrap(), ScalarType::Integer(carrier))),
-    )
-    .unwrap()
+    value_context(ScalarType::Integer(carrier), 4)
 }
 fn operation(
     carrier: IntegerType,

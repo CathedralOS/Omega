@@ -134,13 +134,7 @@ fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
     let root = value(1, integer_type);
     let divisor = value(2, integer_type);
     let target = value(3, integer_type);
-    let context = PropositionContext::from_value_types((1..=3).map(|value_id| {
-        (
-            ValueId::new(value_id).unwrap(),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 3);
     let axioms = [
         Proposition::Equal(divisor.clone(), unsigned_literal(integer_type, 10)),
         Proposition::Equal(

@@ -8,7 +8,7 @@ use super::{
     check_predicate_denotations_with_value_equalities,
 };
 use crate::proof::{assumption_proof, semantic_axiom_proof};
-use crate::{PrimitiveJudgment, ProofNode, ProofRule};
+use crate::{PrimitiveJudgment, ProofNode, ProofRule, value_context};
 
 fn integer_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 32).unwrap()
@@ -221,13 +221,7 @@ fn cyclic_definitions_reject_but_shared_acyclic_aliases_preserve_identity() {
 
 #[test]
 fn shared_budget_bounds_input_depth_and_repeated_dag_expansion() {
-    let context = PropositionContext::from_value_types((1..=16).map(|identity| {
-        (
-            ValueId::new(identity).unwrap(),
-            ScalarType::Integer(integer_type()),
-        )
-    }))
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type()), 16);
     let goal = Proposition::Equal(value(16), literal(1));
     let axioms = (2..=16)
         .map(|identity| {
