@@ -65,6 +65,20 @@ pub(crate) fn place_is_claimed(claims: &BTreeMap<ClaimId, LiveClaim>, place: Pla
     claims.values().any(|claim| claim.place == Some(place))
 }
 
+/// The whole-path discard row for one live affine place. A freshly established
+/// carrier, and every lookup that names it without a projection, addresses the
+/// place itself rather than a descendant.
+pub(crate) fn whole_path_discard(
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+) -> StructuralAffineDiscard {
+    StructuralAffineDiscard {
+        place,
+        path: Vec::new(),
+        structural_type,
+    }
+}
+
 /// A loan follows backing identity, not the descriptor carrier's location.
 /// Moving that descriptor elsewhere does not unpin the selected owner.
 pub(crate) fn has_live_loan(

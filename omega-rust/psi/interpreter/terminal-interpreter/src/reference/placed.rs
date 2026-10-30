@@ -8,6 +8,7 @@
 //! provider allocation. Both backings use ordinary reference/loan transport;
 //! event dispatch preserves their distinct geometry and authority contracts.
 
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{
@@ -15,8 +16,7 @@ use crate::values::{
 };
 use semantic_vocabulary::{MachineId, PlaceId};
 use terminal_psi::{
-    Operation, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity, StructuralTypeShape,
+    Operation, StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralTypeShape,
 };
 
 mod view;
@@ -609,11 +609,8 @@ impl TerminalExecution<'_> {
             },
         )?;
         self.structural_values.insert(result.place, carrier)?;
-        self.live_affine_frontier.insert(StructuralAffineDiscard {
-            place: result.place,
-            path: Vec::new(),
-            structural_type: result.structural_type,
-        });
+        self.live_affine_frontier
+            .insert(whole_path_discard(result.place, result.structural_type));
         Ok(())
     }
     pub(crate) fn project_placed_presentation(

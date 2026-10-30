@@ -12,6 +12,7 @@
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::storage::ByteSequenceStorage;
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -23,9 +24,8 @@ use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
-    find_structural_case,
+    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, find_structural_case,
 };
 
 impl TerminalExecution<'_> {
@@ -107,11 +107,8 @@ impl TerminalExecution<'_> {
     /// Record the affine debt a fresh affine result owes the live frontier.
     pub(crate) fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
+            self.live_affine_frontier
+                .insert(whole_path_discard(result.place, result.structural_type));
         }
     }
 
@@ -643,11 +640,8 @@ impl TerminalExecution<'_> {
             destination,
             TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
         )?;
-        self.live_affine_frontier.insert(StructuralAffineDiscard {
-            place: destination,
-            path: Vec::new(),
-            structural_type: *structural_type,
-        });
+        self.live_affine_frontier
+            .insert(whole_path_discard(destination, *structural_type));
         Ok(OperationFlow::Advance)
     }
 

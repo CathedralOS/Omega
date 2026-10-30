@@ -9,6 +9,7 @@
 //! the next storage root and, for windows, the selected index offset.
 use crate::custody::project_structural_value;
 use crate::custody::resolve_structural_path_type;
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
@@ -943,11 +944,8 @@ impl TerminalExecution<'_> {
         self.reference_referents
             .insert(StructuralRuntimePlace::from(&carrier), prepared.referent)?;
         self.structural_values.insert(result.place, carrier)?;
-        self.live_affine_frontier.insert(StructuralAffineDiscard {
-            place: result.place,
-            path: Vec::new(),
-            structural_type: result.structural_type,
-        });
+        self.live_affine_frontier
+            .insert(whole_path_discard(result.place, result.structural_type));
         Ok(())
     }
 

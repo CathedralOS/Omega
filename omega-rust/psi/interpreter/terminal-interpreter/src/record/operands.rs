@@ -2,6 +2,7 @@
 //! Stage custody before removing any runtime cells so malformed later operands
 //! cannot consume an earlier child or its still-live siblings.
 use crate::custody::resolve_single_structural_argument;
+use crate::custody::whole_path_discard;
 use crate::errors::TerminalInterpretError;
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::StructuralRuntimePlace;
@@ -343,11 +344,7 @@ impl TerminalExecution<'_> {
                     active_claims.push((result.place, claim.path.as_slice()));
                 }
             }
-            let root = StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            };
+            let root = whole_path_discard(result.place, result.structural_type);
             if !frontier.insert(root) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }

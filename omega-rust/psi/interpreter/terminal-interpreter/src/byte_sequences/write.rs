@@ -6,6 +6,7 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::{ByteOwnerHome, ByteSequenceBinding};
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -60,11 +61,7 @@ impl TerminalExecution<'_> {
                     || !result.claims.is_empty()
                     || !self
                         .live_affine_frontier
-                        .contains(&terminal_psi::StructuralAffineDiscard {
-                            place,
-                            path: Vec::new(),
-                            structural_type,
-                        })
+                        .contains(&whole_path_discard(place, structural_type))
                 {
                     return Err(malformed());
                 }
