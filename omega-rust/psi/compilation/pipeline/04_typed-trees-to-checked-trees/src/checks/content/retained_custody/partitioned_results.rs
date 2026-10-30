@@ -50,6 +50,34 @@ pub(crate) fn check_boundary_partition_results(
                 })
         })
         .collect();
+    if outputs.is_empty() {
+        return;
+    }
+    let inputs: Vec<_> = parameters
+        .iter()
+        .map(|parameter| parameter_sources(program, parameter, contracts))
+        .collect();
+    // Several returned claims need not partition caller-owned content. With a
+    // completely known empty entry frontier they are supplied independently by
+    // the provider, just as a single returned qualified field is. Each still
+    // owes the existing result-provenance, custody and provider-admission
+    // checks; this cannot authorize an issuer or connect equal algebras.
+    // Unknown inputs cannot establish that frontier's emptiness.
+    if complete
+        && inputs.iter().all(|(sources, complete)| {
+            *complete
+                && sources.iter().all(|source| {
+                    source.borrowed
+                        || facts
+                            .qualifications
+                            .content
+                            .for_semantic_domain(source.domain.semantic_domain)
+                            .is_none()
+                })
+        })
+    {
+        return;
+    }
     // Cases are alternatives, not simultaneous supply. Array occurrences count
     // without enumerating the array or assuming a private size limit.
     let partition_outputs: Vec<_> = outputs
@@ -87,10 +115,6 @@ pub(crate) fn check_boundary_partition_results(
         )));
         return;
     }
-    let inputs: Vec<_> = parameters
-        .iter()
-        .map(|parameter| parameter_sources(program, parameter, contracts))
-        .collect();
     let valid = complete
         && partition_outputs.iter().all(|output| {
             let Some(projection) = facts
