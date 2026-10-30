@@ -440,4 +440,48 @@ mod tests {
         missing.rows.clear();
         assert!(read(&missing.identity_preimage()).is_err());
     }
+    #[test]
+    fn retained_plan_rejects_retired_schema_with_a_matching_commitment() {
+        let mut bytes = selected_plan().identity_preimage();
+        let retired_domain = b"omega.provider-plan.sha256.v4\0";
+        assert_eq!(retired_domain.len(), PROVIDER_PLAN_DOMAIN.len());
+        bytes[..retired_domain.len()].copy_from_slice(retired_domain);
+        assert_eq!(
+            read(&bytes).unwrap_err(),
+            "unknown provider plan input schema"
+        );
+    }
+
+    #[test]
+    fn retained_plan_reads_complete_applied_identity_framing() {
+        let mut plan = selected_plan();
+        plan.provider_application = plan.identities.intern("Provider<Payload,'caller>");
+        let application = plan.schema.identities.intern("Boundary<Payload,'caller>");
+        let argument = plan.schema.identities.intern("Payload");
+        let lifetime = plan.schema.identities.intern("'caller");
+        plan.schema
+            .receiver_applications
+            .push(super::super::ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: plan.schema.trait_package_identity,
+                argument_identities: vec![argument],
+                lifetime_argument_identities: vec![lifetime],
+                requirement_identities: vec![plan.schema.methods[0].requirement_identity],
+            });
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let input = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes()).unwrap();
+        assert_eq!(input.rows[0].requirement, "Boundary::consume(opaque)");
+        let mut changed = bytes;
+        let position = changed
+            .windows(b"Provider<Payload,'caller>".len())
+            .position(|window| window == b"Provider<Payload,'caller>")
+            .unwrap();
+        changed[position] ^= 1;
+        assert_eq!(
+            ProviderPlanInput::read(&changed, plan.identity_digest().as_bytes()).unwrap_err(),
+            "provider plan input differs from its complete commitment"
+        );
+    }
 }

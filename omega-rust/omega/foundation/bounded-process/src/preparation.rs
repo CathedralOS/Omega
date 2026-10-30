@@ -18,6 +18,7 @@ pub struct BoundedProcessPrepared {
     command: Command,
     limits: BoundedProcessLimits,
     boundary: &'static str,
+    observe_resources: bool,
     stdin: Option<BoundedStandardStreamDisposition>,
     stdout: Option<BoundedStandardStreamDisposition>,
     stderr: Option<BoundedStandardStreamDisposition>,
@@ -96,6 +97,7 @@ impl BoundedProcessPrepared {
             command,
             limits,
             boundary,
+            observe_resources: false,
             stdin: None,
             stdout: None,
             stderr: None,
@@ -185,6 +187,16 @@ impl BoundedProcessPrepared {
 
     pub const fn limits(&self) -> BoundedProcessLimits {
         self.limits
+    }
+
+    /// Request kernel resource observations without changing execution limits.
+    pub fn observe_resources(&mut self) -> &mut Self {
+        self.observe_resources = true;
+        self
+    }
+
+    pub(crate) const fn should_observe_resources(&self) -> bool {
+        self.observe_resources
     }
 
     pub(crate) fn into_command(self) -> io::Result<(Command, BoundedProcessLimits)> {

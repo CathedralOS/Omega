@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "tools/benchmark",
+    "tools/benchmark/allocation-observation",
     "samples/cli/independent/sample-runner",
     "samples/cli/independent/thin_film_reflectometry/validation",
     "samples/cli/independent/laminate_stiffness_response/validation",

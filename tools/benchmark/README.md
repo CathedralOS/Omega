@@ -1,5 +1,17 @@
 # Benchmark harness
 
+For new paired compiler and runtime experiments, use the Rust
+[`omega-bench` tooling](comparison.md). It runs paired comparisons and explicit
+suites, validates retained evidence, checks regression budgets, compares compatible
+histories, and captures separate phase, allocation, WPR or Linux perf profiles.
+It retains warmups, alternates baseline/candidate order, checks authored results,
+and records uncertainty, CPU, memory and every observation. Build it with
+`mbx build -p omega-bench`.
+
+The Python workflow below retains the existing optimizer-selection records and
+host matrix. Its record schema is separate from the Rust comparison journal;
+historical measurements are not silently converted into paired experiments.
+
 `benchmark.py` measures the reference compiler on a chosen subject and
 writes one versioned JSON record per (subject, target, exact rule
 selection) row under `records/`. It exists so optimizer work can cite

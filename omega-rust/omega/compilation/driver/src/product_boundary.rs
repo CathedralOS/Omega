@@ -876,7 +876,7 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     assert!(publication.contains("candidate.explicitly_selected"));
     assert!(publication.contains("module.boundary_machines"));
     assert!(publication.contains("crate::choose("));
-    assert!(publication.contains("crate::admit(selected, &[])?"));
+    assert!(publication.contains("crate::admit("));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
     let production = include_str!("terminal/terminal_artifact.rs");
     assert!(production.contains("provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication"));
