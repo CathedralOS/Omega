@@ -180,7 +180,7 @@ fn resolve_loads(
             continue;
         }
 
-        let lookup = descriptor_lookup(facts, state, constraints, &descriptor)
+        let lookup = descriptor_lookup(program, facts, state, constraints, &descriptor)
             .ok_or("the selected slot has no exact current descriptor namespace")?;
         let candidates =
             aliases::resolve_descriptor_places(program, facts, state, constraints, lookup.clone())
@@ -286,6 +286,7 @@ fn first_descriptor(
 /// only that identity's declared carrier path for the existing occurrence
 /// lookup; the returned authority retains the original opaque identity.
 fn descriptor_lookup(
+    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -296,13 +297,21 @@ fn descriptor_lookup(
     }
     let incoming = current_incoming(facts, state, constraints, place)?;
     let owner = facts.borrow.owner_segments.span(incoming.owner_path)?;
-    if owner.contains(&BorrowLoanOwnerSegment::DynamicIndex) {
-        return None;
-    }
-    let mut segments = crate::borrow::owner_place_segments(owner);
+    let mut segments = if place.incoming_owner_path.is_empty() {
+        if owner.contains(&BorrowLoanOwnerSegment::DynamicIndex) {
+            return None;
+        }
+        crate::borrow::owner_place_segments(owner)
+    } else {
+        if !crate::borrow::incoming_owner_selects(program, owner, &place.incoming_owner_path) {
+            return None;
+        }
+        place.incoming_owner_path.clone()
+    };
     segments.extend_from_slice(&place.segments);
     Some(CapturedPlace {
         incoming_reference: Handle::invalid(),
+        incoming_owner_path: Default::default(),
         root: incoming.place_root(),
         segments,
     })

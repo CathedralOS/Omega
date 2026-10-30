@@ -307,6 +307,7 @@ fn write_permission_envelope(
     }
     let place = CapturedPlace {
         incoming_reference: Handle::invalid(),
+        incoming_owner_path: Default::default(),
         root: root.root,
         segments: Vec::new(),
     };

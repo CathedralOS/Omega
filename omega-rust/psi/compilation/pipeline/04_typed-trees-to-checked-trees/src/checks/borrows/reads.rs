@@ -439,6 +439,7 @@ pub(super) fn check_storage_read<'p>(
         read.active_loans.iter().copied(),
         CapturedPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: facts::PlaceRoot::Symbol(root),
             segments: read.place.segments.clone(),
         },

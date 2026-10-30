@@ -21,6 +21,10 @@ pub struct CapturedPlace {
     /// referent occurrence. Zero denotes ordinary storage; a descriptor's
     /// referent is not the slot that holds its pointer.
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    /// Selected descriptor within an incoming leaf family. This is the
+    /// captured carrier-owner path, not a suffix below its loaded pointer.
+    /// Empty retains the incoming identity's ordinary non-family namespace.
+    pub incoming_owner_path: Vec<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: Vec<facts::PlaceSegment>,
 }
@@ -164,6 +168,7 @@ pub struct BorrowReturnedLoanFact {
     /// an empty path identifies this expression's root descriptor.
     pub formation_owner_path: Option<HandleSpan<BorrowLoanOwnerSegment>>,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
@@ -299,6 +304,7 @@ pub struct BorrowCallReferenceSlotEffect {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowLoanFact {
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     /// Address admitted with a representation footprint, in this loan's same
     /// root and incoming-reference namespace. Zero means no distinct geometry;
     /// indexed representation addresses are nonempty. It grants no lineage.
@@ -424,6 +430,7 @@ pub struct CheckedCallBorrowLoanResource {
     /// Exact referent namespace and selected storage at this leaf completion.
     /// The lifetime root alone is not its descriptor or sibling storage.
     pub backing_incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub backing_incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     pub backing_path: HandleSpan<facts::PlaceSegment>,
 }
 

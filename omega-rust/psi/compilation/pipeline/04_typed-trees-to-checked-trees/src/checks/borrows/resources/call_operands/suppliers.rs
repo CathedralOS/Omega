@@ -214,6 +214,11 @@ pub(super) fn collect(
                                 path: path.to_vec(),
                                 backing: checked_trees::CapturedPlace {
                                     incoming_reference: row.incoming_reference,
+                                    incoming_owner_path: facts
+                                        .borrow
+                                        .access_segments
+                                        .span_or_empty(row.incoming_owner_path)
+                                        .to_vec(),
                                     root: row.root,
                                     segments: facts.borrow.loan_segments(row).to_vec(),
                                 },
@@ -350,6 +355,11 @@ pub(super) fn collect(
                         path: path.to_vec(),
                         backing: checked_trees::CapturedPlace {
                             incoming_reference: row.incoming_reference,
+                            incoming_owner_path: facts
+                                .borrow
+                                .access_segments
+                                .span_or_empty(row.incoming_owner_path)
+                                .to_vec(),
                             root: row.root,
                             segments: facts.borrow.loan_segments(row).to_vec(),
                         },
@@ -413,6 +423,7 @@ fn collect_invocation_accesses(
             capture.constraints,
             checked_trees::CapturedPlace {
                 incoming_reference: Handle::invalid(),
+                incoming_owner_path: Default::default(),
                 root: row.root,
                 segments: facts.borrow.access_segments(row).to_vec(),
             },
@@ -539,6 +550,11 @@ fn collect_formed_projection(
             path: path.to_vec(),
             backing: checked_trees::CapturedPlace {
                 incoming_reference: row.incoming_reference,
+                incoming_owner_path: facts
+                    .borrow
+                    .access_segments
+                    .span_or_empty(row.incoming_owner_path)
+                    .to_vec(),
                 root: row.root,
                 segments: facts.borrow.loan_segments(row).to_vec(),
             },

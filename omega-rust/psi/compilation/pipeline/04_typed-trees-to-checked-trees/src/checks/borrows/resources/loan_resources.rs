@@ -195,6 +195,10 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         owner_path: borrow.loan_owner_path(loan).to_vec(),
                         captured_place: checked_trees::CapturedPlace {
                             incoming_reference: loan.incoming_reference,
+                            incoming_owner_path: borrow
+                                .access_segments
+                                .span_or_empty(loan.incoming_owner_path)
+                                .to_vec(),
                             root: loan.root,
                             segments: borrow.loan_segments(loan).to_vec(),
                         },
@@ -302,6 +306,10 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         owner_path: borrow.loan_owner_path(loan).to_vec(),
                         captured_place: checked_trees::CapturedPlace {
                             incoming_reference: loan.incoming_reference,
+                            incoming_owner_path: borrow
+                                .access_segments
+                                .span_or_empty(loan.incoming_owner_path)
+                                .to_vec(),
                             root: loan.root,
                             segments: borrow.loan_segments(loan).to_vec(),
                         },

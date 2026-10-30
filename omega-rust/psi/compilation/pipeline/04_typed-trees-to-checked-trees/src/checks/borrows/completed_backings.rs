@@ -258,9 +258,7 @@ impl Resolver<'_> {
         ) && let Some(source) = &coordinate
             && source.root.as_symbol().is_some()
         {
-            return self
-                .stored(operand, source, path)
-                .map(BackingFrontier::borrowed);
+            return self.stored(capture, operand, source, path, ancestors, forwarded_inputs);
         }
         // Literal formation authenticates image scope in the completed value
         // inventory. Consume that positive evidence for any producer instead
@@ -460,6 +458,7 @@ impl Resolver<'_> {
             coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
         let mut place = CapturedPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: source.root,
             segments: source.segments,
         };
@@ -511,12 +510,50 @@ impl Resolver<'_> {
 
     fn stored(
         &self,
+        capture: Handle<FlowOperandFact>,
         operand: &FlowOperandFact,
         source: &validation::CanonicalPlace,
         path: &[PlaceSegment],
-    ) -> Result<Vec<ResolvedAlias>, &'static str> {
+        ancestors: &mut Vec<Handle<FlowOperandFact>>,
+        forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
+    ) -> Result<BackingFrontier, &'static str> {
+        let control = &self.facts.flow.control;
+        // An indexed incoming family describes permissions for unchanged
+        // entry leaves. The completed receiver owns which leaf value survives
+        // at this cut: a replacement must follow its produced value instead
+        // of resurrecting the entry family from its declared shape.
+        if control.operands.is_valid(operand.backing) && operand.backing != capture {
+            let receiver = control.operands.get(operand.backing);
+            if receiver.state_symbol == operand.state_symbol
+                && let Some(receiver_place) = validation::canonical_place_from_expression_in_state(
+                    self.program,
+                    self.state.state_symbol,
+                    receiver.statement_index,
+                    receiver.expression,
+                )
+                && receiver_place.root == source.root
+                && receiver_place.segments.len() < source.segments.len()
+                && same_path(
+                    self.program,
+                    &receiver_place.segments,
+                    &source.segments[..receiver_place.segments.len()],
+                )
+            {
+                let mut projection = source.segments[receiver_place.segments.len()..].to_vec();
+                projection.extend_from_slice(path);
+                let frontier = validation::completed_storage::reference_sources_at_path(
+                    self.program,
+                    control,
+                    operand.backing,
+                    &projection,
+                    operand.storage_snapshot,
+                );
+                return self.stored_frontier(frontier, operand, ancestors, forwarded_inputs);
+            }
+        }
         let mut place = CapturedPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: source.root,
             segments: source.segments.clone(),
         };
@@ -529,7 +566,56 @@ impl Resolver<'_> {
             operand.constraints,
             place,
         )
+        .map(BackingFrontier::borrowed)
         .ok_or("the stored descriptor has no retained loan occurrence")
+    }
+
+    fn stored_frontier(
+        &self,
+        source: validation::completed_storage::StoredOperand,
+        operand: &FlowOperandFact,
+        ancestors: &mut Vec<Handle<FlowOperandFact>>,
+        forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
+    ) -> Result<BackingFrontier, &'static str> {
+        use validation::completed_storage::StoredOperand;
+        match source {
+            StoredOperand::Unavailable => Err("the stored descriptor has no current value source"),
+            StoredOperand::Incoming(source) => super::access_sources::resolve_descriptor_all(
+                self.program,
+                self.facts,
+                self.state,
+                operand.statement_index,
+                operand.constraints,
+                CapturedPlace {
+                    incoming_reference: Handle::invalid(),
+                    incoming_owner_path: Vec::new(),
+                    root: source.root,
+                    segments: source.segments,
+                },
+            )
+            .map(BackingFrontier::borrowed)
+            .ok_or("the incoming descriptor has no retained loan occurrence"),
+            StoredOperand::Value {
+                capture,
+                projection,
+                ..
+            } => self.retained_descriptor(capture, &projection, ancestors, forwarded_inputs),
+            StoredOperand::Alternatives(alternatives) => {
+                if alternatives.is_empty() {
+                    return Err("the stored descriptor has no incoming alternatives");
+                }
+                let mut result = BackingFrontier::default();
+                for alternative in alternatives {
+                    result.append(self.stored_frontier(
+                        alternative,
+                        operand,
+                        ancestors,
+                        forwarded_inputs,
+                    )?);
+                }
+                Ok(result)
+            }
+        }
     }
 
     fn input_descriptor(

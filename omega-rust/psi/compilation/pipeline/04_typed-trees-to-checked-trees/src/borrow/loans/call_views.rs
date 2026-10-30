@@ -521,6 +521,15 @@ fn rebase_borrow_places_following(
                     crate::flow::compose_captured_view_segments(&mut segments)?;
                     Some(accesses::BorrowAccessPlace {
                         incoming_reference: source_loan.place.incoming_reference,
+                        incoming_owner_path: if source_loan.place.incoming_owner_path.is_empty()
+                            && source_loan
+                                .owner_path
+                                .contains(&super::super::tracker::BorrowOwnerSegment::DynamicIndex)
+                        {
+                            place.segments[..source_loan.owner_path.len()].to_vec()
+                        } else {
+                            source_loan.place.incoming_owner_path.clone()
+                        },
                         root: source_loan.place.root,
                         segments,
                     })
@@ -536,6 +545,15 @@ fn rebase_borrow_places_following(
                 retained_operand: source_loan.retained_operand,
                 place: accesses::BorrowAccessPlace {
                     incoming_reference: source_loan.place.incoming_reference,
+                    incoming_owner_path: if source_loan.place.incoming_owner_path.is_empty()
+                        && source_loan
+                            .owner_path
+                            .contains(&super::super::tracker::BorrowOwnerSegment::DynamicIndex)
+                    {
+                        place.segments[..source_loan.owner_path.len()].to_vec()
+                    } else {
+                        source_loan.place.incoming_owner_path.clone()
+                    },
                     root: source_loan.place.root,
                     segments: rebased_segments,
                 },

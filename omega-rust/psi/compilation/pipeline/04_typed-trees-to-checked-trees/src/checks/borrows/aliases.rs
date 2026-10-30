@@ -232,10 +232,7 @@ fn resolve_descriptor_places_with_loans(
         let owner = borrow.owner_segments.span_or_empty(incoming.owner_path);
         incoming.place_root() == place.root
             && owner.len() <= place.segments.len()
-            && owner.iter().zip(&place.segments).all(|(owner, selected)| {
-                crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
-                    == Some(true)
-            })
+            && crate::borrow::incoming_owner_selects(program, owner, &place.segments[..owner.len()])
     };
     let incoming = incoming
         .into_iter()
@@ -289,6 +286,11 @@ fn resolve_descriptor_places_with_loans(
             Some(ResolvedPlace {
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path)
+                        .to_vec(),
                     root: loan.root,
                     segments,
                 },
@@ -302,6 +304,7 @@ fn resolve_descriptor_places_with_loans(
             places.push(ResolvedPlace {
                 place: CapturedPlace {
                     incoming_reference: identity,
+                    incoming_owner_path: place.segments[..depth].to_vec(),
                     root: incoming.place_root(),
                     segments: place.segments[depth..].to_vec(),
                 },
