@@ -194,25 +194,12 @@ struct Candidate {
 pub(crate) fn plan_elf_dynamic_tags(
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
 ) -> Result<ValidatedElfDynamicTagPlan, Box<ElfDynamicTagPlanningError>> {
-    checked::plan_candidate(
-        descriptors,
-        derive_contents,
-        |descriptors, contents| {
-            non_authoritative_tag_compatibility_fingerprint(&descriptors, &contents)
-        },
-        |descriptors, contents, fingerprint| Candidate {
-            descriptors: descriptors,
-            contents: contents,
-            non_authoritative_tag_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.descriptors,
-        |descriptors, diagnostic| {
-            Box::new(ElfDynamicTagPlanningError {
-                descriptors: descriptors,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: descriptors,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_tag_compatibility_fingerprint,
+        error: ElfDynamicTagPlanningError,
     )
 }
 
