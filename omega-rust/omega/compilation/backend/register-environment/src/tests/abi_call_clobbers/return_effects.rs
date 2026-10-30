@@ -1,8 +1,9 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
     abi_case_context, assert_faulting_trap, assert_storage_free,
-    baseline_target_register_environment, binds_catalog_provenance, convention_for, encoded_mut,
-    produced_effects, row_and_declaration, scalar_abi_cases, units_for_names, validate_effects,
+    baseline_target_register_environment, binds_catalog_provenance, convention_for, declared_pairs,
+    encoded_mut, produced_effects, row_and_declaration, scalar_abi_cases, units_for_names,
+    validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -77,22 +78,16 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
         // Return authority is declared for exactly the selected return rules:
         // no selected rule may lack a return declaration and no other
         // declaration may claim a return semantic.
-        let declared_returns = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                matches!(
-                    declaration.semantic,
-                    MachineSemanticKind::ReturnScalar
-                        | MachineSemanticKind::ReturnUnit
-                        | MachineSemanticKind::ReturnAggregate
-                )
-            })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        let declared = declared_pairs(&catalog, |declaration| {
+            matches!(
+                declaration.semantic,
+                MachineSemanticKind::ReturnScalar
+                    | MachineSemanticKind::ReturnUnit
+                    | MachineSemanticKind::ReturnAggregate
+            )
+        });
         assert_eq!(
-            declared_returns,
+            declared,
             return_rules.iter().copied().collect::<BTreeSet<_>>(),
             "{}",
             case.convention

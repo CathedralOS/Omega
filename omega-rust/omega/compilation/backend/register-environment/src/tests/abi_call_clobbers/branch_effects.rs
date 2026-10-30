@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
-    binds_catalog_provenance, declaration_mut, encoded_mut, flags_view, named_view,
+    binds_catalog_provenance, declaration_mut, declared_pairs, encoded_mut, flags_view, named_view,
     produced_effects, row_and_declaration, scalar_abi_cases, stack_pointer_view, validate_effects,
 };
 use selected_instructions::{
@@ -111,44 +111,32 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
         // rules: no selected rule may lack a branch declaration and no other
         // declaration may claim a branch semantic or a relative-branch
         // encoding.
-        let declared_branches = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                matches!(
-                    declaration.semantic,
-                    MachineSemanticKind::ConditionalBranchNonZero
-                        | MachineSemanticKind::ConditionalBranchU64LessThan
-                        | MachineSemanticKind::ConditionalBranchI64LessThan
-                        | MachineSemanticKind::Jump
-                )
-            })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        let declared = declared_pairs(&catalog, |declaration| {
+            matches!(
+                declaration.semantic,
+                MachineSemanticKind::ConditionalBranchNonZero
+                    | MachineSemanticKind::ConditionalBranchU64LessThan
+                    | MachineSemanticKind::ConditionalBranchI64LessThan
+                    | MachineSemanticKind::Jump
+            )
+        });
         assert_eq!(
-            declared_branches,
+            declared,
             branch_rules.iter().copied().collect::<BTreeSet<_>>(),
             "{}",
             case.convention
         );
-        let encoded_branches = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                declaration.alternatives.iter().any(|alternative| {
-                    matches!(
-                        alternative.encoded.control,
-                        MachineEncodedControlEffect::ConditionalRelativeBranchV1
-                            | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
-                    )
-                })
+        let encoded = declared_pairs(&catalog, |declaration| {
+            declaration.alternatives.iter().any(|alternative| {
+                matches!(
+                    alternative.encoded.control,
+                    MachineEncodedControlEffect::ConditionalRelativeBranchV1
+                        | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
+                )
             })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        });
         assert_eq!(
-            encoded_branches,
+            encoded,
             branch_rules.iter().copied().collect::<BTreeSet<_>>(),
             "{}",
             case.convention

@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_storage_free, baseline_target_register_environment, binds_catalog_provenance,
-    declaration_mut, encoded_mut, flags_view, produced_effects, row_and_declaration,
-    scalar_abi_cases, stack_pointer_view, units_for_names, validate_effects,
+    declaration_mut, declared_pairs, encoded_mut, flags_view, produced_effects,
+    row_and_declaration, scalar_abi_cases, stack_pointer_view, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
@@ -680,19 +680,13 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         // arithmetic rules: every declaration carrying an arithmetic semantic
         // names its selected constraint key, and no selected rule may lack
         // its declared semantic set.
-        let declared_arithmetic = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                arithmetic_rules
-                    .iter()
-                    .any(|(_, semantic)| *semantic == declaration.semantic)
-            })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        let declared = declared_pairs(&catalog, |declaration| {
+            arithmetic_rules
+                .iter()
+                .any(|(_, semantic)| *semantic == declaration.semantic)
+        });
         assert_eq!(
-            declared_arithmetic,
+            declared,
             arithmetic_rules.iter().copied().collect::<BTreeSet<_>>(),
             "{}",
             case.convention

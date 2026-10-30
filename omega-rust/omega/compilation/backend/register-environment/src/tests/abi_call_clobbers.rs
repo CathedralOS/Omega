@@ -295,6 +295,22 @@ fn row_and_declaration<'a>(
     (row, declaration)
 }
 
+/// The (constraint, semantic) coordinate pairs a catalog declares, filtered to
+/// the declarations `owns` admits: the roster one sweep compares its selected
+/// rules against.
+fn declared_pairs(
+    catalog: &ValidatedMachineEffectCatalog,
+    owns: impl Fn(&MachineEffectDeclaration) -> bool,
+) -> BTreeSet<(RegisterConstraintKey, MachineSemanticKind)> {
+    catalog
+        .catalog()
+        .declarations
+        .iter()
+        .filter(|declaration| owns(declaration))
+        .map(|declaration| (declaration.constraint, declaration.semantic))
+        .collect()
+}
+
 /// One alternative's encoded effects inside a catalog a test is corrupting:
 /// the declaration is addressed by its key and semantic, the alternative by
 /// its ordinal.
