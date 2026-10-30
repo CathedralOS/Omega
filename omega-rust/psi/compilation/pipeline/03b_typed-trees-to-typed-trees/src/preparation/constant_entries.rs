@@ -83,7 +83,8 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnos
             };
             if context.evaluation_entry.is_valid()
                 || !live
-                || !has_closed_inputs(program, expression, context.result_type)
+                || (has_open_scope(program, context.owner)
+                    && !has_closed_inputs(program, expression, context.result_type))
             {
                 continue;
             }
@@ -119,7 +120,8 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnos
 /// Lexical containment is not a free-variable dependency: `limit()` inside
 /// `store<T>` needs no `T`. Use the shared reference walker so static arguments,
 /// dependent carriers and nested type payloads participate in closure too.
-/// This prepares an ordinary body, never authorizes its execution or effects.
+/// This extends eligibility inside open owners; it does not replace formation
+/// checking for closed owners. It never authorizes execution or effects.
 fn has_closed_inputs(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
